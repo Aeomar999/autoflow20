@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AutoFlow
 
-## Getting Started
+An open-source automation platform: users build workflows as node graphs on a visual
+canvas and run them on a durable execution engine - triggers, HTTP calls, AI models,
+and chat deliveries, connected and chained.
 
-First, run the development server:
+**Current status:** pre-beta, under active hardening. What actually works today is
+tracked honestly in [`docs/planning/progress.md`](docs/planning/progress.md);
+the task board lives in [`docs/planning/tasks.md`](docs/planning/tasks.md).
+Product documents describe intent, not behaviour - those two planning files are
+the source of truth.
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 15 (App Router) + TypeScript strict |
+| API | tRPC v11 + TanStack Query |
+| Database | PostgreSQL via Prisma 6 |
+| Auth | Better Auth (email/password + social) |
+| Execution | Inngest 3 (durable functions, step-based) |
+| Validation | Zod v4 at every boundary |
+| UI | Tailwind CSS, shadcn/ui, React Flow canvas |
+| Billing | Polar |
+| Tooling | Biome (lint + format), Vitest, Playwright, GitHub Actions CI |
+
+## Quick start
+
+Prerequisites: Node.js 20+, a PostgreSQL database.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env        # then fill in values - see docs/operations/environment_setup.md
+npx prisma migrate deploy   # or `migrate dev` locally
+npx prisma generate
+npm run dev                 # app on http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To run the full local topology (app + Inngest Dev Server) use `npm run dev:all`.
+Webhook triggers require a public tunnel; see the trigger dialogs in the running app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Verification gates
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+All four must pass before opening a PR (CI enforces them):
 
-## Learn More
+```bash
+npm run lint          # biome check - zero errors tolerated
+npx tsc --noEmit      # type check
+npm test              # vitest unit tests
+npm run build         # production build
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Documentation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Start at [`docs/README.md`](docs/README.md) - it indexes every document with a
+one-line "read this when". Agents should read [`AGENTS.md`](AGENTS.md) first.
+Key entry points:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Planning: `docs/planning/{implementation_plan,tasks,progress}.md`
+- Architecture: `docs/architecture/` (overview, node SDK, execution engine, data model, API contract, security)
+- Engineering rules: `docs/engineering/engineering_rules.md` (binding HARD rules)
+- Decisions: `docs/decisions/` (ADRs)
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+TBD before any public release.

@@ -12,7 +12,7 @@
 > Provenance rule going forward: a task is only checked after the change is
 > verified on disk; reference the real commit/PR or write "verified directly".
 
-**Before starting any task:** read `AGENTS.md` §7 (how to do a piece of work), then the spec routed in `AGENTS.md` §3 for your area. Update this file and `docs/planning/progress.md` in the PR that completes the task. *(Note: `AGENTS.md` does not exist yet — see AF-M0-09.)*
+**Before starting any task:** read `AGENTS.md` §7 (how to do a piece of work), then the spec routed in `AGENTS.md` §3 for your area. Update this file and `docs/planning/progress.md` in the PR that completes the task.
 
 Estimates are for one engineer, in ideal days (`d`).
 
@@ -127,14 +127,14 @@ Also fixed the user-facing "Unathorized" typo while in file.
 
 ---
 
-### ⬜ AF-M0-09 · Real README + docs index · 0.5d
+### ✅ AF-M0-09 · Real README + docs index · 0.5d · DONE 2026-08-24
 **Reality (2026-08-22):** README is stock create-next-app boilerplate. `docs/README.md` exists but must be re-checked against the reconciled doc set.
 
 **Acceptance**
-- [ ] `README.md` describes what AutoFlow is, current honest status (link `docs/planning/progress.md`), the stack, quick start, and links to the doc set.
-- [ ] `docs/README.md` indexes every document with a one-line "read this when".
-- [ ] No `create-next-app` boilerplate remains.
-- [ ] Create root `AGENTS.md` referenced by this backlog's preamble.
+- [x] `README.md` describes what AutoFlow is, current honest status (link `docs/planning/progress.md`), the stack, quick start, and links to the doc set.
+- [x] `docs/README.md` indexes every document with a one-line "read this when". (Added the missing ADR-0007 row; all 20 files under `docs/` are covered.)
+- [x] No `create-next-app` boilerplate remains.
+- [x] Create root `AGENTS.md` referenced by this backlog's preamble. (§1 identity, §2 truth files, §3 spec routing, §4 hard rules, §5 gates, §6 conventions, §7 workflow — matching the preamble's references.)
 
 ---
 

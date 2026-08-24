@@ -63,6 +63,7 @@ autoflow/
 | [0004](decisions/0004-credential-envelope-encryption.md) | Envelope encryption for credentials |
 | [0005](decisions/0005-tenancy-timing.md) | Introduce tenancy at M6, not later |
 | [0006](decisions/0006-expressions-not-eval.md) | Expressions are parsed, not evaluated |
+| [0007](decisions/0007-handlebars-runtime-compilation.md) | Handlebars runtime compilation kept, sandboxed |
 
 ## reference/ — lookups
 
