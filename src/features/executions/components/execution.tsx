@@ -23,7 +23,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useSuspenseExecution } from "@/features/executions/hooks/use-executions";
-import { ExecutionStatus } from "@/generated/prisma";
+import {
+  ExecutionStatus,
+  type NodeExecution,
+  NodeExecutionStatus,
+} from "@/generated/prisma";
 
 const getStatusIcon = (status: ExecutionStatus) => {
   switch (status) {
@@ -39,6 +43,25 @@ const getStatusIcon = (status: ExecutionStatus) => {
 };
 
 const formatStatus = (status: ExecutionStatus) => {
+  return status.charAt(0) + status.slice(1).toLowerCase();
+};
+
+const nodeStatusIcon = (status: NodeExecutionStatus) => {
+  switch (status) {
+    case NodeExecutionStatus.SUCCESS:
+      return <CheckCircle2Icon className="size-4 shrink-0 text-green-600" />;
+    case NodeExecutionStatus.FAILED:
+      return <XCircleIcon className="size-4 shrink-0 text-red-600" />;
+    case NodeExecutionStatus.RUNNING:
+      return (
+        <Loader2Icon className="size-4 shrink-0 animate-spin text-blue-600" />
+      );
+    default:
+      return <ClockIcon className="size-4 shrink-0 text-muted-foreground" />;
+  }
+};
+
+const formatNodeStatus = (status: NodeExecutionStatus) => {
   return status.charAt(0) + status.slice(1).toLowerCase();
 };
 
@@ -162,6 +185,57 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
             <pre className="text-xs font-mono overflow-auto">
               {JSON.stringify(execution.output, null, 2)}
             </pre>
+          </div>
+        )}
+        {execution.nodeExecutions && execution.nodeExecutions.length > 0 && (
+          <div className="mt-6 space-y-2">
+            <p className="text-sm font-medium">Node traces</p>
+            <div className="rounded-md border divide-y">
+              {(execution.nodeExecutions as NodeExecution[]).map((trace) => (
+                <Collapsible key={trace.id}>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    {nodeStatusIcon(trace.status)}
+                    <span className="text-sm font-mono flex-1 truncate">
+                      #{trace.order} {trace.nodeType}
+                      <span className="text-muted-foreground ml-2 text-xs">
+                        ({trace.nodeId})
+                      </span>
+                    </span>
+                    {trace.durationMs !== null && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {trace.durationMs}ms
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatNodeStatus(trace.status)}
+                    </span>
+                    {(trace.error || trace.attempt > 0) && (
+                      <CollapsibleTrigger className="text-xs text-primary hover:underline shrink-0">
+                        Details
+                      </CollapsibleTrigger>
+                    )}
+                  </div>
+                  <CollapsibleContent>
+                    <div className="px-4 pb-3 space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Attempt {trace.attempt}
+                        {trace.startedAt
+                          ? ` - started ${formatDistanceToNow(
+                              new Date(trace.startedAt),
+                              { addSuffix: true },
+                            )}`
+                          : ""}
+                      </p>
+                      {trace.error && (
+                        <pre className="text-xs font-mono text-red-700 overflow-auto whitespace-pre-wrap bg-red-50 p-2 rounded-sm">
+                          {trace.error}
+                        </pre>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

@@ -43,10 +43,7 @@ const urlTemplate = (max: number) =>
     .string()
     .min(1)
     .max(max)
-    .refine(
-      (v) => !hasControlChar(v),
-      "Control characters are not allowed",
-    );
+    .refine((v) => !hasControlChar(v), "Control characters are not allowed");
 
 const credentialId = () => z.string().cuid().optional();
 

@@ -21,6 +21,12 @@ export const executionsRouter = createTRPCRouter({
               name: true,
             },
           },
+          // Per-node traces (AF-A-05), stable by topological order.
+          nodeExecutions: {
+            orderBy: {
+              order: "asc",
+            },
+          },
         },
       });
     }),

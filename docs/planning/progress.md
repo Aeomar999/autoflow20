@@ -140,7 +140,7 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 
 | # | Milestone | Status | Notes |
 |---|---|---|---|
-| M-A | Audit hardening (new) | 🟡 Current — wave 1 done | S1 closed, lint gate live, harness+CI+logger/env shipped (AF-A-01/06/07, M0-05/07/08). Remaining: A-02 SSRF guard, A-03 template-injection decision, A-04 config validation, A-05 traces. |
+| M-A | Audit hardening (new) | ✅ Done — 2026-08-24 | Waves 1+2: S1 closed, SSRF guard, template-injection decision (ADR-0007), save-boundary Zod validation, per-node traces (AF-A-01..07). |
 | M0 | Stabilize the base | 🟠 Mostly done | M0-00/01/05/07 ✅; M0-06/08 🟡 (Testing Library + docs sync remain); M0-02/03/04/09 open. |
 | M1 | Graph persistence + Node SDK | ⬜ Not started | Save already works (AF-M1-04 partially satisfied); registry/enum-drop/palette/config-panel outstanding. |
 | M2 | Execution engine + traces | 🟠 Partially pre-built | Tutorial engine exists (topo sort, step.run, realtime); traces/branching/compiler/expression-resolver per spec do not. |
@@ -155,16 +155,16 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 | Metric | Value | Source |
 |---|---|---|
 | Source files (`src/**` ts/tsx) | 197 | file listing |
-| Prisma models | 9 (`User`, `Session`, `Account`, `Verification`, `Credential`, `Workflow`, `Node`, `Connection`, `Execution`) | `schema.prisma` |
+| Prisma models | 10 (`User`, `Session`, `Account`, `Verification`, `Credential`, `Workflow`, `Node`, `Connection`, `Execution`, `NodeExecution`) | `schema.prisma` |
 | Migrations | 12 (2025-10-04 → 2025-11-01) | `prisma/migrations` |
 | tRPC routers | 3 (`workflows`, `executions`, `credentials`) | `src/trpc/routers/_app.ts` |
 | Executable node types | 10 | `executor-registry.ts` |
 | Inngest functions | 1 (`execute-workflow`) + 9 realtime channels | `src/inngest/functions.ts` |
-| Tests | **16 passing** (4 files: inngest utils, logger, secure-compare, engine config) | `npm test` |
+| Tests | **78 passing** (8 files: inngest utils/trace, logger, secure-compare, engine config, egress-guard, workflow schemas, template) | `npm test` |
 | CI pipelines | 1 (`.github/workflows/ci.yml`: lint + tsc + test + build on postgres:16) | repo root |
 | Type check | ✅ clean after `npx prisma generate` | `tsc --noEmit` exit 0 |
 | Lint | ✅ clean (`biome check` exits 0; vendored-UI overrides documented) | `biome check` |
-| Migrations | 13 (adds `Workflow.webhookSecret`, unapplied locally — CI applies via `migrate deploy`) | `prisma/migrations` |
+| Migrations | 14 (latest `20260824090000` adds `NodeExecution` traces, unapplied locally — CI applies via `migrate deploy`) | `prisma/migrations` |
 | Connectors | Discord + Slack send nodes | `executor-registry.ts` |
 | Templates | 0 | — |
 
@@ -176,6 +176,7 @@ Newest first.
 
 | Date | Change | Milestone |
 |---|---|---|
+| 2026-08-24 | **Hardening wave 2.** AF-A-02: SSRF egress guard (`egress-guard.ts` — scheme/host allowlist, private-IP + metadata-endpoint blocks, DNS-resolve check) + 30s timeout + response byte cap on http-request. AF-A-03: ADR-0007 — Handlebars runtime compilation kept, sandbox defaults pinned (`noEval`, prototype guards), `compileTemplate` wrapper; raw `Handlebars.compile` banned. AF-A-04: Zod v4 save-boundary validation (`saveWorkflowInputSchema`, discriminated union over the 10 node types; cuid2 node ids → length-bounded `nodeId()`); editor save filters untyped nodes; 9 schema tests. **AF-A-05: per-node execution traces** — additive `NodeExecution` model (migration `20260824090000`) with status/attempt/order/durationMs; engine writes `trace-start/end/fail:<nodeId>` steps around every executor plus bulk SKIPPED rows for unreached nodes; execution detail UI renders the ordered trace list; 5 helper unit tests (`src/inngest/trace.ts` kept free of generated-client runtime imports for Vitest). Gates: 78/78 tests, tsc clean, biome clean. M-A complete. Remaining M0: AF-M0-04 real auth ctx, AF-M0-09 README/AGENTS, M0-06 Testing Library remainder, M0-02/03. | M-A |
 | 2026-08-24 | **Hardening wave 1.** AF-A-01: per-workflow `webhookSecret` (migration `20260822030000`) + Stripe signature verification; both webhook routes rewritten (400/404 semantics, `secureCompare`), trigger dialogs embed secret URLs. AF-M0-07: redacting structured logger + Sentry `beforeSend` redaction. AF-M0-08: Zod env validation at boot (`src/lib/env.ts`, `SKIP_ENV_VALIDATION=1` for CI). AF-A-06: lint debt cleared (303→0 errors), CI gate live. AF-A-07: single `ENGINE_RETRIES` retry policy + truncated error stacks. AF-M0-06: Vitest+Playwright+GitHub Actions harness, 16 unit tests. **D15 found & fixed:** toposort self-edge false-cycle bug. Remaining M-A: A-02 SSRF/timeout, A-03 template-injection decision, A-04 config validation, A-05 traces. | M-A / M0 |
 | 2026-08-22 | **Docs↔code reconciliation.** Full audit of the repository against this doc set found the prior snapshot wrong in both directions: (a) claimed-missing capabilities that exist — Inngest execution engine w/ 10 executors, canvas save, executions/credentials UIs, google-form/stripe triggers; (b) claimed-shipped work that does not exist — test harness/CI, node SDK registry, enum drop, logger/env modules, dead-code cleanup. All M0/M1 "shipped" statuses reverted to todo; new milestone M-A opened for audit findings S1–S14. Versions corrected throughout (Next 15.5.4 / Prisma 6.16 / Inngest 3.44 / Biome — not 16/7/4.2/ESLint). Prior changelog rows below describe aspirational state and are retained only as history of intent. | — |
 | *2026-08-21* | *Aspirational entry (enum drop, node registry) — not present in code.* | — |
