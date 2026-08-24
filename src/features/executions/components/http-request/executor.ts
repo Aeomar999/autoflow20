@@ -1,13 +1,13 @@
 import { NonRetriableError } from "inngest";
 import ky, { type Options as KyOptions } from "ky";
+import { compileTemplate } from "@/features/executions/template";
+import type { NodeExecutor } from "@/features/executions/types";
+import { httpRequestChannel } from "@/inngest/channels/http-request";
 import {
   assertSafeEndpoint,
   readCappedText,
   resolveTimeoutMs,
 } from "./egress-guard";
-import type { NodeExecutor } from "@/features/executions/types";
-import { compileTemplate } from "@/features/executions/template";
-import { httpRequestChannel } from "@/inngest/channels/http-request";
 
 type HttpRequestData = {
   variableName?: string;
@@ -72,7 +72,10 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
       const url = await assertSafeEndpoint(endpoint);
       const method = data.method;
 
-      const options: KyOptions = { method, timeout: resolveTimeoutMs(data.timeoutMs) };
+      const options: KyOptions = {
+        method,
+        timeout: resolveTimeoutMs(data.timeoutMs),
+      };
 
       if (["POST", "PUT", "PATCH"].includes(method)) {
         const resolved = compileTemplate(data.body || "{}")(context);

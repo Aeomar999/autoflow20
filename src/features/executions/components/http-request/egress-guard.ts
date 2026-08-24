@@ -24,7 +24,7 @@ export const isBlockedIp = (ip: string): boolean => {
   }
 
   if (version === 6) {
-    let candidate = ip.toLowerCase();
+    const candidate = ip.toLowerCase();
     // Unwrap IPv4-mapped IPv6 (e.g. ::ffff:192.168.0.1) before checking.
     const mapped = candidate.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (mapped) {
@@ -47,10 +47,15 @@ export const isBlockedIp = (ip: string): boolean => {
 
 const ipv4ToInt = (ip: string): number => {
   const parts = ip.split(".").map((p) => Number.parseInt(p, 10));
-  if (parts.length !== 4 || parts.some((p) => Number.isNaN(p) || p < 0 || p > 255)) {
+  if (
+    parts.length !== 4 ||
+    parts.some((p) => Number.isNaN(p) || p < 0 || p > 255)
+  ) {
     return -1;
   }
-  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  return (
+    ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
+  );
 };
 
 const isBlockedIpv4 = (ip: string): boolean => {
@@ -104,7 +109,9 @@ export const assertSafeEndpoint = async (raw: string): Promise<URL> => {
   try {
     url = new URL(raw);
   } catch {
-    throw new NonRetriableError(`HTTP Request node: invalid endpoint URL "${raw}"`);
+    throw new NonRetriableError(
+      `HTTP Request node: invalid endpoint URL "${raw}"`,
+    );
   }
 
   if (url.protocol !== "http:" && url.protocol !== "https:") {
@@ -128,7 +135,10 @@ export const assertSafeEndpoint = async (raw: string): Promise<URL> => {
     );
   }
 
-  if (addresses.length === 0 || addresses.some(({ address }) => isBlockedIp(address))) {
+  if (
+    addresses.length === 0 ||
+    addresses.some(({ address }) => isBlockedIp(address))
+  ) {
     throw new NonRetriableError(
       `HTTP Request node: endpoint host "${url.hostname}" resolves to a blocked (private/metadata) address`,
     );
@@ -178,4 +188,3 @@ export const readCappedText = async (
 
   return text + decoder.decode();
 };
-

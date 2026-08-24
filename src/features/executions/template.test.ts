@@ -14,7 +14,7 @@ describe("compileTemplate — prototype pollution resistance (AF-A-03)", () => {
     "{{__proto__}}",
     "{{user.__proto__}}",
     "{{user.constructor.prototype.polluted}}",
-    "{{lookup . \"constructor\"}}",
+    '{{lookup . "constructor"}}',
     "{{user.toString}}",
     "{{user.hasOwnProperty}}",
   ])("denies prototype chain access via %s", (template) => {
@@ -28,9 +28,7 @@ describe("compileTemplate — prototype pollution resistance (AF-A-03)", () => {
   });
 
   it("still resolves legitimate own-property paths", () => {
-    expect(compileTemplate("Hello {{user.name}}!")(context)).toBe(
-      "Hello Ada!",
-    );
+    expect(compileTemplate("Hello {{user.name}}!")(context)).toBe("Hello Ada!");
     expect(compileTemplate("{{nested.deep.value}}")(context)).toBe("42");
   });
 

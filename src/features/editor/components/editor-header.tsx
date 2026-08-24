@@ -30,7 +30,13 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
       return;
     }
 
-    const nodes = editor.getNodes();
+    // Every renderable node carries a type; drop any that somehow do not
+    // so the save payload satisfies the typed per-node schema (AF-A-04).
+    const nodes = editor
+      .getNodes()
+      .filter((node): node is typeof node & { type: string } =>
+        Boolean(node.type),
+      );
     const edges = editor.getEdges();
 
     saveWorkflow.mutate({

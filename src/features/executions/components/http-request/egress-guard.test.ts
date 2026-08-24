@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_HTTP_TIMEOUT_MS,
-  MAX_HTTP_TIMEOUT_MS,
-  MAX_RESPONSE_BYTES,
   assertSafeEndpoint,
+  DEFAULT_HTTP_TIMEOUT_MS,
   expandIpv6,
   isBlockedIp,
+  MAX_HTTP_TIMEOUT_MS,
+  MAX_RESPONSE_BYTES,
   readCappedText,
   resolveTimeoutMs,
 } from "./egress-guard";
@@ -57,9 +57,7 @@ describe("isBlockedIp — IPv6", () => {
 
 describe("expandIpv6", () => {
   it("expands :: to eight zero groups", () => {
-    expect(expandIpv6("::")).toBe(
-      "0000:0000:0000:0000:0000:0000:0000:0000",
-    );
+    expect(expandIpv6("::")).toBe("0000:0000:0000:0000:0000:0000:0000:0000");
   });
 
   it("expands compressed middle groups", () => {
@@ -137,9 +135,7 @@ describe("readCappedText", () => {
 
   it("aborts bodies over the cap", async () => {
     const big = "x".repeat(MAX_RESPONSE_BYTES + 1);
-    await expect(readCappedText(textResponse(big))).rejects.toThrow(
-      /exceeded/,
-    );
+    await expect(readCappedText(textResponse(big))).rejects.toThrow(/exceeded/);
   }, 20_000);
 
   it("honors a custom cap", async () => {

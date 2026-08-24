@@ -177,14 +177,16 @@ User strings pass through `Handlebars.compile(...)` at runtime (`http-request/ex
 
 ---
 
-### ⬜ AF-A-04 · Zod-validate node configs at save boundary · 2d · **[HARD rule #7]**
-Save input accepts `z.record(z.string(), z.any())` (`workflows/server/routers.ts:62`) — arbitrary JSON reaches executors.
+### ✅ AF-A-04 · Zod-validate node configs at save boundary · 2d · **[HARD rule #7]** · DONE 2026-08-24
+Save input accepted `z.record(z.string(), z.any())` — arbitrary JSON reached executors. Fixed in `src/features/workflows/schemas.ts`.
 
 **Acceptance**
-- [ ] Per-node-type Zod schemas exist for all 10 current node types (server-side module, shared shape with client dialogs where feasible).
-- [ ] `workflows.update` validates every node's `data` against its schema; failures return per-node error paths.
-- [ ] Replace `z.any()` — no `any` remains in the save input contract.
-- [ ] Integration tests: invalid endpoint/method/body rejected with field paths.
+- [x] Per-node-type Zod schemas exist for all 10 node types (`schemas.ts`; discriminated union keyed on `type`, literal-preserving variants). Client dialogs keep their own forms; the schema is server-authoritative.
+- [x] `workflows.update` validates every node's `data` against its schema; failures return per-node error paths (e.g. `nodes.2.data.method`). Unknown keys are stripped, not errored.
+- [x] Replaced `z.any()` — no `any` in the save contract. Node ids length-bounded (client cuid2 ≠ Prisma cuid v1, so `.cuid()` is deliberately NOT used there); `credentialId` keeps `.cuid()`. URL-template fields charset-checked (control chars banned via char-code scan to satisfy both Biome regex rules); free-text fields allow newlines.
+- [x] Unit tests in `schemas.test.ts` cover invalid method/endpoint/variableName/oversized payloads with field paths + react-flow noise stripping + multiline allowance. Gates: vitest 73/73, tsc clean, biome clean.
+
+**Residual**: completeness of a node's config is still enforced at execution time (by design — canvas stays saveable while half-configured).
 
 ---
 
