@@ -65,13 +65,15 @@ The React Flow editor (`src/components/initial-node.tsx`, `src/components/react-
 
 ---
 
-### ⬜ AF-M0-04 · Remove the fake tRPC context · 0.25d
+### ✅ AF-M0-04 · Remove the fake tRPC context · 0.25d · DONE 2026-08-24
 **Reality (2026-08-22):** previously marked shipped (PR #25) — **still present**: `createTRPCContext` returns `{ userId: 'user_123' }` (`src/trpc/init.ts:11`).
 
 **Acceptance**
-- [ ] Context contains no fabricated identity.
-- [ ] Nothing in the codebase reads `ctx.userId`; identity comes from the Better Auth session.
-- [ ] Comment on `baseProcedure` stating it is unauthenticated and must not touch tenant data.
+- [x] Context contains no fabricated identity. (`createTRPCContext` returns `{}`; doc comment explains identity is per-procedure.)
+- [x] Nothing in the codebase reads `ctx.userId`; identity comes from the Better Auth session. (grep-verified — only `protectedProcedure`'s `ctx.auth` carries identity.)
+- [x] Comment on `baseProcedure` stating it is unauthenticated and must not touch tenant data.
+
+Also fixed the user-facing "Unathorized" typo while in file.
 
 ---
 

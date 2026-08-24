@@ -6,9 +6,14 @@ import { auth } from "@/lib/auth";
 import { polarClient } from "@/lib/polar";
 export const createTRPCContext = cache(async () => {
   /**
+   * Intentionally carries no identity. Authentication happens per-procedure:
+   * `protectedProcedure` resolves the Better Auth session below and exposes
+   * it as `ctx.auth`. Never fabricate or default a userId here - tenant
+   * data must only ever be reached through an authenticated session.
+   *
    * @see: https://trpc.io/docs/server/context
    */
-  return { userId: "user_123" };
+  return {};
 });
 // Avoid exporting the entire t-object
 // since it's not very descriptive.
@@ -23,6 +28,13 @@ const t = initTRPC.create({
 // Base router and procedure helpers
 export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
+
+/**
+ * UNAUTHENTICATED entry point: `ctx` carries no identity, so procedures
+ * built on `baseProcedure` must never touch tenant data (workflows,
+ * credentials, executions). Use `protectedProcedure` for anything
+ * user-scoped - it resolves the Better Auth session into `ctx.auth`.
+ */
 export const baseProcedure = t.procedure;
 export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
   const session = await auth.api.getSession({
@@ -32,7 +44,7 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
   if (!session) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
-      message: "Unathorized",
+      message: "Unauthorized",
     });
   }
 
