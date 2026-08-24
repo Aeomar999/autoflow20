@@ -153,14 +153,16 @@ New milestone opened by the 2026-08-22 audit (`progress.md` §5). Security findi
 
 ---
 
-### ⬜ AF-A-02 · HTTP node egress safety · 1d
+### ✅ AF-A-02 · HTTP node egress safety · 1d
 No SSRF guard, no timeout on outbound fetches (`http-request/executor.ts`).
+**Status (2026-08-24):** done — `egress-guard.ts` validates the resolved endpoint before every request; executor reads bodies through a byte cap.
 
 **Acceptance**
-- [ ] Blocklist enforced at execution time: loopback, link-local (169.254/16 incl. metadata IP), private ranges (10/8, 172.16/12, 192.168/16), and non-http(s) schemes.
-- [ ] AbortSignal timeout (default 10s, config-capped).
-- [ ] Response size cap (e.g. 5 MB) to avoid OOM on huge payloads.
-- [ ] Unit tests for each blocked range + a timeout case.
+- [x] Blocklist enforced at execution time: loopback (127/8, ::1), unspecified (::), link-local (169.254/16 incl. metadata IP, fe80::/10), private ranges (10/8, 172.16/12, 192.168/16), ULA fc00::/7, CGNAT 100.64/10, IPv4-mapped IPv6, and non-http(s) schemes (+ embedded credentials rejected). DNS resolution checked via `lookup(host,{all:true})` — fail-closed on unparseable/unresolvable hosts. Blocked endpoints throw `NonRetriableError` (no pointless retries).
+- [x] AbortSignal-equivalent timeout: ky `timeout` option, default 10s, user value clamped to [250ms, 60s].
+- [x] Response size cap: 5 MB streamed read (`readCappedText`) aborts oversized payloads before parse.
+- [x] Unit tests for each blocked range + timeout clamp + size cap (`egress-guard.test.ts`, 35 tests).
+- Residual risk (accepted): DNS rebinding TOCTOU and redirects to internal hosts are not re-checked post-lookup; revisit if untrusted tenants execute arbitrary URLs.
 
 ---
 

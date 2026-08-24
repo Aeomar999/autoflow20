@@ -1,6 +1,11 @@
 import Handlebars from "handlebars";
 import { NonRetriableError } from "inngest";
 import ky, { type Options as KyOptions } from "ky";
+import {
+  assertSafeEndpoint,
+  readCappedText,
+  resolveTimeoutMs,
+} from "./egress-guard";
 import type { NodeExecutor } from "@/features/executions/types";
 import { httpRequestChannel } from "@/inngest/channels/http-request";
 
@@ -16,6 +21,8 @@ type HttpRequestData = {
   endpoint?: string;
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: string;
+  /** Optional per-node request timeout; clamped by egress-guard. */
+  timeoutMs?: number;
 };
 
 export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
@@ -69,9 +76,10 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
       }
 
       const endpoint = Handlebars.compile(data.endpoint)(context);
+      const url = await assertSafeEndpoint(endpoint);
       const method = data.method;
 
-      const options: KyOptions = { method };
+      const options: KyOptions = { method, timeout: resolveTimeoutMs(data.timeoutMs) };
 
       if (["POST", "PUT", "PATCH"].includes(method)) {
         const resolved = Handlebars.compile(data.body || "{}")(context);
@@ -82,11 +90,13 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
         };
       }
 
-      const response = await ky(endpoint, options);
+      const response = await ky(url, options);
       const contentType = response.headers.get("content-type");
+      // Body is read through the byte cap before any parse.
+      const rawBody = await readCappedText(response);
       const responseData = contentType?.includes("application/json")
-        ? await response.json()
-        : await response.text();
+        ? JSON.parse(rawBody)
+        : rawBody;
 
       const responsePayload = {
         httpResponse: {
