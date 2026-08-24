@@ -4,13 +4,27 @@
 
 import * as Sentry from "@sentry/nextjs";
 
+import { redact } from "@/lib/logger";
+
 Sentry.init({
   dsn: "https://f1a2853e6bb4b74c72976cd5c3b37dd9@o4507629901053952.ingest.de.sentry.io/4510150041337936",
 
   // Add optional integrations for additional features
-  integrations: [
-    Sentry.replayIntegration(),
-  ],
+  integrations: [Sentry.replayIntegration()],
+
+  // Strip secrets from every event before it leaves the browser (AF-M0-07).
+  beforeSend(event) {
+    if (event.extra) {
+      event.extra = redact(event.extra) as typeof event.extra;
+    }
+    if (event.request?.data) {
+      event.request.data = redact(event.request.data);
+    }
+    if (event.contexts) {
+      event.contexts = redact(event.contexts) as typeof event.contexts;
+    }
+    return event;
+  },
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,

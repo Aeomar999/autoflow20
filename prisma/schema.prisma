@@ -102,6 +102,9 @@ model Workflow {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Secret token embedded in trigger webhook URLs to prove ownership (AF-A-01)
+  webhookSecret String @unique @default(cuid())
+
   nodes Node[]
   connections Connection[]
   executions Execution[]

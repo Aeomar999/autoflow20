@@ -1,8 +1,8 @@
 # AutoFlow — Progress
 
-**Snapshot date:** 2026-08-22 (post-audit reconciliation)
+**Snapshot date:** 2026-08-24 (hardening wave 1)
 **Current milestone:** M-A — Audit hardening (security + harness) — then M1 as re-scoped
-**Overall vs. PRD Phase 1:** ~25% implemented
+**Overall vs. PRD Phase 1:** ~28% implemented
 **Overall vs. full PRD (Phases 1–3):** ~8%
 
 > **2026-08-22 RECONCILIATION.** The previous version of this document described a
@@ -119,17 +119,18 @@ Agents · RAG · templates · marketplace · analytics · public API · SDKs · 
 
 | ID | Severity | Finding | Location |
 |---|---|---|---|
-| S1 | **Critical** | Stripe webhook accepts unsigned POSTs with arbitrary `workflowId` — anyone can trigger anyone's workflow | `src/app/api/webhooks/stripe/route.ts` |
-| S2 | High | Credentials encrypted with Cryptr (AES-CBC) under `process.env.ENCRYPTION_KEY!` non-null assert; no key-versioning/rotation, boot proceeds without key until first use | `src/lib/encryption.ts:3` |
+| S1 | **Critical** | ~~Stripe webhook accepts unsigned POSTs with arbitrary `workflowId`~~ **RESOLVED 2026-08-24** — per-workflow `webhookSecret` + Stripe signature verification (`AF-A-01`); migration `20260822030000` | `src/app/api/webhooks/{stripe,google-form}/route.ts`, `src/lib/secure-compare.ts` |
+| S2 | High | Credentials encrypted with Cryptr (AES-CBC); **partially addressed 2026-08-24**: boot-time env validation + lazy key via `src/lib/env.ts`; CBC→AEAD upgrade deferred to M3 crypto module | `src/lib/encryption.ts`, `src/lib/env.ts` |
 | S3 | High | User-supplied endpoint/body strings passed through `Handlebars.compile` at runtime — template-injection surface; also no SSRF guard or timeout on outbound HTTP | `http-request/executor.ts:67–81` |
 | S4 | Medium | Save input uses `z.record(z.string(), z.any())` — node config never validated against a schema | `workflows/server/routers.ts:62` |
 | S5 | Medium | Fake tRPC context `{ userId: 'user_123' }` still exported (inert but a latent authz trap) | `src/trpc/init.ts:11` |
 | D7 | Medium | `NodeType` Postgres enum — new node type requires a migration | `prisma/schema.prisma:96` |
 | D9 | Low | Sentry example routes still present | `src/app/sentry-example-page/`, `src/app/api/sentry-example-api/` |
 | D11 | Low | README is create-next-app boilerplate; root `/` 404s | `README.md` |
-| D12 | Low | 303 Biome errors / 71 warnings across 199 files (~60 auto-fixable `useImportType`; substantive: 3 `noExplicitAny`, 2 `noNonNullAssertion`, 2 `noBlankTarget`, 1 `dangerouslySetInnerHtml`, a11y cluster) | repo-wide |
-| D13 | Low | Raw `console.error` in webhooks (no logger/redaction); no `.env*` file at all in this checkout (app cannot boot without provisioning) | `webhooks/*/route.ts`, repo root |
-| D14 | Low | Dev retries=0 vs prod retries=3 hides failure paths locally; error stack stored raw on `Execution.error` | `src/inngest/functions.ts:22` |
+| D12 | Low | ~~303 Biome errors / 71 warnings~~ **RESOLVED 2026-08-24** — `npm run lint` exits clean; CI gate added (`AF-A-06`) | repo-wide |
+| D13 | Low | Raw `console.error` in webhooks — **logger part RESOLVED 2026-08-24** (`src/lib/logger.ts` w/ redaction + Sentry `beforeSend`); `.env.example` created; still no local `.env` in this checkout (app cannot boot without provisioning) | `webhooks/*/route.ts`, `.env.example` |
+| D14 | Low | Dev retries=0 vs prod retries=3 hides failure paths locally; error stack stored raw on `Execution.error` — **RESOLVED 2026-08-24** (`ENGINE_RETRIES` constant + 8 KB stack truncation, `AF-A-07`) | `src/inngest/config.ts` |
+| D15 | Medium | **Found & fixed 2026-08-24:** `toposort@2.0.2` throws "Cyclic dependency" on self-edges; the old `topologicalSort` added a self-edge per disconnected node, so any workflow with ≥1 connection AND ≥1 isolated node failed to execute with a false cycle error. Fixed by appending unconnected nodes after the sorted set + mapping toposort errors to the domain message; covered by unit tests | `src/inngest/utils.ts` |
 
 Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed** — save works), D4 swallowed prefetch errors (**not present** — grep clean).
 
@@ -139,8 +140,8 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 
 | # | Milestone | Status | Notes |
 |---|---|---|---|
-| M-A | Audit hardening (new) | 🟡 Current | Security fixes (S1–S3), test harness + CI, lint debt, env module. See `tasks.md` AF-A-*. |
-| M0 | Stabilize the base | ↩️ Reopened | Previously marked "shipped" — none of AF-M0-02..09 is done in this codebase. Re-scoped tasks remain. |
+| M-A | Audit hardening (new) | 🟡 Current — wave 1 done | S1 closed, lint gate live, harness+CI+logger/env shipped (AF-A-01/06/07, M0-05/07/08). Remaining: A-02 SSRF guard, A-03 template-injection decision, A-04 config validation, A-05 traces. |
+| M0 | Stabilize the base | 🟠 Mostly done | M0-00/01/05/07 ✅; M0-06/08 🟡 (Testing Library + docs sync remain); M0-02/03/04/09 open. |
 | M1 | Graph persistence + Node SDK | ⬜ Not started | Save already works (AF-M1-04 partially satisfied); registry/enum-drop/palette/config-panel outstanding. |
 | M2 | Execution engine + traces | 🟠 Partially pre-built | Tutorial engine exists (topo sort, step.run, realtime); traces/branching/compiler/expression-resolver per spec do not. |
 | M3 | Credential vault + connectors | 🟠 Partially pre-built | Basic CRUD + Cryptr exist; envelope crypto/OAuth refresh/connector framework do not. |
@@ -159,10 +160,11 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 | tRPC routers | 3 (`workflows`, `executions`, `credentials`) | `src/trpc/routers/_app.ts` |
 | Executable node types | 10 | `executor-registry.ts` |
 | Inngest functions | 1 (`execute-workflow`) + 9 realtime channels | `src/inngest/functions.ts` |
-| Tests | **0** | glob `**/*.{test,spec}.*` |
-| CI pipelines | **0** (no `.github/`) | repo root |
+| Tests | **16 passing** (4 files: inngest utils, logger, secure-compare, engine config) | `npm test` |
+| CI pipelines | 1 (`.github/workflows/ci.yml`: lint + tsc + test + build on postgres:16) | repo root |
 | Type check | ✅ clean after `npx prisma generate` | `tsc --noEmit` exit 0 |
-| Lint | ❌ 303 errors / 71 warnings (199 files) | `biome check` |
+| Lint | ✅ clean (`biome check` exits 0; vendored-UI overrides documented) | `biome check` |
+| Migrations | 13 (adds `Workflow.webhookSecret`, unapplied locally — CI applies via `migrate deploy`) | `prisma/migrations` |
 | Connectors | Discord + Slack send nodes | `executor-registry.ts` |
 | Templates | 0 | — |
 
@@ -174,6 +176,7 @@ Newest first.
 
 | Date | Change | Milestone |
 |---|---|---|
+| 2026-08-24 | **Hardening wave 1.** AF-A-01: per-workflow `webhookSecret` (migration `20260822030000`) + Stripe signature verification; both webhook routes rewritten (400/404 semantics, `secureCompare`), trigger dialogs embed secret URLs. AF-M0-07: redacting structured logger + Sentry `beforeSend` redaction. AF-M0-08: Zod env validation at boot (`src/lib/env.ts`, `SKIP_ENV_VALIDATION=1` for CI). AF-A-06: lint debt cleared (303→0 errors), CI gate live. AF-A-07: single `ENGINE_RETRIES` retry policy + truncated error stacks. AF-M0-06: Vitest+Playwright+GitHub Actions harness, 16 unit tests. **D15 found & fixed:** toposort self-edge false-cycle bug. Remaining M-A: A-02 SSRF/timeout, A-03 template-injection decision, A-04 config validation, A-05 traces. | M-A / M0 |
 | 2026-08-22 | **Docs↔code reconciliation.** Full audit of the repository against this doc set found the prior snapshot wrong in both directions: (a) claimed-missing capabilities that exist — Inngest execution engine w/ 10 executors, canvas save, executions/credentials UIs, google-form/stripe triggers; (b) claimed-shipped work that does not exist — test harness/CI, node SDK registry, enum drop, logger/env modules, dead-code cleanup. All M0/M1 "shipped" statuses reverted to todo; new milestone M-A opened for audit findings S1–S14. Versions corrected throughout (Next 15.5.4 / Prisma 6.16 / Inngest 3.44 / Biome — not 16/7/4.2/ESLint). Prior changelog rows below describe aspirational state and are retained only as history of intent. | — |
 | *2026-08-21* | *Aspirational entry (enum drop, node registry) — not present in code.* | — |
 | *2026-08-14* | *Aspirational entries (Node SDK scaffold, backend hygiene) — not present in code.* | — |

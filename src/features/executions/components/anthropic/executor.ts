@@ -1,7 +1,7 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { generateText } from "ai";
 import Handlebars from "handlebars";
 import { NonRetriableError } from "inngest";
-import { generateText } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import type { NodeExecutor } from "@/features/executions/types";
 import { anthropicChannel } from "@/inngest/channels/anthropic";
 import prisma from "@/lib/db";
@@ -41,7 +41,7 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
       anthropicChannel().status({
         nodeId,
         status: "error",
-      })
+      }),
     );
     throw new NonRetriableError("Anthropic node: Variable name is missing");
   }
@@ -61,7 +61,7 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
       anthropicChannel().status({
         nodeId,
         status: "error",
-      })
+      }),
     );
     throw new NonRetriableError("Anthropic node: User prompt is missing");
   }
@@ -85,7 +85,7 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
       anthropicChannel().status({
         nodeId,
         status: "error",
-      })
+      }),
     );
     throw new NonRetriableError("Anthropic node: Credential not found");
   }
@@ -110,11 +110,9 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
       },
     );
 
-    const text = 
-      steps[0].content[0].type === "text" 
-        ? steps[0].content[0].text
-        : "";
-    
+    const text =
+      steps[0].content[0].type === "text" ? steps[0].content[0].text : "";
+
     await publish(
       anthropicChannel().status({
         nodeId,
@@ -127,9 +125,9 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
       [data.variableName]: {
         text,
       },
-    }
+    };
   } catch (error) {
-     await publish(
+    await publish(
       anthropicChannel().status({
         nodeId,
         status: "error",

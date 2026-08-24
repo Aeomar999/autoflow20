@@ -1,6 +1,10 @@
 import Cryptr from "cryptr";
+import { ensureEnv } from "./env";
 
-const cryptr = new Cryptr(process.env.ENCRYPTION_KEY!);
+const getCryptr = () => {
+  const key = ensureEnv().ENCRYPTION_KEY;
+  return new Cryptr(key);
+};
 
-export const encrypt = (text: string) => cryptr.encrypt(text);
-export const decrypt = (text: string) => cryptr.decrypt(text);
+export const encrypt = (text: string) => getCryptr().encrypt(text);
+export const decrypt = (text: string) => getCryptr().decrypt(text);
