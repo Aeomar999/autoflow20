@@ -1,4 +1,3 @@
-import Handlebars from "handlebars";
 import { NonRetriableError } from "inngest";
 import ky, { type Options as KyOptions } from "ky";
 import {
@@ -7,14 +6,8 @@ import {
   resolveTimeoutMs,
 } from "./egress-guard";
 import type { NodeExecutor } from "@/features/executions/types";
+import { compileTemplate } from "@/features/executions/template";
 import { httpRequestChannel } from "@/inngest/channels/http-request";
-
-Handlebars.registerHelper("json", (context) => {
-  const jsonString = JSON.stringify(context, null, 2);
-  const safeString = new Handlebars.SafeString(jsonString);
-
-  return safeString;
-});
 
 type HttpRequestData = {
   variableName?: string;
@@ -75,14 +68,14 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
         throw new NonRetriableError("HTTP Request node: Method not configured");
       }
 
-      const endpoint = Handlebars.compile(data.endpoint)(context);
+      const endpoint = compileTemplate(data.endpoint)(context);
       const url = await assertSafeEndpoint(endpoint);
       const method = data.method;
 
       const options: KyOptions = { method, timeout: resolveTimeoutMs(data.timeoutMs) };
 
       if (["POST", "PUT", "PATCH"].includes(method)) {
-        const resolved = Handlebars.compile(data.body || "{}")(context);
+        const resolved = compileTemplate(data.body || "{}")(context);
         JSON.parse(resolved);
         options.body = resolved;
         options.headers = {

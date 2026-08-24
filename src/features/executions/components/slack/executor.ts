@@ -1,16 +1,10 @@
-import Handlebars from "handlebars";
 import { decode } from "html-entities";
 import { NonRetriableError } from "inngest";
 import ky from "ky";
 import type { NodeExecutor } from "@/features/executions/types";
+import { compileTemplate } from "@/features/executions/template";
+import { assertSafeEndpoint } from "@/features/executions/components/http-request/egress-guard";
 import { slackChannel } from "@/inngest/channels/slack";
-
-Handlebars.registerHelper("json", (context) => {
-  const jsonString = JSON.stringify(context, null, 2);
-  const safeString = new Handlebars.SafeString(jsonString);
-
-  return safeString;
-});
 
 type SlackData = {
   variableName?: string;
@@ -42,7 +36,7 @@ export const slackExecutor: NodeExecutor<SlackData> = async ({
     throw new NonRetriableError("Slack node: Message content is required");
   }
 
-  const rawContent = Handlebars.compile(data.content)(context);
+  const rawContent = compileTemplate(data.content)(context);
   const content = decode(rawContent);
 
   try {
@@ -57,7 +51,8 @@ export const slackExecutor: NodeExecutor<SlackData> = async ({
         throw new NonRetriableError("Slack node: Webhook URL is required");
       }
 
-      await ky.post(data.webhookUrl, {
+      const webhookUrl = await assertSafeEndpoint(data.webhookUrl);
+      await ky.post(webhookUrl, {
         json: {
           content: content, // The key depends on workflow config
         },

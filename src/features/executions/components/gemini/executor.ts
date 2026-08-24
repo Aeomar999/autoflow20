@@ -1,18 +1,11 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import Handlebars from "handlebars";
 import { NonRetriableError } from "inngest";
 import type { NodeExecutor } from "@/features/executions/types";
+import { compileTemplate } from "@/features/executions/template";
 import { geminiChannel } from "@/inngest/channels/gemini";
 import prisma from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
-
-Handlebars.registerHelper("json", (context) => {
-  const jsonString = JSON.stringify(context, null, 2);
-  const safeString = new Handlebars.SafeString(jsonString);
-
-  return safeString;
-});
 
 type GeminiData = {
   variableName?: string;
@@ -67,9 +60,9 @@ export const geminiExecutor: NodeExecutor<GeminiData> = async ({
   }
 
   const systemPrompt = data.systemPrompt
-    ? Handlebars.compile(data.systemPrompt)(context)
+    ? compileTemplate(data.systemPrompt)(context)
     : "You are a helpful assistant.";
-  const userPrompt = Handlebars.compile(data.userPrompt)(context);
+  const userPrompt = compileTemplate(data.userPrompt)(context);
 
   const credential = await step.run("get-credential", () => {
     return prisma.credential.findUnique({

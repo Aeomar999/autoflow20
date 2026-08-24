@@ -166,12 +166,14 @@ No SSRF guard, no timeout on outbound fetches (`http-request/executor.ts`).
 
 ---
 
-### ⬜ AF-A-03 · Expression/template injection decision · 1d
+### ✅ AF-A-03 · Expression/template injection decision · 1d
 User strings pass through `Handlebars.compile(...)` at runtime (`http-request/executor.ts:67`). Full resolver lands in M2-03; this task removes the acute risk now.
+**Status (2026-08-24):** done — ADR-0007 keeps runtime compilation with pinned sandbox defaults.
 
 **Acceptance**
-- [ ] Documented decision in `docs/decisions/`: either escape/disable Handlebars features that enable prototype pollution & untrusted-template compilation, or replace compile-at-runtime with a precompiled-safe subset.
-- [ ] Test: a malicious endpoint/body string cannot access `constructor`/`__proto__` chains or execute arbitrary lookups beyond data context.
+- [x] Documented decision in `docs/decisions/0007-handlebars-runtime-compilation.md`: keep Handlebars (product feature), compile only via `src/features/executions/template.ts` which pins `allowProtoPropertiesByDefault/allowProtoMethodsByDefault = false` explicitly; all 6 executors migrated.
+- [x] Test: `template.test.ts` asserts `constructor`/`__proto__`/`toString`/`hasOwnProperty` chains render empty, `process.env`/`globalThis`/`require` are unreachable, legitimate own-property paths still resolve (13 tests).
+- Bonus (same vuln class): slack/discord webhook URLs now pass through the AF-A-02 `assertSafeEndpoint` guard.
 
 ---
 

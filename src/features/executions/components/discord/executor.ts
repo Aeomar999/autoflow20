@@ -1,16 +1,10 @@
-import Handlebars from "handlebars";
 import { decode } from "html-entities";
 import { NonRetriableError } from "inngest";
 import ky from "ky";
 import type { NodeExecutor } from "@/features/executions/types";
+import { compileTemplate } from "@/features/executions/template";
+import { assertSafeEndpoint } from "@/features/executions/components/http-request/egress-guard";
 import { discordChannel } from "@/inngest/channels/discord";
-
-Handlebars.registerHelper("json", (context) => {
-  const jsonString = JSON.stringify(context, null, 2);
-  const safeString = new Handlebars.SafeString(jsonString);
-
-  return safeString;
-});
 
 type DiscordData = {
   variableName?: string;
@@ -43,10 +37,10 @@ export const discordExecutor: NodeExecutor<DiscordData> = async ({
     throw new NonRetriableError("Discord node: Message content is required");
   }
 
-  const rawContent = Handlebars.compile(data.content)(context);
+  const rawContent = compileTemplate(data.content)(context);
   const content = decode(rawContent);
   const username = data.username
-    ? decode(Handlebars.compile(data.username)(context))
+    ? decode(compileTemplate(data.username)(context))
     : undefined;
 
   try {
@@ -61,7 +55,8 @@ export const discordExecutor: NodeExecutor<DiscordData> = async ({
         throw new NonRetriableError("Discord node: Webhook URL is required");
       }
 
-      await ky.post(data.webhookUrl, {
+      const webhookUrl = await assertSafeEndpoint(data.webhookUrl);
+      await ky.post(webhookUrl, {
         json: {
           content: content.slice(0, 2000), // Discord's max message length
           username,
