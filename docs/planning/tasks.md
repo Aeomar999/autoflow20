@@ -42,15 +42,15 @@ The React Flow editor (`src/components/initial-node.tsx`, `src/components/react-
 
 ---
 
-### ⬜ AF-M0-02 · Remove dead code and boilerplate · 0.5d
+### ✅ AF-M0-02 · Remove dead code and boilerplate · 0.5d · DONE 2026-08-24
 **Reality (2026-08-22):** previously marked shipped (PR #24) — none of it happened in this codebase.
 
 **Acceptance**
-- [ ] `Post` table dropped via a new migration. *(Already absent from `schema.prisma` — verify no legacy table exists in the live DB; may be a no-op migration or closed as N/A.)*
-- [ ] `src/app/sentry-example-page/` and `src/app/api/sentry-example-api/` deleted. *(Both exist today.)*
-- [ ] Unused import `title` from `process` removed (`src/components/app-sidebar.tsx:28`). *(Unverified — recheck at implementation time.)*
-- [ ] `README.md` rewritten (see `AF-M0-09`). *(Still create-next-app boilerplate.)*
-- [ ] `npm run lint` reports zero errors. *(Currently 303 errors / 71 warnings.)*
+- [x] `Post` table dropped via a new migration. (`20260824100000_drop_post_table` — `DROP TABLE IF EXISTS "Post"`; the model was already gone from `schema.prisma` but no migration had ever dropped it from deployed DBs.)
+- [x] `src/app/sentry-example-page/` and `src/app/api/sentry-example-api/` deleted. (Stale `.next/types` validator entries required a `.next` cache clear before tsc passed again.)
+- [x] Unused import `title` from `process` removed (`src/components/app-sidebar.tsx:28`). *(N/A on recheck: no such import exists — line 28 is now `const menuItems`.)*
+- [x] `README.md` rewritten (see `AF-M0-09`). *(Done 2026-08-24.)*
+- [x] `npm run lint` reports zero errors. *(Done in AF-A-06; biome check clean at 217 files.)*
 
 ---
 
