@@ -90,11 +90,11 @@ Also fixed the user-facing "Unathorized" typo while in file.
 
 ### 🟡 AF-M0-06 · Test harness + CI · 1.5d
 **Reality (2026-08-22):** zero test files, no `.github/`, no vitest/playwright configs or devDeps. Everything after this task depends on being able to verify work.
-**Status (2026-08-24):** core harness + CI shipped; remaining sub-items (Testing Library, DB-backed integration tests) deferred until a local/CI database exists.
+**Status (2026-08-24):** core harness + CI shipped; Testing Library + first component test shipped. Remaining sub-items (DB-backed integration tests) deferred until a local/CI database exists.
 
 **Acceptance**
 - [x] Vitest configured with path aliases matching `tsconfig.json`; `npm test` and `npm run test:watch` work.
-- [ ] Testing Library configured for component tests. *(deferred — no component tests yet)*
+- [x] Testing Library configured for component tests. *(2026-08-24: `@testing-library/react` + jsdom `dom` vitest project (`*.dom.test.{ts,tsx}`) + jest-dom matchers; first component test `src/components/upgrade-modal.dom.test.tsx` (3 tests). Fixed root-cause: inline `test.projects` don't inherit root `resolve.alias`/`setupFiles` — both now declared per project, which also unblocks `@/` imports in unit tests.)*
 - [x] Playwright configured; smoke spec in `tests/e2e/auth-smoke.spec.ts` (unauth redirect → login; login form renders). Gated on `E2E_SERVER`/`E2E_BASE_URL`; full sign-up flow needs the DB-backed e2e pass below.
 - [ ] Test DB strategy documented and working (Docker Postgres or a dedicated test database), with per-suite truncation. *(no local DB yet — CI provisions postgres:16)*
 - [x] GitHub Actions workflow runs `lint`, `build`, `test` on push and PR (`.github/workflows/ci.yml`, node 20 + postgres:16 service).
