@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { authClient } from "@/lib/auth-client";
+import { polarProductSlug } from "@/lib/env";
 
 const menuItems = [
   {
@@ -106,7 +107,7 @@ export const AppSidebar = () => {
               <SidebarMenuButton
                 tooltip="Upgade to Pro"
                 className="gap-x-4 h-10 px-4"
-                onClick={() => authClient.checkout({ slug: "pro" })}
+                onClick={() => authClient.checkout({ slug: polarProductSlug })}
               >
                 <StarIcon className="h-4 w-4" />
                 <span>Upgrade to Pro</span>

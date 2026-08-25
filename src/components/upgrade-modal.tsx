@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { authClient } from "@/lib/auth-client";
+import { polarProductSlug } from "@/lib/env";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -31,7 +32,7 @@ export const UpgradeModal = ({ open, onOpenChange }: UpgradeModalProps) => {
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => authClient.checkout({ slug: "pro" })}
+            onClick={() => authClient.checkout({ slug: polarProductSlug })}
           >
             Upgrade Now
           </AlertDialogAction>

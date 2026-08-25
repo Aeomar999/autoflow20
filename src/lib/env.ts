@@ -24,6 +24,8 @@ const serverEnvSchema = z.object({
 
   POLAR_ACCESS_TOKEN: z.string().optional(),
   POLAR_SUCCESS_URL: z.url("must be a valid absolute URL").optional(),
+  POLAR_PRODUCT_ID: z.uuid("must be a UUID").optional(),
+  POLAR_PRODUCT_SLUG: z.string().min(1).optional(),
 
   INNGEST_EVENT_KEY: z.string().optional(),
   INNGEST_SIGNING_KEY: z.string().optional(),
@@ -70,3 +72,17 @@ export const ensureEnv = (): ServerEnv => {
 /** Public base URL used by trigger dialogs when rendering webhook URLs. */
 export const publicAppUrl =
   process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+/**
+ * Pro plan identifiers (AF-M0-03). `POLAR_PRODUCT_ID` is account-specific and
+ * must come from env - when unset, the server-side checkout product list is
+ * empty (billing unconfigured, matching optional POLAR_ACCESS_TOKEN).
+ * The slug falls back to "pro" so local dev without billing config still
+ * renders working checkout buttons; same single-point fallback pattern as
+ * `publicAppUrl`. Server code may also set the non-public `POLAR_PRODUCT_SLUG`.
+ */
+export const polarProductId = process.env.POLAR_PRODUCT_ID;
+export const polarProductSlug =
+  process.env.POLAR_PRODUCT_SLUG ??
+  process.env.NEXT_PUBLIC_POLAR_PRODUCT_SLUG ??
+  "pro";

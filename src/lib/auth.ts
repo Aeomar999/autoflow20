@@ -2,6 +2,7 @@ import { checkout, polar, portal } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@/lib/db";
+import { polarProductId, polarProductSlug } from "@/lib/env";
 import { polarClient } from "./polar";
 
 export const auth = betterAuth({
@@ -28,11 +29,13 @@ export const auth = betterAuth({
       createCustomerOnSignUp: true,
       use: [
         checkout({
+          // AF-M0-03: product comes from env. When POLAR_PRODUCT_ID is unset
+          // (billing unconfigured) the list stays empty and checkout simply
+          // has no product mapped - the app still boots.
           products: [
-            {
-              productId: "f81be8a8-45e1-4e45-a1e9-b9d3fd79f814",
-              slug: "pro",
-            },
+            ...(polarProductId
+              ? [{ productId: polarProductId, slug: polarProductSlug }]
+              : []),
           ],
           successUrl: process.env.POLAR_SUCCESS_URL,
           authenticatedUsersOnly: true,
