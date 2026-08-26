@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import type { Edge, Node } from "@xyflow/react";
 import { generateSlug } from "random-word-slugs";
 import z from "zod";
@@ -53,52 +54,83 @@ export const workflowsRouter = createTRPCRouter({
         },
       });
     }),
-  update: protectedProcedure
+  saveGraph: protectedProcedure
     .input(saveWorkflowInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const { id, nodes, edges } = input;
+      const { id, nodes, edges, revision } = input;
 
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id, userId: ctx.auth.user.id },
       });
 
-      // Transaction to ensure consistency
+      if (workflow.revision !== revision) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "Workflow has been modified since you last loaded it. Please reload and try again.",
+        });
+      }
+
       return await prisma.$transaction(async (tx) => {
-        // Delete existing nodes and connections (cascade deletes connections)
-        await tx.node.deleteMany({
-          where: { workflowId: id },
-        });
+        await tx.node.deleteMany({ where: { workflowId: id } });
+        await tx.connection.deleteMany({ where: { workflowId: id } });
 
-        // Create nodes
-        await tx.node.createMany({
-          data: nodes.map((node) => ({
-            id: node.id,
-            workflowId: id,
-            name: node.type || "unknown",
-            type: node.type,
-            position: node.position,
-            data: node.data || {},
-          })),
-        });
+        if (nodes.length > 0) {
+          await tx.node.createMany({
+            data: nodes.map((node) => ({
+              id: node.id,
+              workflowId: id,
+              name: node.type,
+              type: node.type,
+              position: node.position,
+              data: node.data || {},
+            })),
+          });
+        }
 
-        // Create connections
-        await tx.connection.createMany({
-          data: edges.map((edge) => ({
-            workflowId: id,
-            fromNodeId: edge.source,
-            toNodeId: edge.target,
-            fromOutput: edge.sourceHandle || "main",
-            toInput: edge.targetHandle || "main",
-          })),
-        });
+        if (edges.length > 0) {
+          const nodeIds = new Set(nodes.map((n) => n.id));
+          const validEdges = edges.filter(
+            (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
+          );
 
-        // Update workflow's updateAt timestamp
-        await tx.workflow.update({
+          if (validEdges.length > 0) {
+            await tx.connection.createMany({
+              data: validEdges.map((edge) => ({
+                workflowId: id,
+                fromNodeId: edge.source,
+                toNodeId: edge.target,
+                fromOutput: edge.sourceHandle || "main",
+                toInput: edge.targetHandle || "main",
+              })),
+            });
+          }
+        }
+
+        const updated = await tx.workflow.update({
           where: { id },
-          data: { updatedAt: new Date() },
+          data: { revision: { increment: 1 }, updatedAt: new Date() },
+          include: { nodes: true, connections: true },
         });
 
-        return workflow;
+        return {
+          id: updated.id,
+          name: updated.name,
+          revision: updated.revision,
+          nodes: updated.nodes.map((n) => ({
+            id: n.id,
+            type: n.type,
+            position: n.position as { x: number; y: number },
+            data: (n.data as Record<string, unknown>) || {},
+          })),
+          edges: updated.connections.map((c) => ({
+            id: c.id,
+            source: c.fromNodeId,
+            target: c.toNodeId,
+            sourceHandle: c.fromOutput,
+            targetHandle: c.toInput,
+          })),
+        };
       });
     }),
   updateName: protectedProcedure
@@ -138,6 +170,7 @@ export const workflowsRouter = createTRPCRouter({
         id: workflow.id,
         name: workflow.name,
         webhookSecret: workflow.webhookSecret,
+        revision: workflow.revision,
         nodes,
         edges,
       };

@@ -108,6 +108,9 @@ model Workflow {
   /// Secret token embedded in trigger webhook URLs to prove ownership (AF-A-01)
   webhookSecret String @unique @default(cuid())
 
+  /// Optimistic concurrency counter — incremented on every saveGraph (AF-M1-03)
+  revision Int @default(0)
+
   nodes Node[]
   connections Connection[]
   executions Execution[]

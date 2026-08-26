@@ -15,23 +15,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
+  useSaveWorkflow,
   useSuspenseWorkflow,
-  useUpdateWorkflow,
   useUpdateWorkflowName,
 } from "@/features/workflows/hooks/use-workflows";
 import { editorAtom } from "../store/atoms";
 
 export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   const editor = useAtomValue(editorAtom);
-  const saveWorkflow = useUpdateWorkflow();
+  const { data: workflow } = useSuspenseWorkflow(workflowId);
+  const saveWorkflow = useSaveWorkflow();
 
   const handleSave = () => {
     if (!editor) {
       return;
     }
 
-    // Every renderable node carries a type; drop any that somehow do not
-    // so the save payload satisfies the typed per-node schema (AF-A-04).
     const nodes = editor
       .getNodes()
       .filter((node): node is typeof node & { type: string } =>
@@ -43,6 +42,7 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
       id: workflowId,
       nodes,
       edges,
+      revision: workflow.revision,
     });
   };
 

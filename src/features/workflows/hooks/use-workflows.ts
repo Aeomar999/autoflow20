@@ -89,23 +89,23 @@ export const useUpdateWorkflowName = () => {
 };
 
 /**
- * Hook to update a workflow
+ * Hook to save a workflow graph (with optimistic concurrency)
  */
-export const useUpdateWorkflow = () => {
+export const useSaveWorkflow = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
 
   return useMutation(
-    trpc.workflows.update.mutationOptions({
-      onSuccess: (data) => {
-        toast.success(`Workflow "${data.name}" saved`);
+    trpc.workflows.saveGraph.mutationOptions({
+      onSuccess: (_data) => {
         queryClient.invalidateQueries(trpc.workflows.getMany.queryOptions({}));
-        queryClient.invalidateQueries(
-          trpc.workflows.getOne.queryOptions({ id: data.id }),
-        );
       },
       onError: (error) => {
-        toast.error(`Failed to save workflow: ${error.message}`);
+        if (error.data?.code === "CONFLICT") {
+          toast.error("Workflow was modified elsewhere. Please reload.");
+        } else {
+          toast.error(`Failed to save workflow: ${error.message}`);
+        }
       },
     }),
   );

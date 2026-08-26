@@ -59,6 +59,7 @@ export const saveWorkflowInputSchema = z.object({
       targetHandle: z.string().max(128).nullish(),
     }),
   ),
+  revision: z.number().int().min(0),
 });
 
 export type SaveWorkflowInput = z.infer<typeof saveWorkflowInputSchema>;

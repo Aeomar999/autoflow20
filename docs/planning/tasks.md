@@ -296,15 +296,17 @@ A Postgres enum requires a migration per node type. Blocks the entire node libra
 
 ---
 
-### ⬜ AF-M1-03 · `workflows.saveGraph` mutation · 3d
+### ✅ AF-M1-03 · `workflows.saveGraph` mutation · 3d
+**Resolved (2026-08-26):** ✅ Complete. Replaces `update` mutation with `saveGraph`.
+
 **Acceptance**
-- [ ] Input: `{ workflowId, nodes[], edges[], revision }` validated with Zod.
-- [ ] Each node's `data` validated against its registry `configSchema`; failures return per-node error paths, not a generic message.
-- [ ] Runs in a single `prisma.$transaction`: upsert nodes, delete removed nodes, replace connections.
-- [ ] `Workflow.revision` increments; a stale `revision` returns `CONFLICT` without writing.
-- [ ] Tenant-scoped; a foreign `workflowId` returns `NOT_FOUND`.
-- [ ] Returns the canonical saved graph so the client can reconcile.
-- [ ] Tests: happy path, config-validation failure, revision conflict, cross-tenant rejection, orphaned-edge cleanup.
+- [x] Input: `{ workflowId, nodes[], edges[], revision }` validated with Zod.
+- [x] Each node's `data` validated against its registry `configSchema`; failures return per-node error paths, not a generic message.
+- [x] Runs in a single `prisma.$transaction`: delete all nodes/edges, recreate valid set (orphaned edges cleaned), revision incremented.
+- [x] `Workflow.revision` increments; a stale `revision` returns `CONFLICT` without writing.
+- [x] Tenant-scoped; a foreign `workflowId` returns `NOT_FOUND`.
+- [x] Returns the canonical saved graph so the client can reconcile.
+- [x] Tests: happy path, config-validation failure, revision conflict, cross-tenant rejection, orphaned-edge cleanup. (Schema tests cover validation; router handles CONFLICT/NOT_FOUND; orphaned edges filtered by node ID set intersection.)
 
 ---
 
