@@ -4,7 +4,7 @@ import {
   ExecutionStatus,
   NodeExecutionStatus,
   type NodeType,
-} from "@/generated/prisma";
+} from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";

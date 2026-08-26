@@ -1,8 +1,20 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-22 (post-audit reconciliation)
+**Last updated:** 2026-08-26 (deep-plan reconciliation)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
+
+> **2026-08-26 DEEP-PLAN RECONCILIATION.** Horizon locked to an **internal demo**;
+> sequencing locked **authoring UX (M1) before engine power (M2 remainder)**.
+> Recorded decisions (full register in `implementation_plan.md` §0):
+> **A)** extend the existing Inngest engine incrementally — the spec's items-model/
+> fan-out/compile-stage rebuild is deferred post-beta; **B)** expressions stay on
+> sandboxed Handlebars (ADR-0007), extended with `$json`/`$node`/`$execution`
+> context helpers instead of a second parsed resolver (spec + ADR amended together);
+> **D)** loops/fan-out explicitly out of scope until post-beta; **E)** knowledge base
+> is **planned in** as new milestone **M-KB** (slotted between M5 and M6); **F)** AI
+> copilot and node-count targets are descope-to-Phase-2. M2 is re-scoped against
+> reality: per-node traces/step-runner already exist (AF-A-05) — see its header.
 
 > **2026-08-22 RECONCILIATION.** An audit found that several M0/M1 tasks were
 > marked done with "Shipped in PR #NN" references that collide with this repo's
@@ -90,16 +102,16 @@ Also fixed the user-facing "Unathorized" typo while in file.
 
 ### 🟡 AF-M0-06 · Test harness + CI · 1.5d
 **Reality (2026-08-22):** zero test files, no `.github/`, no vitest/playwright configs or devDeps. Everything after this task depends on being able to verify work.
-**Status (2026-08-24):** core harness + CI shipped; Testing Library + first component test shipped. Remaining sub-items (DB-backed integration tests) deferred until a local/CI database exists.
+**Status (2026-08-26):** harness complete except the DB-backed **e2e signup journey** (needs a running app + reachable Polar sandbox). Integration testing against real Postgres shipped 2026-08-26 — see §6 of `docs/engineering/testing_strategy.md`.
 
 **Acceptance**
 - [x] Vitest configured with path aliases matching `tsconfig.json`; `npm test` and `npm run test:watch` work.
 - [x] Testing Library configured for component tests. *(2026-08-24: `@testing-library/react` + jsdom `dom` vitest project (`*.dom.test.{ts,tsx}`) + jest-dom matchers; first component test `src/components/upgrade-modal.dom.test.tsx` (3 tests). Fixed root-cause: inline `test.projects` don't inherit root `resolve.alias`/`setupFiles` — both now declared per project, which also unblocks `@/` imports in unit tests.)*
 - [x] Playwright configured; smoke spec in `tests/e2e/auth-smoke.spec.ts` (unauth redirect → login; login form renders). Gated on `E2E_SERVER`/`E2E_BASE_URL`; full sign-up flow needs the DB-backed e2e pass below.
-- [ ] Test DB strategy documented and working (Docker Postgres or a dedicated test database), with per-suite truncation. *(no local DB yet — CI provisions postgres:16)*
+- [x] Test DB strategy documented and working (Docker Postgres or a dedicated test database), with per-suite truncation. *(2026-08-26: `integration` vitest project live against Docker postgres:16 on :5433; contract + local recipe in `testing_strategy.md` §6 — incl. the `127.0.0.1`-not-`localhost` Windows/wslrelay trap; setup hard-pins `DATABASE_URL` to the test DB before imports so dev/prod can never be truncated by a test run. First suite: 12 webhook-authz tests, all green locally.)*
+- [x] `docs/engineering/testing_strategy.md` reflects the actual commands. *(§8 rewritten 2026-08-26 to match the real ci.yml; CI wiring of TEST_DATABASE_URL pending as noted there.)*
 - [x] GitHub Actions workflow runs `lint`, `build`, `test` on push and PR (`.github/workflows/ci.yml`, node 20 + postgres:16 service).
-- [x] At least one real test per layer exists as a template: unit ✓ (`src/inngest/utils.test.ts`, `src/lib/logger.test.ts`, `src/lib/secure-compare.test.ts`, `src/inngest/config.test.ts`), e2e template ✓ (gated spec). *(integration pending DB)*
-- [ ] `docs/engineering/testing_strategy.md` reflects the actual commands.
+- [x] At least one real test per layer exists as a template: unit ✓ (`src/inngest/utils.test.ts`, `src/lib/logger.test.ts`, `src/lib/secure-compare.test.ts`, `src/inngest/config.test.ts`), integration ✓ (`tests/integration/webhooks.authz.integration.test.ts`), e2e template ✓ (gated spec).
 
 ---
 
@@ -136,6 +148,25 @@ Also fixed the user-facing "Unathorized" typo while in file.
 - [x] No `create-next-app` boilerplate remains.
 - [x] Create root `AGENTS.md` referenced by this backlog's preamble. (§1 identity, §2 truth files, §3 spec routing, §4 hard rules, §5 gates, §6 conventions, §7 workflow — matching the preamble's references.)
 
+### ✅ AF-M0-10 · Polar checkout success route · 0.5d · *(added 2026-08-26)* · DONE 2026-08-26
+`POLAR_SUCCESS_URL` currently points at `/workflows` because no success page exists. Build the real one.
+
+**Acceptance**
+- [x] Route `/workflows/billing/success` renders post-checkout state. *(Client component under `(dashboard)/(rest)` so it renders inside the app shell with sidebar.)*
+- [x] Refetches customer state on mount — invalidates the `["subscription"]` React Query cache that `useSubscription`/the sidebar read, so the upgrade button flips without a reload.
+- [x] `.env.example` default updated to the real route (`{CHECKOUT_ID}` substitution supported by the plugin); duplicate `POLAR_SUCCESS_URL` block removed.
+- [x] Update `.env` guidance in `polar_setup.md` §4.
+
+---
+
+### ✅ AF-M7-06 · Landing page at `/` · 2d · *(pulled forward from M7, 2026-08-26)* · DONE 2026-08-26
+Currently a 404 that the sidebar logo links to; trivially demoable win, no dependencies.
+
+**Acceptance**
+- [x] Root route renders a real landing page (hero, honest capability copy matching `progress.md` §3 only, CTA → `/signup`; session-aware CTA shows "Open dashboard" for logged-in users).
+- [x] Unauthenticated users see it without redirect (no global middleware exists; root page is outside the `(dashboard)` group).
+- [x] Sidebar logo link now resolves authenticated and unauthenticated. Stale `create-next-app` root metadata replaced with real title/description.
+
 ---
 
 ## M-A — Audit hardening · 1.5 weeks · **do first**
@@ -150,7 +181,7 @@ New milestone opened by the 2026-08-22 audit (`progress.md` §5). Security findi
 - [x] Stripe route verifies `stripe-signature` via `stripe.webhooks.constructEvent` with `STRIPE_WEBHOOK_SECRET`; unsigned requests → 400.
 - [x] Resolved workflow ownership enforced before enqueueing; foreign/unknown `workflowId` or bad secret → 404. *(Design deviation: per-workflow secret proves ownership directly instead of a Stripe-account join — simpler and covers Google Forms identically.)*
 - [x] Google Form webhook gets an equivalent per-workflow secret path param. *(no signature possible with Google Forms; secret is the only proof)*
-- [ ] Tests: valid signature passes, invalid/missing rejected, cross-owner rejected. *(unit-level `secureCompare` tests exist; route-level integration tests need DB harness)*
+- [x] Tests: valid signature passes, invalid/missing rejected, cross-owner rejected. *(2026-08-26: 12 route-level integration tests in `tests/integration/webhooks.authz.integration.test.ts`, real Postgres, all green locally — found & fixed an unsigned-request 500 that violated this very acceptance line; unsigned now → 400.)*
 - [ ] progress.md updated
 
 ---
@@ -329,9 +360,16 @@ Definitions and config UI only; `execute` implementations land in M2.
 
 ---
 
-## M2 — Execution engine + traces · 4 weeks · **critical path**
-
+## M2 — Execution engine + traces · 3 weeks · **critical path**
 Spec: `docs/architecture/execution_engine.md`.
+
+> **2026-08-26 RE-SCOPE.** Much of M2 is pre-built and was verified on disk
+> (`progress.md` §3, AF-A-05): a step-based Inngest runner with topological
+> execution, per-node trace rows (incl. SKIPPED-on-upstream-failure), realtime
+> status channels, replay-safe memoized steps, and an executions list/detail UI
+> all exist. Decision A (see header) rules out the full compile/items-model
+> rebuild. What remains below is annotated accordingly; milestone estimate cut
+> from 4w to 3w.
 
 ### ⬜ AF-M2-00 · Inngest capability spike · 1d
 De-risk before designing around it.
@@ -342,47 +380,50 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-01 · Execution data model · 2d
+### ⬜ AF-M2-01 · Execution data model · 1.5d
+*(Re-scoped: `Execution` + `NodeExecution` tables exist; this task adds the missing columns only.)*
+
 **Acceptance**
-- [ ] `Execution`: id, workflowId, workflowVersionId?, status, trigger, mode, `graphSnapshot Json`, input, startedAt, finishedAt, durationMs, error, totals (nodes, tokens, costUsd), createdBy, tenant scope.
-- [ ] `NodeExecution`: id, executionId, nodeId, nodeType, status, attempt, input, output, error, startedAt, finishedAt, durationMs, tokensIn, tokensOut, costUsd.
-- [ ] `ExecutionStatus` = QUEUED | RUNNING | SUCCESS | FAILED | CANCELLED | TIMED_OUT; `NodeExecutionStatus` adds SKIPPED.
-- [ ] Indices: `(workflowId, createdAt desc)`, `(status)`, `(executionId, startedAt)`.
-- [ ] Large `input`/`output` truncated above the M2-00 threshold with an explicit `truncated: true` marker.
-- [ ] Migration + rollback plan documented.
+- [ ] `Execution`: add trigger, mode, `graphSnapshot Json`, totals (nodes/tokens/costUsd). *(id, workflowId, status, timings, error already exist.)*
+- [ ] `NodeExecution`: add input, output, tokensIn, tokensOut, costUsd (IO truncated above the M2-00 threshold with an explicit `truncated: true` marker).
+- [ ] Indices: `(workflowId, startedAt desc)`, `(status)`. *(Existing `(executionId, order)` kept.)*
+- [ ] Migration is additive; rollback plan documented.
 
 ---
 
-### ⬜ AF-M2-02 · Graph compiler + validator · 2d
+### ⬜ AF-M2-02 · Shared graph validator (compile-lite) · 1.5d
+*(Re-scoped per Decision A: no separate compile artifact/stage; this is the pure validation + ordering function shared by canvas lint, server save, and run start.)*
+
 **Acceptance**
-- [ ] `compile(graph)` → typed DAG or a list of structured errors.
-- [ ] Rejects: cycles, unknown node types, invalid configs, missing trigger, unconnected required inputs.
-- [ ] Produces deterministic execution order (stable tie-breaking so identical graphs run identically).
-- [ ] Shares the validator with `AF-M1-07`.
+- [ ] `validate(graph)` returns structured errors `{ nodeId, path, message }`: cycles, unknown node types, invalid configs, missing trigger, unconnected required inputs.
+- [ ] Produces deterministic execution order with stable tie-breaking so identical graphs run identically.
+- [ ] One implementation, three call sites: AF-M1-07 canvas linting, save boundary, and the top of `executeWorkflow` (replacing today's inline topo-sort-only check).
 - [ ] Unit tests: linear, branching, diamond, disconnected, cyclic, single-node graphs.
 
 ---
 
-### ⬜ AF-M2-03 · Expression resolver · 2d
+### ⬜ AF-M2-03 · Expression context helpers (Handlebars) · 1.5d
+*(Re-scoped per Decision B: ADR-0007 keeps sandboxed Handlebars as the one template system. This task extends its compilation context — not a new parser. `execution_engine.md` §5 and the ADR are amended together in this task.)*
+
 **Acceptance**
-- [ ] Supports `{{ $json.path }}`, `{{ $node["Name"].json.path }}`, `{{ $execution.id }}`, `{{ $workflow.id }}`, `{{ $env.NAME }}` (allowlisted vars only).
-- [ ] Parsed and resolved — **no `eval`, no `new Function`**. A test asserts that an injection attempt is inert.
-- [ ] Missing paths produce a clear `ExpressionError` naming the expression and the node, not `undefined` silently propagating.
-- [ ] Literal/mixed strings interpolate correctly; escaping documented.
-- [ ] Unit tests covering nested paths, arrays, missing refs, malformed syntax, and injection attempts.
+- [ ] Template context exposes `$json` (current node input), `$node["Name"]` (upstream outputs by node name/id), `$execution.id`, `$workflow.id`, `$now`; `$env` allowlisted or omitted (decide at implementation, documented).
+- [ ] Missing paths throw a clear `ExpressionError` naming expression + node — never silent `undefined`.
+- [ ] Injection posture unchanged: compiled only via `compileTemplate`, prototype-access guards tested (`template.test.ts` extended for the new context surface).
+- [ ] Unit tests: nested paths, arrays, missing refs, malformed syntax, injection attempts.
+- [ ] ADR-0007 + `execution_engine.md` §5 updated to record this decision.
 
 ---
 
-### ⬜ AF-M2-04 · Runner · 4d
+### ⬜ AF-M2-04 · Runner upgrades · 3d
+*(Re-scoped: the step-based runner exists — topo order, memoized `step.run` per node, trace steps, `NonRetriableError`, `onFailure`. This task adds the missing execution semantics; per Decision A no items-model/compile-stage rebuild.)*
+
 **Acceptance**
-- [ ] Inngest function `workflow/execute` consumes `{ executionId }`.
-- [ ] Each node executes inside `step.run` so a mid-run crash resumes without re-running completed side effects — proven by a test that kills and resumes.
-- [ ] Per-node timeout, retry with exponential backoff per the node's retry policy, and `continueOnFail`.
-- [ ] Branch semantics: nodes reachable only via an untaken branch are written as `SKIPPED` with a reason. **No node is ever absent from the trace.**
-- [ ] Items model `{ items: [{ json, binary? }] }` in and out of every node; fan-out and merge are generic.
-- [ ] Cancellation: a cancel request stops scheduling further nodes and marks the run `CANCELLED`.
-- [ ] Per-workflow and per-tenant concurrency keys.
-- [ ] Totals (duration, tokens, cost) rolled up on completion.
+- [ ] **Branch-taken semantics**: a condition-style node routes on its output ports; nodes reachable only via untaken edges are recorded as `SKIPPED` with reason — **no node is ever absent from the trace**. *(Today SKIPPED is only written for post-failure downstream.)*
+- [ ] Per-node timeout (default 60s) and per-node retry policy override of `ENGINE_RETRIES`.
+- [ ] `continueOnFail`: node records FAILED, run continues.
+- [ ] Cancellation: cancel stops scheduling further nodes, marks run `CANCELLED`, unwritten nodes SKIPPED.
+- [ ] Concurrency keys: per-workflow and per-tenant.
+- [ ] Test: kill mid-run, resume — completed side effects are not re-executed *(partially proven today by step memoization; make it an explicit test)*.
 
 ---
 
@@ -499,6 +540,20 @@ Slack · Gmail/SMTP · Google Sheets · Postgres · Airtable · HubSpot · OpenA
 
 ---
 
+## M-KB — Knowledge base (slim, demo-grade) · ~1.5 weeks · *(added 2026-08-26, Decision E)*
+
+Goal: PRD §5.5's knowledge-base story, cut to what an internal demo needs. Ingestion → chunking → embeddings in Postgres (**pgvector** on Neon; additive SQL migration since Prisma does not model extensions natively) → retrieval node feeding `ai.llm` context.
+
+- ⬜ **AF-KB-01** `KnowledgeSource` model + upload flow (PDF/DOCX/TXT/MD), storage + status lifecycle (pending/chunked/embedded/error) · 2d
+- ⬜ **AF-KB-02** Chunking pipeline as an Inngest function; embeddings via OpenAI `text-embedding-3-small` through the credential vault (provider-agnostic seam left for Phase 2); append-only chunks keyed by source revision = version history · 3d
+- ⬜ **AF-KB-03** Scheduled URL re-fetch source type · 1d
+- ⬜ **AF-KB-04** `ai.retrieve` node (top-k similarity search scoped to workspace sources) + KB management UI (list/upload/delete/reindex) · 2d
+- ⬜ **AF-KB-05** Docs: `docs/nodes/knowledge-base.md`; pgvector migration runbook · 0.5d
+
+Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/Elasticsearch), hybrid/BM25 ranking, per-chunk metadata filtering UI.
+
+---
+
 ## M6 — Tenancy, RBAC, audit, SSO · 3 weeks
 
 **Highest regression risk in the plan.** Land schema + backfill first, then migrate routers one at a time behind tests.
@@ -520,7 +575,7 @@ Slack · Gmail/SMTP · Google Sheets · Postgres · Airtable · HubSpot · OpenA
 - ⬜ **AF-M7-03** Monitoring dashboard: executions over time, success rate, p50/p95 duration, error breakdown, cost trend, top failing workflows · 4d
 - ⬜ **AF-M7-04** Quotas: per-plan execution + AI-spend limits enforced in the runner, surfaced before the limit, wired to Polar · 3d
 - ⬜ **AF-M7-05** Onboarding: first-run checklist, sample workflow, empty states · 2d
-- ⬜ **AF-M7-06** Landing page at `/` — currently a 404 that the sidebar links to · 2d
+- ⬜ **AF-M7-06** ~~Landing page at `/`~~ *pulled forward to the M0 leftovers section (2026-08-26)*
 
 ---
 

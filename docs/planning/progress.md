@@ -93,9 +93,7 @@ previously overstated both directions and has been corrected (§8).
 ## 4. What is stubbed or missing
 
 ### Missing routes
-| Route | Actual content |
-|---|---|
-| `/` | **Does not exist** — no `src/app/page.tsx`; sidebar logo 404s. |
+*(none — `/` landing page shipped 2026-08-26, AF-M7-06; post-checkout success page at `/workflows/billing/success` shipped 2026-08-26, AF-M0-10)*
 
 *(The previous revision listed `/executions` and `/credentials` pages as `<p>` stubs — false since the lesson-27+ code; they are fully built.)*
 
@@ -159,7 +157,7 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 | tRPC routers | 3 (`workflows`, `executions`, `credentials`) | `src/trpc/routers/_app.ts` |
 | Executable node types | 10 | `executor-registry.ts` |
 | Inngest functions | 1 (`execute-workflow`) + 9 realtime channels | `src/inngest/functions.ts` |
-| Tests | **81 passing** (9 files: inngest utils/trace, logger, secure-compare, engine config, egress-guard, workflow schemas, template, upgrade-modal DOM) | `npm test` |
+| Tests | **93 collected** — 81 unit/dom always-on + 12 integration against real Postgres (visible skip without `TEST_DATABASE_URL`; 12/12 green locally) | `npm test` / `npm run test:integration` |
 | CI pipelines | 1 (`.github/workflows/ci.yml`: lint + tsc + test + build on postgres:16) | repo root |
 | Type check | ✅ clean after `npx prisma generate` | `tsc --noEmit` exit 0 |
 | Lint | ✅ clean (`biome check` exits 0; vendored-UI overrides documented) | `biome check` |
@@ -175,6 +173,8 @@ Newest first.
 
 | Date | Change | Milestone |
 |---|---|---|
+| 2026-08-26 | **Phase A UX wins.** Landing page at `/` (AF-M7-06): session-aware CTAs, capability grid mirroring verified features only, real root metadata replacing create-next-app leftovers. Polar success page `/workflows/billing/success` (AF-M0-10): renders inside app shell, invalidates the `["subscription"]` cache so the sidebar flips without reload; `.env.example` duplicate `POLAR_SUCCESS_URL` removed and default retargeted; `polar_setup.md` §4 updated. AGENTS.md §6: client components must import Prisma enums/types from `@/generated/prisma/browser`. | M0 / M7 |
+| 2026-08-26 | **Deep-plan refresh** (`tasks.md`/`implementation_plan.md`): internal-demo horizon; decisions register (engine extended incrementally, Handlebars kept as the one template system, tenancy deferred to pre-public-beta, KB planned in as new **M-KB** milestone); M2 re-scoped 4w→3w against verified pre-built engine work. **Integration test harness shipped:** `integration` vitest project vs Docker postgres:16 (:5433) with per-suite `migrate deploy` + truncation, setup hard-pins `DATABASE_URL` to the test DB before imports (dev/prod cannot be truncated by tests). First suite: 12 webhook-authz route tests (AF-A-01 acceptance) — found & fixed unsigned Stripe request returning 500 instead of 400. Docs: `testing_strategy.md` §6 contract + local recipe (incl. Windows `127.0.0.1`-not-`localhost` wslrelay trap), stale §8 rewritten to match live ci.yml. | M0 / docs |
 | 2026-08-25 | **Setup manual.** `docs/operations/environment_setup.md` rewritten as a full operator's guide (env-var reference reconciled against `src/lib/env.ts` — fixed wrong required/optional claims, removed nonexistent vars GROQ_API_KEY/INNGEST_BASE_URL/TEST_DATABASE_URL rows, NEXT_PUBLIC_POLAR_PRODUCT_ID/SUCCESS_URL; step-by-step acquisition guides for Postgres/secret generation/GitHub+Google OAuth/Polar sandbox/Inngest Cloud keys/Stripe webhook secret/Sentry token/ngrok domain; local walkthrough + smoke test; ngrok internet-exposure flow; Vercel+Neon+Inngest Cloud deployment with the Polar `server:"sandbox"` hardcode called out as a go-live blocker). Stale references removed: `scripts/dev-db.ps1`, `test/db.ts`, `prisma:studio` script, ESLint->Biome. | docs |
 | 2026-08-24 | **M0-06 Testing Library.** `@testing-library/react` + jsdom `dom` vitest project (`*.dom.test.{ts,tsx}`, jest-dom matchers); first component test `upgrade-modal.dom.test.tsx` (3 tests). Root-caused the long-standing "`@/` imports fail under Vitest" quirk: inline `test.projects` don't inherit root-level `resolve.alias` or `setupFiles` — both now declared per project in `vitest.config.ts`, unblocking `@/` runtime imports in all future tests (AGENTS.md §6 updated). Gates: 81/81 tests, tsc clean, biome clean. | M0 |
 | 2026-08-25 | **Prisma 7 upgrade (6.16.3 → 7.9.1).** Schema datasource `url` removed (P1012 in v7) — connection URL moved to new `prisma.config.ts` (loads `.env` via `dotenv/config`; the v7 CLI no longer auto-loads `.env`). Generator swapped `prisma-client-js` → `prisma-client` (plain ESM TypeScript emitted to `src/generated/prisma`, no barrel index) and all `@/generated/prisma` imports repointed to `@/generated/prisma/client` across 18 files. Runtime now requires a driver adapter: `@prisma/adapter-pg` wired into `src/lib/db.ts` (`new PrismaClient({ adapter })`, URL via `ensureEnv()`). Verified: 15/15 migrations apply to dev DB, live query + enums OK, Turbopack boot OK, tsc/biome clean, 78/78 tests. | infra |

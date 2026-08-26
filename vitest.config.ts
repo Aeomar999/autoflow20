@@ -31,6 +31,18 @@ export default defineConfig({
           setupFiles: ["./vitest.setup.ts"],
         },
       },
+      {
+        resolve: { alias },
+        test: {
+          name: "integration",
+          include: ["tests/integration/**/*.test.ts"],
+          environment: "node",
+          setupFiles: ["./vitest.integration.setup.ts"],
+          // Real Postgres work; keep unit runs fast and DB-independent.
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
+        },
+      },
     ],
   },
 });

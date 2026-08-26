@@ -14,8 +14,8 @@ import {
   ErrorView,
   LoadingView,
 } from "@/components/entity-components";
-import type { Credential } from "@/generated/prisma";
-import { CredentialType } from "@/generated/prisma";
+import { CredentialType } from "@/generated/prisma/browser";
+import type { Credential } from "@/generated/prisma/client";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import {
   useRemoveCredential,

@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "ngrok:dev": "dotenv -- ngrok http --url=$NGROK_URL 3000",
+    "test:integration": "vitest run --project integration",
+    "test:db:up": "docker run -d --name autoflow-test-db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=autoflow_test -p 5433:5432 postgres:16",
+    "test:db:down": "docker rm -f autoflow-test-db",
+    "ngrok:dev": "node scripts/ngrok-dev.mjs",
     "format": "biome format --write",
     "inngest:dev": "inngest-cli dev",
     "dev:all": "dotenv -- mprocs"

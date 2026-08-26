@@ -95,8 +95,40 @@ test/
 
 ## 6. Integration tests and the database
 
+**Status (2026-08-26, AF-M0-06): implemented.** The `integration` vitest
+project (`tests/integration/**`) runs against a real Postgres.
+
 - A real Postgres (Docker or a dedicated test DB), never SQLite. Behavior differences (JSON operators, transactions, enums, `mode: "insensitive"`) would make the tests lie.
 - Truncate between tests; do not re-run migrations per test.
+
+### 6.1 The contract
+
+| Piece | Rule |
+|---|---|
+| `TEST_DATABASE_URL` | Set it and the integration suites run; leave it unset and they **skip visibly** (`describe.skipIf`). Never fake green. |
+| Safety | `vitest.integration.setup.ts` force-overwrites `DATABASE_URL` with `TEST_DATABASE_URL` **before any module imports**, so the Prisma client can never bind to your dev/prod database from `.env`. |
+| Migrations | Applied once per suite in `beforeAll` via `npx prisma migrate deploy` (child env points at the test DB; dotenv does not override an explicitly passed var). |
+| Truncation | `beforeEach` truncates all tables. Physical names follow schema `@@map`: `user`, `session`, `account`, `verification` are lowercase; `Workflow`, `Node`, `Connection`, `Execution`, `NodeExecution`, `Credential` are PascalCase. Quoted SQL identifiers are case-sensitive — this bit us once (D15-style lesson). |
+| External boundaries | Inngest dispatch is mocked per-file (`vi.mock("@/inngest/utils")`) and asserted by call, not performed. |
+
+### 6.2 Local recipe
+
+```powershell
+npm run test:db:up    # docker: postgres:16 → localhost:5433 (container autoflow-test-db)
+$env:TEST_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5433/autoflow_test"
+npm run test:integration   # or: npx vitest run --project integration
+npm run test:db:down
+```
+
+> **Windows gotcha (real incident):** use **`127.0.0.1`, never `localhost`.**
+> Anything listening on `[::1]:5433` (e.g. `wslrelay.exe` relaying a WSL
+> Postgres) wins IPv6-first resolution, and you silently test against a
+> foreign empty database while `docker exec psql` shows perfectly good tables
+> in the container. Symptom: `relation "credential" does not exist` despite a
+> healthy-looking `\dt`.
+
+CI provisions its own `postgres:16` service and applies migrations before the
+suite (§8); no Dockerfile changes needed there.
 - Wrap in a transaction and roll back where it is practical.
 - Run serially if they contend; correctness beats wall-clock.
 
@@ -136,30 +168,21 @@ Rules: no arbitrary sleeps (wait on conditions); deterministic seed data per spe
 
 ---
 
-## 8. CI *(planned — build in `AF-M0-06`)*
+## 8. CI
 
-No `.github/` directory exists yet. The workflow below is the spec `AF-M0-06` implements: triggers on push and pull_request to `main`; 20-minute timeout; concurrent runs on the same ref cancelled.
+**Live since AF-M0-06** (`.github/workflows/ci.yml`): `postgres:16` service +
+`npm ci` → `prisma generate` → `migrate deploy` → tsc → biome → vitest →
+build, on push/PR. All steps required.
 
-```yaml
-# What the workflow should do, in order
-services: postgres:16 (port 5432)         # reachable at localhost:5432
-env:      DATABASE_URL, TEST_DATABASE_URL, POLAR_ACCESS_TOKEN (secret), BETTER_AUTH_SECRET (generated)
-steps:
-  - npm ci
-  - npx prisma generate                    # client is gitignored
-  - npx prisma migrate deploy              # dev DB
-  - createdb autoflow_test && migrate deploy  # test DB
-  - npm run lint                           # biome check (see AF-A-06)
-  - npm run build
-  - npm test                               # unit + integration
-  - npx playwright install --with-deps chromium
-  - npm run test:e2e                       # signup smoke
-  - upload playwright-report/ artifact on failure
-```
+Current state vs this spec:
 
-Note: the e2e smoke hits the signup flow, which calls Polar. If Polar sandbox access is unavailable in CI, gate that journey behind an env flag rather than faking green — a skipped test is visible; a lying one is not.
-
-All jobs become required to merge once this exists. A red main is stopped work — fix or revert immediately.
+- The workflow sets `DATABASE_URL` to its own service DB and applies
+  migrations — so CI can also run the **integration project** by exporting
+  `TEST_DATABASE_URL=$DATABASE_URL` before `npm test`. *(Pending: wire that
+  line in — locally verified recipe is §6.2; the suites skip on CI until
+  then, visibly.)*
+- Playwright e2e remains gated behind `E2E_SERVER`/`E2E_BASE_URL` (signup
+  journey needs a reachable Polar sandbox per the note below).
 
 ### E2E operational notes
 

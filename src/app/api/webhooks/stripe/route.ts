@@ -53,13 +53,21 @@ export async function POST(request: NextRequest) {
     // configured Stripe endpoint. The raw body text is required.
     const stripe = getStripeClient();
     const signature = request.headers.get("stripe-signature");
-    if (!stripe || !signature) {
+    if (!stripe) {
       logger.error("Stripe webhook misconfigured: missing signing secret", {
         hasSignatureHeader: Boolean(signature),
       });
       return NextResponse.json(
         { success: false, error: "Stripe webhook is not configured" },
         { status: 500 },
+      );
+    }
+    // A missing header is a client error (AF-A-01: unsigned → 400), distinct
+    // from the server-side misconfiguration above.
+    if (!signature) {
+      return NextResponse.json(
+        { success: false, error: "Missing stripe-signature header" },
+        { status: 400 },
       );
     }
 

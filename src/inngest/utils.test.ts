@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Connection, Node } from "@/generated/prisma";
+import type { Connection, Node } from "@/generated/prisma/client";
 import { topologicalSort } from "./utils";
 
 const node = (id: string): Node =>

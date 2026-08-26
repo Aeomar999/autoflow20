@@ -139,6 +139,11 @@ tables are the source of truth for meaning and requiredness.
 | `LOG_LEVEL` | `src/lib/logger.ts` | debug/info/warn/error, default info |
 | `ENGINE_RETRIES` | `src/inngest/config.ts` | engine retry count 0-20, default 3 |
 
+**Test tooling** (not read by application code): `TEST_DATABASE_URL` points the
+`integration` vitest project at its own Postgres — contract and local Docker
+recipe in `docs/engineering/testing_strategy.md` §6; without it those suites
+skip visibly. `SKIP_ENV_VALIDATION=1` bypasses boot validation (CI/builds).
+
 > **Known hardcoded values (not env-configurable yet):** Polar targets
 > `server: "sandbox"` (`src/lib/polar.ts`); Sentry DSNs are literal in the
 > three `sentry.*.config.ts` / `instrumentation-client.ts` files; Sentry
