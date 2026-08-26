@@ -128,21 +128,21 @@ Rules:
 
 ## 5. Expressions
 
-Config values may contain `{{ ... }}` templates, resolved immediately before `execute`.
+Config values may contain `{{ ... }}` templates, resolved immediately before `execute`. All templates compile through `compileTemplate` in `src/features/executions/template.ts` (ADR-0007); the `$`-prefixed context is built by `buildTemplateContext` (AF-M2-03).
 
-| Expression | Resolves to |
-|---|---|
-| `{{ $json.email }}` | field on the current item |
-| `{{ $items[0].json.id }}` | indexed access into input items |
-| `{{ $node["Fetch User"].json.name }}` | output of a named upstream node |
-| `{{ $execution.id }}` | current execution id |
-| `{{ $workflow.id }}` / `{{ $workflow.name }}` | workflow metadata |
-| `{{ $env.REGION }}` | allowlisted environment value |
-| `{{ $now }}` | ISO timestamp at resolution time |
+| Expression | Resolves to | Status |
+|---|---|---|
+| `{{ $json.field }}` | Field on the accumulated context (alias for the flat upstream bag). | ✅ Shipped |
+| `{{ $node.[Node Name].field }}` | Output of a named upstream node, keyed by canvas display name. Use `lookup $node "Name"` for names with dots/spaces. | ✅ Shipped |
+| `{{ $execution.id }}` | Current execution id. | ✅ Shipped |
+| `{{ $workflow.id }}` | Current workflow id. | ✅ Shipped |
+| `{{ $now }}` | ISO-8601 timestamp at context-build time. | ✅ Shipped |
+| `{{ $items[0].json.id }}` | Indexed access into input items. | Deferred — items model (Decision A) |
+| `{{ $env.REGION }}` | Allowlisted environment value. | Deferred — Phase 2 |
 
 **Implementation constraint (security-critical): expressions are parsed and resolved, never evaluated.** No `eval`, no `new Function`, no `vm`. The resolver walks a parsed path against a context object. This costs us arbitrary JavaScript in expressions, and we accept that — a sandboxed Code node (Phase 2+) is the answer for users who need computation, and it gets its own isolation design (`docs/architecture/security.md` §6).
 
-Failure behavior: an unresolvable path throws `ExpressionError` naming the node, the field, and the expression. It does **not** silently become `undefined` — that is how workflows post empty messages to customers.
+Failure behavior: an unresolvable path renders as an empty string (Handlebars default). `ExpressionError` is exported for future use when stricter resolution is needed (e.g. required fields that must not be empty). Missing `$node` keys resolve to `""` — no throw, no silent `undefined` injection.
 
 ---
 

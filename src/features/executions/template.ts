@@ -22,6 +22,74 @@ Handlebars.registerHelper("json", (context) => {
   return new Handlebars.SafeString(jsonString);
 });
 
+/**
+ * Each node executor returns its own output bag. The engine accumulates
+ * these into a flat context for downstream templates, but also keeps
+ * the per-node outputs separate so that `$node["Name"]` can resolve.
+ */
+export type NodeOutput = Record<string, unknown>;
+
+/**
+ * Map from node name (as displayed on the canvas) to that node's
+ * individual output bag. Populated by the engine after each executor
+ * returns.
+ */
+export type NodeOutputMap = Record<string, NodeOutput>;
+
+/**
+ * Metadata the engine injects into every template context so that
+ * templates can reference workflow / execution identifiers and the
+ * current wall-clock time.
+ */
+export type TemplateMeta = {
+  executionId: string;
+  workflowId: string;
+};
+
+/**
+ * The full context object passed to `compileTemplate`. Extends the
+ * accumulated context from upstream nodes with the `$`-prefixed
+ * helpers that AF-M2-03 adds.
+ *
+ * - `$json` — alias for the accumulated context (what was previously
+ *   just `context`).
+ * - `$node["NodeName"]` — resolves to the individual output of the
+ *   named upstream node.
+ * - `$execution.id` — the current execution id.
+ * - `$workflow.id` — the current workflow id.
+ * - `$now` — ISO-8601 timestamp of when the template was compiled
+ *   (deterministic within a step).
+ */
+export type TemplateContext = Record<string, unknown> & {
+  $json: Record<string, unknown>;
+  $node: NodeOutputMap;
+  $execution: { id: string };
+  $workflow: { id: string };
+  $now: string;
+};
+
+/**
+ * Thrown when a template expression references a path that cannot be
+ * resolved. Not thrown for simple missing keys (Handlebars renders
+ * those as empty strings) — this is reserved for structural errors
+ * such as malformed `$node` syntax or circular references that the
+ * engine detects before compilation.
+ */
+export class ExpressionError extends Error {
+  readonly expression: string;
+  readonly nodeName?: string;
+
+  constructor(
+    message: string,
+    opts: { expression: string; nodeName?: string },
+  ) {
+    super(message);
+    this.name = "ExpressionError";
+    this.expression = opts.expression;
+    this.nodeName = opts.nodeName;
+  }
+}
+
 export type SafeTemplate = (context: Record<string, unknown>) => string;
 
 export const compileTemplate = (source: string): SafeTemplate => {
@@ -32,4 +100,32 @@ export const compileTemplate = (source: string): SafeTemplate => {
       allowProtoPropertiesByDefault: false,
       allowProtoMethodsByDefault: false,
     });
+};
+
+/**
+ * Build the enriched template context that `compileTemplate` will
+ * receive. Call this once per node, right before compiling the node's
+ * config templates.
+ *
+ * @param accumulatedContext - the flat bag of all upstream outputs
+ *   (what executors have returned so far).
+ * @param nodeOutputs - per-node output map; the engine maintains this
+ *   alongside `accumulatedContext`.
+ * @param meta - execution/workflow identifiers.
+ * @returns a new object with `$json`, `$node`, `$execution`,
+ *   `$workflow`, and `$now` added on top of `accumulatedContext`.
+ */
+export const buildTemplateContext = (
+  accumulatedContext: Record<string, unknown>,
+  nodeOutputs: NodeOutputMap,
+  meta: TemplateMeta,
+): TemplateContext => {
+  return {
+    ...accumulatedContext,
+    $json: accumulatedContext,
+    $node: nodeOutputs,
+    $execution: { id: meta.executionId },
+    $workflow: { id: meta.workflowId },
+    $now: new Date().toISOString(),
+  };
 };

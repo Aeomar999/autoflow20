@@ -1,5 +1,6 @@
 import { NonRetriableError } from "inngest";
 import { validate } from "@/engine/validate";
+import { buildTemplateContext } from "@/features/executions/template";
 import {
   ExecutionStatus,
   NodeExecutionStatus,
@@ -140,8 +141,14 @@ export const executeWorkflow = inngest.createFunction(
       return workflow.userId;
     });
 
-    // Initialize context with any initial data from the trigger
+    // Initialize context with any initial data from the trigger.
     let context = event.data.initialData || {};
+    // Per-node output map for $node["Name"] resolution (AF-M2-03).
+    const nodeOutputs: Record<string, Record<string, unknown>> = {};
+    const templateMeta = {
+      executionId: execution.id,
+      workflowId,
+    };
 
     // Execute each node with a per-node trace (AF-A-05). Trace writes are
     // their own steps so they are replay-safe and never re-fire.
@@ -171,14 +178,27 @@ export const executeWorkflow = inngest.createFunction(
           return row.startedAt.getTime();
         });
 
-        context = await execute({
+        // AF-M2-03: Build enriched context with $json, $node, $execution,
+        // $workflow, $now before passing to the executor.
+        const enrichedContext = buildTemplateContext(
+          context,
+          nodeOutputs,
+          templateMeta,
+        );
+
+        const result = await execute({
           data: node.data as Record<string, unknown>,
           nodeId: node.id,
           userId,
-          context,
+          context: enrichedContext,
           step,
           publish,
         });
+
+        // Capture this node's individual output for $node["Name"]
+        // resolution in downstream templates.
+        nodeOutputs[node.name] = result;
+        context = result;
 
         await step.run(`trace-end:${node.id}`, async () => {
           const finishedAtMs = Date.now();

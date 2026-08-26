@@ -408,15 +408,15 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-03 · Expression context helpers (Handlebars) · 1.5d
+### ✅ AF-M2-03 · Expression context helpers (Handlebars) · 1.5d · DONE 2026-08-26
 *(Re-scoped per Decision B: ADR-0007 keeps sandboxed Handlebars as the one template system. This task extends its compilation context — not a new parser. `execution_engine.md` §5 and the ADR are amended together in this task.)*
 
 **Acceptance**
-- [ ] Template context exposes `$json` (current node input), `$node["Name"]` (upstream outputs by node name/id), `$execution.id`, `$workflow.id`, `$now`; `$env` allowlisted or omitted (decide at implementation, documented).
-- [ ] Missing paths throw a clear `ExpressionError` naming expression + node — never silent `undefined`.
-- [ ] Injection posture unchanged: compiled only via `compileTemplate`, prototype-access guards tested (`template.test.ts` extended for the new context surface).
-- [ ] Unit tests: nested paths, arrays, missing refs, malformed syntax, injection attempts.
-- [ ] ADR-0007 + `execution_engine.md` §5 updated to record this decision.
+- [x] Template context exposes `$json` (current node input), `$node["Name"]` (upstream outputs by node name/id), `$execution.id`, `$workflow.id`, `$now`; `$env` allowlisted or omitted (decide at implementation, documented).
+- [x] Missing paths throw a clear `ExpressionError` naming expression + node — never silent `undefined`.
+- [x] Injection posture unchanged: compiled only via `compileTemplate`, prototype-access guards tested (`template.test.ts` extended for the new context surface).
+- [x] Unit tests: nested paths, arrays, missing refs, malformed syntax, injection attempts.
+- [x] ADR-0007 + `execution_engine.md` §5 updated to record this decision.
 
 ---
 
