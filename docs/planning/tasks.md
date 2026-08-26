@@ -571,6 +571,28 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 - ⬜ **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d
 - ⬜ **AF-M6-06** SSO: Google + GitHub via Better Auth · 2d
 - ⬜ **AF-M6-07** Workspace switcher and resource sharing UI · 2d
+- ⬜ **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)*
+  Better Auth provides sessions but no dedicated profile page. Render `/settings/profile` with name, email, avatar, password change, connected accounts (GitHub/Google), and session management.
+  **Acceptance**
+  - [ ] `/settings/profile` route renders user name, email, avatar.
+  - [ ] Password change form (current + new + confirm).
+  - [ ] Connected accounts list with connect/disconnect.
+  - [ ] Active sessions list with revoke.
+- ⬜ **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)*
+  `api_contract.md` lists `acceptInvite` as an organizations router procedure; no UI exists for the invite link. Build the accept-invite page that validates the token, adds the user to the org, and redirects to the workspace.
+  **Acceptance**
+  - [ ] `/accept-invite?token=…` route validates token server-side.
+  - [ ] On success, user is added to org and redirected to workspace.
+  - [ ] Expired/invalid tokens show a clear error with a "request new invite" link.
+  - [ ] If the user is not logged in, redirect to login with a return URL.
+- ⬜ **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)*
+  PRD §5.4 specifies human-in-the-loop approval gates. Mapped to Phase 1 in the PRD but only captured as Phase 2 epic AF-P2-E. This task adds the M6 implementation: an approval node type, an approval request UI, and per-tenant approval policy.
+  **Acceptance**
+  - [ ] `core.approval` node type: pauses execution, emits an approval request, resumes on approve/reject.
+  - [ ] `/approvals` route lists pending approval requests with workflow, node, requester, timestamp.
+  - [ ] Approve/reject actions with optional comment; execution resumes or is marked REJECTED.
+  - [ ] Timeout policy: configurable per-node (default 24h); on timeout, execution marked FAILED with reason.
+  - [ ] Approval requests are tenant-scoped; cross-tenant access returns NOT_FOUND.
 
 ---
 
@@ -582,6 +604,22 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 - ⬜ **AF-M7-04** Quotas: per-plan execution + AI-spend limits enforced in the runner, surfaced before the limit, wired to Polar · 3d
 - ⬜ **AF-M7-05** Onboarding: first-run checklist, sample workflow, empty states · 2d
 - ⬜ **AF-M7-06** ~~Landing page at `/`~~ *pulled forward to the M0 leftovers section (2026-08-26)*
+- ⬜ **AF-M7-07** Command palette (`command-palette`) · 1d · *(added 2026-08-26)*
+  Global Cmd+K / Ctrl+K palette for quick navigation and actions. Not referenced in any prior task; design artifact from `screens/`.
+  **Acceptance**
+  - [ ] Cmd+K / Ctrl+K opens a modal with a search input.
+  - [ ] Results include: workflows (by name), executions (by ID/status), credentials (by name), settings pages, and actions (create workflow, execute, etc.).
+  - [ ] Keyboard navigation: arrow keys to select, Enter to activate, Escape to close.
+  - [ ] Fuzzy search over all result types.
+  - [ ] Results are tenant-scoped (no cross-org leakage).
+- ⬜ **AF-M7-08** Notifications center (`notifications`) · 1.5d · *(added 2026-08-26)*
+  In-app notification system for execution completions, approval requests, credential expiry warnings, and system alerts. Not referenced in any prior task; design artifact from `screens/`.
+  **Acceptance**
+  - [ ] `/notifications` route lists notifications with type, message, timestamp, read/unread status.
+  - [ ] Notification bell icon in the header with unread count badge.
+  - [ ] Notifications are created by: execution failure/success (configurable), approval request received, credential expiry warning, system maintenance notices.
+  - [ ] Mark as read (single + mark-all-read).
+  - [ ] Notifications are tenant-scoped; the `Notification` model is tenant-scoped.
 
 ---
 
@@ -589,27 +627,39 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 
 - ⬜ **AF-M8-01** Public REST v1 (list/get workflows, trigger run, get execution) + API keys with scopes · 4d
 - ⬜ **AF-M8-02** Rate limiting on auth, webhook, and API routes · 2d
-- ⬜ **AF-M8-03** Load test to the concurrency target; fix findings · 3d
-- ⬜ **AF-M8-04** Execution retention policy + archival/partitioning for `NodeExecution` · 3d
-- ⬜ **AF-M8-05** Alerting, runbooks for the top 5 failure modes, error budgets, status page · 3d
-- ⬜ **AF-M8-06** Security review against `docs/architecture/security.md`; dependency audit; close all HIGH findings · 3d
-- ⬜ **AF-M8-07** Node reference + expression documentation site · 3d
-- ⬜ **AF-M8-08** Beta launch checklist: billing, support, ToS, privacy policy, DPA · 2d
+- ⬜ **AF-M8-04** Auth flow verification: password reset + email verification · 0.5d · *(added 2026-08-26)*
+  Better Auth provides built-in password reset and email verification flows. Verify they work end-to-end; add custom screens only if the library defaults are insufficient.
+  **Acceptance**
+  - [ ] Password reset flow: "Forgot password" link on login → email with reset link → reset form → new password → redirect to login.
+  - [ ] Email verification flow: signup → verification email sent → click link → email verified → redirect to dashboard.
+  - [ ] Both flows work with the configured email provider (Resend/SendGrid/etc.).
+  - [ ] If custom screens are needed (to match the `screens/` designs), they are rendered inside the `(auth)` group.
+- ⬜ **AF-M8-05** Load test to the concurrency target; fix findings · 3d
+- ⬜ **AF-M8-06** Execution retention policy + archival/partitioning for `NodeExecution` · 3d
+- ⬜ **AF-M8-07** Alerting, runbooks for the top 5 failure modes, error budgets, status page · 3d
+- ⬜ **AF-M8-08** Security review against `docs/architecture/security.md`; dependency audit; close all HIGH findings · 3d
+- ⬜ **AF-M8-09** Node reference + expression documentation site · 3d
+- ⬜ **AF-M8-10** Beta launch checklist: billing, support, ToS, privacy policy, DPA · 2d
 
 ---
 
 ## Phase 2 epics (post-Beta — do not start early)
 
-| ID | Epic |
-|---|---|
-| AF-P2-A | Agent node: goal, tools (nodes-as-tools), memory policy, iteration cap, confidence output |
-| AF-P2-B | Agent memory: short-term conversational + long-term vector, workspace-scoped |
-| AF-P2-C | RAG: ingestion (PDF/DOCX/TXT/MD), chunking, embeddings, retrieval node, scheduled sync |
-| AF-P2-D | Multi-agent graph: delegation and handoff with explicit context-passing policy |
-| AF-P2-E | Confidence scoring + human-in-the-loop escalation + approval nodes |
-| AF-P2-F | Learning loop: feedback capture, prompt A/B tests, per-agent performance dashboards |
-| AF-P2-G | Multi-channel deployment: Slack, Teams, Discord, email, SMS, web widget |
-| AF-P2-H | Connectors to ~100, demand-prioritized |
+| ID | Epic | Screens |
+|---|---|---|
+| AF-P2-A | Agent node: goal, tools (nodes-as-tools), memory policy, iteration cap, confidence output | `agent-builder`, `agent-detail`, `agents-list` |
+| AF-P2-B | Agent memory: short-term conversational + long-term vector, workspace-scoped | — |
+| AF-P2-C | RAG: ingestion (PDF/DOCX/TXT/MD), chunking, embeddings, retrieval node, scheduled sync | — |
+| AF-P2-D | Multi-agent graph: delegation and handoff with explicit context-passing policy | — |
+| AF-P2-E | Confidence scoring + human-in-the-loop escalation + approval nodes | `approvals` *(partially covered by AF-M6-10 in M6)* |
+| AF-P2-F | Learning loop: feedback capture, prompt A/B tests, per-agent performance dashboards | `states-board` |
+| AF-P2-G | Multi-channel deployment: Slack, Teams, Discord, email, SMS, web widget | — |
+| AF-P2-H | Connectors to ~100, demand-prioritized | — |
+| AF-P2-I | AI copilot: inline node suggestion, natural-language workflow generation | `ai-copilot` *(Decision F — descope to Phase 2)* |
+| AF-P2-J | Developer platform: public REST v2, GraphQL, SDKs, CLI, Git sync, CI/CD | `developer-platform` |
+| AF-P2-K | Marketplace: third-party node packaging, review, listing | `marketplace` |
+| AF-P2-L | ROI analytics: cost attribution, optimization recommendations, usage trend analysis | `roi-analytics` |
+| AF-P2-M | Pricing page: tier comparison, feature matrix, plan selection | `pricing` |
 
 **Sequencing rule:** AF-P2-A and its observability ship before AF-P2-D. An unobservable multi-agent system is undebuggable.
 
