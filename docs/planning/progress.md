@@ -93,9 +93,7 @@ previously overstated both directions and has been corrected (§8).
 ## 4. What is stubbed or missing
 
 ### Missing routes
-| Route | Actual content |
-|---|---|
-| `/` | **Does not exist** — no `src/app/page.tsx`; sidebar logo 404s. |
+*(none — `/` landing page shipped 2026-08-26, AF-M7-06; post-checkout success page at `/workflows/billing/success` shipped 2026-08-26, AF-M0-10)*
 
 *(The previous revision listed `/executions` and `/credentials` pages as `<p>` stubs — false since the lesson-27+ code; they are fully built.)*
 
@@ -175,6 +173,7 @@ Newest first.
 
 | Date | Change | Milestone |
 |---|---|---|
+| 2026-08-26 | **Phase A UX wins.** Landing page at `/` (AF-M7-06): session-aware CTAs, capability grid mirroring verified features only, real root metadata replacing create-next-app leftovers. Polar success page `/workflows/billing/success` (AF-M0-10): renders inside app shell, invalidates the `["subscription"]` cache so the sidebar flips without reload; `.env.example` duplicate `POLAR_SUCCESS_URL` removed and default retargeted; `polar_setup.md` §4 updated. AGENTS.md §6: client components must import Prisma enums/types from `@/generated/prisma/browser`. | M0 / M7 |
 | 2026-08-26 | **Deep-plan refresh** (`tasks.md`/`implementation_plan.md`): internal-demo horizon; decisions register (engine extended incrementally, Handlebars kept as the one template system, tenancy deferred to pre-public-beta, KB planned in as new **M-KB** milestone); M2 re-scoped 4w→3w against verified pre-built engine work. **Integration test harness shipped:** `integration` vitest project vs Docker postgres:16 (:5433) with per-suite `migrate deploy` + truncation, setup hard-pins `DATABASE_URL` to the test DB before imports (dev/prod cannot be truncated by tests). First suite: 12 webhook-authz route tests (AF-A-01 acceptance) — found & fixed unsigned Stripe request returning 500 instead of 400. Docs: `testing_strategy.md` §6 contract + local recipe (incl. Windows `127.0.0.1`-not-`localhost` wslrelay trap), stale §8 rewritten to match live ci.yml. | M0 / docs |
 | 2026-08-25 | **Setup manual.** `docs/operations/environment_setup.md` rewritten as a full operator's guide (env-var reference reconciled against `src/lib/env.ts` — fixed wrong required/optional claims, removed nonexistent vars GROQ_API_KEY/INNGEST_BASE_URL/TEST_DATABASE_URL rows, NEXT_PUBLIC_POLAR_PRODUCT_ID/SUCCESS_URL; step-by-step acquisition guides for Postgres/secret generation/GitHub+Google OAuth/Polar sandbox/Inngest Cloud keys/Stripe webhook secret/Sentry token/ngrok domain; local walkthrough + smoke test; ngrok internet-exposure flow; Vercel+Neon+Inngest Cloud deployment with the Polar `server:"sandbox"` hardcode called out as a go-live blocker). Stale references removed: `scripts/dev-db.ps1`, `test/db.ts`, `prisma:studio` script, ESLint->Biome. | docs |
 | 2026-08-24 | **M0-06 Testing Library.** `@testing-library/react` + jsdom `dom` vitest project (`*.dom.test.{ts,tsx}`, jest-dom matchers); first component test `upgrade-modal.dom.test.tsx` (3 tests). Root-caused the long-standing "`@/` imports fail under Vitest" quirk: inline `test.projects` don't inherit root-level `resolve.alias` or `setupFiles` — both now declared per project in `vitest.config.ts`, unblocking `@/` runtime imports in all future tests (AGENTS.md §6 updated). Gates: 81/81 tests, tsc clean, biome clean. | M0 |

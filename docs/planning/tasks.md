@@ -148,24 +148,24 @@ Also fixed the user-facing "Unathorized" typo while in file.
 - [x] No `create-next-app` boilerplate remains.
 - [x] Create root `AGENTS.md` referenced by this backlog's preamble. (§1 identity, §2 truth files, §3 spec routing, §4 hard rules, §5 gates, §6 conventions, §7 workflow — matching the preamble's references.)
 
-### ⬜ AF-M0-10 · Polar checkout success route · 0.5d · *(added 2026-08-26)*
+### ✅ AF-M0-10 · Polar checkout success route · 0.5d · *(added 2026-08-26)* · DONE 2026-08-26
 `POLAR_SUCCESS_URL` currently points at `/workflows` because no success page exists. Build the real one.
 
 **Acceptance**
-- [ ] Route `/workflows/billing/success` renders post-checkout state (reads `checkout_id` — the plugin substitutes `{CHECKOUT_ID}` in `POLAR_SUCCESS_URL`; verify against `@polar-sh/better-auth` behavior).
-- [ ] Refetches customer state on mount so the sidebar upgrade button flips immediately.
-- [ ] `.env.example` default updated to the real route; duplicate `POLAR_SUCCESS_URL` block removed.
-- [ ] Update `.env` guidance in `polar_setup.md` §4.
+- [x] Route `/workflows/billing/success` renders post-checkout state. *(Client component under `(dashboard)/(rest)` so it renders inside the app shell with sidebar.)*
+- [x] Refetches customer state on mount — invalidates the `["subscription"]` React Query cache that `useSubscription`/the sidebar read, so the upgrade button flips without a reload.
+- [x] `.env.example` default updated to the real route (`{CHECKOUT_ID}` substitution supported by the plugin); duplicate `POLAR_SUCCESS_URL` block removed.
+- [x] Update `.env` guidance in `polar_setup.md` §4.
 
 ---
 
-### ⬜ AF-M7-06 · Landing page at `/` · 2d · *(pulled forward from M7, 2026-08-26)*
+### ✅ AF-M7-06 · Landing page at `/` · 2d · *(pulled forward from M7, 2026-08-26)* · DONE 2026-08-26
 Currently a 404 that the sidebar logo links to; trivially demoable win, no dependencies.
 
 **Acceptance**
-- [ ] Root route renders a real landing page (hero, honest capability copy linking `progress.md` status, CTA → `/signup`).
-- [ ] Unauthenticated users see it without redirect (adjust middleware/`requireAuth` wiring accordingly).
-- [ ] Sidebar logo links render correctly authenticated and unauthenticated.
+- [x] Root route renders a real landing page (hero, honest capability copy matching `progress.md` §3 only, CTA → `/signup`; session-aware CTA shows "Open dashboard" for logged-in users).
+- [x] Unauthenticated users see it without redirect (no global middleware exists; root page is outside the `(dashboard)` group).
+- [x] Sidebar logo link now resolves authenticated and unauthenticated. Stale `create-next-app` root metadata replaced with real title/description.
 
 ---
 

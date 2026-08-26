@@ -61,11 +61,16 @@ with `migrate deploy`.
   discriminators - keep variant tuples explicit).
 - Node ids on the canvas are cuid2 strings from `@paralleldrive/cuid2`; validate
   with length bounds, not `.cuid()` (that is cuid v1 and rejects them).
-- Vitest runs two projects (`unit`: node env, `*.test.{ts,tsx}`; `dom`: jsdom +
-  Testing Library, `*.dom.test.{ts,tsx}`). Inline `test.projects` do NOT inherit
-  root-level `resolve.alias` or `setupFiles` - both are declared per project in
-  `vitest.config.ts`. With that in place `@/` imports work at test runtime;
-  `import type` from `@/generated/prisma` remains the norm anyway.
+- Vitest runs three projects (`unit`: node env, `*.test.{ts,tsx}`; `dom`:
+  jsdom + Testing Library, `*.dom.test.{ts,tsx}`; `integration`: real Postgres,
+  `tests/integration/**`, skips without `TEST_DATABASE_URL`). Inline
+  `test.projects` do NOT inherit root-level `resolve.alias` or `setupFiles` -
+  all three are declared per project in `vitest.config.ts`. With that in place
+  `@/` imports work at test runtime.
+- Prisma generated client has two entrypoints: client components must import
+  enums/types from `@/generated/prisma/browser`; only server code uses
+  `@/generated/prisma/client` (its runtime is Node-only and breaks Turbopack
+  client chunks).
 - Handlebars templates go through `src/features/executions/template.ts`
   (`compileTemplate`), never raw `Handlebars.compile` (ADR-0007).
 - Outbound HTTP goes through `src/features/executions/components/http-request/egress-guard.ts`.
