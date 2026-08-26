@@ -12,6 +12,7 @@ export type TraceStatus = "RUNNING" | "SUCCESS" | "FAILED" | "SKIPPED";
 
 export type TraceNode = {
   id: string;
+  name: string;
   type: string;
   data: unknown;
 };
@@ -19,11 +20,13 @@ export type TraceNode = {
 export type NodeExecutionRow = {
   executionId: string;
   nodeId: string;
+  nodeName: string;
   nodeType: string;
   status: TraceStatus;
   attempt: number;
   order: number;
   error?: string;
+  skipReason?: string;
 };
 
 /** Rows for every node at/after `fromIndex` in the topological order -
@@ -37,11 +40,12 @@ export function buildSkippedTraces(
   return sortedNodes.slice(fromIndex).map((node, offset) => ({
     executionId,
     nodeId: node.id,
+    nodeName: node.name,
     nodeType: node.type,
     status: "SKIPPED" as const,
     attempt: 0,
     order: fromIndex + offset,
-    error: reason,
+    skipReason: reason,
   }));
 }
 

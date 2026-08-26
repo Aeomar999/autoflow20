@@ -24,11 +24,19 @@ export const executeWorkflow = inngest.createFunction(
     id: "execute-workflow",
     retries: ENGINE_RETRIES,
     onFailure: async ({ event }) => {
+      const failedExecution = await prisma.execution.findUnique({
+        where: { inngestEventId: event.data.event.id },
+        select: { startedAt: true },
+      });
+      const durationMs = failedExecution
+        ? computeDurationMs(failedExecution.startedAt.getTime(), Date.now())
+        : null;
       return prisma.execution.update({
         where: { inngestEventId: event.data.event.id },
         data: {
           status: ExecutionStatus.FAILED,
           completedAt: new Date(),
+          durationMs,
           error: event.data.error.message,
           errorStack: truncateStack(event.data.error.stack),
         },
@@ -58,10 +66,20 @@ export const executeWorkflow = inngest.createFunction(
     }
 
     const execution = await step.run("create-execution", async () => {
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: { id: workflowId },
+        include: { nodes: true, connections: true },
+      });
       return prisma.execution.create({
         data: {
           workflowId,
           inngestEventId,
+          trigger: (event.data.trigger as string) || "MANUAL",
+          mode: (event.data.mode as string) || "PRODUCTION",
+          graphSnapshot: {
+            nodes: workflow.nodes,
+            connections: workflow.connections,
+          },
         },
       });
     });
@@ -113,6 +131,7 @@ export const executeWorkflow = inngest.createFunction(
             data: {
               executionId: execution.id,
               nodeId: node.id,
+              nodeName: node.name,
               nodeType: node.type,
               status: NodeExecutionStatus.RUNNING,
               attempt,
@@ -188,11 +207,21 @@ export const executeWorkflow = inngest.createFunction(
     }
 
     await step.run("update-execution", async () => {
+      const finishedAt = new Date();
+      const durationMs = computeDurationMs(
+        new Date(execution.startedAt).getTime(),
+        finishedAt.getTime(),
+      );
+      const nodeCount = await prisma.nodeExecution.count({
+        where: { executionId: execution.id },
+      });
       return prisma.execution.update({
         where: { inngestEventId, workflowId },
         data: {
           status: ExecutionStatus.SUCCESS,
-          completedAt: new Date(),
+          completedAt: finishedAt,
+          durationMs,
+          nodeCount,
           output: context,
         },
       });

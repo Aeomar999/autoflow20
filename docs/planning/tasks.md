@@ -386,14 +386,14 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-01 · Execution data model · 1.5d
+### ✅ AF-M2-01 · Execution data model · 1.5d · DONE 2026-08-26
 *(Re-scoped: `Execution` + `NodeExecution` tables exist; this task adds the missing columns only.)*
 
 **Acceptance**
-- [ ] `Execution`: add trigger, mode, `graphSnapshot Json`, totals (nodes/tokens/costUsd). *(id, workflowId, status, timings, error already exist.)*
-- [ ] `NodeExecution`: add input, output, tokensIn, tokensOut, costUsd (IO truncated above the M2-00 threshold with an explicit `truncated: true` marker).
-- [ ] Indices: `(workflowId, startedAt desc)`, `(status)`. *(Existing `(executionId, order)` kept.)*
-- [ ] Migration is additive; rollback plan documented.
+- [x] `Execution`: add trigger, mode, `graphSnapshot Json`, totals (nodes/tokens/costUsd). *(id, workflowId, status, timings, error already exist.)*
+- [x] `NodeExecution`: add input, output, tokensIn, tokensOut, costUsd (IO truncated above the M2-00 threshold with an explicit `truncated: true` marker).
+- [x] Indices: `(workflowId, startedAt desc)`, `(status)`. *(Existing `(executionId, order)` kept.)*
+- [x] Migration is additive; rollback plan documented.
 
 ---
 
