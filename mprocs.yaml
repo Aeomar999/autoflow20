@@ -1,9 +1,12 @@
 procs:
+  # Windows: mprocs spawns commands without a shell, so bare "npm" /
+  # "inngest-cli" resolve to extensionless shims CreateProcessW can't run
+  # (os error 193). Route every pane through cmd /c.
   ngrok:
-    cmd: ["npm", "run", "ngrok:dev"]
+    cmd: ["cmd", "/c", "npm", "run", "ngrok:dev"]
 
   inngest:
-    cmd: ["npm", "run", "inngest:dev"]
+    cmd: ["cmd", "/c", "npm", "run", "inngest:dev"]
 
   next:
-    cmd: ["npm", "run", "dev"]
+    cmd: ["cmd", "/c", "npm", "run", "dev"]
