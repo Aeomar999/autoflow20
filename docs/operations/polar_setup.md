@@ -208,9 +208,9 @@ Edit `.env` (copy `.env.example` if starting fresh):
 POLAR_ACCESS_TOKEN="polar_oat_xxxxxxxxxxxxxxxxxxxxxxxx"   # §3.5
 
 # Post-checkout redirect. MUST be an absolute URL and MUST point at a route
-# that exists. There is NO /workflows/billing/success page in this codebase —
-# the .env.example default is aspirational. Use:
-POLAR_SUCCESS_URL="http://localhost:3000/workflows"
+# that exists. The success page lives at /workflows/billing/success and the
+# plugin substitutes {CHECKOUT_ID} into this URL if you include it:
+POLAR_SUCCESS_URL="http://localhost:3000/workflows/billing/success"
 
 # Your product UUID from §3.3
 POLAR_PRODUCT_ID="12345678-90ab-4cde-8f01-23456789abcd"
