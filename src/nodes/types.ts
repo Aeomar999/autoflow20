@@ -48,8 +48,7 @@ export interface RetryPolicy {
 export interface NodeDefinition<TConfig = unknown> {
   /**
    * Stable, permanent, persisted in Node.type. Never rename — saved workflows
-   * break. Currently the raw Prisma enum value ("MANUAL_TRIGGER"); M1-02
-   * migrates these to namespaced ids ("core.manual-trigger").
+   * break. Plain string (enum dropped in AF-M1-02).
    */
   type: string;
   /** Bump when configSchema changes incompatibly; requires a migrate fn. */

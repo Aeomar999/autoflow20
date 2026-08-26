@@ -2,7 +2,6 @@ import { NonRetriableError } from "inngest";
 import {
   ExecutionStatus,
   NodeExecutionStatus,
-  type NodeType,
 } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { getNodeRegistration } from "@/nodes/registry";
@@ -114,7 +113,7 @@ export const executeWorkflow = inngest.createFunction(
             data: {
               executionId: execution.id,
               nodeId: node.id,
-              nodeType: node.type as NodeType,
+              nodeType: node.type,
               status: NodeExecutionStatus.RUNNING,
               attempt,
               order: index,
@@ -176,12 +175,9 @@ export const executeWorkflow = inngest.createFunction(
           );
           if (rows.length > 0) {
             // The executor registry has already validated every node type;
-            // narrow the trace rows' plain strings to the Prisma enum.
+            // trace rows carry plain string type ids.
             await prisma.nodeExecution.createMany({
-              data: rows.map((row) => ({
-                ...row,
-                nodeType: row.nodeType as NodeType,
-              })),
+              data: rows,
             });
           }
           return rows.length;

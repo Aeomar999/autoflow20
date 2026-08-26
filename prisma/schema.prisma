@@ -116,26 +116,16 @@ model Workflow {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-enum NodeType {
-  INITIAL
-  MANUAL_TRIGGER
-  HTTP_REQUEST
-  GOOGLE_FORM_TRIGGER
-  STRIPE_TRIGGER
-  ANTHROPIC
-  GEMINI
-  OPENAI
-  DISCORD
-  SLACK
-}
-
 model Node {
   id String @id @default(cuid())
   workflowId String
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   name String
-  type NodeType
+  type String
+  typeVersion Int @default(1)
+  disabled Boolean @default(false)
+  notes String?
   position Json
   data Json @default("{}")
 
@@ -210,7 +200,7 @@ model NodeExecution {
   execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
 
   nodeId String
-  nodeType NodeType
+  nodeType String
 
   status NodeExecutionStatus @default(RUNNING)
   /// Zero-based Inngest function attempt that produced this row.

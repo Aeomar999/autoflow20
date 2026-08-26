@@ -22,7 +22,6 @@ import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
 import "@xyflow/react/dist/style.css";
 import { useSetAtom } from "jotai";
 import { nodeComponents } from "@/config/node-components";
-import { NodeType } from "@/generated/prisma/browser";
 import { editorAtom } from "../store/atoms";
 import { AddNodeButton } from "./add-node-button";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
@@ -60,7 +59,7 @@ export const Editor = ({ workflowId }: { workflowId: string }) => {
   );
 
   const hasManualTrigger = useMemo(() => {
-    return nodes.some((node) => node.type === NodeType.MANUAL_TRIGGER);
+    return nodes.some((node) => node.type === "MANUAL_TRIGGER");
   }, [nodes]);
 
   return (

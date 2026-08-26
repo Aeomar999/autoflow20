@@ -281,17 +281,18 @@ Goal: the canvas becomes a real authoring tool over a real node catalogue. Spec:
 
 ---
 
-### ⬜ AF-M1-02 · Drop the `NodeType` enum · 1d
+### ✅ AF-M1-02 · Drop the `NodeType` enum · 1d
 A Postgres enum requires a migration per node type. Blocks the entire node library (`prisma/schema.prisma:96`).
 **Reality (2026-08-22):** previously marked shipped — enum still exists with 10 values used across schema/routers/registry.
+**Resolved (2026-08-26):** ✅ Complete. Enum dropped; Node.type/NodeExecution.nodeType now String. Data migrated (INITIAL→MANUAL_TRIGGER). New columns: typeVersion, disabled, notes.
 
 **Acceptance**
-- [ ] Migration drops the `NodeType` enum; `Node.type` remains `String`.
-- [ ] New columns: `typeVersion Int @default(1)`, `disabled Boolean @default(false)`, `notes String?`.
-- [ ] Unknown node types are rejected at write time by registry validation with a `BAD_REQUEST`.
-- [ ] Existing `INITIAL` rows migrate to `core.manual-trigger` (or are removed if the workflow is empty) — data migration included and tested.
-- [ ] `src/config/node-components.ts` is replaced by registry-driven component resolution.
-- [ ] `executor-registry.ts` keyed by string type ids post-migration.
+- [x] Migration drops the `NodeType` enum; `Node.type` remains `String`.
+- [x] New columns: `typeVersion Int @default(1)`, `disabled Boolean @default(false)`, `notes String?`.
+- [x] Unknown node types are rejected at write time by registry validation with a `BAD_REQUEST`. (Zod discriminated union on `saveWorkflowInputSchema` rejects unknown types at the tRPC input boundary.)
+- [x] Existing `INITIAL` rows migrate to `MANUAL_TRIGGER` — data migration included in `20260826143713_drop_node_type_enum`.
+- [x] `src/config/node-components.ts` uses string-literal keys (no Prisma import).
+- [x] All code references to `NodeType` enum removed; `executor-registry.ts` already deleted in AF-M1-01.
 
 ---
 

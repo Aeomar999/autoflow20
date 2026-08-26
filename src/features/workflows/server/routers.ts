@@ -3,7 +3,6 @@ import { generateSlug } from "random-word-slugs";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { saveWorkflowInputSchema } from "@/features/workflows/schemas";
-import { NodeType } from "@/generated/prisma/client";
 import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
 import {
@@ -36,9 +35,9 @@ export const workflowsRouter = createTRPCRouter({
         userId: ctx.auth.user.id,
         nodes: {
           create: {
-            type: NodeType.INITIAL,
+            type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            name: NodeType.INITIAL,
+            name: "MANUAL_TRIGGER",
           },
         },
       },
@@ -76,7 +75,7 @@ export const workflowsRouter = createTRPCRouter({
             id: node.id,
             workflowId: id,
             name: node.type || "unknown",
-            type: node.type as NodeType,
+            type: node.type,
             position: node.position,
             data: node.data || {},
           })),
