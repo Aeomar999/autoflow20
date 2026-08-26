@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CredentialType } from "@/generated/prisma";
+import { CredentialType } from "@/generated/prisma/browser";
 import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
 import {
   useCreateCredential,

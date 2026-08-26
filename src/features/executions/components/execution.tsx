@@ -27,7 +27,7 @@ import {
   ExecutionStatus,
   type NodeExecution,
   NodeExecutionStatus,
-} from "@/generated/prisma";
+} from "@/generated/prisma/browser";
 
 const getStatusIcon = (status: ExecutionStatus) => {
   switch (status) {
