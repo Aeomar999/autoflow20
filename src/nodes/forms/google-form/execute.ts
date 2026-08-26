@@ -1,11 +1,8 @@
-import type { NodeExecutor } from "@/features/executions/types";
+import "server-only";
 import { googleFormTriggerChannel } from "@/inngest/channels/google-form-trigger";
+import type { NodeRun } from "@/nodes/types";
 
-type GoogleFormTriggerData = Record<string, unknown>;
-
-export const googleFormTriggerExecutor: NodeExecutor<
-  GoogleFormTriggerData
-> = async ({ nodeId, context, step, publish }) => {
+export const execute: NodeRun = async ({ nodeId, context, step, publish }) => {
   await publish(
     googleFormTriggerChannel().status({
       nodeId,

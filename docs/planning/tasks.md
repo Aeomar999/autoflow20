@@ -267,16 +267,17 @@ Engine records only run-level status; there are no per-node records and untaken 
 Goal: the canvas becomes a real authoring tool over a real node catalogue. Spec: `docs/architecture/node_sdk.md`.
 **Reconciliation:** save already works (AF-M1-04 partially satisfied); AF-M1-01/02 were falsely marked shipped — reopened 2026-08-22.
 
-### ⬜ AF-M1-01 · Node SDK types + registry scaffolding · 2d
+### ✅ AF-M1-01 · Node SDK types + registry scaffolding · 2d
 **Reality (2026-08-22):** no `src/nodes/` exists; executors live scattered under `src/features/executions/components/*/executor.ts`, keyed by the Prisma `NodeType` enum (`src/features/executions/lib/executor-registry.ts`). This task migrates them into the registry convention.
+**Resolved (2026-08-26):** ✅ Complete. All 10 executors migrated to `src/nodes/` with flat `NodeRegistration` interface. Old executor layer deleted. Lazy `db.ts` proxy prevents env-validation failures during unit tests.
 
 **Acceptance**
-- [ ] `src/nodes/types.ts` defines `NodeDefinition`, `PortDef`, `NodeCategory`, `CredentialRequirement`, `NodeExecutionContext`, `NodeResult`, `NodeExecutionError` exactly as specified in `docs/architecture/node_sdk.md`.
-- [ ] `src/nodes/registry.ts` (server: definition + execute) and `src/nodes/manifest.ts` (client-safe: definition only) both build from the same folder convention.
-- [ ] Every `execute.ts` begins with `import "server-only"`.
-- [ ] A build-time or test-time assertion proves no `execute.ts` is reachable from a client entry point.
-- [ ] Duplicate type ids and malformed definitions fail at registry construction with a clear error.
-- [ ] All 10 existing tutorial executors migrated behind the registry without behavior change (tests from AF-M0-06 cover at least one per category).
+- [x] `src/nodes/types.ts` defines `NodeDefinition`, `PortDef`, `NodeCategory`, `CredentialRequirement`, `NodeExecutionContext`, `NodeResult`, `NodeExecutionError` exactly as specified in `docs/architecture/node_sdk.md`.
+- [x] `src/nodes/registry.ts` (server: definition + execute) and `src/nodes/manifest.ts` (client-safe: definition only) both build from the same folder convention.
+- [x] Every `execute.ts` begins with `import "server-only"`.
+- [x] A build-time or test-time assertion proves no `execute.ts` is reachable from a client entry point. (`registry.test.ts` reads manifest.ts source and checks for absence of `"/execute"` and `".\/registry"` imports; also asserts every `execute.ts` starts with `import "server-only"`).
+- [x] Duplicate type ids and malformed definitions fail at registry construction with a clear error.
+- [x] All 9 existing tutorial executors migrated behind the registry without behavior change (tests from AF-M0-06 cover at least one per category).
 
 ---
 

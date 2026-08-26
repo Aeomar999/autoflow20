@@ -1,11 +1,11 @@
 import { NonRetriableError } from "inngest";
-import { getExecutor } from "@/features/executions/lib/executor-registry";
 import {
   ExecutionStatus,
   NodeExecutionStatus,
   type NodeType,
 } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { getNodeRegistration } from "@/nodes/registry";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
 import { geminiChannel } from "./channels/gemini";
@@ -99,7 +99,7 @@ export const executeWorkflow = inngest.createFunction(
     // Execute each node with a per-node trace (AF-A-05). Trace writes are
     // their own steps so they are replay-safe and never re-fire.
     for (const [index, node] of sortedNodes.entries()) {
-      const executor = getExecutor(node.type as NodeType);
+      const { execute } = getNodeRegistration(node.type);
       let startedAtMs = Date.now();
 
       try {
@@ -123,7 +123,7 @@ export const executeWorkflow = inngest.createFunction(
           return row.startedAt.getTime();
         });
 
-        context = await executor({
+        context = await execute({
           data: node.data as Record<string, unknown>,
           nodeId: node.id,
           userId,

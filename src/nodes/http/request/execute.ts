@@ -1,24 +1,24 @@
+import "server-only";
 import { NonRetriableError } from "inngest";
 import ky, { type Options as KyOptions } from "ky";
-import { compileTemplate } from "@/features/executions/template";
-import type { NodeExecutor } from "@/features/executions/types";
-import { httpRequestChannel } from "@/inngest/channels/http-request";
 import {
   assertSafeEndpoint,
   readCappedText,
   resolveTimeoutMs,
-} from "./egress-guard";
+} from "@/features/executions/components/http-request/egress-guard";
+import { compileTemplate } from "@/features/executions/template";
+import { httpRequestChannel } from "@/inngest/channels/http-request";
+import type { NodeRun } from "@/nodes/types";
 
 type HttpRequestData = {
   variableName?: string;
   endpoint?: string;
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: string;
-  /** Optional per-node request timeout; clamped by egress-guard. */
   timeoutMs?: number;
 };
 
-export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
+export const execute: NodeRun<HttpRequestData> = async ({
   data,
   nodeId,
   context,

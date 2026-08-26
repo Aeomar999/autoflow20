@@ -2,7 +2,7 @@
 
 **Snapshot date:** 2026-08-24 (hardening wave 1)
 **Current milestone:** M-A — Audit hardening (security + harness) — then M1 as re-scoped
-**Overall vs. PRD Phase 1:** ~28% implemented
+**Overall vs. PRD Phase 1:** ~30% implemented
 **Overall vs. full PRD (Phases 1–3):** ~8%
 
 > **2026-08-22 RECONCILIATION.** The previous version of this document described a
@@ -41,7 +41,7 @@ previously overstated both directions and has been corrected (§8).
 | PRD section | Requirement area | Status | % | Notes |
 |---|---|---|---|---|
 | 5.1 | Zero-overhead production platform | 🟠 | ~20% | Sentry wired; execution history + error capture exist. No monitoring dashboard, no deploy/versioning/rollback, no quotas, no alerting. |
-| 5.2 | Visual builder & nodes | 🟠 | ~40% | Canvas saves via `workflows.update`; 10 node types execute (manual/http/AI×3/discord/slack/google-form/stripe). No palette-driven registry, no schema-driven config panel, no validation/linting, no autosave/conflict handling. |
+| 5.2 | Visual builder & nodes | 🟠 | ~50% | Canvas saves via `workflows.update`; 9 node types registered in new `src/nodes/` registry (folder convention, validated, server-only execute modules). Old executor layer deleted. No palette-driven UI, no schema-driven config panel, no validation/linting, no autosave/conflict handling. |
 | 5.3 | Multi-model AI & cost | 🟠 | ~15% | OpenAI + Anthropic + Gemini executor nodes wired through AI SDK v5. No routing/fallback/cost tracking/cache; keys unvalidated at boot (no env module). |
 | 5.4 | Governance, security, compliance | 🔴 | ~12% | Better Auth (email/password + GitHub/Google OAuth) + Polar premium gate + Cryptr-encrypted credentials. No RBAC/orgs/audit/SSO/quotas; encryption and webhook auth gaps (§5 S1/S2). |
 | 5.5 | Knowledge base & connectors | ⚫ | ~2% | Discord/Slack send nodes only; no generic connector framework, no knowledge base. |
@@ -80,7 +80,7 @@ previously overstated both directions and has been corrected (§8).
 | 5 | Workflow CRUD: create (slug + INITIAL node), list w/ pagination+search (count shares `where` — correct), rename inline, delete | `src/features/workflows/server/routers.ts:161,10,78` |
 | 6 | **Canvas save** — nodes+edges persisted transactionally | `editor-header.tsx:24` → `routers.ts:83` |
 | 7 | Execution engine: topo sort (cycle rejection), per-node `step.run`, retries 3 in prod / 0 otherwise, `onFailure` marks run FAILED | `src/inngest/functions.ts:17`, `src/inngest/utils.ts:6` |
-| 8 | 10 node executors registered | `src/features/executions/lib/executor-registry.ts`: INITIAL/MANUAL_TRIGGER, HTTP_REQUEST, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, GEMINI, OPENAI, ANTHROPIC, DISCORD, SLACK |
+| 8 | 9 node types registered via Node SDK registry | `src/nodes/manifest.ts` (definitions), `src/nodes/registry.ts` (server registry with validation) |
 | 9 | Realtime per-node status streaming to canvas | `src/inngest/channels/*.ts` (9 channels), `publish()` in every executor |
 | 10 | Credentials CRUD + encrypted values | `src/features/credentials/**`, `src/lib/encryption.ts` (Cryptr — see S2) |
 | 11 | Triggers: manual run button, Google Form webhook, Stripe webhook (unauthenticated — see S1) | `src/features/triggers/**`, `src/app/api/webhooks/{google-form,stripe}/route.ts` |
@@ -101,7 +101,7 @@ previously overstated both directions and has been corrected (§8).
 | # | Gap | Consequence |
 |---|---|---|
 | B1 | ~~Canvas persistence~~ **RESOLVED** — save works | — |
-| B2 | Node catalogue is a hardcoded Prisma enum + scattered executor files; adding a node = migration + edits in ≥5 places | Node library cannot scale; blocks palette/config-panel/validation work (M1) |
+| B2 | ~~Node catalogue is a hardcoded Prisma enum + scattered executor files~~ **Partially resolved 2026-08-26** (AF-M1-01): new `src/nodes/` registry with folder convention; old executor layer deleted. Enum still exists pending AF-M1-02. | M1-02 needed to drop enum and migrate `INITIAL` rows. |
 | B3 | Engine runs **every node in topo order regardless of edges taken** — no branching/skip semantics, no per-node trace records | Condition-style workflows impossible; debugging limited to final outputs |
 | B4 | No tests, no CI | Nothing verifies refactors; engine correctness is anecdotal |
 | B5 | Triggers have no authentication (S1) and no scheduling/cron | Workflows start manually or via open webhooks |
@@ -140,7 +140,7 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 |---|---|---|---|
 | M-A | Audit hardening (new) | ✅ Done — 2026-08-24 | Waves 1+2: S1 closed, SSRF guard, template-injection decision (ADR-0007), save-boundary Zod validation, per-node traces (AF-A-01..07). |
 | M0 | Stabilize the base | 🟠 Mostly done | M0-00/01/05/06/07/08/02/03/04/09 ✅ (M0-06 Testing Library done 2026-08-24; only DB-backed integration tests remain, blocked on live DB). |
-| M1 | Graph persistence + Node SDK | ⬜ Not started | Save already works (AF-M1-04 partially satisfied); registry/enum-drop/palette/config-panel outstanding. |
+| M1 | Graph persistence + Node SDK | 🟠 In progress | AF-M1-01 ✅ (2026-08-26): Node SDK registry complete, 9 executors migrated, old layer deleted. AF-M1-02/03/04 remain. |
 | M2 | Execution engine + traces | 🟠 Partially pre-built | Tutorial engine exists (topo sort, step.run, realtime); traces/branching/compiler/expression-resolver per spec do not. |
 | M3 | Credential vault + connectors | 🟠 Partially pre-built | Basic CRUD + Cryptr exist; envelope crypto/OAuth refresh/connector framework do not. |
 | M4 | Triggers, publish, versioning | ⬜ Not started | Webhook triggers exist but unauthenticated; no cron/versioning. |
@@ -155,14 +155,14 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 | Source files (`src/**` ts/tsx) | 197 | file listing |
 | Prisma models | 10 (`User`, `Session`, `Account`, `Verification`, `Credential`, `Workflow`, `Node`, `Connection`, `Execution`, `NodeExecution`) | `schema.prisma` |
 | tRPC routers | 3 (`workflows`, `executions`, `credentials`) | `src/trpc/routers/_app.ts` |
-| Executable node types | 10 | `executor-registry.ts` |
+| Executable node types | 9 | `src/nodes/manifest.ts` |
 | Inngest functions | 1 (`execute-workflow`) + 9 realtime channels | `src/inngest/functions.ts` |
-| Tests | **93 collected** — 81 unit/dom always-on + 12 integration against real Postgres (visible skip without `TEST_DATABASE_URL`; 12/12 green locally) | `npm test` / `npm run test:integration` |
+| Tests | **106 collected** — 94 always-on + 12 integration against real Postgres (visible skip without `TEST_DATABASE_URL`; 12/12 green locally) | `npm test` |
 | CI pipelines | 1 (`.github/workflows/ci.yml`: lint + tsc + test + build on postgres:16) | repo root |
 | Type check | ✅ clean after `npx prisma generate` | `tsc --noEmit` exit 0 |
 | Lint | ✅ clean (`biome check` exits 0; vendored-UI overrides documented) | `biome check` |
 | Migrations | 15 (latest `20260824100000` drops the dead tutorial `Post` table; `20260824090000` adds `NodeExecution` traces — both unapplied locally, CI applies via `migrate deploy`) | `prisma/migrations` |
-| Connectors | Discord + Slack send nodes | `executor-registry.ts` |
+| Connectors | Discord + Slack send nodes | `src/nodes/manifest.ts` |
 | Templates | 0 | — |
 
 ---
@@ -173,6 +173,7 @@ Newest first.
 
 | Date | Change | Milestone |
 |---|---|---|
+| 2026-08-26 | **AF-M1-01 — Node SDK registry.** New `src/nodes/` tree: `types.ts` (isomorphic `NodeDefinition`/`NodeRegistration`/`NodeRun`/`NodeRunParams`/`WorkflowContext`/`NodeExecutionError`), `registry.ts` (server-only; validates + stores registrations with duplicate/malformed-definition errors), `manifest.ts` (client-safe definitions-only array). Flat `NodeRegistration` interface extends `NodeDefinition` with `execute` method (bivariant for TS param variance). Nine executor modules migrated: `core/manual-trigger`, `forms/google-form`, `payments/stripe-trigger`, `http/request`, `ai/openai|anthropic|gemini`, `discord/send-message`, `slack/send-message`. Old executor layer deleted: `features/executions/lib/executor-registry.ts`, `features/executions/types.ts`, all 9 `features/**/executor.ts` files. `features/workflows/schemas.ts` rewritten to derive union from registry. `inngest/functions.ts` rewired to use `getNodeRegistration()`. `lib/db.ts` converted to lazy Proxy pattern — `ensureEnv()` no longer called at module-evaluation time, fixing vitest `server-only` import failures (test stub alias in `vitest.config.ts`). 22 new tests in `registry.test.ts`: factory validation, alias resolution, manifest↔registry consistency, client-reachability assertions. 94 total unit/dom tests, tsc clean, lint clean. | M1 |
 | 2026-08-26 | **Phase A UX wins.** Landing page at `/` (AF-M7-06): session-aware CTAs, capability grid mirroring verified features only, real root metadata replacing create-next-app leftovers. Polar success page `/workflows/billing/success` (AF-M0-10): renders inside app shell, invalidates the `["subscription"]` cache so the sidebar flips without reload; `.env.example` duplicate `POLAR_SUCCESS_URL` removed and default retargeted; `polar_setup.md` §4 updated. AGENTS.md §6: client components must import Prisma enums/types from `@/generated/prisma/browser`. | M0 / M7 |
 | 2026-08-26 | **Deep-plan refresh** (`tasks.md`/`implementation_plan.md`): internal-demo horizon; decisions register (engine extended incrementally, Handlebars kept as the one template system, tenancy deferred to pre-public-beta, KB planned in as new **M-KB** milestone); M2 re-scoped 4w→3w against verified pre-built engine work. **Integration test harness shipped:** `integration` vitest project vs Docker postgres:16 (:5433) with per-suite `migrate deploy` + truncation, setup hard-pins `DATABASE_URL` to the test DB before imports (dev/prod cannot be truncated by tests). First suite: 12 webhook-authz route tests (AF-A-01 acceptance) — found & fixed unsigned Stripe request returning 500 instead of 400. Docs: `testing_strategy.md` §6 contract + local recipe (incl. Windows `127.0.0.1`-not-`localhost` wslrelay trap), stale §8 rewritten to match live ci.yml. | M0 / docs |
 | 2026-08-25 | **Setup manual.** `docs/operations/environment_setup.md` rewritten as a full operator's guide (env-var reference reconciled against `src/lib/env.ts` — fixed wrong required/optional claims, removed nonexistent vars GROQ_API_KEY/INNGEST_BASE_URL/TEST_DATABASE_URL rows, NEXT_PUBLIC_POLAR_PRODUCT_ID/SUCCESS_URL; step-by-step acquisition guides for Postgres/secret generation/GitHub+Google OAuth/Polar sandbox/Inngest Cloud keys/Stripe webhook secret/Sentry token/ngrok domain; local walkthrough + smoke test; ngrok internet-exposure flow; Vercel+Neon+Inngest Cloud deployment with the Polar `server:"sandbox"` hardcode called out as a go-live blocker). Stale references removed: `scripts/dev-db.ps1`, `test/db.ts`, `prisma:studio` script, ESLint->Biome. | docs |

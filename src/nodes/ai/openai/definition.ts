@@ -1,0 +1,19 @@
+import type { NodeDefinition } from "@/nodes/types";
+import { aiModelDataSchema } from "../../shared/config-fields";
+
+export const configSchema = aiModelDataSchema();
+
+export const definition: NodeDefinition = {
+  type: "OPENAI",
+  version: 1,
+  category: "AI",
+  label: "OpenAI",
+  description:
+    "Generate text with an OpenAI model. Prompts support templates against upstream results.",
+  icon: "Sparkles",
+  keywords: ["openai", "gpt", "llm", "text", "ai"],
+  configSchema,
+  defaults: {},
+  inputs: [{ id: "main", label: "In" }],
+  outputs: [{ id: "main", label: "Out" }],
+};

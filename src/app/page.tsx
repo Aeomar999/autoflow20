@@ -60,13 +60,7 @@ const LandingPage = async () => {
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-2">
-          <Image
-            src="/logos/logo.svg"
-            alt="AutoFlow"
-            width={28}
-            height={28}
-            // biome-ignore lint/a11y/noSvgWithoutTitle: decorative brand mark next to text
-          />
+          <Image src="/logos/logo.svg" alt="AutoFlow" width={28} height={28} />
           <span className="font-semibold">AutoFlow</span>
         </div>
         <nav className="flex items-center gap-2">
