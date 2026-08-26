@@ -1,10 +1,11 @@
 import { NonRetriableError } from "inngest";
+import { validate } from "@/engine/validate";
 import {
   ExecutionStatus,
   NodeExecutionStatus,
 } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
-import { getNodeRegistration } from "@/nodes/registry";
+import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
 import { geminiChannel } from "./channels/gemini";
@@ -17,7 +18,6 @@ import { stripeTriggerChannel } from "./channels/stripe-trigger";
 import { inngest } from "./client";
 import { ENGINE_RETRIES, truncateStack } from "./config";
 import { buildSkippedTraces, computeDurationMs, type TraceNode } from "./trace";
-import { topologicalSort } from "./utils";
 
 export const executeWorkflow = inngest.createFunction(
   {
@@ -95,7 +95,37 @@ export const executeWorkflow = inngest.createFunction(
           },
         });
 
-        return topologicalSort(workflow.nodes, workflow.connections);
+        const { errors, order } = validate(
+          {
+            nodes: workflow.nodes.map((n) => ({
+              id: n.id,
+              name: n.name,
+              type: n.type,
+              data: (n.data ?? {}) as Record<string, unknown>,
+            })),
+            connections: workflow.connections.map((c) => ({
+              fromNodeId: c.fromNodeId,
+              toNodeId: c.toNodeId,
+              fromOutput: c.fromOutput,
+              toInput: c.toInput,
+            })),
+          },
+          // Registry is imported dynamically on the server to avoid
+          // pulling it into the client bundle.
+          nodeRegistry,
+        );
+
+        const criticalErrors = errors.filter((e) => e.severity === "error");
+        if (criticalErrors.length > 0) {
+          throw new NonRetriableError(
+            `Graph validation failed: ${criticalErrors.map((e) => e.message).join("; ")}`,
+          );
+        }
+
+        const nodeMap = new Map(workflow.nodes.map((n) => [n.id, n]));
+        return order
+          .map((id) => nodeMap.get(id))
+          .filter((n): n is NonNullable<typeof n> => Boolean(n));
       },
     );
 

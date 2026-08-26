@@ -3,9 +3,11 @@ import type { Edge, Node } from "@xyflow/react";
 import { generateSlug } from "random-word-slugs";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
+import { validate } from "@/engine/validate";
 import { saveWorkflowInputSchema } from "@/features/workflows/schemas";
 import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
+import { nodeRegistry } from "@/nodes/registry";
 import {
   createTRPCRouter,
   premiumProcedure,
@@ -68,6 +70,34 @@ export const workflowsRouter = createTRPCRouter({
           code: "CONFLICT",
           message:
             "Workflow has been modified since you last loaded it. Please reload and try again.",
+        });
+      }
+
+      // Graph-level validation (AF-M2-02): cycles, unknown types,
+      // invalid configs, missing trigger, unconnected required inputs.
+      const { errors } = validate(
+        {
+          nodes: nodes.map((n) => ({
+            id: n.id,
+            name: n.type,
+            type: n.type,
+            data: n.data as Record<string, unknown>,
+          })),
+          connections: edges.map((e) => ({
+            fromNodeId: e.source,
+            toNodeId: e.target,
+            fromOutput: e.sourceHandle || "main",
+            toInput: e.targetHandle || "main",
+          })),
+        },
+        nodeRegistry,
+      );
+
+      const criticalErrors = errors.filter((e) => e.severity === "error");
+      if (criticalErrors.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Graph validation failed: ${criticalErrors.map((e) => e.message).join("; ")}`,
         });
       }
 

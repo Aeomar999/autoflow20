@@ -397,14 +397,14 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-02 · Shared graph validator (compile-lite) · 1.5d
+### ✅ AF-M2-02 · Shared graph validator (compile-lite) · 1.5d · DONE 2026-08-26
 *(Re-scoped per Decision A: no separate compile artifact/stage; this is the pure validation + ordering function shared by canvas lint, server save, and run start.)*
 
 **Acceptance**
-- [ ] `validate(graph)` returns structured errors `{ nodeId, path, message }`: cycles, unknown node types, invalid configs, missing trigger, unconnected required inputs.
-- [ ] Produces deterministic execution order with stable tie-breaking so identical graphs run identically.
-- [ ] One implementation, three call sites: AF-M1-07 canvas linting, save boundary, and the top of `executeWorkflow` (replacing today's inline topo-sort-only check).
-- [ ] Unit tests: linear, branching, diamond, disconnected, cyclic, single-node graphs.
+- [x] `validate(graph)` returns structured errors `{ nodeId, path, message }`: cycles, unknown node types, invalid configs, missing trigger, unconnected required inputs.
+- [x] Produces deterministic execution order with stable tie-breaking so identical graphs run identically.
+- [x] One implementation, three call sites: AF-M1-07 canvas linting, save boundary, and the top of `executeWorkflow` (replacing today's inline topo-sort-only check).
+- [x] Unit tests: linear, branching, diamond, disconnected, cyclic, single-node graphs.
 
 ---
 
