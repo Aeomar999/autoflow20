@@ -1,8 +1,25 @@
 # AutoFlow — Implementation Plan
 
-**Last updated:** 2026-08-02
-**Horizon:** M0 → Public Beta (~26 weeks), then Phase 2 (agents) and Phase 3 (enterprise)
-**Baseline:** the audited state in `docs/planning/progress.md` — SaaS shell + workflow CRUD + non-persisting canvas, no execution engine.
+**Last updated:** 2026-08-26 (deep-plan refresh)
+**Horizon:** internal demo (~17–19 weeks from 2026-08-26), then Phase 2 (agents) and Phase 3 (enterprise). Public-beta hardening (M8) starts only after the demo milestone set.
+**Baseline:** the audited state in `docs/planning/progress.md` — working single-user MVP: canvas save, Inngest engine with per-node traces, 10 executors, authenticated webhooks, credentials CRUD, billing gate, CI + tests. **~28% of PRD Phase 1.**
+
+---
+
+## 0. Decisions register (2026-08-26)
+
+Locked during deep planning; re-open in writing, not mid-sprint.
+
+| # | Decision | Choice | Rationale |
+|---|---|---|---|
+| A | Engine strategy | Extend the existing Inngest function incrementally; no compile-stage/items-model rebuild | The step-based runner, traces, and replay safety already exist and are verified. A rebuild buys nothing until fan-out/loops matter (post-beta). Spec concepts adopted selectively: branch-taken semantics, shared validator, concurrency keys. |
+| B | Expression system | Keep sandboxed Handlebars (ADR-0007); add `$json`/`$node`/`$execution` context helpers; amend ADR-0007 + `execution_engine.md` §5 together | Two template systems is a maintenance trap. Handlebars is already hardened (`compileTemplate`, prototype guards tested); the spec's parsed-resolver goal is met by the extended context without a second parser. |
+| C | Tenancy timing | Single-user through M-KB; M6 lands before public beta, not before the demo | Value loop first. Schema work in M1 keeps `userId` scoping mechanically replaceable by `orgProcedure` so the retrofit stays cheap. |
+| D | Fan-out / loops / items model | Deferred post-beta, explicitly | Condition branching ships in M2; generic item arrays wait for real demand. |
+| E | Knowledge base | **Planned in** as new milestone M-KB (after M5), slim/demo-grade: file+URL ingest → chunking → pgvector embeddings → retrieval node | PRD §5.1/5.5 requires KB for agents; agents are P2, but a retrieval node demoing against uploaded docs is high-value for the internal demo. |
+| F | AI copilot & node-count targets (PRD "500 nodes") | Descope to Phase 2 | Node count is a function of the Node SDK (M1). Copilot needs a stable registry + schema surface first. |
+
+Sequencing locked: **authoring UX (M1) before engine power (M2 remainder)**.
 
 ---
 
@@ -17,6 +34,11 @@
 ---
 
 ## 2. Scope reconciliation — what we are cutting and why
+
+> **2026-08-26 note:** the baseline described below ("cannot execute a single
+> node") is historical — see `progress.md` for the current verified state. The
+> cuts table remains authoritative. RAG/knowledge-base was re-decided on
+> 2026-08-26: now planned in as milestone M-KB (Decision E).
 
 The source documents are internally inconsistent. `Autoflow_PRD.md` scopes Phase 1 at ~500 nodes with self-hosting in Phase 3; `I want to build Autoflow_...md` scopes Phase 1 at 5,000+ integrations *plus* self-hosting, multi-agent orchestration, RAG, and Git version control. Both describe 3–4 months. Neither is reachable from the current baseline — the platform cannot execute a single node today.
 
@@ -45,15 +67,16 @@ The source documents are internally inconsistent. `Autoflow_PRD.md` scopes Phase
 |---|---|---|---|
 | M0 | Stabilize the base | 1 wk | The repo is honest, tested, and safe to build on. |
 | M1 | Graph persistence + Node SDK | 3 wks | A user can build and save a real multi-node graph that survives refresh. |
-| M2 | **Execution engine + traces** | 4 wks | A user can run that graph and inspect every node's input, output, and error. |
+| M2 | **Execution engine + traces** (re-scoped) | 3 wks | A user can run that graph — including a branch — and inspect every node's input, output, and error with no silent gaps. |
 | M3 | Credential vault + real connectors | 3 wks | Workflows can authenticate to external systems without secrets leaking. |
 | M4 | Triggers, publish, versioning | 2 wks | Workflows run themselves — on a webhook or a schedule — from a published version. |
 | M5 | Multi-model AI + cost | 3 wks | Every run reports tokens and dollars; models are swappable with fallback. |
-| M6 | Tenancy, RBAC, audit, SSO | 3 wks | Teams share a workspace with roles, and every action is audited. |
+| M-KB | Knowledge base (slim) · *new 2026-08-26* | 1.5 wks | A user uploads docs, and an `ai.retrieve` node grounds an LLM answer in them. |
+| M6 | Tenancy, RBAC, audit, SSO | 3 wks | Teams share a workspace with roles, and every action is audited. *(before public beta; not required for internal demo)* |
 | M7 | Templates, dashboard, quotas | 3 wks | A new user reaches a working automation in <15 minutes; usage is metered. |
 | M8 | Beta hardening + public API | 4 wks | External load, external callers, and external scrutiny do not break it. |
 
-**Total to Public Beta: ~26 weeks** at 2–3 engineers. At 1 engineer, roughly double. This is the honest number; the 3–4 month figure in the PRD assumed a starting point that does not match the repository.
+**Total: ~17–19 weeks** for one engineer through the internal-demo set (M0→M7 incl. M-KB), plus M8 before public beta. This is the honest number; the 3–4 month figure in the PRD assumed a starting point that does not match the repository.
 
 ```mermaid
 graph LR
@@ -119,9 +142,17 @@ M3 and M5 are parallelizable after M2. M6 can start any time after M2 but must c
 
 ---
 
-### M2 — Execution engine + traces · 4 weeks · **the milestone that matters**
+### M2 — Execution engine + traces · 3 weeks · **the milestone that matters**
 
-**Goal:** workflows execute durably and are debuggable.
+> **2026-08-26 re-scope (Decision A/B):** a step-based runner, per-node trace
+> rows with SKIPPED-on-failure, realtime status, and a basic executions UI
+> already exist (AF-A-05, verified). Remaining scope: branch-taken semantics,
+> shared validator, Handlebars context helpers (no second resolver), per-node
+> timeout/retry policies/continueOnFail/cancellation/concurrency keys,
+> executions cancel-retry-retryFromNode, TEST-mode runs. The items model and
+> compile stage are cut until post-beta.
+
+**Goal:** workflows execute durably and are debuggable — including branches.
 
 **Deliverables**
 - **Data model**: `Execution` (status, trigger, mode, `graphSnapshot`, timings, totals, error) and `NodeExecution` (per-node status, input, output, error, attempt, ms, tokens, cost). Indices for the executions list and per-workflow queries.
@@ -195,6 +226,24 @@ M3 and M5 are parallelizable after M2. M6 can start any time after M2 but must c
 
 ---
 
+### M-KB — Knowledge base (slim, demo-grade) · 1.5 weeks · *added 2026-08-26*
+
+**Goal:** PRD §5.5 cut to what the internal demo needs — uploaded documents ground an LLM answer.
+
+**Deliverables**
+- `KnowledgeSource` model + upload flow (PDF/DOCX/TXT/MD), status lifecycle (pending → chunked → embedded / error).
+- Chunking pipeline as an Inngest function; embeddings via OpenAI `text-embedding-3-small` through the credential vault, behind a provider seam for Phase 2.
+- Embeddings in Postgres via **pgvector** (Neon supports it; additive SQL migration — Prisma does not model extensions natively). Append-only chunks keyed by source revision = version history.
+- Scheduled URL re-fetch source type.
+- `ai.retrieve` node: top-k similarity search scoped to workspace sources; output feeds `ai.llm` context.
+- KB management UI: list/upload/delete/reindex.
+
+**Exit criteria:** upload a PDF, wait for embedding, run a workflow whose `ai.retrieve` + `ai.llm` nodes answer a question about it with citations to source chunks.
+
+**Explicitly out (Phase 2):** Slack channel sync, external vector stores, hybrid/BM25 ranking, metadata-filter UI.
+
+---
+
 ### M6 — Tenancy, RBAC, audit, SSO · 3 weeks
 
 **Goal:** more than one person can use an account, safely.
@@ -223,7 +272,7 @@ M3 and M5 are parallelizable after M2. M6 can start any time after M2 but must c
 - Monitoring dashboard: executions over time, success rate, p50/p95 duration, error breakdown, cost trend, top failing workflows.
 - Quotas: per-plan execution and AI-spend limits, enforced in the runner, surfaced before the limit is hit, wired to Polar.
 - Onboarding: first-run checklist, sample workflow, empty-state guidance.
-- A real landing page at `/` (there is currently no root route at all).
+- A real landing page at `/` — *(pulled forward to the M0 leftovers set, 2026-08-26; AF-M7-06 in `tasks.md`)*.
 
 **Exit criteria:** a brand-new user installs a template, supplies one credential, and gets a successful run in under 15 minutes without reading documentation; exceeding a quota produces a clear message and a billing path, not a 500.
 
