@@ -310,13 +310,15 @@ A Postgres enum requires a migration per node type. Blocks the entire node libra
 
 ---
 
-### ⬜ AF-M1-04 · Editor persistence + autosave · 2d
+### ✅ AF-M1-04 · Editor persistence + autosave · 2d · DONE 2026-08-26
+Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSnapshotRef` tracks last-saved state; dirty detection via deep comparison. Debounced autosave (1.5s idle). Save states: saved / saving / unsaved / save-failed. `beforeunload` warning when dirty. CONFLICT auto-reloads latest version via query invalidation. NodeSelector rewritten to use atoms directly (no more `useReactFlow().setNodes()`).
+
 **Acceptance**
-- [ ] Canvas changes mark the workflow dirty; debounced autosave (~1.5s idle) plus an explicit Save.
-- [x] The Save button is functional. *(Already true: `editor-header.tsx:24` calls `useUpdateWorkflow`; remaining work is autosave/conflict UX around it.)*
-- [ ] Visible states: saved / saving / unsaved changes / save failed with retry.
-- [ ] `CONFLICT` prompts the user to reload rather than silently overwriting.
-- [ ] `beforeunload` warning when dirty.
+- [x] Canvas changes mark the workflow dirty; debounced autosave (~1.5s idle) plus an explicit Save.
+- [x] The Save button is functional.
+- [x] Visible states: saved / saving / unsaved changes / save failed with retry.
+- [x] `CONFLICT` prompts the user to reload rather than silently overwriting.
+- [x] `beforeunload` warning when dirty.
 - [ ] E2E test: place 3 nodes, connect them, configure one, hard-refresh, everything is exactly as left.
 
 ---

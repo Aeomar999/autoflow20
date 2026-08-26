@@ -1,7 +1,7 @@
 "use client";
 
 import { createId } from "@paralleldrive/cuid2";
-import { useReactFlow } from "@xyflow/react";
+import { useAtomValue, useSetAtom } from "jotai";
 import { GlobeIcon, MousePointerIcon } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  edgesAtom,
+  nodesAtom,
+  saveStatusAtom,
+} from "@/features/editor/store/atoms";
 import { Separator } from "./ui/separator";
 
 export type NodeTypeOption = {
@@ -94,12 +99,15 @@ export function NodeSelector({
   onOpenChange,
   children,
 }: NodeSelectorProps) {
-  const { setNodes, getNodes, screenToFlowPosition } = useReactFlow();
+  const nodes = useAtomValue(nodesAtom);
+  const setNodes = useSetAtom(nodesAtom);
+  const setSaveStatus = useSetAtom(saveStatusAtom);
+  // edges not needed for node creation, but required by atoms contract
+  useAtomValue(edgesAtom);
 
   const handleNodeSelect = useCallback(
     (selection: NodeTypeOption) => {
       if (selection.type === "MANUAL_TRIGGER") {
-        const nodes = getNodes();
         const hasManualTrigger = nodes.some(
           (node) => node.type === "MANUAL_TRIGGER",
         );
@@ -110,34 +118,30 @@ export function NodeSelector({
         }
       }
 
-      setNodes((nodes) => {
-        const hasInitialTrigger = nodes.some((node) => node.type === "INITIAL");
+      const hasInitialTrigger = nodes.some((node) => node.type === "INITIAL");
 
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2;
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
 
-        const flowPosition = screenToFlowPosition({
+      const newNode = {
+        id: createId(),
+        type: selection.type,
+        data: {},
+        position: {
           x: centerX + (Math.random() - 0.5) * 200,
           y: centerY + (Math.random() - 0.5) * 200,
-        });
+        },
+      };
 
-        const newNode = {
-          id: createId(),
-          data: {},
-          position: flowPosition,
-          type: selection.type,
-        };
-
-        if (hasInitialTrigger) {
-          return [newNode];
-        }
-
-        return [...nodes, newNode];
-      });
-
+      if (hasInitialTrigger) {
+        setNodes([newNode]);
+      } else {
+        setNodes((prev) => [...prev, newNode]);
+      }
+      setSaveStatus("unsaved");
       onOpenChange(false);
     },
-    [setNodes, getNodes, onOpenChange, screenToFlowPosition],
+    [nodes, setNodes, setSaveStatus, onOpenChange],
   );
 
   return (

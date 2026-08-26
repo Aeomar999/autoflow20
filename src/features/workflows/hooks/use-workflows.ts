@@ -3,7 +3,9 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import { toast } from "sonner";
+import { saveStatusAtom } from "@/features/editor/store/atoms";
 import { useTRPC } from "@/trpc/client";
 import { useWorkflowsParams } from "./use-workflows-params";
 
@@ -94,15 +96,26 @@ export const useUpdateWorkflowName = () => {
 export const useSaveWorkflow = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
+  const setSaveStatus = useSetAtom(saveStatusAtom);
 
   return useMutation(
     trpc.workflows.saveGraph.mutationOptions({
-      onSuccess: (_data) => {
+      onSuccess: (_data, variables) => {
+        setSaveStatus("saved");
         queryClient.invalidateQueries(trpc.workflows.getMany.queryOptions({}));
+        queryClient.invalidateQueries(
+          trpc.workflows.getOne.queryOptions({ id: variables.id }),
+        );
       },
-      onError: (error) => {
+      onError: (error, variables) => {
+        setSaveStatus("failed");
         if (error.data?.code === "CONFLICT") {
-          toast.error("Workflow was modified elsewhere. Please reload.");
+          toast.error(
+            "Workflow was modified elsewhere. Reloading latest version.",
+          );
+          queryClient.invalidateQueries(
+            trpc.workflows.getOne.queryOptions({ id: variables.id }),
+          );
         } else {
           toast.error(`Failed to save workflow: ${error.message}`);
         }
