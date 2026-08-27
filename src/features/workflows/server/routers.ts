@@ -126,8 +126,7 @@ export const workflowsRouter = createTRPCRouter({
           ? buildNodeTestRunPlan(graph, input.testNodeId)
           : buildTestRunPlan(graph);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         throw new TRPCError({ code: "BAD_REQUEST", message });
       }
 

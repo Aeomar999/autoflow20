@@ -1,5 +1,9 @@
 import { NonRetriableError } from "inngest";
-import { validate, type GraphConnection, type GraphNode } from "@/engine/validate";
+import {
+  type GraphConnection,
+  type GraphNode,
+  validate,
+} from "@/engine/validate";
 import { buildTemplateContext } from "@/features/executions/template";
 import {
   ExecutionStatus,

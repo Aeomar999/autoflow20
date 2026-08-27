@@ -119,7 +119,10 @@ export const execute: NodeRun<HttpRequestData> = async ({
         : rawBody;
 
       // Non-2xx handling: throw when failOnNon2xx is set.
-      if (data.failOnNon2xx && (response.status < 200 || response.status >= 300)) {
+      if (
+        data.failOnNon2xx &&
+        (response.status < 200 || response.status >= 300)
+      ) {
         throw new NonRetriableError(
           `HTTP Request node: received status ${response.status} ${response.statusText}`,
         );

@@ -53,7 +53,11 @@ export const execute: NodeRun<MergeData> = async ({
         // Deep-merge all object values. Last one wins on conflicts.
         const merged: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(context)) {
-          if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+          if (
+            value !== null &&
+            typeof value === "object" &&
+            !Array.isArray(value)
+          ) {
             deepMerge(merged, value as Record<string, unknown>);
           } else {
             merged[key] = value;
@@ -69,9 +73,7 @@ export const execute: NodeRun<MergeData> = async ({
       }
 
       default:
-        throw new NonRetriableError(
-          `Merge node: unknown mode "${mode}"`,
-        );
+        throw new NonRetriableError(`Merge node: unknown mode "${mode}"`);
     }
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { definition, configSchema } from "./definition";
+import { configSchema, definition } from "./definition";
 
 describe("MERGE definition", () => {
   it("exports a valid NodeDefinition", () => {
@@ -18,7 +18,10 @@ describe("MERGE definition", () => {
   });
 
   it("accepts a valid combine config", () => {
-    const result = configSchema.safeParse({ mode: "combine", combineKey: "myData" });
+    const result = configSchema.safeParse({
+      mode: "combine",
+      combineKey: "myData",
+    });
     expect(result.success).toBe(true);
   });
 

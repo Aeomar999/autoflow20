@@ -3,8 +3,8 @@ import {
   buildNodeTestRunPlan,
   buildTestGraph,
   buildTestRunPlan,
-  TestRunError,
   type TestGraph,
+  TestRunError,
 } from "./test-run";
 
 const setData = { mappings: [] };
@@ -22,9 +22,24 @@ function linearGraph(): TestGraph {
   return {
     nodes: [trigger, setA, target, tail],
     connections: [
-      { fromNodeId: trigger.id, toNodeId: setA.id, fromOutput: "main", toInput: "main" },
-      { fromNodeId: setA.id, toNodeId: target.id, fromOutput: "main", toInput: "main" },
-      { fromNodeId: target.id, toNodeId: tail.id, fromOutput: "main", toInput: "main" },
+      {
+        fromNodeId: trigger.id,
+        toNodeId: setA.id,
+        fromOutput: "main",
+        toInput: "main",
+      },
+      {
+        fromNodeId: setA.id,
+        toNodeId: target.id,
+        fromOutput: "main",
+        toInput: "main",
+      },
+      {
+        fromNodeId: target.id,
+        toNodeId: tail.id,
+        fromOutput: "main",
+        toInput: "main",
+      },
     ],
   };
 }
@@ -54,7 +69,10 @@ describe("buildTestGraph", () => {
 
   it("defaults nullish handles to main", () => {
     const graph = buildTestGraph(
-      [{ id: "n1", type: "MANUAL_TRIGGER" }, { id: "n2", type: "SET" }],
+      [
+        { id: "n1", type: "MANUAL_TRIGGER" },
+        { id: "n2", type: "SET" },
+      ],
       [{ source: "n1", target: "n2", sourceHandle: null }],
     );
     expect(graph.connections[0]).toEqual({
@@ -102,10 +120,30 @@ describe("buildNodeTestRunPlan (single-node)", () => {
     const graph: TestGraph = {
       nodes: [trigger, setA, target, tail],
       connections: [
-        { fromNodeId: trigger.id, toNodeId: setA.id, fromOutput: "main", toInput: "main" },
-        { fromNodeId: trigger.id, toNodeId: tail.id, fromOutput: "main", toInput: "main" },
-        { fromNodeId: setA.id, toNodeId: target.id, fromOutput: "main", toInput: "main" },
-        { fromNodeId: tail.id, toNodeId: target.id, fromOutput: "main", toInput: "main" },
+        {
+          fromNodeId: trigger.id,
+          toNodeId: setA.id,
+          fromOutput: "main",
+          toInput: "main",
+        },
+        {
+          fromNodeId: trigger.id,
+          toNodeId: tail.id,
+          fromOutput: "main",
+          toInput: "main",
+        },
+        {
+          fromNodeId: setA.id,
+          toNodeId: target.id,
+          fromOutput: "main",
+          toInput: "main",
+        },
+        {
+          fromNodeId: tail.id,
+          toNodeId: target.id,
+          fromOutput: "main",
+          toInput: "main",
+        },
       ],
     };
     const plan = buildNodeTestRunPlan(graph, target.id);

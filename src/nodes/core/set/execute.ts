@@ -62,7 +62,11 @@ function setNestedValue(
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
     const existing = current[part];
-    if (existing !== null && typeof existing === "object" && !Array.isArray(existing)) {
+    if (
+      existing !== null &&
+      typeof existing === "object" &&
+      !Array.isArray(existing)
+    ) {
       current = existing as Record<string, unknown>;
     } else {
       const next: Record<string, unknown> = {};

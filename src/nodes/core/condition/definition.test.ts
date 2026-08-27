@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { definition, configSchema } from "./definition";
+import { configSchema, definition } from "./definition";
 
 describe("CONDITION definition", () => {
   it("exports a valid NodeDefinition", () => {

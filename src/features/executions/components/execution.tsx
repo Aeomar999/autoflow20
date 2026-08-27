@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   BanIcon,
@@ -19,7 +20,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,12 +41,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSuspenseExecution } from "@/features/executions/hooks/use-executions";
-import { useTRPC } from "@/trpc/client";
 import {
   ExecutionStatus,
   type NodeExecution,
   NodeExecutionStatus,
 } from "@/generated/prisma/browser";
+import { useTRPC } from "@/trpc/client";
 
 const TRIGGER_ICONS: Record<string, React.ReactNode> = {
   MANUAL: <KeyboardIcon className="size-4" />,
@@ -136,18 +136,10 @@ const CopyButton = ({ text }: { text: string }) => {
   );
 };
 
-const JsonViewer = ({
-  label,
-  data,
-}: {
-  label: string;
-  data: unknown;
-}) => {
+const JsonViewer = ({ label, data }: { label: string; data: unknown }) => {
   const [search, setSearch] = useState("");
   const truncated = isTruncated(data);
-  const raw = truncated
-    ? (data as string)
-    : JSON.stringify(data, null, 2);
+  const raw = truncated ? (data as string) : JSON.stringify(data, null, 2);
   const highlighted =
     search && raw
       ? raw.replace(
@@ -197,9 +189,7 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
         queryClient.invalidateQueries(
           trpc.executions.getOne.queryOptions({ id: executionId }),
         );
-        queryClient.invalidateQueries(
-          trpc.executions.list.queryOptions({}),
-        );
+        queryClient.invalidateQueries(trpc.executions.list.queryOptions({}));
       },
     }),
   );
@@ -298,9 +288,7 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
             </Link>
           </div>
           <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Trigger
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">Trigger</p>
             <p className="text-sm flex items-center gap-1.5">
               {TRIGGER_ICONS[execution.trigger] ?? (
                 <KeyboardIcon className="size-4" />
@@ -309,9 +297,7 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
             </p>
           </div>
           <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Started
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">Started</p>
             <p className="text-sm">
               {formatDistanceToNow(execution.startedAt, { addSuffix: true })}
             </p>
@@ -338,9 +324,7 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
           )}
           {cost && (
             <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Cost
-              </p>
+              <p className="text-sm font-medium text-muted-foreground">Cost</p>
               <p className="text-sm font-mono">{cost}</p>
             </div>
           )}
@@ -386,9 +370,7 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
                     size="sm"
                     className="text-red-900 hover:bg-red-100"
                   >
-                    {showStackTrace
-                      ? "Hide stack trace"
-                      : "Show stack trace"}
+                    {showStackTrace ? "Hide stack trace" : "Show stack trace"}
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -409,26 +391,23 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
           <JsonViewer label="Workflow Output" data={execution.output} />
         )}
 
-        {execution.nodeExecutions &&
-          execution.nodeExecutions.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">
-                Node traces ({execution.nodeExecutions.length})
-              </p>
-              <div className="rounded-md border divide-y">
-                {(execution.nodeExecutions as NodeExecution[]).map(
-                  (trace) => (
-                    <NodeTraceRow
-                      key={trace.id}
-                      trace={trace}
-                      executionId={executionId}
-                      isRetryable={isRetryable}
-                    />
-                  ),
-                )}
-              </div>
+        {execution.nodeExecutions && execution.nodeExecutions.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">
+              Node traces ({execution.nodeExecutions.length})
+            </p>
+            <div className="rounded-md border divide-y">
+              {(execution.nodeExecutions as NodeExecution[]).map((trace) => (
+                <NodeTraceRow
+                  key={trace.id}
+                  trace={trace}
+                  executionId={executionId}
+                  isRetryable={isRetryable}
+                />
+              ))}
             </div>
-          )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -472,12 +451,11 @@ const NodeTraceRow = ({
             </span>
           )}
         </div>
-        {trace.status === NodeExecutionStatus.SKIPPED &&
-          trace.skipReason && (
-            <span className="text-[11px] text-muted-foreground italic max-w-[200px] truncate">
-              {trace.skipReason}
-            </span>
-          )}
+        {trace.status === NodeExecutionStatus.SKIPPED && trace.skipReason && (
+          <span className="text-[11px] text-muted-foreground italic max-w-[200px] truncate">
+            {trace.skipReason}
+          </span>
+        )}
         {duration && (
           <span className="text-xs text-muted-foreground shrink-0">
             {duration}
@@ -506,33 +484,32 @@ const NodeTraceRow = ({
             </Button>
           </CollapsibleTrigger>
         )}
-        {isRetryable &&
-          trace.status !== NodeExecutionStatus.SKIPPED && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs shrink-0"
-                >
-                  ...
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  disabled={retryFromNodeMutation.isPending}
-                  onClick={() =>
-                    retryFromNodeMutation.mutate({
-                      id: executionId,
-                      nodeId: trace.nodeId,
-                    })
-                  }
-                >
-                  Retry from this node
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+        {isRetryable && trace.status !== NodeExecutionStatus.SKIPPED && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs shrink-0"
+              >
+                ...
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={retryFromNodeMutation.isPending}
+                onClick={() =>
+                  retryFromNodeMutation.mutate({
+                    id: executionId,
+                    nodeId: trace.nodeId,
+                  })
+                }
+              >
+                Retry from this node
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       <CollapsibleContent>
         <div className="px-4 pb-3 space-y-3">
