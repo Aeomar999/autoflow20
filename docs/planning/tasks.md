@@ -433,15 +433,15 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-05 · `execute()` for the first 7 nodes · 3d
+### ✅ AF-M2-05 · `execute()` for the first 7 nodes · 3d
 **Acceptance**
-- [ ] Manual trigger emits its input payload as items.
-- [ ] `set` maps/sets fields with expression support.
-- [ ] `condition` evaluates and routes to `true`/`false`.
-- [ ] `merge` combines branches (append and by-key modes).
-- [ ] `http.request` supports methods, headers, query, body, timeout, retry, and non-2xx handling; **SSRF guard enforced** (no loopback/link-local/internal ranges).
-- [ ] Webhook/schedule triggers implemented as no-op passthroughs pending M4.
-- [ ] Each node: happy-path + failure-path unit tests with the external call mocked.
+- [x] Manual trigger emits its input payload as items.
+- [x] `set` maps/sets fields with expression support.
+- [x] `condition` evaluates and routes to `true`/`false`.
+- [x] `merge` combines branches (append and by-key modes).
+- [x] `http.request` supports methods, headers, query, body, timeout, retry, and non-2xx handling; **SSRF guard enforced** (no loopback/link-local/internal ranges).
+- [x] Webhook/schedule triggers implemented as no-op passthroughs pending M4.
+- [x] Each node: happy-path + failure-path unit tests with the external call mocked.
 
 ---
 

@@ -1,7 +1,12 @@
 import { definition as aiAnthropic } from "./ai/anthropic/definition";
 import { definition as aiGemini } from "./ai/gemini/definition";
 import { definition as aiOpenai } from "./ai/openai/definition";
+import { definition as coreCondition } from "./core/condition/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
+import { definition as coreMerge } from "./core/merge/definition";
+import { definition as coreScheduleTrigger } from "./core/schedule-trigger/definition";
+import { definition as coreSet } from "./core/set/definition";
+import { definition as coreWebhookTrigger } from "./core/webhook-trigger/definition";
 import { definition as discordSendMessage } from "./discord/send-message/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
@@ -20,6 +25,11 @@ import type { NodeDefinition } from "./types";
  */
 export const nodeManifest: NodeDefinition[] = [
   coreManualTrigger,
+  coreWebhookTrigger,
+  coreScheduleTrigger,
+  coreSet,
+  coreCondition,
+  coreMerge,
   formsGoogleForm,
   paymentsStripeTrigger,
   httpHttpRequest,

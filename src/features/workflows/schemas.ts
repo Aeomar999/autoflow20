@@ -38,6 +38,11 @@ const configOf = (type: string) => nodeRegistry.resolve(type).configSchema;
 export const updateNodeSchemas = [
   makeNodeSchema("INITIAL", configOf("MANUAL_TRIGGER")),
   makeNodeSchema("MANUAL_TRIGGER", configOf("MANUAL_TRIGGER")),
+  makeNodeSchema("WEBHOOK_TRIGGER", configOf("WEBHOOK_TRIGGER")),
+  makeNodeSchema("SCHEDULE_TRIGGER", configOf("SCHEDULE_TRIGGER")),
+  makeNodeSchema("SET", configOf("SET")),
+  makeNodeSchema("CONDITION", configOf("CONDITION")),
+  makeNodeSchema("MERGE", configOf("MERGE")),
   makeNodeSchema("GOOGLE_FORM_TRIGGER", configOf("GOOGLE_FORM_TRIGGER")),
   makeNodeSchema("STRIPE_TRIGGER", configOf("STRIPE_TRIGGER")),
   makeNodeSchema("HTTP_REQUEST", configOf("HTTP_REQUEST")),
