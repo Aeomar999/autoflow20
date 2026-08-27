@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/profile   [PLANNED — Better Auth account management] -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / Profile"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="profile"></nav>
+
+        <div class="stack-4" style="max-width:640px">
+          <div>
+            <h1 class="pagehead__title">Profile</h1>
+            <p class="pagehead__desc">How you appear to your team.</p>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__body stack-4">
+              <div class="rowx-4">
+                <span class="avatar avatar--lg">JM</span>
+                <div class="grow">
+                  <button class="btn btn--sm" data-component="Button">Upload photo</button>
+                  <p class="t-xs dim" style="margin-top:6px">PNG or JPG, up to 2 MB.</p>
+                </div>
+              </div>
+              <div class="field" data-component="Field">
+                <label class="field__label">Full name</label>
+                <input class="input" value="Jordan Mensah" data-component="Input">
+              </div>
+              <div class="field" data-component="Field">
+                <label class="field__label">Email</label>
+                <div class="rowx">
+                  <input class="input grow" value="jordan@northwindretail.com" readonly>
+                  <span class="badge">verified</span>
+                </div>
+                <span class="field__help">Changing this needs verification at the new address.</span>
+              </div>
+              <div class="field" data-component="Field">
+                <label class="field__label">Timezone</label>
+                <select class="select" data-component="Select">
+                  <option>Europe/London (UTC+1)</option><option>UTC</option><option>America/New_York (UTC-4)</option>
+                </select>
+                <span class="field__help">Run timestamps and schedule previews use this.</span>
+              </div>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--primary">Save changes</button></div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Password</span></div>
+            <div class="card__body stack-4">
+              <div class="field"><label class="field__label">Current password</label>
+                <input class="input" type="password" placeholder="••••••••••••"></div>
+              <div class="field"><label class="field__label">New password</label>
+                <input class="input" type="password" placeholder="At least 12 characters"></div>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm">Update password</button>
+              <span class="t-xs dim push">This signs out your other sessions.</span></div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Two-factor authentication</span>
+              <span class="badge badge--warn push">Off</span></div>
+            <div class="card__body">
+              <p class="t-sm dim">
+                An authenticator app adds a second step at sign-in. Your organization does not
+                require it yet — Priya can make it mandatory in organization settings.
+              </p>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--primary">Set up 2FA</button></div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Active sessions</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl">
+                <tbody>
+                  <tr><td><span class="t-sm strong">Chrome on Windows</span>
+                    <div class="t-xs dim">London, UK · 82.14.x.x · <span class="badge badge--brand">this device</span></div></td>
+                    <td class="cell-tight t-sm dim">now</td><td class="cell-tight"></td></tr>
+                  <tr><td><span class="t-sm strong">Safari on macOS</span>
+                    <div class="t-xs dim">London, UK · 82.14.x.x</div></td>
+                    <td class="cell-tight t-sm dim">2 days ago</td>
+                    <td class="cell-tight"><button class="btn btn--sm">Sign out</button></td></tr>
+                  <tr><td><span class="t-sm strong">AutoFlow CLI</span>
+                    <div class="t-xs dim">token <span class="mono">af_cli_…7d21</span></div></td>
+                    <td class="cell-tight t-sm dim">6 hours ago</td>
+                    <td class="cell-tight"><button class="btn btn--sm">Revoke</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" style="border-color:color-mix(in oklab, var(--destructive) 35%, var(--border))" data-component="Card">
+            <div class="card__head"><span class="card__title" style="color:var(--destructive)">Delete account</span></div>
+            <div class="card__body">
+              <p class="t-sm dim">
+                You own Northwind Retail, so you can’t delete your account until you transfer
+                ownership to another admin. Deleting removes your profile — the organization,
+                its workflows, and its run history stay.
+              </p>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--danger" aria-disabled="true">Delete account</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

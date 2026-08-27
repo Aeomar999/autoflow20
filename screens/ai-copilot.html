@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copilot — AutoFlow editor</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /workflows/[id] with the copilot panel open   [PLANNED M7]
+     The rule this screen encodes: the copilot proposes, it never applies. Every
+     suggestion arrives as a reviewable diff against the current graph, with the
+     nodes it would add ghosted onto the canvas. Generated automation that edits
+     itself without review is how you end up messaging customers at 3am. -->
+
+<div class="shell shell--bare" style="height:100vh">
+  <div class="main" style="height:100vh">
+
+    <header class="topbar" style="gap:10px" data-component="AppHeader">
+      <button class="btn btn--ghost btn--icon btn--sm">☰</button>
+      <nav class="crumbs">
+        <a href="workflows-list.html">Workflows</a>
+        <span class="crumbs__sep">/</span>
+        <span class="crumbs__here">Invoice → Slack approval</span>
+      </nav>
+      <span class="badge badge--brand">● Unsaved changes</span>
+      <div class="push rowx">
+        <button class="btn btn--sm">Test run</button>
+        <button class="btn btn--sm">Save</button>
+        <button class="btn btn--sm btn--primary">Deploy</button>
+      </div>
+    </header>
+
+    <div class="editor editor--norail" data-component="ResizablePanelGroup">
+
+      <!-- Canvas with the proposal ghosted in -->
+      <div class="canvaswrap">
+        <div class="canvas" data-component="ReactFlow">
+          <div class="ctoolbar">
+            <span class="badge badge--brand" style="height:24px">✦ Previewing copilot proposal</span>
+            <span style="width:1px;height:18px;background:var(--border);margin:0 2px"></span>
+            <button class="btn btn--ghost btn--sm">Show current</button>
+          </div>
+
+          <svg class="edges" width="100%" height="100%" aria-hidden="true">
+            <path class="edge" d="M196,212 L236,212" />
+            <path class="edge" d="M412,212 L452,212" />
+            <path class="edge edge--dead" d="M628,204 C664,204 664,122 700,122" />
+            <path class="edge edge--dead" d="M628,224 C664,224 664,322 700,322" />
+          </svg>
+
+          <div class="nodecard nodecard--trigger" style="left:20px;top:186px;height:52px">
+            <div class="nodecard__top"><span class="icon icon--brand" style="width:24px;height:24px;font-size:11px">⇥</span>
+              <span class="grow"><span class="nodecard__label">Invoice received</span>
+              <span class="nodecard__type">core.webhook-trigger</span></span></div>
+          </div>
+          <div class="nodecard" style="left:236px;top:186px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⊞</span>
+              <span class="grow"><span class="nodecard__label">Extract invoice fields</span>
+              <span class="nodecard__type">ai.extract</span></span></div>
+          </div>
+          <div class="nodecard" style="left:452px;top:186px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⑂</span>
+              <span class="grow"><span class="nodecard__label">Amount over $5,000?</span>
+              <span class="nodecard__type">core.condition</span></span></div>
+          </div>
+
+          <!-- proposed additions: dashed, brand-tinted, clearly not yet real -->
+          <div class="nodecard" style="left:700px;top:96px;height:52px;border-style:dashed;border-color:var(--primary);background:color-mix(in oklab, var(--primary) 8%, var(--card))">
+            <span class="badgelint" style="background:var(--primary);color:var(--primary-foreground)">+</span>
+            <div class="nodecard__top"><span class="icon icon--brand" style="width:24px;height:24px;font-size:11px">✓</span>
+              <span class="grow"><span class="nodecard__label">Wait for VP approval</span>
+              <span class="nodecard__type">core.approval</span></span></div>
+          </div>
+          <div class="nodecard" style="left:700px;top:296px;height:52px;border-style:dashed;border-color:var(--primary);background:color-mix(in oklab, var(--primary) 8%, var(--card))">
+            <span class="badgelint" style="background:var(--primary);color:var(--primary-foreground)">+</span>
+            <div class="nodecard__top"><span class="icon icon--brand" style="width:24px;height:24px;font-size:11px">≔</span>
+              <span class="grow"><span class="nodecard__label">Mark auto-approved</span>
+              <span class="nodecard__type">core.set</span></span></div>
+          </div>
+
+          <div class="cctl">
+            <button class="btn btn--icon btn--sm">+</button>
+            <button class="btn btn--icon btn--sm">−</button>
+            <button class="btn btn--icon btn--sm">⛶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Copilot panel -->
+      <aside class="epanel epanel--right" data-component="ResizablePanel">
+        <div class="epanel__head">
+          <span class="icon icon--brand" style="width:22px;height:22px;font-size:10px">✦</span>
+          <span class="epanel__title grow">Copilot</span>
+          <button class="btn btn--ghost btn--icon btn--sm" title="New thread">＋</button>
+          <button class="btn btn--ghost btn--icon btn--sm" title="Close">✕</button>
+        </div>
+
+        <div class="epanel__body">
+
+          <!-- user turn -->
+          <div class="rowx" style="align-items:flex-start;gap:10px;margin-bottom:16px">
+            <span class="avatar avatar--sm">JM</span>
+            <div class="grow t-sm" style="padding-top:2px">
+              If the invoice is over $5,000, ask the VP in #finance-approvals to sign off before
+              anything posts. Under that, approve it automatically.
+            </div>
+          </div>
+
+          <!-- assistant turn -->
+          <div class="rowx" style="align-items:flex-start;gap:10px">
+            <span class="icon icon--brand" style="width:22px;height:22px;font-size:10px;border-radius:999px">✦</span>
+            <div class="grow">
+              <p class="t-sm">
+                Your condition already splits on $5,000, so I’ve only filled in the two branches.
+                On the true side I used an approval gate rather than a plain Slack message, so the
+                run pauses until someone actually responds.
+              </p>
+
+              <div class="eyebrow" style="margin:16px 0 8px">Proposed changes · 2 additions, 1 edit</div>
+
+              <div class="diff" data-component="Diff">
+                <div class="diff__row diff__row--add">
+                  <span class="diff__sign">+</span>
+                  <span class="grow diff__what">
+                    <span class="t-sm strong">Wait for VP approval</span>
+                    <span class="t-xs dim mono" style="display:block">core.approval → #finance-approvals, 24h timeout</span>
+                  </span>
+                </div>
+                <div class="diff__row diff__row--add">
+                  <span class="diff__sign">+</span>
+                  <span class="grow diff__what">
+                    <span class="t-sm strong">Mark auto-approved</span>
+                    <span class="t-xs dim mono" style="display:block">core.set → approvedBy = "auto"</span>
+                  </span>
+                </div>
+                <div class="diff__row">
+                  <span class="diff__sign">~</span>
+                  <span class="grow diff__what">
+                    <span class="t-sm strong">Amount over $5,000?</span>
+                    <span class="t-xs dim mono" style="display:block">true → Wait for VP approval · false → Mark auto-approved</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="alert" style="margin-top:12px" data-component="Alert">
+                <span aria-hidden="true">⚿</span>
+                <div>
+                  <div class="alert__title">Needs one credential</div>
+                  <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+                    The approval gate posts to Slack. Your “Slack — Finance workspace” credential
+                    covers it; I’ve selected it but not tested it.
+                  </p>
+                </div>
+              </div>
+
+              <p class="t-xs dim" style="margin-top:12px">
+                Estimated cost is unchanged — neither new node calls a model. The approval gate can
+                hold a run open for up to 24 hours, which counts against your concurrent-run limit.
+              </p>
+
+              <div class="rowx" style="margin-top:14px;gap:8px">
+                <button class="btn btn--sm btn--primary" data-component="Button">Apply 3 changes</button>
+                <button class="btn btn--sm" data-component="Button">Apply one at a time</button>
+                <button class="btn btn--sm btn--ghost" data-component="Button">Discard</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="epanel__foot">
+          <div class="field">
+            <div class="exprbox">
+              <div class="exprbox__input" style="font-family:var(--font-sans);min-height:56px;color:var(--muted-foreground)">
+                Describe a change, or paste an error from a run…
+              </div>
+            </div>
+            <div class="rowx" style="margin-top:8px">
+              <select class="select" style="width:auto;height:26px;font-size:12px">
+                <option>claude-sonnet-4-5</option><option>gpt-5-mini</option>
+              </select>
+              <span class="t-xs dim push">⌘↵ to send</span>
+              <button class="btn btn--sm btn--primary" data-component="Button">Send</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="desktoponly state">
+      <div class="state__icon">✦</div>
+      <div class="state__title">The copilot works on the canvas</div>
+      <p class="state__desc">It proposes graph changes, which need a desktop screen to review.</p>
+      <div class="state__actions"><a class="btn btn--primary" href="workflows-list.html">All workflows</a></div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

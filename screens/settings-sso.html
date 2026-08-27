@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSO — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/sso   [PLANNED M6]
+     overview.md §7 flags this explicitly: SSO/SCIM against enterprise IdPs must
+     be validated before we promise Okta. The screen is designed; the claim is
+     hedged in DESIGN.md §9 Q5 rather than in the UI copy. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / SSO"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="sso"></nav>
+
+        <div class="stack-4" style="max-width:720px">
+          <div class="rowx">
+            <div class="grow">
+              <h1 class="pagehead__title">Single sign-on</h1>
+              <p class="pagehead__desc">SAML 2.0 with Okta, Entra ID, or any compliant provider.</p>
+            </div>
+            <span class="badge badge--planned">PLANNED M6</span>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head">
+              <span class="card__title">Okta</span>
+              <span class="badge badge--brand push">connected</span>
+            </div>
+            <div class="card__body stack-4">
+              <div class="field">
+                <label class="field__label">Metadata URL</label>
+                <input class="input input--mono" value="https://northwind.okta.com/app/exk1a2b3/sso/saml/metadata" readonly>
+              </div>
+              <div class="grid grid--2" style="gap:16px">
+                <div class="field">
+                  <label class="field__label">ACS URL <span class="dim" style="font-weight:400">(give this to your IdP)</span></label>
+                  <div class="rowx">
+                    <input class="input input--mono grow" value="https://app.autoflow.com/api/auth/saml/callback" readonly>
+                    <button class="btn btn--icon" title="Copy">⧉</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label">Entity ID</label>
+                  <div class="rowx">
+                    <input class="input input--mono grow" value="urn:autoflow:northwind-retail" readonly>
+                    <button class="btn btn--icon" title="Copy">⧉</button>
+                  </div>
+                </div>
+              </div>
+              <div class="field">
+                <label class="field__label">Certificate</label>
+                <div class="rowx">
+                  <span class="mono t-sm dim grow">SHA-256 fingerprint 9C:2F:…:A1 · expires 14 Mar 2027</span>
+                  <button class="btn btn--sm">Replace</button>
+                </div>
+              </div>
+            </div>
+            <div class="card__foot">
+              <button class="btn btn--sm">Test connection</button>
+              <button class="btn btn--sm btn--danger push">Disconnect</button>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Enforcement</span></div>
+            <div class="card__body stack-4">
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Require SSO for everyone</div>
+                  <div class="field__help">
+                    Password sign-in stops working for all 6 members. You keep one emergency
+                    password login so a broken IdP can’t lock you out.
+                  </div></div>
+                <span class="switch" role="switch" aria-checked="false" data-component="Switch"></span>
+              </div>
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Create accounts on first sign-in</div>
+                  <div class="field__help">Anyone in your IdP who reaches AutoFlow gets a VIEWER account automatically.</div></div>
+                <span class="switch" role="switch" aria-checked="true" data-component="Switch"></span>
+              </div>
+              <div class="field">
+                <label class="field__label">Default role for new SSO accounts</label>
+                <select class="select" style="max-width:220px" data-component="Select">
+                  <option>VIEWER</option><option>EDITOR</option>
+                </select>
+                <span class="field__help">Start people read-only. Promoting is easier to justify than demoting.</span>
+              </div>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--primary">Save enforcement</button></div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Attribute mapping</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th>AutoFlow field</th><th>SAML attribute</th></tr></thead>
+                <tbody>
+                  <tr><td class="t-sm">Email</td><td class="mono t-sm">NameID (emailAddress)</td></tr>
+                  <tr><td class="t-sm">Full name</td><td class="mono t-sm">displayName</td></tr>
+                  <tr><td class="t-sm">Role</td><td class="mono t-sm dim">not mapped — assigned in AutoFlow</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">
+                Group-to-role sync needs SCIM, which lands with directory provisioning.
+              </span>
+            </div>
+          </div>
+
+          <div class="card" style="opacity:0.7" data-component="Card">
+            <div class="card__head"><span class="card__title">Directory provisioning (SCIM)</span>
+              <span class="badge badge--planned push">PLANNED PHASE 3</span></div>
+            <div class="card__body">
+              <p class="t-sm dim">
+                Automatic account creation, updates, and deactivation from your directory, with
+                group-to-role mapping. Not built yet — until then, deactivating someone in Okta
+                blocks their sign-in but leaves their AutoFlow membership in place.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflows — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /workflows   CURRENT CODE: built (EntityList + search + pagination).
+     This screen adds: status/trigger filters, table/grid toggle, and last-run
+     health per row — all of which need M2 execution records. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="workflows"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Workflows"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Workflows</h1>
+          <p class="pagehead__desc">7 workflows · 5 deployed · 2 drafts</p>
+        </div>
+        <div class="rowx">
+          <a class="btn" href="templates.html" data-component="Button">Start from a template</a>
+          <button class="btn btn--primary" data-component="Button">New workflow</button>
+        </div>
+      </div>
+
+      <div class="toolstrip">
+        <div class="inputgroup" style="width:280px" data-component="InputGroup">
+          <span class="inputgroup__icon mono t-xs">⌕</span>
+          <input class="input" placeholder="Search workflows…" data-component="Input">
+        </div>
+        <select class="select" style="width:auto" data-component="Select">
+          <option>All statuses</option><option>Deployed</option><option>Draft</option><option>Paused</option>
+        </select>
+        <select class="select" style="width:auto" data-component="Select">
+          <option>All triggers</option><option>Webhook</option><option>Schedule</option><option>Manual</option>
+        </select>
+        <span class="chip" aria-pressed="true" data-component="Badge">Last run: failed <span class="chip__x">✕</span></span>
+
+        <div class="push btngroup" data-component="ToggleGroup">
+          <button class="btn btn--sm" aria-pressed="true" title="Table view">▤ Table</button>
+          <button class="btn btn--sm" aria-pressed="false" title="Grid view">▦ Grid</button>
+        </div>
+      </div>
+
+      <div class="card" style="overflow:hidden" data-component="Card">
+        <table class="tbl" data-component="DataTable">
+          <thead>
+            <tr>
+              <th style="width:118px">Last run</th>
+              <th>Workflow</th>
+              <th>Trigger</th>
+              <th class="cell-num">Runs (7d)</th>
+              <th class="cell-num">Success</th>
+              <th class="cell-num">Cost (7d)</th>
+              <th>Updated</th>
+              <th class="cell-tight"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="st st--failed" data-glyph="✕">FAILED</span></td>
+              <td>
+                <a class="strong" href="workflow-editor.html">Invoice → Slack approval</a>
+                <div class="t-xs dim">Finance · deployed v7</div>
+              </td>
+              <td class="t-sm dim mono">webhook</td>
+              <td class="cell-num">1,284</td>
+              <td class="cell-num">98.2%</td>
+              <td class="cell-num">$4.12</td>
+              <td class="t-sm dim">2 minutes ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm" data-component="DropdownMenu">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--running" data-glyph="◐">RUNNING</span></td>
+              <td>
+                <a class="strong" href="workflow-editor.html">Lead scoring — multi-model</a>
+                <div class="t-xs dim">Revenue · deployed v23</div>
+              </td>
+              <td class="t-sm dim mono">schedule · */15 * * * *</td>
+              <td class="cell-num">2,691</td>
+              <td class="cell-num">99.7%</td>
+              <td class="cell-num">$61.40</td>
+              <td class="t-sm dim">18 minutes ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm" data-component="DropdownMenu">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td>
+                <a class="strong" href="workflow-editor.html">Zendesk ticket triage</a>
+                <div class="t-xs dim">Support · deployed v11</div>
+              </td>
+              <td class="t-sm dim mono">webhook</td>
+              <td class="cell-num">4,022</td>
+              <td class="cell-num">99.9%</td>
+              <td class="cell-num">$28.77</td>
+              <td class="t-sm dim">1 hour ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm" data-component="DropdownMenu">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td>
+                <a class="strong" href="workflow-editor.html">Nightly Postgres → warehouse sync</a>
+                <div class="t-xs dim">Data · deployed v4</div>
+              </td>
+              <td class="t-sm dim mono">schedule · 0 3 * * *</td>
+              <td class="cell-num">7</td>
+              <td class="cell-num">100%</td>
+              <td class="cell-num">$0.00</td>
+              <td class="t-sm dim">yesterday</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm" data-component="DropdownMenu">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td>
+                <a class="strong" href="workflow-editor.html">Churn-risk digest</a>
+                <div class="t-xs dim">Revenue · deployed v9</div>
+              </td>
+              <td class="t-sm dim mono">schedule · 0 8 * * 1</td>
+              <td class="cell-num">1</td>
+              <td class="cell-num">100%</td>
+              <td class="cell-num">$1.94</td>
+              <td class="t-sm dim">3 days ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm" data-component="DropdownMenu">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st" data-glyph="○">NEVER RUN</span></td>
+              <td>
+                <a class="strong" href="workflow-editor.html">Contract clause extraction</a>
+                <div class="t-xs dim">Legal · <span class="badge">Draft</span></div>
+              </td>
+              <td class="t-sm dim mono">manual</td>
+              <td class="cell-num dim">—</td>
+              <td class="cell-num dim">—</td>
+              <td class="cell-num dim">—</td>
+              <td class="t-sm dim">4 days ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm" data-component="DropdownMenu">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st" data-glyph="○">NEVER RUN</span></td>
+              <td>
+                <a class="strong" href="workflow-editor.html">New signup → CRM enrich</a>
+                <div class="t-xs dim">Revenue · <span class="badge">Draft</span></div>
+              </td>
+              <td class="t-sm dim mono">webhook</td>
+              <td class="cell-num dim">—</td>
+              <td class="cell-num dim">—</td>
+              <td class="cell-num dim">—</td>
+              <td class="t-sm dim">1 week ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm" data-component="DropdownMenu">⋯</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager" data-component="Pagination">
+        <span>Showing 1–7 of 7</span>
+        <div class="rowx">
+          <button class="btn btn--sm" disabled>Previous</button>
+          <button class="btn btn--sm" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

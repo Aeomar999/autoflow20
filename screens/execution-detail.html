@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Execution exec_8f31c2a4 — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /executions/[executionId]   CURRENT CODE: <p>Execution id: {id}</p>
+     TARGET:  M2 (executions.getOne)
+     This screen is the product's primary competitive claim. Everything here maps
+     to a column on Execution / NodeExecution — nothing is derived from logs. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="executions"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Executions / exec_8f31c2a4"></header>
+
+    <div class="page page--wide">
+
+      <!-- ── Run header ─────────────────────────────────────────────────── -->
+      <div class="card" data-component="Card">
+        <div class="card__head">
+          <span class="stpill" style="color:var(--destructive)">✕ FAILED</span>
+          <div class="grow">
+            <div class="rowx">
+              <a class="t-base strong" href="workflow-editor.html">Invoice → Slack approval</a>
+              <span class="badge badge--mono">v7</span>
+            </div>
+            <div class="t-xs dim mono" style="margin-top:3px">
+              exec_8f31c2a4 · webhook · PRODUCTION · started 06 Aug 2026, 14:02:11 UTC
+            </div>
+          </div>
+          <div class="rowx">
+            <button class="btn btn--sm" data-component="Button">Copy run id</button>
+            <button class="btn btn--sm" data-component="Button">Retry run</button>
+            <button class="btn btn--sm btn--primary" data-component="Button">Retry from failed node</button>
+            <button class="btn btn--sm btn--icon" title="More" data-component="DropdownMenu">⋯</button>
+          </div>
+        </div>
+
+        <div class="card__body" style="padding:0">
+          <!-- Reconciliation. If these numbers don't add up, the engine has a bug. -->
+          <div class="ledger" style="border:0;border-radius:0;border-bottom:1px solid var(--border)">
+            <div class="ledger__cell"><div class="ledger__n num">8</div><div class="ledger__k">compiled</div></div>
+            <div class="ledger__eq">=</div>
+            <div class="ledger__cell"><div class="ledger__n num">4</div><div class="ledger__k">success</div></div>
+            <div class="ledger__eq">+</div>
+            <div class="ledger__cell"><div class="ledger__n num" style="color:var(--destructive)">1</div><div class="ledger__k">failed</div></div>
+            <div class="ledger__eq">+</div>
+            <div class="ledger__cell"><div class="ledger__n num dim">3</div><div class="ledger__k">skipped</div></div>
+            <div class="ledger__eq">+</div>
+            <div class="ledger__cell"><div class="ledger__n num dim">0</div><div class="ledger__k">unaccounted</div></div>
+            <div class="ledger__cell ledger__cell--grow" style="border-left:1px solid var(--border)">
+              <div class="rowx-4">
+                <div><div class="ledger__n num">3.94s</div><div class="ledger__k">duration</div></div>
+                <div><div class="ledger__n num">2,104</div><div class="ledger__k">tokens</div></div>
+                <div><div class="ledger__n num">$0.0031</div><div class="ledger__k">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Timeline band: real durations, proportional. Answers "where did the
+               time go?" without opening a single node. -->
+          <div style="padding:14px 16px">
+            <div class="rowx between" style="margin-bottom:8px">
+              <span class="eyebrow">Timeline</span>
+              <span class="t-xs dim mono">0ms ────────────────── 3,941ms</span>
+            </div>
+            <div class="stack-2">
+              <div class="rowx" style="gap:10px">
+                <span class="t-xs dim mono" style="width:150px;flex:0 0 auto">Invoice received</span>
+                <div class="grow" style="position:relative;height:8px">
+                  <div style="position:absolute;left:0%;width:0.4%;min-width:3px;height:8px;border-radius:2px;background:var(--foreground)"></div>
+                </div>
+                <span class="t-xs dim mono" style="width:60px;text-align:right">12ms</span>
+              </div>
+              <div class="rowx" style="gap:10px">
+                <span class="t-xs dim mono" style="width:150px;flex:0 0 auto">Extract invoice fields</span>
+                <div class="grow" style="position:relative;height:8px">
+                  <div style="position:absolute;left:0.4%;width:46.7%;height:8px;border-radius:2px;background:var(--foreground)"></div>
+                </div>
+                <span class="t-xs dim mono" style="width:60px;text-align:right">1,840ms</span>
+              </div>
+              <div class="rowx" style="gap:10px">
+                <span class="t-xs dim mono" style="width:150px;flex:0 0 auto">Amount over $5,000?</span>
+                <div class="grow" style="position:relative;height:8px">
+                  <div style="position:absolute;left:47.1%;width:0.4%;min-width:3px;height:8px;border-radius:2px;background:var(--foreground)"></div>
+                </div>
+                <span class="t-xs dim mono" style="width:60px;text-align:right">2ms</span>
+              </div>
+              <div class="rowx" style="gap:10px">
+                <span class="t-xs dim mono" style="width:150px;flex:0 0 auto">Mark auto-approved</span>
+                <div class="grow" style="position:relative;height:8px">
+                  <div style="position:absolute;left:47.5%;width:0.4%;min-width:3px;height:8px;border-radius:2px;background:var(--foreground)"></div>
+                </div>
+                <span class="t-xs dim mono" style="width:60px;text-align:right">1ms</span>
+              </div>
+              <div class="rowx" style="gap:10px">
+                <span class="t-xs mono" style="width:150px;flex:0 0 auto;color:var(--destructive)">Post to #finance-ops</span>
+                <div class="grow" style="position:relative;height:8px">
+                  <div style="position:absolute;left:47.9%;width:52.1%;height:8px;border-radius:2px;background:var(--destructive)"></div>
+                </div>
+                <span class="t-xs dim mono" style="width:60px;text-align:right">2,086ms</span>
+              </div>
+            </div>
+            <p class="t-xs dim" style="margin-top:10px">
+              3 skipped nodes are not on the timeline because they consumed no time. They are in the trace below.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Trace + inspector ──────────────────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;margin-top:16px" class="tracelayout">
+
+        <!-- Trace -->
+        <div>
+          <div class="toolstrip">
+            <span class="eyebrow grow">Node trace · 8 records</span>
+            <div class="btngroup" data-component="ToggleGroup">
+              <button class="btn btn--sm" aria-pressed="true">All</button>
+              <button class="btn btn--sm" aria-pressed="false">Failed</button>
+              <button class="btn btn--sm" aria-pressed="false">Skipped</button>
+            </div>
+            <button class="btn btn--sm" data-component="Button">Expand all</button>
+          </div>
+
+          <div class="trace" data-component="ExecutionTrace">
+
+            <div class="tr tr--success">
+              <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+              <div class="tr__topo tr__topo--start"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Invoice received</div>
+                  <div class="tr__type">core.webhook-trigger · v1</div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric"><div class="tr__metricv">12ms</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">›</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tr tr--success">
+              <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+              <div class="tr__topo"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Extract invoice fields</div>
+                  <div class="tr__type">ai.extract · v2 · anthropic:claude-sonnet-4-5</div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric"><div class="tr__metricv">1,840ms</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric"><div class="tr__metricv">2,104</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric"><div class="tr__metricv">$0.0031</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">›</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tr tr--success">
+              <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+              <div class="tr__topo"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Amount over $5,000?</div>
+                  <div class="tr__type">core.condition · v1</div>
+                  <div class="tr__why" style="border-style:solid">
+                    emitted on <span class="strong">false</span> — <span class="mono">1247.50 &gt; 5000</span> is false
+                  </div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric"><div class="tr__metricv">2ms</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">›</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tr tr--skipped tr--l1">
+              <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+              <div class="tr__topo tr__topo--l1"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Request VP approval</div>
+                  <div class="tr__type">slack.send-message · v1</div>
+                  <div class="tr__why">↳ branch not taken at “Amount over $5,000?” (true)</div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">›</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tr tr--skipped tr--l1">
+              <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+              <div class="tr__topo tr__topo--l1 tr__topo--end"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Wait for approval</div>
+                  <div class="tr__type">core.wait · v1</div>
+                  <div class="tr__why">↳ upstream skipped — “Request VP approval”</div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">›</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tr tr--success">
+              <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+              <div class="tr__topo"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Mark auto-approved</div>
+                  <div class="tr__type">core.set · v1</div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric"><div class="tr__metricv">1ms</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">›</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- selected node -->
+            <div class="tr tr--failed tr--open">
+              <div class="gutter gutter--failed"><span class="mono t-xs">✕</span></div>
+              <div class="tr__topo"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Post to #finance-ops</div>
+                  <div class="tr__type">slack.send-message · v1 · attempt 3 of 3</div>
+                  <div class="tr__why tr__why--fail">
+                    <span class="mono">HTTP_4XX</span> Slack API returned 429 (rate limited). Retry after 30s.
+                  </div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric"><div class="tr__metricv">2,086ms</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">⌄</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- retry history for the selected node, inline -->
+            <div class="tr__detail">
+              <div class="eyebrow" style="padding:12px 0 8px">Attempts</div>
+              <table class="tbl" style="border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);overflow:hidden">
+                <thead><tr><th>#</th><th>Started</th><th class="cell-num">Duration</th><th>Outcome</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">1</td><td class="mono t-sm dim">14:02:13.041</td><td class="cell-num">412ms</td><td><span class="st st--failed" data-glyph="✕">429 rate limited · retryable</span></td></tr>
+                  <tr><td class="mono">2</td><td class="mono t-sm dim">14:02:14.462</td><td class="cell-num">388ms</td><td><span class="st st--failed" data-glyph="✕">429 rate limited · retryable</span></td></tr>
+                  <tr><td class="mono">3</td><td class="mono t-sm dim">14:02:16.850</td><td class="cell-num">1,286ms</td><td><span class="st st--failed" data-glyph="✕">429 rate limited · attempts exhausted</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="tr tr--skipped">
+              <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+              <div class="tr__topo tr__topo--end"><span class="tr__knot"></span></div>
+              <div class="tr__body">
+                <div class="grow">
+                  <div class="tr__name">Record in ledger</div>
+                  <div class="tr__type">postgres.query · v1</div>
+                  <div class="tr__why">↳ upstream failed — “Post to #finance-ops”</div>
+                </div>
+                <div class="tr__metrics">
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">dur</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                  <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  <span class="dim">›</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Inspector -->
+        <div style="position:sticky;top:72px;align-self:start">
+          <div class="card" data-component="Card">
+            <div class="card__head" style="padding:12px 14px">
+              <span class="stpill" style="color:var(--destructive)">✕ FAILED</span>
+              <div class="grow">
+                <div class="t-sm strong">Post to #finance-ops</div>
+                <div class="t-xs dim mono">slack.send-message</div>
+              </div>
+            </div>
+
+            <div class="tabs" style="padding:0 8px" data-component="Tabs">
+              <button class="tab" aria-selected="true">Error</button>
+              <button class="tab" aria-selected="false">Input</button>
+              <button class="tab" aria-selected="false">Output</button>
+              <button class="tab" aria-selected="false">Config</button>
+              <button class="tab" aria-selected="false">Logs</button>
+            </div>
+
+            <div class="card__body">
+              <div class="alert alert--warn" data-component="Alert">
+                <span aria-hidden="true">✕</span>
+                <div>
+                  <div class="alert__title">Rate limited by Slack</div>
+                  <p class="t-sm" style="margin-top:4px;color:var(--muted-foreground)">
+                    Slack API returned 429 (rate limited). Retry after 30s.
+                  </p>
+                </div>
+              </div>
+
+              <div class="eyebrow" style="margin:16px 0 6px">Error detail</div>
+              <div class="json" data-component="JsonViewer">{
+  <span class="j-key">"code"</span><span class="j-punct">:</span> <span class="j-str">"HTTP_4XX"</span><span class="j-punct">,</span>
+  <span class="j-key">"retryable"</span><span class="j-punct">:</span> <span class="j-bool">true</span><span class="j-punct">,</span>
+  <span class="j-key">"attempt"</span><span class="j-punct">:</span> <span class="j-num">3</span><span class="j-punct">,</span>
+  <span class="j-key">"maxAttempts"</span><span class="j-punct">:</span> <span class="j-num">3</span><span class="j-punct">,</span>
+  <span class="j-key">"details"</span><span class="j-punct">:</span> {
+    <span class="j-key">"status"</span><span class="j-punct">:</span> <span class="j-num">429</span><span class="j-punct">,</span>
+    <span class="j-key">"retryAfterSeconds"</span><span class="j-punct">:</span> <span class="j-num">30</span><span class="j-punct">,</span>
+    <span class="j-key">"channel"</span><span class="j-punct">:</span> <span class="j-str">"#finance-ops"</span>
+  }
+}</div>
+
+              <div class="eyebrow" style="margin:16px 0 6px">Input · from “Mark auto-approved”</div>
+              <div class="json" style="max-height:180px" data-component="JsonViewer">[
+  {
+    <span class="j-key">"json"</span><span class="j-punct">:</span> {
+      <span class="j-key">"invoiceId"</span><span class="j-punct">:</span> <span class="j-str">"INV-2026-4471"</span><span class="j-punct">,</span>
+      <span class="j-key">"vendor"</span><span class="j-punct">:</span> <span class="j-str">"Kestrel Logistics"</span><span class="j-punct">,</span>
+      <span class="j-key">"amount"</span><span class="j-punct">:</span> <span class="j-num">1247.50</span><span class="j-punct">,</span>
+      <span class="j-key">"currency"</span><span class="j-punct">:</span> <span class="j-str">"USD"</span><span class="j-punct">,</span>
+      <span class="j-key">"autoApproved"</span><span class="j-punct">:</span> <span class="j-bool">true</span>
+    }
+  }
+]</div>
+
+              <div class="eyebrow" style="margin:16px 0 6px">Resolved config</div>
+              <div class="json" style="max-height:150px" data-component="JsonViewer">{
+  <span class="j-key">"channel"</span><span class="j-punct">:</span> <span class="j-str">"#finance-ops"</span><span class="j-punct">,</span>
+  <span class="j-key">"text"</span><span class="j-punct">:</span> <span class="j-str">"Auto-approved INV-2026-4471 — $1,247.50 to Kestrel Logistics"</span><span class="j-punct">,</span>
+  <span class="j-key">"credential"</span><span class="j-punct">:</span> <span class="j-str">"Slack — Finance workspace"</span>
+}<span class="j-trunc">Credential values are never stored on an execution record and cannot be read back — only the credential's name appears here.</span></div>
+            </div>
+
+            <div class="card__foot">
+              <button class="btn btn--sm btn--primary btn--block" data-component="Button">Retry from this node</button>
+            </div>
+          </div>
+
+          <!-- Why-not panel: the explicit answer to "why was this branch skipped?" -->
+          <div class="card" style="margin-top:12px" data-component="Card">
+            <div class="card__head" style="padding:12px 14px">
+              <span class="card__title">Branch decisions</span>
+              <span class="badge push">1 condition</span>
+            </div>
+            <div class="card__body" style="padding:12px 14px">
+              <div class="t-sm strong">Amount over $5,000?</div>
+              <div class="t-xs dim mono" style="margin-top:2px">core.condition</div>
+
+              <div class="stack-2" style="margin-top:12px">
+                <div class="rowx" style="gap:10px">
+                  <span class="mono t-xs dim" style="width:44px">true</span>
+                  <div class="grow bar"><div class="bar__fill bar__fill--muted" style="width:0%"></div></div>
+                  <span class="t-xs dim">2 nodes starved</span>
+                </div>
+                <div class="rowx" style="gap:10px">
+                  <span class="mono t-xs strong" style="width:44px">false</span>
+                  <div class="grow bar"><div class="bar__fill" style="width:100%"></div></div>
+                  <span class="t-xs">2 nodes ran</span>
+                </div>
+              </div>
+
+              <p class="t-xs dim" style="margin-top:12px">
+                Evaluated <span class="mono">$json.amount &gt; 5000</span> against
+                <span class="mono">1247.50</span> and emitted on <span class="mono">false</span>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

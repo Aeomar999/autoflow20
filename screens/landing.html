@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoFlow — Every node accounted for</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /  — does not exist in the codebase today (no src/app/page.tsx; / 404s) -->
+
+<header class="mk-nav" data-component="NavigationMenu">
+  <div class="mk rowx-4" style="width:100%">
+    <a class="rowx" href="landing.html">
+      <span class="sidebar__mark" aria-hidden="true">A</span>
+      <span class="strong t-lg" style="letter-spacing:-0.02em">AutoFlow</span>
+    </a>
+    <nav class="mk-nav__links">
+      <a href="#observability">Observability</a>
+      <a href="#nodes">Nodes</a>
+      <a href="#models">Models</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="developer-platform.html">Docs</a>
+    </nav>
+    <div class="push rowx">
+      <a class="btn btn--ghost btn--sm" href="login.html">Sign in</a>
+      <a class="btn btn--primary btn--sm" href="signup.html">Start building</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Hero ───────────────────────────────────────────────────────────────
+       The thesis is the artifact. Instead of describing observability, the
+       hero shows a real failed run: what ran, what failed, what was skipped,
+       and why. -->
+  <section class="mk-section" style="padding-top:64px">
+    <div class="mk">
+      <p class="eyebrow">Workflow automation &amp; agent orchestration</p>
+      <h1 class="display" style="margin-top:18px;max-width:16ch">Every node accounted&nbsp;for.</h1>
+      <p class="lede" style="margin-top:22px">
+        Other automation tools show you what ran. AutoFlow shows you the whole graph —
+        what ran, what failed, and what was skipped, with the reason it was skipped.
+        No holes in the trace, ever.
+      </p>
+      <div class="rowx" style="margin-top:28px;gap:10px">
+        <a class="btn btn--primary btn--lg" href="signup.html">Start building free</a>
+        <a class="btn btn--lg" href="execution-detail.html">See a real run trace</a>
+      </div>
+      <p class="t-xs dim" style="margin-top:14px">No credit card. 1,000 free runs a month.</p>
+    </div>
+  </section>
+
+  <!-- ── The receipt ──────────────────────────────────────────────────────── -->
+  <section class="mk-section" id="observability" style="padding-top:0;border-top:0">
+    <div class="mk">
+
+      <div class="card" style="overflow:hidden" data-component="Card">
+        <div class="card__head">
+          <span class="stpill st--failed" style="color:var(--destructive)">✕ FAILED</span>
+          <div class="grow">
+            <div class="t-sm strong">Invoice → Slack approval</div>
+            <div class="t-xs dim mono">exec_8f31c2a4 · webhook · production · 06 Aug 2026, 14:02:11 UTC</div>
+          </div>
+          <div class="rowx-4 hidesm">
+            <div class="row__stat"><div class="row__statv">3.94s</div><div class="row__statl">duration</div></div>
+            <div class="row__stat"><div class="row__statv">2,104</div><div class="row__statl">tokens</div></div>
+            <div class="row__stat"><div class="row__statv">$0.0031</div><div class="row__statl">cost</div></div>
+          </div>
+        </div>
+
+        <!-- Reconciliation bar: the count that proves the trace has no holes -->
+        <div class="ledger" style="border:0;border-bottom:1px solid var(--border);border-radius:0">
+          <div class="ledger__cell"><div class="ledger__n num">8</div><div class="ledger__k">nodes compiled</div></div>
+          <div class="ledger__eq">=</div>
+          <div class="ledger__cell"><div class="ledger__n num">4</div><div class="ledger__k">succeeded</div></div>
+          <div class="ledger__eq">+</div>
+          <div class="ledger__cell"><div class="ledger__n num" style="color:var(--destructive)">1</div><div class="ledger__k">failed</div></div>
+          <div class="ledger__eq">+</div>
+          <div class="ledger__cell"><div class="ledger__n num dim">3</div><div class="ledger__k">skipped</div></div>
+          <div class="ledger__eq">+</div>
+          <div class="ledger__cell ledger__cell--grow"><div class="ledger__n num dim">0</div><div class="ledger__k">unaccounted</div></div>
+        </div>
+
+        <div class="trace" style="border:0;border-radius:0" data-component="ExecutionTrace">
+
+          <div class="tr tr--success">
+            <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+            <div class="tr__topo tr__topo--start"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Invoice received</div>
+                <div class="tr__type">core.webhook-trigger</div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric"><div class="tr__metricv">12ms</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tr tr--success">
+            <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+            <div class="tr__topo"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Extract invoice fields</div>
+                <div class="tr__type">ai.extract · claude-sonnet-4-5</div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric"><div class="tr__metricv">1,840ms</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric"><div class="tr__metricv">2,104</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric"><div class="tr__metricv">$0.0031</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tr tr--success">
+            <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+            <div class="tr__topo"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Amount over $5,000?</div>
+                <div class="tr__type">core.condition · emitted on <span class="strong">false</span></div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric"><div class="tr__metricv">2ms</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- the branch that did not run — present, dimmed, and explained -->
+          <div class="tr tr--skipped tr--l1">
+            <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+            <div class="tr__topo tr__topo--l1"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Request VP approval</div>
+                <div class="tr__type">slack.send-message</div>
+                <div class="tr__why">↳ branch not taken at “Amount over $5,000?” (true)</div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tr tr--skipped tr--l1">
+            <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+            <div class="tr__topo tr__topo--l1 tr__topo--end"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Wait for approval</div>
+                <div class="tr__type">core.wait</div>
+                <div class="tr__why">↳ upstream skipped — “Request VP approval”</div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tr tr--success">
+            <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+            <div class="tr__topo"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Mark auto-approved</div>
+                <div class="tr__type">core.set</div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric"><div class="tr__metricv">1ms</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tr tr--failed">
+            <div class="gutter gutter--failed"><span class="mono t-xs">✕</span></div>
+            <div class="tr__topo"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Post to #finance-ops</div>
+                <div class="tr__type">slack.send-message · attempt 3 of 3</div>
+                <div class="tr__why tr__why--fail">Slack API returned 429 (rate limited). Retry after 30s.</div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric"><div class="tr__metricv">2,086ms</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tr tr--skipped">
+            <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+            <div class="tr__topo tr__topo--end"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name">Record in ledger</div>
+                <div class="tr__type">postgres.query</div>
+                <div class="tr__why">↳ upstream failed — “Post to #finance-ops”</div>
+              </div>
+              <div class="tr__metrics hidesm">
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">dur</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">tok</div></div>
+                <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <p class="t-sm dim" style="margin-top:16px;max-width:64ch">
+        This is the real Executions view, not an illustration. Three nodes never ran, and each one
+        says why. In n8n that failure is a gap in the log; here it is a row.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── What that buys you ───────────────────────────────────────────────── -->
+  <section class="mk-section">
+    <div class="mk">
+      <h2 class="display display--sm" style="max-width:22ch">Debugging is the product.</h2>
+      <p class="lede" style="margin-top:14px">
+        Everything below exists so the trace above can be true.
+      </p>
+
+      <div class="grid grid--3" style="margin-top:36px">
+        <div class="card" data-component="Card">
+          <div class="card__body">
+            <p class="eyebrow">Immutable history</p>
+            <h3 class="t-lg strong" style="margin-top:10px">Runs remember the graph they ran</h3>
+            <p class="t-sm dim" style="margin-top:8px">
+              Each execution stores the graph as it was at trigger time. Editing a workflow never
+              rewrites what last Tuesday looked like.
+            </p>
+          </div>
+        </div>
+        <div class="card" data-component="Card">
+          <div class="card__body">
+            <p class="eyebrow">Crash-resumable</p>
+            <h3 class="t-lg strong" style="margin-top:10px">A restart resumes, it doesn’t replay</h3>
+            <p class="t-sm dim" style="margin-top:8px">
+              Every node runs as a durable step. If a worker dies mid-run, the run picks up at the
+              last completed node — your customer isn’t charged twice.
+            </p>
+          </div>
+        </div>
+        <div class="card" data-component="Card">
+          <div class="card__body">
+            <p class="eyebrow">Cost as a column</p>
+            <h3 class="t-lg strong" style="margin-top:10px">Tokens and dollars per node</h3>
+            <p class="t-sm dim" style="margin-top:8px">
+              Spend is recorded on the node execution, not mined out of logs later. Every budget
+              alert and cost report is a sum over that column.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Nodes ────────────────────────────────────────────────────────────── -->
+  <section class="mk-section" id="nodes">
+    <div class="mk">
+      <div class="grid grid--2" style="gap:48px;align-items:center">
+        <div>
+          <p class="eyebrow">The node registry</p>
+          <h2 class="display display--sm" style="margin-top:14px;max-width:18ch">One definition. Three consumers.</h2>
+          <p class="lede" style="margin-top:14px">
+            A node declares its config once, as a schema. The editor generates the form from it, the
+            API validates saves against it, and the runtime executes against it. They cannot drift,
+            so a workflow that passes the canvas linter cannot fail validation at run time.
+          </p>
+          <p class="t-sm dim" style="margin-top:16px">
+            Ship your own with the node SDK — a folder, not a fork.
+          </p>
+        </div>
+        <div class="codeblock" data-component="CodeBlock">export const definition = {
+  <span class="j-key">type</span>: <span class="j-str">"slack.send-message"</span>,
+  <span class="j-key">category</span>: <span class="j-str">"ACTION"</span>,
+  <span class="j-key">label</span>: <span class="j-str">"Send Slack message"</span>,
+  <span class="j-key">configSchema</span>: z.object({
+    channel: expr(z.string())
+      .describe(<span class="j-str">"Channel or user id."</span>),
+    text: expr(z.string().multiline()),
+  }),
+  <span class="j-key">credentials</span>: [{ key: <span class="j-str">"slack"</span>,
+    type: <span class="j-str">"slack.oauth2"</span>, required: <span class="j-bool">true</span> }],
+  <span class="j-key">defaultRetry</span>: { maxAttempts: <span class="j-num">3</span>, backoffMs: <span class="j-num">1000</span> },
+}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Models ───────────────────────────────────────────────────────────── -->
+  <section class="mk-section" id="models">
+    <div class="mk">
+      <p class="eyebrow">Multi-model</p>
+      <h2 class="display display--sm" style="margin-top:14px;max-width:20ch">Route by capability, not by contract.</h2>
+      <p class="lede" style="margin-top:14px">
+        Pick a model per node, or set a rule — cheapest capable, lowest latency, or an A/B bucket.
+        Declare a fallback chain for when a provider has a bad afternoon.
+      </p>
+
+      <div class="card" style="margin-top:28px" data-component="Card">
+        <table class="tbl" data-component="Table">
+          <thead>
+            <tr><th>Model</th><th>Context</th><th class="cell-num">In / 1M</th><th class="cell-num">Out / 1M</th><th>Used for</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono t-sm">anthropic:claude-sonnet-4-5</td><td class="dim t-sm">200k</td><td class="cell-num">$3.00</td><td class="cell-num">$15.00</td><td class="t-sm dim">Extraction, reasoning</td></tr>
+            <tr><td class="mono t-sm">openai:gpt-5-mini</td><td class="dim t-sm">128k</td><td class="cell-num">$0.25</td><td class="cell-num">$2.00</td><td class="t-sm dim">Classification</td></tr>
+            <tr><td class="mono t-sm">groq:llama-3.3-70b</td><td class="dim t-sm">128k</td><td class="cell-num">$0.59</td><td class="cell-num">$0.79</td><td class="t-sm dim">Low-latency routing</td></tr>
+            <tr><td class="mono t-sm">google:gemini-2.5-flash</td><td class="dim t-sm">1M</td><td class="cell-num">$0.15</td><td class="cell-num">$0.60</td><td class="t-sm dim">Long documents</td></tr>
+            <tr><td class="mono t-sm">ollama:qwen3:14b</td><td class="dim t-sm">32k</td><td class="cell-num">$0.00</td><td class="cell-num">$0.00</td><td class="t-sm dim">Self-hosted, private data</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Head-to-head (PRD §7) ────────────────────────────────────────────── -->
+  <section class="mk-section">
+    <div class="mk">
+      <p class="eyebrow">Head to head</p>
+      <h2 class="display display--sm" style="margin-top:14px;max-width:22ch">What you give up elsewhere.</h2>
+
+      <div class="card" style="margin-top:28px;overflow-x:auto">
+        <table class="tbl compare" data-component="Table">
+          <thead>
+            <tr>
+              <th style="width:22%"></th>
+              <th>n8n</th><th>Zapier</th><th>Agent Builder</th><th>Sim.ai</th>
+              <th style="color:var(--foreground)">AutoFlow</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="strong t-sm">Ops burden</td>
+              <td class="t-sm dim">Self-host, you operate it</td>
+              <td class="t-sm dim">None, but capped</td>
+              <td class="t-sm dim">Prototype infra</td>
+              <td class="t-sm dim">Emerging</td>
+              <td class="t-sm">Managed, zero setup</td>
+            </tr>
+            <tr>
+              <td class="strong t-sm">Run observability</td>
+              <td class="t-sm dim">Log-based, silent skips</td>
+              <td class="t-sm dim">Task history only</td>
+              <td class="t-sm dim">None meaningful</td>
+              <td class="t-sm dim">Limited</td>
+              <td class="t-sm">Per-node trace, skip reasons</td>
+            </tr>
+            <tr>
+              <td class="strong t-sm">AI</td>
+              <td class="t-sm dim">Custom nodes, fragile</td>
+              <td class="t-sm dim">Minimal</td>
+              <td class="t-sm dim">Single model, chat</td>
+              <td class="t-sm dim">AI-first, narrow</td>
+              <td class="t-sm">Multi-model with cost routing</td>
+            </tr>
+            <tr>
+              <td class="strong t-sm">Governance</td>
+              <td class="t-sm dim">Roll your own</td>
+              <td class="t-sm dim">Limited</td>
+              <td class="t-sm dim">None</td>
+              <td class="t-sm dim">Limited</td>
+              <td class="t-sm">RBAC, approvals, audit, SSO</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="t-xs dim" style="margin-top:10px">Comparison reflects publicly documented behaviour as of August 2026.</p>
+    </div>
+  </section>
+
+  <!-- ── CTA ──────────────────────────────────────────────────────────────── -->
+  <section class="mk-section" style="border-bottom:0">
+    <div class="mk" style="text-align:center">
+      <h2 class="display display--sm" style="max-width:24ch;margin:0 auto">Build one workflow. Break it on purpose.</h2>
+      <p class="lede" style="margin:14px auto 0;text-align:center">
+        Then open the trace and see whether any other tool would have told you what happened.
+      </p>
+      <div class="rowx" style="justify-content:center;margin-top:26px;gap:10px">
+        <a class="btn btn--primary btn--lg" href="signup.html">Start building free</a>
+        <a class="btn btn--lg" href="pricing.html">See pricing</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);padding:36px 0">
+  <div class="mk">
+    <div class="grid grid--4" style="gap:32px">
+      <div>
+        <div class="rowx"><span class="sidebar__mark" aria-hidden="true">A</span><span class="strong">AutoFlow</span></div>
+        <p class="t-xs dim" style="margin-top:10px;max-width:30ch">Workflow automation and agent orchestration with a trace you can trust.</p>
+      </div>
+      <div class="stack-2">
+        <p class="eyebrow">Product</p>
+        <a class="t-sm dim" href="pricing.html">Pricing</a>
+        <a class="t-sm dim" href="templates.html">Templates</a>
+        <a class="t-sm dim" href="marketplace.html">Marketplace</a>
+      </div>
+      <div class="stack-2">
+        <p class="eyebrow">Developers</p>
+        <a class="t-sm dim" href="developer-platform.html">API &amp; SDK</a>
+        <a class="t-sm dim" href="developer-platform.html">Node SDK</a>
+        <a class="t-sm dim" href="developer-platform.html">Git sync</a>
+      </div>
+      <div class="stack-2">
+        <p class="eyebrow">Company</p>
+        <a class="t-sm dim" href="#">Security</a>
+        <a class="t-sm dim" href="#">Status</a>
+        <a class="t-sm dim" href="#">Contact</a>
+      </div>
+    </div>
+    <p class="t-xs dim" style="margin-top:32px">© 2026 AutoFlow. All rights reserved.</p>
+  </div>
+</footer>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

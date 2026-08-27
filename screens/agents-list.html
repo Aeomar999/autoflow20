@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- TIER 2 · ROUTE: /agents   [PLANNED PHASE 2]
+     Deliberately lower fidelity. Agents are a node CATEGORY built on the
+     execution engine, not a parallel runtime (overview.md §10), so this list is
+     the workflows list with agent-shaped columns — same trace, same cost model. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="agents"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Agents"></header>
+
+    <div class="page page--wide">
+      <div class="alert" style="margin-bottom:20px" data-component="Alert">
+        <span class="badge badge--planned">PLANNED PHASE 2</span>
+        <div class="grow">
+          <div class="alert__title">Not built. Blocked on the execution engine.</div>
+          <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+            Agents run on the same runtime as workflows and are traced the same way. Building them
+            before M2 would produce a demo, not a product — which is the failure mode we sell against.
+            This screen is direction, not a spec.
+          </p>
+        </div>
+      </div>
+
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Agents</h1>
+          <p class="pagehead__desc">Reusable policies — a goal, its tools, its models, its memory.</p>
+        </div>
+        <button class="btn btn--primary" aria-disabled="true" data-component="Button">New agent</button>
+      </div>
+
+      <div class="card" style="overflow:hidden" data-component="Card">
+        <table class="tbl" data-component="DataTable">
+          <thead>
+            <tr><th style="width:118px">Last run</th><th>Agent</th><th>Tools</th>
+              <th class="cell-num">Runs (7d)</th><th class="cell-num">Escalated</th>
+              <th class="cell-num">Avg confidence</th><th class="cell-num">Cost (7d)</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td><a class="strong" href="agent-detail.html">Support triage agent</a>
+                <div class="t-xs dim">Answers from the support handbook, escalates below 0.72</div></td>
+              <td class="t-sm dim">4 tools · 1 knowledge base</td>
+              <td class="cell-num">2,880</td><td class="cell-num">214</td>
+              <td class="cell-num">0.84</td><td class="cell-num">$18.90</td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td><a class="strong" href="agent-detail.html">Research agent</a>
+                <div class="t-xs dim">Searches the web and the internal KB, writes a brief</div></td>
+              <td class="t-sm dim">6 tools · 2 knowledge bases</td>
+              <td class="cell-num">312</td><td class="cell-num">8</td>
+              <td class="cell-num">0.79</td><td class="cell-num">$44.10</td>
+            </tr>
+            <tr>
+              <td><span class="st st--failed" data-glyph="✕">FAILED</span></td>
+              <td><a class="strong" href="agent-detail.html">Invoice reconciliation agent</a>
+                <div class="t-xs dim" style="color:var(--destructive)">Hit the 12-step delegation cap</div></td>
+              <td class="t-sm dim">3 tools · delegates to 1 agent</td>
+              <td class="cell-num">88</td><td class="cell-num">41</td>
+              <td class="cell-num">0.61</td><td class="cell-num">$9.44</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="t-xs dim" style="margin-top:14px;max-width:70ch">
+        Confidence is reported by the agent node and stored on the run like tokens and cost, so it
+        can be used as a routing dimension and charted without a separate pipeline.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

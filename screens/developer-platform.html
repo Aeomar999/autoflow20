@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developers — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- TIER 2 · ROUTE: /docs (shell) + /settings/git   [PLANNED M8 / PHASE 3]
+     REST v1 is M8; SDKs and Git sync are Phase 3. tRPC is explicitly NOT a public
+     API (api_contract.md §1) — exposing it would freeze internal refactoring
+     permanently, so the public surface is a separate, versioned REST API. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Developers"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Developer platform</h1>
+          <p class="pagehead__desc">Drive AutoFlow from your own code, and keep workflows in Git.</p>
+        </div>
+        <span class="badge badge--planned">PLANNED M8 / PHASE 3</span>
+      </div>
+
+      <div class="tabs" style="margin-bottom:16px" data-component="Tabs">
+        <button class="tab" aria-selected="true">REST API</button>
+        <button class="tab" aria-selected="false">SDKs</button>
+        <button class="tab" aria-selected="false">Node SDK</button>
+        <button class="tab" aria-selected="false">Git sync</button>
+      </div>
+
+      <div class="grid grid--2" style="gap:16px;align-items:start">
+
+        <div class="stack-4">
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">REST v1</span>
+              <span class="badge badge--mono push">api.autoflow.com/v1</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th style="width:70px">Method</th><th>Path</th><th>Scope</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono t-sm">GET</td><td class="mono t-sm">/workflows</td><td class="t-xs dim mono">workflows:read</td></tr>
+                  <tr><td class="mono t-sm">GET</td><td class="mono t-sm">/workflows/:id</td><td class="t-xs dim mono">workflows:read</td></tr>
+                  <tr><td class="mono t-sm">POST</td><td class="mono t-sm">/workflows/:id/run</td><td class="t-xs dim mono">workflows:execute</td></tr>
+                  <tr><td class="mono t-sm">GET</td><td class="mono t-sm">/executions</td><td class="t-xs dim mono">executions:read</td></tr>
+                  <tr><td class="mono t-sm">GET</td><td class="mono t-sm">/executions/:id</td><td class="t-xs dim mono">executions:read</td></tr>
+                  <tr><td class="mono t-sm">POST</td><td class="mono t-sm">/executions/:id/cancel</td><td class="t-xs dim mono">executions:write</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">
+                JSON, snake_case fields, cursor pagination, <span class="mono">Idempotency-Key</span> honoured on run.
+                Breaking changes go to v2 with a 6-month <span class="mono">Sunset</span> window.
+              </span>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Trigger a run</span></div>
+            <div class="card__body" style="padding:0">
+              <div class="codeblock" style="border:0;border-radius:0">curl -X POST https://api.autoflow.com/v1/workflows/wf_4a91/run \
+  -H <span class="j-str">"Authorization: Bearer $AUTOFLOW_KEY"</span> \
+  -H <span class="j-str">"Idempotency-Key: $(uuidgen)"</span> \
+  -d <span class="j-str">'{"input": {"invoiceId": "INV-2026-4471"}}'</span>
+
+<span class="j-punct"># 202 Accepted</span>
+{
+  <span class="j-key">"execution_id"</span>: <span class="j-str">"exec_8f31c2a4"</span>,
+  <span class="j-key">"status"</span>: <span class="j-str">"QUEUED"</span>,
+  <span class="j-key">"workflow_version"</span>: <span class="j-num">7</span>
+}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack-4">
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">TypeScript SDK</span>
+              <span class="badge badge--planned push">PHASE 3</span></div>
+            <div class="card__body" style="padding:0">
+              <div class="codeblock" style="border:0;border-radius:0">import { AutoFlow } from <span class="j-str">"@autoflow/sdk"</span>
+
+const af = new AutoFlow({ apiKey: process.env.AUTOFLOW_KEY })
+
+const run = await af.workflows.run(<span class="j-str">"wf_4a91"</span>, {
+  input: { invoiceId: <span class="j-str">"INV-2026-4471"</span> },
+})
+
+const trace = await af.executions.wait(run.executionId)
+
+<span class="j-punct">// every node, including the ones that didn't run</span>
+for (const node of trace.nodes) {
+  console.log(node.name, node.status, node.skipReason ?? <span class="j-str">""</span>)
+}</div>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Git sync</span>
+              <span class="badge badge--planned push">PHASE 3</span></div>
+            <div class="card__body stack-4">
+              <div class="rowx-3">
+                <span class="icon icon--lg">⑂</span>
+                <div class="grow">
+                  <div class="t-sm strong">northwind/automations</div>
+                  <div class="t-xs dim mono">github.com · branch main · last sync 2 hours ago</div>
+                </div>
+                <button class="btn btn--sm" aria-disabled="true">Configure</button>
+              </div>
+
+              <div class="codeblock">automations/
+├── invoice-slack-approval/
+│   ├── workflow.yaml
+│   └── README.md
+├── lead-scoring/
+│   └── workflow.yaml
+└── .autoflow/
+    └── config.yaml</div>
+
+              <div class="stack-2">
+                <div class="rowx-3">
+                  <div class="grow"><div class="field__label">Deploy on merge to main</div>
+                    <div class="field__help">A merged pull request deploys a new version. Rollback is a revert.</div></div>
+                  <span class="switch" role="switch" aria-checked="true"></span>
+                </div>
+                <div class="rowx-3">
+                  <div class="grow"><div class="field__label">Run the graph validator on every pull request</div>
+                    <div class="field__help">Same validator as the canvas linter, as a required status check.</div></div>
+                  <span class="switch" role="switch" aria-checked="true"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Node SDK</span>
+              <span class="badge badge--planned push">PHASE 3</span></div>
+            <div class="card__body">
+              <p class="t-sm dim">
+                Ship your own node types as a folder: a definition with a Zod config schema, a
+                server-only execute function, and tests. The editor form, the save validator, and the
+                runtime all read that one definition, so there is nothing to keep in sync.
+              </p>
+              <a class="btn btn--sm" href="landing.html#nodes" style="margin-top:12px">See the shape of a node</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

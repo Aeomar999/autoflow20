@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /analytics   [PLANNED M7 — analytics.overview / costByModel / topFailingWorkflows]
+     Every number here is an aggregate over Execution and NodeExecution columns.
+     Nothing is mined from logs, which is why cost can be broken down by model
+     and by workflow without a separate pipeline.
+     Charts use --chart-1..5, the only place those tokens are correct: they are
+     series colours, not status colours. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="analytics"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Analytics"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Analytics</h1>
+          <p class="pagehead__desc">Northwind Retail · Production workspace</p>
+        </div>
+        <div class="rowx">
+          <select class="select" style="width:auto" data-component="Select">
+            <option>Last 30 days</option><option>Last 7 days</option><option>Last 24 hours</option>
+          </select>
+          <button class="btn" data-component="Button">Export</button>
+        </div>
+      </div>
+
+      <div class="alert alert--warn" style="margin-bottom:16px" data-component="Alert">
+        <span aria-hidden="true">◆</span>
+        <div class="grow">
+          <div class="alert__title">Model spend is tracking 18% above your monthly budget</div>
+          <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+            $84.05 of a $400.00 budget with 24 days to go, projecting $472. “Lead scoring —
+            multi-model” accounts for most of the increase after v23 switched its first pass to Sonnet.
+          </p>
+        </div>
+        <button class="btn btn--sm" data-component="Button">Adjust budget</button>
+      </div>
+
+      <div class="grid grid--4" style="margin-bottom:16px">
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">Runs</div>
+          <div class="stat__value num">98,412</div>
+          <div class="stat__sub">+12.4% vs. previous 30 days</div>
+        </div>
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">Success rate</div>
+          <div class="stat__value num">99.1%</div>
+          <div class="stat__sub" style="color:var(--destructive)">886 failed · 402 timed out</div>
+        </div>
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">p50 / p95 duration</div>
+          <div class="stat__value num">1.1s <span class="dim" style="font-size:16px">/ 4.2s</span></div>
+          <div class="stat__sub">p99 11.8s</div>
+        </div>
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">Model spend</div>
+          <div class="stat__value num">$84.05</div>
+          <div class="stat__sub">$0.00085 per run</div>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="gap:16px;margin-bottom:16px">
+        <div class="card" data-component="Card">
+          <div class="card__head">
+            <span class="card__title">Runs by outcome</span>
+            <div class="legend push">
+              <span class="rowx" style="gap:5px"><span class="legend__key" style="background:var(--chart-1)"></span>Success</span>
+              <span class="rowx" style="gap:5px"><span class="legend__key" style="background:var(--destructive)"></span>Failed</span>
+            </div>
+          </div>
+          <div class="card__body">
+            <div class="chartbox" data-component="ChartContainer">
+              <div class="chartbox__col" style="height:52%"></div><div class="chartbox__col" style="height:58%"></div>
+              <div class="chartbox__col" style="height:61%"></div><div class="chartbox__col" style="height:49%"></div>
+              <div class="chartbox__col" style="height:44%"></div><div class="chartbox__col" style="height:66%"></div>
+              <div class="chartbox__col" style="height:72%"></div><div class="chartbox__col" style="height:69%"></div>
+              <div class="chartbox__col" style="height:64%"></div><div class="chartbox__col" style="height:71%"></div>
+              <div class="chartbox__col chartbox__col--bad" style="height:88%"></div>
+              <div class="chartbox__col" style="height:74%"></div><div class="chartbox__col" style="height:79%"></div>
+              <div class="chartbox__col" style="height:82%"></div><div class="chartbox__col" style="height:77%"></div>
+              <div class="chartbox__col" style="height:85%"></div><div class="chartbox__col" style="height:91%"></div>
+              <div class="chartbox__col" style="height:88%"></div><div class="chartbox__col" style="height:94%"></div>
+              <div class="chartbox__col" style="height:90%"></div><div class="chartbox__col" style="height:96%"></div>
+            </div>
+            <div class="chartaxis"><span>08 Jul</span><span>18 Jul</span><span>28 Jul</span><span>06 Aug</span></div>
+            <p class="t-xs dim" style="margin-top:10px">
+              The 18 Jul spike is 402 timeouts from “Contract clause extraction” hitting the 15-minute
+              run budget.
+            </p>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__head"><span class="card__title">p95 latency</span></div>
+          <div class="card__body">
+            <div class="chartbox" data-component="ChartContainer">
+              <div class="chartbox__col chartbox__col--alt" style="height:38%"></div><div class="chartbox__col chartbox__col--alt" style="height:41%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:36%"></div><div class="chartbox__col chartbox__col--alt" style="height:44%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:39%"></div><div class="chartbox__col chartbox__col--alt" style="height:47%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:52%"></div><div class="chartbox__col chartbox__col--alt" style="height:49%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:44%"></div><div class="chartbox__col chartbox__col--alt" style="height:51%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:96%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:58%"></div><div class="chartbox__col chartbox__col--alt" style="height:54%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:57%"></div><div class="chartbox__col chartbox__col--alt" style="height:52%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:55%"></div><div class="chartbox__col chartbox__col--alt" style="height:61%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:58%"></div><div class="chartbox__col chartbox__col--alt" style="height:63%"></div>
+              <div class="chartbox__col chartbox__col--alt" style="height:59%"></div><div class="chartbox__col chartbox__col--alt" style="height:64%"></div>
+            </div>
+            <div class="chartaxis"><span>08 Jul</span><span>18 Jul</span><span>28 Jul</span><span>06 Aug</span></div>
+            <p class="t-xs dim" style="margin-top:10px">
+              Excludes model latency, which is reported per node on each run.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="gap:16px">
+        <div class="card" data-component="Card">
+          <div class="card__head"><span class="card__title">Cost by model</span><span class="badge push">30 days</span></div>
+          <div class="card__body" style="padding:0">
+            <table class="tbl" data-component="Table">
+              <thead><tr><th>Model</th><th class="cell-num">Calls</th><th class="cell-num">Tokens</th><th class="cell-num">Cost</th><th style="width:110px">Share</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="mono t-sm">claude-sonnet-4-5</td><td class="cell-num">41,220</td>
+                  <td class="cell-num">14.2M</td><td class="cell-num">$61.90</td>
+                  <td><div class="bar"><div class="bar__fill" style="width:74%"></div></div></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm">llama-3.3-70b</td><td class="cell-num">88,904</td>
+                  <td class="cell-num">31.7M</td><td class="cell-num">$18.02</td>
+                  <td><div class="bar"><div class="bar__fill" style="width:21%"></div></div></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm">gpt-5-mini</td><td class="cell-num">12,110</td>
+                  <td class="cell-num">4.1M</td><td class="cell-num">$3.44</td>
+                  <td><div class="bar"><div class="bar__fill" style="width:4%"></div></div></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm">gemini-2.5-flash</td><td class="cell-num">2,880</td>
+                  <td class="cell-num">3.8M</td><td class="cell-num">$0.69</td>
+                  <td><div class="bar"><div class="bar__fill" style="width:1%"></div></div></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">qwen3:14b <span class="badge">self-hosted</span></td><td class="cell-num">6,402</td>
+                  <td class="cell-num">2.2M</td><td class="cell-num">$0.00</td>
+                  <td><div class="bar"><div class="bar__fill bar__fill--muted" style="width:0%"></div></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__head"><span class="card__title">Where runs fail</span><span class="badge push">886 failures</span></div>
+          <div class="card__body" style="padding:0">
+            <table class="tbl" data-component="Table">
+              <thead><tr><th>Workflow · node</th><th class="cell-num">Failures</th><th class="cell-num">Rate</th><th>Top error</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="t-sm strong">Invoice → Slack approval</span>
+                    <div class="t-xs dim mono">Post to #finance-ops</div></td>
+                  <td class="cell-num">412</td><td class="cell-num">1.8%</td>
+                  <td class="t-sm dim">429 rate limited</td>
+                </tr>
+                <tr>
+                  <td><span class="t-sm strong">Contract clause extraction</span>
+                    <div class="t-xs dim mono">— run budget</div></td>
+                  <td class="cell-num">402</td><td class="cell-num">44.1%</td>
+                  <td class="t-sm dim">TIMED_OUT at 15m</td>
+                </tr>
+                <tr>
+                  <td><span class="t-sm strong">Lead scoring — multi-model</span>
+                    <div class="t-xs dim mono">Enrich from Salesforce</div></td>
+                  <td class="cell-num">58</td><td class="cell-num">0.3%</td>
+                  <td class="t-sm dim">AUTH_FAILED — token revoked</td>
+                </tr>
+                <tr>
+                  <td><span class="t-sm strong">Zendesk ticket triage</span>
+                    <div class="t-xs dim mono">Classify intent</div></td>
+                  <td class="cell-num">14</td><td class="cell-num">0.1%</td>
+                  <td class="t-sm dim">Model returned invalid JSON</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card__foot">
+            <a class="t-xs" href="executions-list.html" style="color:var(--primary)">Open these runs in Executions →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

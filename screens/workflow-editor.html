@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice → Slack approval — AutoFlow editor</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /workflows/[workflowId]
+     CURRENT CODE: canvas renders and is interactive, but Save is onClick={() => {}}
+                   and there is exactly one inert node type (INITIAL).
+     TARGET: M1 (saveGraph + node registry) → M2 (run) → M4 (versions/deploy)
+     Designed dark-first; the light pair is the same layout on light tokens. -->
+
+<div class="shell shell--bare" style="height:100vh">
+  <div class="main" style="height:100vh">
+
+    <!-- ── Editor header ────────────────────────────────────────────────── -->
+    <header class="topbar" style="gap:10px" data-component="AppHeader">
+      <button class="btn btn--ghost btn--icon btn--sm" title="Toggle sidebar" data-component="SidebarTrigger">☰</button>
+
+      <nav class="crumbs" data-component="Breadcrumb">
+        <a href="workflows-list.html">Workflows</a>
+        <span class="crumbs__sep" aria-hidden="true">/</span>
+        <span class="crumbs__here">Invoice → Slack approval</span>
+      </nav>
+
+      <!-- dirty state: explicit, never a silent autosave -->
+      <span class="badge badge--brand" data-component="Badge">● Unsaved changes</span>
+
+      <div class="push rowx">
+        <button class="btn btn--sm btn--ghost" data-component="Button">
+          <span class="dim">Search</span><span class="kbd">⌘</span><span class="kbd">K</span>
+        </button>
+        <span style="width:1px;height:20px;background:var(--border)"></span>
+
+        <button class="btn btn--sm" data-component="Button">
+          <span class="mono">v7</span> <span class="dim">⌄</span>
+        </button>
+        <a class="btn btn--sm" href="workflow-editor-versions.html" data-component="Button">History</a>
+        <button class="btn btn--sm" data-component="Button">Test run</button>
+        <button class="btn btn--sm" data-component="Button">Save <span class="kbd">⌘</span><span class="kbd">S</span></button>
+        <button class="btn btn--sm btn--primary" data-component="Button">Deploy</button>
+      </div>
+    </header>
+
+    <!-- ── Three-pane editor ────────────────────────────────────────────── -->
+    <div class="editor" data-component="ResizablePanelGroup">
+
+      <!-- Palette -->
+      <aside class="epanel" data-component="ResizablePanel">
+        <div class="epanel__head">
+          <span class="epanel__title">Nodes</span>
+          <button class="btn btn--ghost btn--icon btn--sm push" title="Collapse">‹</button>
+        </div>
+
+        <div style="padding:8px 10px">
+          <div class="inputgroup" data-component="InputGroup">
+            <span class="inputgroup__icon mono t-xs">⌕</span>
+            <input class="input" placeholder="Search 512 nodes…" data-component="Input">
+          </div>
+        </div>
+
+        <div class="epanel__body" style="padding-top:0">
+          <div class="eyebrow" style="padding:8px 8px 4px">Triggers</div>
+          <div class="palitem" data-component="Item">
+            <span class="icon icon--brand">▷</span>
+            <span class="grow"><span class="palitem__label">Manual trigger</span>
+              <span class="palitem__type" style="display:block">core.manual-trigger</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon icon--brand">⇥</span>
+            <span class="grow"><span class="palitem__label">Webhook</span>
+              <span class="palitem__type" style="display:block">core.webhook-trigger</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon icon--brand">◷</span>
+            <span class="grow"><span class="palitem__label">Schedule</span>
+              <span class="palitem__type" style="display:block">core.schedule-trigger</span></span>
+          </div>
+
+          <div class="eyebrow" style="padding:12px 8px 4px">Logic</div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">⑂</span>
+            <span class="grow"><span class="palitem__label">Condition</span>
+              <span class="palitem__type" style="display:block">core.condition</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">↻</span>
+            <span class="grow"><span class="palitem__label">Loop</span>
+              <span class="palitem__type" style="display:block">core.loop</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">⋈</span>
+            <span class="grow"><span class="palitem__label">Merge</span>
+              <span class="palitem__type" style="display:block">core.merge</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">≔</span>
+            <span class="grow"><span class="palitem__label">Set fields</span>
+              <span class="palitem__type" style="display:block">core.set</span></span>
+          </div>
+
+          <div class="eyebrow" style="padding:12px 8px 4px">AI</div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">✦</span>
+            <span class="grow"><span class="palitem__label">LLM</span>
+              <span class="palitem__type" style="display:block">ai.llm</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">⊞</span>
+            <span class="grow"><span class="palitem__label">Extract structured data</span>
+              <span class="palitem__type" style="display:block">ai.extract</span></span>
+          </div>
+
+          <div class="eyebrow" style="padding:12px 8px 4px">Actions</div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">⚯</span>
+            <span class="grow"><span class="palitem__label">HTTP request</span>
+              <span class="palitem__type" style="display:block">http.request</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">◧</span>
+            <span class="grow"><span class="palitem__label">Send Slack message</span>
+              <span class="palitem__type" style="display:block">slack.send-message</span></span>
+          </div>
+          <div class="palitem" data-component="Item">
+            <span class="icon">▦</span>
+            <span class="grow"><span class="palitem__label">Postgres query</span>
+              <span class="palitem__type" style="display:block">postgres.query</span></span>
+          </div>
+        </div>
+
+        <div class="epanel__foot">
+          <a class="btn btn--sm btn--block" href="ai-copilot.html" data-component="Button">✦ Build with copilot</a>
+        </div>
+      </aside>
+
+      <!-- Canvas -->
+      <div class="canvaswrap">
+        <div class="canvas" data-component="ReactFlow">
+
+          <!-- floating toolbar -->
+          <div class="ctoolbar" data-component="Toolbar">
+            <button class="btn btn--ghost btn--icon btn--sm" title="Undo">↶</button>
+            <button class="btn btn--ghost btn--icon btn--sm" title="Redo">↷</button>
+            <span style="width:1px;height:18px;background:var(--border);margin:0 2px"></span>
+            <button class="btn btn--ghost btn--sm" title="Auto layout">Tidy</button>
+            <button class="btn btn--ghost btn--sm" title="Fit view">Fit</button>
+            <span style="width:1px;height:18px;background:var(--border);margin:0 2px"></span>
+            <button class="btn btn--ghost btn--sm" style="color:var(--destructive)" data-component="Button">⚠ 1 problem</button>
+          </div>
+
+          <!-- edges are drawn under the nodes -->
+          <!-- no viewBox: user units are CSS px, so edge endpoints line up with
+               the absolutely positioned node cards at any canvas size -->
+          <svg class="edges" width="100%" height="100%" aria-hidden="true">
+            <path class="edge" d="M196,202 L236,202" />
+            <path class="edge" d="M412,202 L452,202" />
+            <path class="edge edge--active" d="M628,194 C664,194 664,112 700,112" />
+            <path class="edge" d="M628,214 C664,214 664,312 700,312" />
+          </svg>
+
+          <!-- N1 trigger -->
+          <div class="nodecard nodecard--trigger" style="left:20px;top:176px;height:52px" data-component="WorkflowNode">
+            <div class="nodecard__top">
+              <span class="icon icon--brand" style="width:24px;height:24px;font-size:11px">⇥</span>
+              <span class="grow">
+                <span class="nodecard__label">Invoice received</span>
+                <span class="nodecard__type">core.webhook-trigger</span>
+              </span>
+            </div>
+            <span class="port port--out"></span>
+          </div>
+
+          <!-- N2 selected -->
+          <div class="nodecard nodecard--selected" style="left:236px;top:176px;height:52px" data-component="WorkflowNode">
+            <div class="nodecard__top">
+              <span class="icon" style="width:24px;height:24px;font-size:11px">⊞</span>
+              <span class="grow">
+                <span class="nodecard__label">Extract invoice fields</span>
+                <span class="nodecard__type">ai.extract</span>
+              </span>
+            </div>
+            <span class="port port--in"></span>
+            <span class="port port--out"></span>
+          </div>
+
+          <!-- N3 condition, two outputs -->
+          <div class="nodecard" style="left:452px;top:176px;height:52px" data-component="WorkflowNode">
+            <div class="nodecard__top">
+              <span class="icon" style="width:24px;height:24px;font-size:11px">⑂</span>
+              <span class="grow">
+                <span class="nodecard__label">Amount over $5,000?</span>
+                <span class="nodecard__type">core.condition</span>
+              </span>
+            </div>
+            <span class="port port--in"></span>
+            <span class="port port--true"></span><span class="portlabel" style="top:34%">true</span>
+            <span class="port port--false"></span><span class="portlabel" style="top:74%">false</span>
+          </div>
+
+          <!-- N4 misconfigured — linting shows before you ever run it -->
+          <div class="nodecard nodecard--invalid" style="left:700px;top:86px;height:52px" data-component="WorkflowNode">
+            <span class="badgelint" title="1 problem">!</span>
+            <div class="nodecard__top">
+              <span class="icon" style="width:24px;height:24px;font-size:11px">◧</span>
+              <span class="grow">
+                <span class="nodecard__label">Request VP approval</span>
+                <span class="nodecard__type">slack.send-message</span>
+              </span>
+            </div>
+            <span class="port port--in"></span>
+            <span class="port port--out"></span>
+          </div>
+
+          <!-- N5 -->
+          <div class="nodecard" style="left:700px;top:286px;height:52px" data-component="WorkflowNode">
+            <div class="nodecard__top">
+              <span class="icon" style="width:24px;height:24px;font-size:11px">≔</span>
+              <span class="grow">
+                <span class="nodecard__label">Mark auto-approved</span>
+                <span class="nodecard__type">core.set</span>
+              </span>
+            </div>
+            <span class="port port--in"></span>
+            <span class="port port--out"></span>
+          </div>
+
+          <!-- zoom controls -->
+          <div class="cctl" data-component="Controls">
+            <button class="btn btn--icon btn--sm" title="Zoom in">+</button>
+            <button class="btn btn--icon btn--sm" title="Zoom out">−</button>
+            <button class="btn btn--icon btn--sm" title="Fit view">⛶</button>
+            <button class="btn btn--icon btn--sm" title="Lock">⚿</button>
+          </div>
+
+          <!-- minimap -->
+          <div class="minimap" data-component="MiniMap">
+            <div class="minimap__node" style="left:8px;top:44px;width:20px;height:7px"></div>
+            <div class="minimap__node" style="left:34px;top:44px;width:20px;height:7px"></div>
+            <div class="minimap__node" style="left:60px;top:44px;width:20px;height:7px"></div>
+            <div class="minimap__node" style="left:88px;top:26px;width:20px;height:7px"></div>
+            <div class="minimap__node" style="left:88px;top:62px;width:20px;height:7px"></div>
+            <div class="minimap__node" style="left:116px;top:44px;width:20px;height:7px"></div>
+            <div class="minimap__node" style="left:142px;top:44px;width:18px;height:7px"></div>
+            <div class="minimap__view" style="left:4px;top:18px;width:104px;height:66px"></div>
+          </div>
+        </div>
+
+        <!-- ── Run panel ──────────────────────────────────────────────────── -->
+        <div class="runpanel" data-component="ResizablePanel">
+          <div class="runpanel__head">
+            <span class="epanel__title">Test run</span>
+            <span class="badge badge--mono">TEST mode</span>
+            <span class="t-xs dim">exec_t9d02b · 2 minutes ago · finished in 1.9s</span>
+            <div class="push rowx">
+              <a class="btn btn--sm btn--ghost" href="execution-detail.html">Open full trace</a>
+              <button class="btn btn--sm" data-component="Button">Pin input</button>
+              <button class="btn btn--sm btn--primary" data-component="Button">▷ Run</button>
+              <button class="btn btn--ghost btn--icon btn--sm" title="Collapse">⌄</button>
+            </div>
+          </div>
+
+          <div class="runpanel__body">
+            <!-- Problems first: you cannot deploy past these -->
+            <div class="alert alert--warn" style="border-radius:0;border-width:0 0 1px 0" data-component="Alert">
+              <span aria-hidden="true">⚠</span>
+              <div class="grow">
+                <div class="alert__title">1 problem blocks deploy</div>
+                <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+                  <span class="strong" style="color:var(--foreground)">Request VP approval</span> ·
+                  <span class="mono">config.channel</span> — Channel is required. Pick a channel or supply an expression.
+                </p>
+              </div>
+              <button class="btn btn--sm" data-component="Button">Go to node</button>
+            </div>
+
+            <div class="trace" style="border:0;border-radius:0" data-component="ExecutionTrace">
+              <div class="tr tr--success">
+                <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+                <div class="tr__topo tr__topo--start"><span class="tr__knot"></span></div>
+                <div class="tr__body">
+                  <div class="grow"><div class="tr__name">Invoice received</div><div class="tr__type">core.webhook-trigger</div></div>
+                  <div class="tr__metrics">
+                    <div class="tr__metric"><div class="tr__metricv">9ms</div><div class="tr__metricl">dur</div></div>
+                    <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="tr tr--success">
+                <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+                <div class="tr__topo"><span class="tr__knot"></span></div>
+                <div class="tr__body">
+                  <div class="grow"><div class="tr__name">Extract invoice fields</div><div class="tr__type">ai.extract · claude-sonnet-4-5</div></div>
+                  <div class="tr__metrics">
+                    <div class="tr__metric"><div class="tr__metricv">1,772ms</div><div class="tr__metricl">dur</div></div>
+                    <div class="tr__metric"><div class="tr__metricv">$0.0029</div><div class="tr__metricl">cost</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="tr tr--success">
+                <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+                <div class="tr__topo"><span class="tr__knot"></span></div>
+                <div class="tr__body">
+                  <div class="grow"><div class="tr__name">Amount over $5,000?</div><div class="tr__type">core.condition · emitted on false</div></div>
+                  <div class="tr__metrics">
+                    <div class="tr__metric"><div class="tr__metricv">1ms</div><div class="tr__metricl">dur</div></div>
+                    <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="tr tr--skipped tr--l1">
+                <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+                <div class="tr__topo tr__topo--l1 tr__topo--end"><span class="tr__knot"></span></div>
+                <div class="tr__body">
+                  <div class="grow">
+                    <div class="tr__name">Request VP approval</div>
+                    <div class="tr__type">slack.send-message</div>
+                    <div class="tr__why">↳ branch not taken at “Amount over $5,000?” (true)</div>
+                  </div>
+                </div>
+              </div>
+              <div class="tr tr--success">
+                <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+                <div class="tr__topo tr__topo--end"><span class="tr__knot"></span></div>
+                <div class="tr__body">
+                  <div class="grow"><div class="tr__name">Mark auto-approved</div><div class="tr__type">core.set</div></div>
+                  <div class="tr__metrics">
+                    <div class="tr__metric"><div class="tr__metricv">1ms</div><div class="tr__metricl">dur</div></div>
+                    <div class="tr__metric tr__metric--empty"><div class="tr__metricv">—</div><div class="tr__metricl">cost</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Node config ──────────────────────────────────────────────────
+           Every field below is generated from the node's Zod configSchema.
+           Nothing here is hand-written per node type. -->
+      <aside class="epanel epanel--right" data-component="ResizablePanel">
+        <div class="epanel__head">
+          <span class="icon" style="width:22px;height:22px;font-size:10px">⊞</span>
+          <div class="grow">
+            <div class="epanel__title">Extract invoice fields</div>
+            <div class="t-xs dim mono">ai.extract · v2</div>
+          </div>
+          <button class="btn btn--ghost btn--icon btn--sm" title="Node docs">?</button>
+          <button class="btn btn--ghost btn--icon btn--sm" title="Close">✕</button>
+        </div>
+
+        <div class="tabs" style="padding:0 10px" data-component="Tabs">
+          <button class="tab" aria-selected="true">Parameters</button>
+          <button class="tab" aria-selected="false">Settings</button>
+          <button class="tab" aria-selected="false">Output</button>
+        </div>
+
+        <div class="epanel__body">
+          <div class="stack-4">
+
+            <div class="field" data-component="Field">
+              <label class="field__label">Node name</label>
+              <input class="input" value="Extract invoice fields" data-component="Input">
+            </div>
+
+            <div class="field" data-component="Field">
+              <label class="field__label">Model</label>
+              <select class="select" data-component="Select">
+                <option>anthropic:claude-sonnet-4-5</option>
+                <option>openai:gpt-5-mini</option>
+                <option>google:gemini-2.5-flash</option>
+                <option>groq:llama-3.3-70b</option>
+              </select>
+              <span class="field__help">Which model performs the extraction. Falls back down the chain in Settings.</span>
+            </div>
+
+            <div class="field" data-component="Field">
+              <label class="field__label">Credential</label>
+              <div class="rowx">
+                <select class="select grow" data-component="Select">
+                  <option>Anthropic — production</option>
+                  <option>Anthropic — sandbox</option>
+                </select>
+                <a class="btn btn--sm" href="credential-detail.html">Manage</a>
+              </div>
+              <span class="field__help mono t-xs">sk-ant-…4f2a · last used 3 minutes ago</span>
+            </div>
+
+            <!-- Expression-enabled input. Tokens are chips; the resolved preview
+                 uses the last run's data so you can see the real value. -->
+            <div class="field" data-component="Field">
+              <label class="field__label">Prompt <span class="badge badge--mono push">expr</span></label>
+              <div class="exprbox" data-component="ExpressionInput">
+                <div class="exprbox__input">Extract the invoice fields from:
+<span class="exprtoken">{{ $json.body.text }}</span></div>
+                <div class="exprbox__preview">
+                  → “Invoice INV-2026-4471 from Kestrel Logistics, due 2026-08-20, total USD 1,247.50 …”
+                </div>
+              </div>
+              <span class="field__help">Text to extract from. Type <span class="mono">{{</span> for the expression picker.</span>
+            </div>
+
+            <!-- z.array(z.object({...})) renders as a repeatable group -->
+            <div class="field" data-component="Field">
+              <label class="field__label">Fields to extract</label>
+              <div class="stack-2">
+                <div class="rowx" style="gap:6px">
+                  <input class="input input--mono" value="invoiceId" style="flex:1 1 40%">
+                  <select class="select" style="flex:0 0 92px"><option>string</option></select>
+                  <button class="btn btn--ghost btn--icon btn--sm" title="Remove">✕</button>
+                </div>
+                <div class="rowx" style="gap:6px">
+                  <input class="input input--mono" value="vendor" style="flex:1 1 40%">
+                  <select class="select" style="flex:0 0 92px"><option>string</option></select>
+                  <button class="btn btn--ghost btn--icon btn--sm" title="Remove">✕</button>
+                </div>
+                <div class="rowx" style="gap:6px">
+                  <input class="input input--mono" value="amount" style="flex:1 1 40%">
+                  <select class="select" style="flex:0 0 92px"><option>number</option></select>
+                  <button class="btn btn--ghost btn--icon btn--sm" title="Remove">✕</button>
+                </div>
+                <div class="rowx" style="gap:6px">
+                  <input class="input input--mono" value="currency" style="flex:1 1 40%">
+                  <select class="select" style="flex:0 0 92px"><option>string</option></select>
+                  <button class="btn btn--ghost btn--icon btn--sm" title="Remove">✕</button>
+                </div>
+                <button class="btn btn--sm" data-component="Button">+ Add field</button>
+              </div>
+              <span class="field__help">The shape the model must return. Becomes the node's output schema.</span>
+            </div>
+
+            <div class="field" data-component="Field">
+              <label class="field__label">Temperature</label>
+              <div class="rowx-3">
+                <input class="grow" type="range" min="0" max="1" step="0.1" value="0" data-component="Slider">
+                <span class="mono t-sm num" style="width:28px;text-align:right">0.0</span>
+              </div>
+              <span class="field__help">0 is deterministic. Extraction rarely wants anything else.</span>
+            </div>
+
+            <div class="rowx-3">
+              <div class="grow">
+                <div class="field__label">Fail if a field is missing</div>
+                <div class="field__help">Off means missing fields come back null.</div>
+              </div>
+              <span class="switch" role="switch" aria-checked="true" data-component="Switch"></span>
+            </div>
+
+            <!-- Cost estimated from the resolved prompt, before you run anything -->
+            <div class="card" style="background:color-mix(in oklab, var(--muted) 60%, transparent)">
+              <div class="card__body" style="padding:12px">
+                <div class="rowx between">
+                  <span class="eyebrow">Estimated cost per run</span>
+                  <span class="mono t-sm strong num">$0.0031</span>
+                </div>
+                <div class="t-xs dim" style="margin-top:6px">
+                  ~1,780 in + ~324 out tokens at claude-sonnet-4-5 pricing. Actual cost is recorded on the run.
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="epanel__foot">
+          <div class="rowx">
+            <button class="btn btn--sm grow" data-component="Button">Test this node</button>
+            <button class="btn btn--sm btn--danger btn--icon" title="Delete node">🗑</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- The canvas is not usable on a phone; say so instead of faking it. -->
+    <div class="desktoponly state">
+      <div class="state__icon">◫</div>
+      <div class="state__title">The editor needs a bigger screen</div>
+      <p class="state__desc">
+        Building a graph needs a mouse and room to work. Open this workflow on a desktop.
+        You can still review runs and approve requests from here.
+      </p>
+      <div class="state__actions">
+        <a class="btn btn--primary" href="executions-list.html">View runs</a>
+        <a class="btn" href="workflows-list.html">All workflows</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

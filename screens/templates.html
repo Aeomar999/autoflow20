@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Templates — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /templates   [PLANNED M7 — templates.list / instantiate]
+     Each card states node count and what it needs to connect, because the real
+     cost of a template is the credentials you don't have yet. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="templates"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Templates"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Templates</h1>
+          <p class="pagehead__desc">54 workflows that run as-is. Install, connect credentials, deploy.</p>
+        </div>
+      </div>
+
+      <div class="toolstrip">
+        <div class="inputgroup" style="width:280px" data-component="InputGroup">
+          <span class="inputgroup__icon mono t-xs">⌕</span>
+          <input class="input" placeholder="Search templates…" data-component="Input">
+        </div>
+        <span class="chip" aria-pressed="true">All</span>
+        <span class="chip">Support</span>
+        <span class="chip">Finance</span>
+        <span class="chip">Revenue</span>
+        <span class="chip">Data</span>
+        <span class="chip">Marketing</span>
+        <span class="chip">AI agents</span>
+        <select class="select push" style="width:auto" data-component="Select">
+          <option>Most installed</option><option>Recently added</option><option>Fewest credentials</option>
+        </select>
+      </div>
+
+      <div class="grid grid--3">
+
+        <a class="card" href="template-detail.html" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon icon--brand">◧</span><span class="badge push">Finance</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">Invoice approval with Slack sign-off</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Receive an invoice by webhook, extract the fields, route anything over a threshold to a
+              human, and record the outcome.
+            </p>
+            <div class="rowx wrap" style="gap:6px;margin-top:14px">
+              <span class="badge badge--mono">8 nodes</span>
+              <span class="badge badge--mono">2 credentials</span>
+              <span class="badge badge--mono">~$0.003 / run</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">1,204 installs · updated 2 weeks ago</div>
+          </div>
+        </a>
+
+        <a class="card" href="template-detail.html" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">◎</span><span class="badge push">Support</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">Zendesk ticket triage</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Classify inbound tickets by intent and urgency, tag them, and escalate the ones that
+              mention churn or legal.
+            </p>
+            <div class="rowx wrap" style="gap:6px;margin-top:14px">
+              <span class="badge badge--mono">5 nodes</span>
+              <span class="badge badge--mono">2 credentials</span>
+              <span class="badge badge--mono">~$0.0008 / run</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">2,880 installs · updated 4 days ago</div>
+          </div>
+        </a>
+
+        <a class="card" href="template-detail.html" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">✦</span><span class="badge push">Revenue</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">Lead scoring with a cheap first pass</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Score every lead with a fast model, then re-score only the borderline ones with a
+              stronger model. Cuts spend by roughly 70%.
+            </p>
+            <div class="rowx wrap" style="gap:6px;margin-top:14px">
+              <span class="badge badge--mono">11 nodes</span>
+              <span class="badge badge--mono">3 credentials</span>
+              <span class="badge badge--mono">~$0.0021 / run</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">946 installs · updated 1 week ago</div>
+          </div>
+        </a>
+
+        <a class="card" href="template-detail.html" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">⊞</span><span class="badge push">Finance</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">Contract clause extraction</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Read a PDF contract, pull termination, liability, and renewal clauses, and file them
+              against the counterparty record.
+            </p>
+            <div class="rowx wrap" style="gap:6px;margin-top:14px">
+              <span class="badge badge--mono">7 nodes</span>
+              <span class="badge badge--mono">2 credentials</span>
+              <span class="badge badge--mono">~$0.041 / run</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">611 installs · updated 3 weeks ago</div>
+          </div>
+        </a>
+
+        <a class="card" href="template-detail.html" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">▦</span><span class="badge push">Data</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">Nightly Postgres → warehouse sync</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Incremental copy on a cron, with a row-count check that fails the run rather than
+              writing a half-loaded table.
+            </p>
+            <div class="rowx wrap" style="gap:6px;margin-top:14px">
+              <span class="badge badge--mono">9 nodes</span>
+              <span class="badge badge--mono">2 credentials</span>
+              <span class="badge badge--mono">no model cost</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">1,588 installs · updated 5 days ago</div>
+          </div>
+        </a>
+
+        <a class="card" href="template-detail.html" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">▤</span><span class="badge push">Support</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">KB-backed support copilot</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Answer from your knowledge base, and hand off to a human when the model’s confidence
+              drops below a threshold you set.
+            </p>
+            <div class="rowx wrap" style="gap:6px;margin-top:14px">
+              <span class="badge badge--mono">12 nodes</span>
+              <span class="badge badge--mono">3 credentials</span>
+              <span class="badge badge--mono">~$0.006 / run</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">1,102 installs · updated 1 week ago</div>
+          </div>
+        </a>
+
+      </div>
+
+      <div class="pager"><span>Showing 6 of 54</span>
+        <div class="rowx"><button class="btn btn--sm" disabled>Previous</button><button class="btn btn--sm">Next</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

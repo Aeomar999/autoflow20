@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create your account — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /signup   CURRENT CODE: built (email + password, auto sign-in,
+     redirects to /workflows — AF-M0-06). Shown here with the inline validation
+     state, because a password rule that only appears after submit is a bug. -->
+
+<div class="authwrap">
+  <div class="authform">
+    <div class="authform__inner">
+
+      <a class="rowx" href="landing.html" style="margin-bottom:32px">
+        <span class="sidebar__mark" aria-hidden="true">A</span>
+        <span class="strong t-lg" style="letter-spacing:-0.02em">AutoFlow</span>
+      </a>
+
+      <h1 class="t-xl strong" style="letter-spacing:-0.015em">Create your account</h1>
+      <p class="t-sm dim" style="margin-top:6px">1,000 free runs a month. No card needed.</p>
+
+      <div class="stack-3" style="margin-top:24px">
+        <button class="btn btn--block" data-component="Button">Continue with Google</button>
+        <button class="btn btn--block" data-component="Button">Continue with GitHub</button>
+      </div>
+
+      <div class="divider" style="margin:20px 0">or</div>
+
+      <form class="stack-4" data-component="Form">
+        <div class="field" data-component="Field">
+          <label class="field__label" for="name">Full name</label>
+          <input class="input" id="name" value="Jordan Mensah" data-component="Input">
+        </div>
+
+        <div class="field" data-component="Field">
+          <label class="field__label" for="email">Work email</label>
+          <input class="input" id="email" type="email" value="jordan@northwindretail.com" data-component="Input">
+          <span class="field__help">We’ll use your domain to suggest your team’s workspace.</span>
+        </div>
+
+        <div class="field" data-component="Field">
+          <label class="field__label" for="pw">Password</label>
+          <input class="input" id="pw" type="password" value="short" aria-invalid="true" data-component="Input">
+          <span class="field__err">✕ Use at least 12 characters. You have 5.</span>
+        </div>
+
+        <label class="rowx" style="gap:9px;align-items:flex-start;cursor:pointer">
+          <span class="check" role="checkbox" aria-checked="true" style="margin-top:2px" data-component="Checkbox">✓</span>
+          <span class="t-xs dim">
+            I agree to the <a href="#" style="color:var(--primary)">Terms</a> and
+            <a href="#" style="color:var(--primary)">Privacy Policy</a>.
+          </span>
+        </label>
+
+        <button class="btn btn--primary btn--lg btn--block" aria-disabled="true" data-component="Button">Create account</button>
+      </form>
+
+      <p class="t-sm dim" style="margin-top:24px;text-align:center">
+        Already have an account? <a href="login.html" style="color:var(--primary)">Sign in</a>
+      </p>
+    </div>
+  </div>
+
+  <aside class="authaside">
+    <p class="eyebrow">What you get on the free plan</p>
+    <ul class="featlist" style="margin-top:20px">
+      <li><span class="featlist__mark">→</span><span>1,000 workflow runs a month</span></li>
+      <li><span class="featlist__mark">→</span><span>Full per-node run traces, 7-day history</span></li>
+      <li><span class="featlist__mark">→</span><span>All 512 nodes, no integration paywall</span></li>
+      <li><span class="featlist__mark">→</span><span>Bring your own model keys</span></li>
+      <li><span class="featlist__mark featlist__mark--off">·</span><span class="dim">Team roles and SSO are on Business</span></li>
+    </ul>
+
+    <div class="card" style="margin-top:32px;max-width:400px">
+      <div class="card__body">
+        <p class="t-sm">
+          “We moved 40 workflows off n8n in a weekend. The part that sold the team wasn’t the
+          editor — it was being able to answer <em>why didn’t this run</em> without SSHing anywhere.”
+        </p>
+        <div class="rowx" style="margin-top:14px">
+          <span class="avatar">PR</span>
+          <span><span class="t-sm strong" style="display:block">Priya Raghunathan</span>
+            <span class="t-xs dim">Head of Data, Northwind Retail</span></span>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

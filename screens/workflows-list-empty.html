@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflows (empty) — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- STATE: /workflows — first run, nothing built yet.
+     The empty state is an invitation to act, not an apology. It offers the two
+     real first moves: describe it, or start from something that already works. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="workflows"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Workflows"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Workflows</h1>
+          <p class="pagehead__desc">Nothing here yet.</p>
+        </div>
+      </div>
+
+      <div class="card" data-component="Empty">
+        <div class="state">
+          <div class="state__icon">◫</div>
+          <div class="state__title">Build your first workflow</div>
+          <p class="state__desc">
+            A workflow is a trigger and the steps that follow it. Start from a template that
+            already runs, or describe what you want and let the copilot draft the graph.
+          </p>
+          <div class="state__actions">
+            <button class="btn btn--primary" data-component="Button">New blank workflow</button>
+            <a class="btn" href="templates.html" data-component="Button">Browse templates</a>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="card__body">
+          <p class="eyebrow" style="margin-bottom:12px">Common first workflows</p>
+          <div class="grid grid--3">
+            <a class="card" href="template-detail.html" data-component="Card">
+              <div class="card__body" style="padding:14px">
+                <div class="rowx"><span class="icon">◧</span><span class="t-sm strong">Slack approval gate</span></div>
+                <p class="t-xs dim" style="margin-top:8px">Webhook in, condition, human sign-off, message out. 6 nodes.</p>
+              </div>
+            </a>
+            <a class="card" href="template-detail.html" data-component="Card">
+              <div class="card__body" style="padding:14px">
+                <div class="rowx"><span class="icon">⊞</span><span class="t-sm strong">Document extraction</span></div>
+                <p class="t-xs dim" style="margin-top:8px">Read a PDF, pull structured fields, write them to Postgres. 5 nodes.</p>
+              </div>
+            </a>
+            <a class="card" href="template-detail.html" data-component="Card">
+              <div class="card__body" style="padding:14px">
+                <div class="rowx"><span class="icon">✦</span><span class="t-sm strong">Lead scoring</span></div>
+                <p class="t-xs dim" style="margin-top:8px">Score inbound leads with two models and route by result. 8 nodes.</p>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

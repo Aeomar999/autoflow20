@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice approval with Slack sign-off — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /templates/[templateId]   [PLANNED M7]
+     Install is gated on a credential checklist, so nobody installs a template
+     and discovers at 3am that it needed a Slack connection. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="templates"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Templates / Invoice approval with Slack sign-off"></header>
+
+    <div class="page">
+      <div class="pagehead">
+        <span class="icon icon--lg icon--brand">◧</span>
+        <div class="grow">
+          <h1 class="pagehead__title">Invoice approval with Slack sign-off</h1>
+          <p class="pagehead__desc">
+            Finance · by AutoFlow · v4 · 1,204 installs · updated 23 Jul 2026
+          </p>
+        </div>
+        <div class="rowx">
+          <button class="btn" data-component="Button">Fork</button>
+          <button class="btn btn--primary" data-component="Button">Install workflow</button>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="gap:20px;align-items:start">
+
+        <div class="stack-4">
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">What it does</span></div>
+            <div class="card__body">
+              <p class="t-sm">
+                An invoice arrives on a webhook. A model pulls out the vendor, amount, currency, and
+                due date. Anything above your threshold pauses for a human in Slack; anything below
+                it is approved automatically. Either way the outcome is written back to your ledger,
+                and the run trace shows which branch was taken and why.
+              </p>
+              <p class="t-sm dim" style="margin-top:12px">
+                Typical run: 3.9 seconds, about 2,100 tokens, $0.003. The approval branch can hold a
+                run open for up to 24 hours.
+              </p>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Graph</span><span class="badge push">8 nodes</span></div>
+            <div class="card__body" style="padding:0">
+              <div class="canvas" style="height:280px;position:relative">
+                <svg class="edges" width="100%" height="100%" aria-hidden="true">
+                  <path class="edge" d="M186,110 L216,110" />
+                  <path class="edge" d="M392,110 L422,110" />
+                  <path class="edge" d="M598,102 C618,102 618,60 638,60" />
+                  <path class="edge" d="M598,120 C618,120 618,186 638,186" />
+                </svg>
+                <div class="nodecard nodecard--trigger" style="left:20px;top:88px;height:44px;width:166px;padding:7px 9px">
+                  <div class="nodecard__top"><span class="grow"><span class="nodecard__label">Invoice received</span>
+                    <span class="nodecard__type">core.webhook-trigger</span></span></div>
+                </div>
+                <div class="nodecard" style="left:216px;top:88px;height:44px;width:176px;padding:7px 9px">
+                  <div class="nodecard__top"><span class="grow"><span class="nodecard__label">Extract invoice fields</span>
+                    <span class="nodecard__type">ai.extract</span></span></div>
+                </div>
+                <div class="nodecard" style="left:422px;top:88px;height:44px;width:176px;padding:7px 9px">
+                  <div class="nodecard__top"><span class="grow"><span class="nodecard__label">Amount over threshold?</span>
+                    <span class="nodecard__type">core.condition</span></span></div>
+                </div>
+                <div class="nodecard" style="left:638px;top:38px;height:44px;width:166px;padding:7px 9px">
+                  <div class="nodecard__top"><span class="grow"><span class="nodecard__label">Wait for approval</span>
+                    <span class="nodecard__type">core.approval</span></span></div>
+                </div>
+                <div class="nodecard" style="left:638px;top:164px;height:44px;width:166px;padding:7px 9px">
+                  <div class="nodecard__top"><span class="grow"><span class="nodecard__label">Mark auto-approved</span>
+                    <span class="nodecard__type">core.set</span></span></div>
+                </div>
+              </div>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">3 more nodes off-screen. Install to open the full graph in the editor.</span>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Version history</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl">
+                <tbody>
+                  <tr><td class="mono t-sm">v4</td><td class="t-sm">Approval branch now uses core.approval instead of a Slack message plus polling</td><td class="t-sm dim cell-tight">23 Jul</td></tr>
+                  <tr><td class="mono t-sm">v3</td><td class="t-sm">Retry policy on the Slack node, 3 attempts</td><td class="t-sm dim cell-tight">02 Jul</td></tr>
+                  <tr><td class="mono t-sm">v2</td><td class="t-sm">Threshold moved from hardcoded to a workflow variable</td><td class="t-sm dim cell-tight">18 Jun</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack-4">
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Before you install</span></div>
+            <div class="card__body">
+              <p class="eyebrow" style="margin-bottom:10px">Credentials needed</p>
+              <div class="stack-3">
+                <div class="rowx-3">
+                  <span class="check" role="checkbox" aria-checked="true">✓</span>
+                  <span class="grow"><span class="t-sm strong">Slack</span>
+                    <span class="t-xs dim" style="display:block">Using “Slack — Finance workspace”</span></span>
+                  <span class="badge badge--warn">expires in 6d</span>
+                </div>
+                <div class="rowx-3">
+                  <span class="check" role="checkbox" aria-checked="true">✓</span>
+                  <span class="grow"><span class="t-sm strong">A model provider</span>
+                    <span class="t-xs dim" style="display:block">Using “Anthropic — production”</span></span>
+                </div>
+                <div class="rowx-3">
+                  <span class="check" role="checkbox" aria-checked="false"></span>
+                  <span class="grow"><span class="t-sm strong">Postgres</span>
+                    <span class="t-xs dim" style="display:block">For the ledger write. Optional — you can drop that node.</span></span>
+                  <button class="btn btn--sm">Connect</button>
+                </div>
+              </div>
+
+              <div class="hr" style="margin:16px 0"></div>
+
+              <p class="eyebrow" style="margin-bottom:10px">Settings you’ll be asked for</p>
+              <div class="stack-2">
+                <div class="rowx between"><span class="t-sm">Approval threshold</span><span class="mono t-sm dim">$5,000</span></div>
+                <div class="rowx between"><span class="t-sm">Approval channel</span><span class="mono t-sm dim">#finance-approvals</span></div>
+                <div class="rowx between"><span class="t-sm">Approval timeout</span><span class="mono t-sm dim">24h</span></div>
+                <div class="rowx between"><span class="t-sm">Extraction model</span><span class="mono t-sm dim">claude-sonnet-4-5</span></div>
+              </div>
+            </div>
+            <div class="card__foot">
+              <button class="btn btn--sm btn--primary btn--block" data-component="Button">Install as a draft</button>
+            </div>
+          </div>
+
+          <div class="alert" data-component="Alert">
+            <span aria-hidden="true">→</span>
+            <div>
+              <div class="alert__title">Installs as a draft, not deployed</div>
+              <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+                It opens in the editor with nothing live. Run it in test mode, then deploy when
+                you’re happy.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

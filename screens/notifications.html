@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notifications — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /notifications   [PLANNED M7]
+     Alerts are operational, so they are grouped by what you must do about them,
+     not by timestamp. A page that says "1,284 runs failed" 1,284 times is noise;
+     one row saying "1,284 runs failed for one reason" is a work item. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="notifications"></aside>
+
+  <div class="main" style="position:relative">
+    <header class="topbar" data-topbar data-crumbs="Notifications"></header>
+
+    <div class="page">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Notifications</h1>
+          <p class="pagehead__desc">2 need action · 6 for information</p>
+        </div>
+        <div class="rowx">
+          <button class="btn" data-component="Button">Mark all read</button>
+          <a class="btn" href="settings-organization.html" data-component="Button">Alert settings</a>
+        </div>
+      </div>
+
+      <div class="tabs" style="margin-bottom:16px" data-component="Tabs">
+        <button class="tab" aria-selected="true">Needs action <span class="badge badge--warn">2</span></button>
+        <button class="tab" aria-selected="false">All</button>
+        <button class="tab" aria-selected="false">Archived</button>
+      </div>
+
+      <div class="stack-3">
+
+        <div class="card" style="border-color:color-mix(in oklab, var(--destructive) 40%, transparent)" data-component="Card">
+          <div class="card__body" style="padding:14px 16px">
+            <div class="rowx-3" style="align-items:flex-start">
+              <span class="icon" style="border-color:color-mix(in oklab, var(--destructive) 40%, transparent);color:var(--destructive)">◷</span>
+              <div class="grow">
+                <div class="t-sm strong">Slack credential expires in 6 days</div>
+                <p class="t-sm dim" style="margin-top:4px">
+                  Automatic refresh was rejected twice — Slack reports the refresh token was revoked.
+                  When it expires, 3 deployed workflows start failing at their Slack step.
+                </p>
+                <div class="t-xs dim" style="margin-top:8px">yesterday · credential.refresh.failed</div>
+              </div>
+              <div class="rowx">
+                <a class="btn btn--sm btn--primary" href="credential-detail.html">Reconnect</a>
+                <button class="btn btn--sm btn--ghost btn--icon" title="Dismiss">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-color:color-mix(in oklab, var(--destructive) 40%, transparent)" data-component="Card">
+          <div class="card__body" style="padding:14px 16px">
+            <div class="rowx-3" style="align-items:flex-start">
+              <span class="icon" style="border-color:color-mix(in oklab, var(--destructive) 40%, transparent);color:var(--destructive)">◆</span>
+              <div class="grow">
+                <div class="t-sm strong">Model spend is projecting 18% over budget</div>
+                <p class="t-sm dim" style="margin-top:4px">
+                  $84.05 of $400.00 with 24 days left, projecting $472. Most of the increase came
+                  from “Lead scoring — multi-model” v23 switching its first pass to Sonnet.
+                </p>
+                <div class="t-xs dim" style="margin-top:8px">3 hours ago · budget.threshold</div>
+              </div>
+              <div class="rowx">
+                <a class="btn btn--sm" href="analytics.html">See breakdown</a>
+                <a class="btn btn--sm btn--primary" href="settings-billing.html">Adjust budget</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="eyebrow" style="margin:20px 0 4px">For information</p>
+
+        <div class="card" data-component="Card">
+          <div class="card__body" style="padding:14px 16px">
+            <div class="rowx-3" style="align-items:flex-start">
+              <span class="icon">▷</span>
+              <div class="grow">
+                <div class="t-sm strong">412 runs failed on the same node in 24 hours</div>
+                <p class="t-sm dim" style="margin-top:4px">
+                  “Invoice → Slack approval” · Post to #finance-ops · all 429 rate limited. The node
+                  retries 3 times; Slack’s limit is the constraint, not us.
+                </p>
+                <div class="t-xs dim" style="margin-top:8px">2 minutes ago · execution.failed</div>
+              </div>
+              <a class="btn btn--sm" href="executions-list.html">View runs</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__body" style="padding:14px 16px">
+            <div class="rowx-3" style="align-items:flex-start">
+              <span class="icon">✓</span>
+              <div class="grow">
+                <div class="t-sm strong">Dana approved “Publish Q3 churn outreach”</div>
+                <p class="t-sm dim" style="margin-top:4px">
+                  exec_b7719c05 resumed and completed in 14.2s. Note: “Reviewed the segment with
+                  marketing, list is correct.”
+                </p>
+                <div class="t-xs dim" style="margin-top:8px">4 hours ago · approval.decided</div>
+              </div>
+              <a class="btn btn--sm" href="execution-detail.html">View run</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__body" style="padding:14px 16px">
+            <div class="rowx-3" style="align-items:flex-start">
+              <span class="icon">⚙</span>
+              <div class="grow">
+                <div class="t-sm strong">Webhook delivery failed after 3 attempts</div>
+                <p class="t-sm dim" style="margin-top:4px">
+                  ops.northwindretail.com/hooks/autoflow returned 502 on budget.threshold. We stopped
+                  retrying — the event is not queued.
+                </p>
+                <div class="t-xs dim" style="margin-top:8px">yesterday · webhook.delivery.failed</div>
+              </div>
+              <a class="btn btn--sm" href="settings-webhooks.html">Inspect</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__body" style="padding:14px 16px">
+            <div class="rowx-3" style="align-items:flex-start">
+              <span class="icon">◫</span>
+              <div class="grow">
+                <div class="t-sm strong">Priya deployed “Invoice → Slack approval” v7</div>
+                <p class="t-sm dim" style="margin-top:4px">“Switch extraction to claude-sonnet-4-5”</p>
+                <div class="t-xs dim" style="margin-top:8px">2 days ago · workflow.published</div>
+              </div>
+              <a class="btn btn--sm" href="workflow-editor-versions.html">See diff</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Toasts: the transient counterpart of this page -->
+    <div class="toaststack" data-component="Sonner">
+      <div class="toast">
+        <span style="color:var(--destructive)" aria-hidden="true">✕</span>
+        <div class="grow">
+          <div class="t-sm strong">Run failed</div>
+          <div class="t-xs dim" style="margin-top:2px">Invoice → Slack approval · 429 rate limited</div>
+        </div>
+        <a class="t-xs" href="execution-detail.html" style="color:var(--primary)">View</a>
+      </div>
+      <div class="toast">
+        <span aria-hidden="true">✓</span>
+        <div class="grow">
+          <div class="t-sm strong">Workflow saved</div>
+          <div class="t-xs dim" style="margin-top:2px">Revision 42 · draft not deployed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

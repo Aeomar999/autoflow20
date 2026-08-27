@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit log — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/audit-log   [PLANNED M6 — AuditLog, append-only]
+     There is no update or delete path in application code, and production
+     revokes those grants at the database. The UI reflects that: no edit, no
+     delete, no "clear log" — only read and export. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / Audit log"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="audit"></nav>
+
+        <div class="stack-4">
+          <div class="rowx">
+            <div class="grow">
+              <h1 class="pagehead__title">Audit log</h1>
+              <p class="pagehead__desc">Append-only. Nobody can edit or delete an entry, including us.</p>
+            </div>
+            <button class="btn" data-component="Button">Export CSV</button>
+          </div>
+
+          <div class="toolstrip">
+            <div class="inputgroup" style="width:260px" data-component="InputGroup">
+              <span class="inputgroup__icon mono t-xs">⌕</span>
+              <input class="input" placeholder="Actor, action, resource…" data-component="Input">
+            </div>
+            <select class="select" style="width:auto" data-component="Select">
+              <option>All actors</option><option>Priya Raghunathan</option><option>Jordan Mensah</option><option>API keys</option><option>System</option>
+            </select>
+            <select class="select" style="width:auto" data-component="Select">
+              <option>All actions</option><option>workflow.*</option><option>credential.*</option><option>member.*</option><option>billing.*</option>
+            </select>
+            <select class="select" style="width:auto" data-component="Select">
+              <option>Last 30 days</option><option>Last 7 days</option><option>Last 90 days</option>
+            </select>
+          </div>
+
+          <div class="card" style="overflow:hidden" data-component="Card">
+            <table class="tbl" data-component="DataTable">
+              <thead><tr><th style="width:150px">When</th><th>Actor</th><th>Action</th><th>Resource</th><th>Source</th><th class="cell-tight"></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="mono t-sm dim">06 Aug 14:04:12</td>
+                  <td><div class="rowx"><span class="avatar avatar--sm">JM</span><span class="t-sm">Jordan Mensah</span></div></td>
+                  <td class="mono t-sm">workflow.node.updated</td>
+                  <td class="t-sm">Invoice → Slack approval · <span class="dim">Extract invoice fields</span></td>
+                  <td class="t-xs dim mono">82.14.x.x · Chrome</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Diff</button></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">06 Aug 13:58:40</td>
+                  <td><div class="rowx"><span class="icon" style="width:22px;height:22px;font-size:10px">⚙</span><span class="t-sm dim">System</span></div></td>
+                  <td class="mono t-sm" style="color:var(--destructive)">credential.refresh.failed</td>
+                  <td class="t-sm">Slack — Finance workspace</td>
+                  <td class="t-xs dim mono">scheduled sweep</td>
+                  <td class="cell-tight"><button class="btn btn--sm">View</button></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">06 Aug 11:20:03</td>
+                  <td><div class="rowx"><span class="avatar avatar--sm">PR</span><span class="t-sm">Priya Raghunathan</span></div></td>
+                  <td class="mono t-sm">member.role.changed</td>
+                  <td class="t-sm">Amara Kone · <span class="mono dim">VIEWER → EDITOR</span></td>
+                  <td class="t-xs dim mono">82.14.x.x · Safari</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Diff</button></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">06 Aug 09:44:51</td>
+                  <td><div class="rowx"><span class="icon" style="width:22px;height:22px;font-size:10px">⚿</span>
+                    <span class="t-sm dim mono">af_live_…8c14</span></div></td>
+                  <td class="mono t-sm">workflow.executed</td>
+                  <td class="t-sm">Lead scoring — multi-model · <span class="dim mono">exec_a20f7e13</span></td>
+                  <td class="t-xs dim mono">API · 34.72.x.x</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Run</button></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">04 Aug 09:12:19</td>
+                  <td><div class="rowx"><span class="avatar avatar--sm">PR</span><span class="t-sm">Priya Raghunathan</span></div></td>
+                  <td class="mono t-sm">workflow.published</td>
+                  <td class="t-sm">Invoice → Slack approval · <span class="mono dim">v7</span></td>
+                  <td class="t-xs dim mono">82.14.x.x · Safari</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Diff</button></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">28 Jul 14:13:02</td>
+                  <td><div class="rowx"><span class="avatar avatar--sm">JM</span><span class="t-sm">Jordan Mensah</span></div></td>
+                  <td class="mono t-sm">workflow.rolled_back</td>
+                  <td class="t-sm">Invoice → Slack approval · <span class="mono dim">v5 → v4</span></td>
+                  <td class="t-xs dim mono">82.14.x.x · Chrome</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Diff</button></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">21 Jul 10:02:44</td>
+                  <td><div class="rowx"><span class="avatar avatar--sm">JM</span><span class="t-sm">Jordan Mensah</span></div></td>
+                  <td class="mono t-sm">apikey.created</td>
+                  <td class="t-sm">Staging CI · <span class="mono dim">af_test_…0b93</span></td>
+                  <td class="t-xs dim mono">82.14.x.x · Chrome</td>
+                  <td class="cell-tight"></td>
+                </tr>
+                <tr>
+                  <td class="mono t-sm dim">18 Jul 16:31:08</td>
+                  <td><div class="rowx"><span class="avatar avatar--sm">PR</span><span class="t-sm">Priya Raghunathan</span></div></td>
+                  <td class="mono t-sm">credential.scope.added</td>
+                  <td class="t-sm">Slack — Finance workspace · <span class="mono dim">reactions:write</span></td>
+                  <td class="t-xs dim mono">82.14.x.x · Safari</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Diff</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pager">
+            <span>Showing 8 of 4,120 · retained 1 year on your plan</span>
+            <div class="rowx"><button class="btn btn--sm" disabled>Previous</button><button class="btn btn--sm">Next</button></div>
+          </div>
+
+          <div class="alert" data-component="Alert">
+            <span aria-hidden="true">→</span>
+            <div><div class="alert__title">What isn’t here</div>
+              <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+                Credential values never appear in the audit log, not even redacted, and the log
+                records that a run happened rather than its payload. Per-run inputs and outputs live
+                on the run itself, under your retention setting.
+              </p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

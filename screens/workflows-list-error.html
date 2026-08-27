@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflows (error) — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- STATE: /workflows — the list query failed.
+     Defect D4 in progress.md is that prefetch errors are swallowed, so a failure
+     currently renders as an empty list. This state exists so that stops being
+     possible: a failure says it failed, names what failed, and offers a retry. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="workflows"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Workflows"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Workflows</h1>
+        </div>
+        <button class="btn" data-component="Button">Retry</button>
+      </div>
+
+      <div class="card" data-component="Card">
+        <div class="state state--error">
+          <div class="state__icon">✕</div>
+          <div class="state__title">Couldn’t load your workflows</div>
+          <p class="state__desc">
+            The request failed before it returned. Your workflows are not affected — this is a
+            read that didn’t complete.
+          </p>
+          <div class="state__actions">
+            <button class="btn btn--primary" data-component="Button">Retry</button>
+            <a class="btn" href="#" data-component="Button">Check status page</a>
+          </div>
+          <p class="t-xs dim mono" style="margin-top:20px">
+            INTERNAL_SERVER_ERROR · trace 4c1e9a77 · 06 Aug 2026, 14:07:52 UTC
+          </p>
+          <p class="t-xs dim" style="max-width:44ch">
+            Quote that trace id if you contact support. It identifies this exact request in our logs.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

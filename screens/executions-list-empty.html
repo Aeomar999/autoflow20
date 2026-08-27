@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Executions (empty) — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- STATE: /executions — two genuinely different empties.
+     Collapsing them into one message is the common mistake: "no results" when
+     the user has simply over-filtered reads as "your automation is broken". -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="executions"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Executions"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow"><h1 class="pagehead__title">Executions</h1></div>
+      </div>
+
+      <p class="eyebrow" style="margin-bottom:10px">A · Nothing has ever run</p>
+      <div class="card" data-component="Empty">
+        <div class="state">
+          <div class="state__icon">▷</div>
+          <div class="state__title">No runs yet</div>
+          <p class="state__desc">
+            Runs appear here the moment a workflow is triggered — by a webhook, a schedule, the API,
+            or you pressing Run. Deploy a workflow to start collecting them.
+          </p>
+          <div class="state__actions">
+            <a class="btn btn--primary" href="workflows-list.html" data-component="Button">Go to workflows</a>
+            <a class="btn" href="templates.html" data-component="Button">Start from a template</a>
+          </div>
+        </div>
+      </div>
+
+      <p class="eyebrow" style="margin:28px 0 10px">B · Filters matched nothing</p>
+      <div class="card" data-component="Card">
+        <div class="toolstrip" style="padding:12px 16px 12px">
+          <span class="chip" aria-pressed="true">Invoice → Slack approval <span class="chip__x">✕</span></span>
+          <span class="chip" aria-pressed="true">Status: cancelled <span class="chip__x">✕</span></span>
+          <span class="chip" aria-pressed="true">Last 24 hours <span class="chip__x">✕</span></span>
+          <span class="chip" aria-pressed="true">Test only <span class="chip__x">✕</span></span>
+        </div>
+        <div class="hr"></div>
+        <div class="state">
+          <div class="state__icon">⌕</div>
+          <div class="state__title">No runs match these filters</div>
+          <p class="state__desc">
+            “Invoice → Slack approval” has 1,284 runs in the last 24 hours, but none of them are
+            cancelled test runs. Widen the range or drop a filter.
+          </p>
+          <div class="state__actions">
+            <button class="btn btn--primary" data-component="Button">Clear filters</button>
+            <button class="btn" data-component="Button">Search last 30 days instead</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

@@ -49,3 +49,7 @@ next-env.d.ts
 # product source material (PRDs, research papers, decks) — lives outside the repo
 /Documents
 /Papers
+
+.tmp-*.log
+.tmp-*.mjs
+

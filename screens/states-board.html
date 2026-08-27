@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>States board — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- STATES BOARD
+     Workflows and Executions have full-page state files. The remaining list
+     screens have simpler chrome, so their empty / error / loading states are
+     collected here instead of eight near-identical page files.
+
+     House rules these states follow:
+       · An empty screen names the next action, in the words of the thing missing.
+       · An error says what failed, what is unaffected, and gives a trace id.
+       · Loading is a skeleton wherever the layout is already known.
+       · "No results for your filters" is never the same message as "nothing exists". -->
+
+<div class="page page--wide" style="margin:0 auto;max-width:1240px">
+
+  <div class="pagehead" style="padding-top:24px">
+    <div class="grow">
+      <h1 class="pagehead__title">States board</h1>
+      <p class="pagehead__desc">Empty, error, and loading states for the remaining list screens.</p>
+    </div>
+    <a class="btn" href="../index.html">Back to gallery</a>
+  </div>
+
+  <!-- ── Credentials ────────────────────────────────────────────────────── -->
+  <p class="eyebrow" style="margin:24px 0 10px">Credentials · error</p>
+  <div class="card">
+    <div class="state state--error">
+      <div class="state__icon">✕</div>
+      <div class="state__title">Couldn’t load credentials</div>
+      <p class="state__desc">
+        The credential list failed to load. Nothing is wrong with the credentials themselves —
+        deployed workflows are still authenticating normally.
+      </p>
+      <div class="state__actions">
+        <button class="btn btn--primary">Retry</button>
+        <a class="btn" href="executions-list.html">Check recent runs</a>
+      </div>
+      <p class="t-xs dim mono" style="margin-top:20px">INTERNAL_SERVER_ERROR · trace 7fa20c19 · 06 Aug 2026, 14:09:31 UTC</p>
+    </div>
+  </div>
+
+  <!-- ── Templates ──────────────────────────────────────────────────────── -->
+  <div class="grid grid--2" style="gap:16px;margin-top:28px">
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Templates · no search results</p>
+      <div class="card">
+        <div class="toolstrip" style="padding:12px 16px">
+          <div class="inputgroup" style="width:100%">
+            <span class="inputgroup__icon mono t-xs">⌕</span>
+            <input class="input" value="hubspot deal rotting">
+          </div>
+        </div>
+        <div class="hr"></div>
+        <div class="state">
+          <div class="state__icon">⌕</div>
+          <div class="state__title">No template for that yet</div>
+          <p class="state__desc">
+            Nothing in the 54 templates matches “hubspot deal rotting”. The copilot can draft it
+            from that description instead.
+          </p>
+          <div class="state__actions">
+            <a class="btn btn--primary" href="ai-copilot.html">Draft it with the copilot</a>
+            <button class="btn">Clear search</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Templates · loading</p>
+      <div class="card">
+        <div class="card__body">
+          <div class="grid grid--2" style="gap:12px">
+            <div class="card"><div class="card__body">
+              <div class="rowx"><div class="skel" style="width:28px;height:28px;border-radius:6px"></div></div>
+              <div class="skel skel--title" style="width:80%;margin-top:12px"></div>
+              <div class="skel" style="width:100%;margin-top:10px"></div>
+              <div class="skel" style="width:70%;margin-top:6px"></div>
+              <div class="rowx" style="gap:6px;margin-top:14px">
+                <div class="skel" style="width:52px;height:18px"></div>
+                <div class="skel" style="width:72px;height:18px"></div>
+              </div>
+            </div></div>
+            <div class="card"><div class="card__body">
+              <div class="rowx"><div class="skel" style="width:28px;height:28px;border-radius:6px"></div></div>
+              <div class="skel skel--title" style="width:66%;margin-top:12px"></div>
+              <div class="skel" style="width:100%;margin-top:10px"></div>
+              <div class="skel" style="width:84%;margin-top:6px"></div>
+              <div class="rowx" style="gap:6px;margin-top:14px">
+                <div class="skel" style="width:52px;height:18px"></div>
+                <div class="skel" style="width:72px;height:18px"></div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Knowledge ──────────────────────────────────────────────────────── -->
+  <div class="grid grid--2" style="gap:16px;margin-top:28px">
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Knowledge · empty</p>
+      <div class="card">
+        <div class="state">
+          <div class="state__icon">▤</div>
+          <div class="state__title">No knowledge bases yet</div>
+          <p class="state__desc">
+            A knowledge base lets retrieval nodes and agents answer from your own documents. Upload
+            files, point it at a URL, or sync a Slack channel.
+          </p>
+          <div class="state__actions">
+            <button class="btn btn--primary">New knowledge base</button>
+            <a class="btn" href="templates.html">See a template that uses one</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Knowledge · ingest failed</p>
+      <div class="card" style="border-color:color-mix(in oklab, var(--destructive) 40%, transparent)">
+        <div class="card__head">
+          <span class="stpill" style="color:var(--destructive)">✕ SYNC FAILED</span>
+          <span class="card__title grow">Contract library</span>
+        </div>
+        <div class="card__body">
+          <p class="t-sm">
+            85 of 88 files were indexed. Three could not be read because they are password protected:
+          </p>
+          <div class="stack-2" style="margin-top:12px">
+            <div class="rowx"><span class="mono t-xs dim">✕</span><span class="t-sm mono">msa-fieldwork-2025.pdf</span></div>
+            <div class="rowx"><span class="mono t-xs dim">✕</span><span class="t-sm mono">nda-harbourline.pdf</span></div>
+            <div class="rowx"><span class="mono t-xs dim">✕</span><span class="t-sm mono">sow-kestrel-q3.pdf</span></div>
+          </div>
+          <p class="t-xs dim" style="margin-top:12px">
+            The other 85 files are searchable now — the base was not rolled back.
+          </p>
+        </div>
+        <div class="card__foot">
+          <button class="btn btn--sm btn--primary">Re-upload these 3</button>
+          <button class="btn btn--sm">Skip them</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Approvals + notifications ──────────────────────────────────────── -->
+  <div class="grid grid--2" style="gap:16px;margin-top:28px">
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Approvals · nothing waiting</p>
+      <div class="card">
+        <div class="state">
+          <div class="state__icon">✓</div>
+          <div class="state__title">Nothing waiting on you</div>
+          <p class="state__desc">
+            When a run reaches an approval gate assigned to you, it appears here and you get a
+            notification. Runs pause — they don’t fail — until someone decides.
+          </p>
+          <div class="state__actions">
+            <a class="btn" href="approvals.html">See what others are deciding</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Notifications · all clear</p>
+      <div class="card">
+        <div class="state">
+          <div class="state__icon">◔</div>
+          <div class="state__title">Nothing needs your attention</div>
+          <p class="state__desc">
+            No failing workflows, no expiring credentials, no budget warnings. We’ll tell you here
+            and in <span class="mono">#autoflow-alerts</span> when that changes.
+          </p>
+          <div class="state__actions">
+            <a class="btn" href="settings-organization.html">Alert settings</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Editor + audit ─────────────────────────────────────────────────── -->
+  <div class="grid grid--2" style="gap:16px;margin-top:28px">
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Editor · empty canvas</p>
+      <div class="card" style="overflow:hidden">
+        <div class="canvas" style="height:260px;display:grid;place-items:center">
+          <div class="state" style="padding:0">
+            <div class="state__icon">⇥</div>
+            <div class="state__title">Every workflow starts with a trigger</div>
+            <p class="state__desc">
+              A trigger decides when this runs — a webhook, a schedule, an API call, or you pressing
+              Run.
+            </p>
+            <div class="state__actions">
+              <button class="btn btn--primary">Add a trigger</button>
+              <button class="btn">Open the node picker <span class="kbd">⌘</span><span class="kbd">K</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow" style="margin-bottom:10px">Audit log · filtered to nothing</p>
+      <div class="card">
+        <div class="toolstrip" style="padding:12px 16px">
+          <span class="chip" aria-pressed="true">Actor: Ruth Chen <span class="chip__x">✕</span></span>
+          <span class="chip" aria-pressed="true">credential.* <span class="chip__x">✕</span></span>
+        </div>
+        <div class="hr"></div>
+        <div class="state">
+          <div class="state__icon">⌕</div>
+          <div class="state__title">No matching entries</div>
+          <p class="state__desc">
+            Ruth Chen is a VIEWER, so she can’t perform credential actions. Nothing is missing from
+            the log — there is nothing to record.
+          </p>
+          <div class="state__actions">
+            <button class="btn btn--primary">Clear filters</button>
+            <a class="btn" href="settings-members.html">See what VIEWER allows</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:48px"></div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

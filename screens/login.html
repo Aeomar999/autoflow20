@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /login   CURRENT CODE: built (Better Auth, email + password).
+     Adds: SSO providers, error state, and the enterprise SSO hand-off. -->
+
+<div class="authwrap">
+  <div class="authform">
+    <div class="authform__inner">
+
+      <a class="rowx" href="landing.html" style="margin-bottom:32px">
+        <span class="sidebar__mark" aria-hidden="true">A</span>
+        <span class="strong t-lg" style="letter-spacing:-0.02em">AutoFlow</span>
+      </a>
+
+      <h1 class="t-xl strong" style="letter-spacing:-0.015em">Sign in</h1>
+      <p class="t-sm dim" style="margin-top:6px">Welcome back.</p>
+
+      <div class="stack-3" style="margin-top:24px">
+        <button class="btn btn--block" data-component="Button">Continue with Google</button>
+        <button class="btn btn--block" data-component="Button">Continue with GitHub</button>
+      </div>
+
+      <div class="divider" style="margin:20px 0">or</div>
+
+      <form class="stack-4" data-component="Form">
+        <div class="field" data-component="Field">
+          <label class="field__label" for="email">Work email</label>
+          <input class="input" id="email" type="email" value="jordan@northwindretail.com" data-component="Input">
+        </div>
+
+        <div class="field" data-component="Field">
+          <div class="rowx between">
+            <label class="field__label" for="pw">Password</label>
+            <a class="t-xs dim" href="password-reset.html">Forgot password?</a>
+          </div>
+          <div class="inputgroup">
+            <input class="input" id="pw" type="password" value="passwordvalue" style="padding-left:10px;padding-right:56px" data-component="Input">
+            <span class="inputgroup__suffix"><button type="button" class="btn btn--ghost btn--sm">Show</button></span>
+          </div>
+        </div>
+
+        <button class="btn btn--primary btn--lg btn--block" data-component="Button">Sign in</button>
+      </form>
+
+      <div class="divider" style="margin:20px 0">or</div>
+      <a class="btn btn--block" href="accept-invite.html" data-component="Button">Sign in with SSO</a>
+
+      <p class="t-sm dim" style="margin-top:24px;text-align:center">
+        New here? <a href="signup.html" style="color:var(--primary)">Create an account</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- The aside is the product, not a testimonial. -->
+  <aside class="authaside">
+    <p class="eyebrow">Why teams switch</p>
+    <p class="display display--sm" style="margin-top:16px;max-width:16ch">Every node accounted&nbsp;for.</p>
+    <p class="t-sm dim" style="margin-top:14px;max-width:40ch">
+      When a run misbehaves, the trace shows every node — including the ones that never ran, and
+      the reason they didn’t.
+    </p>
+
+    <div class="trace" style="margin-top:28px;max-width:420px">
+      <div class="tr tr--success">
+        <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+        <div class="tr__topo tr__topo--start"><span class="tr__knot"></span></div>
+        <div class="tr__body"><div class="grow"><div class="tr__name">Amount over $5,000?</div>
+          <div class="tr__type">core.condition · false</div></div></div>
+      </div>
+      <div class="tr tr--skipped tr--l1">
+        <div class="gutter gutter--skipped"><span class="mono t-xs">–</span></div>
+        <div class="tr__topo tr__topo--l1 tr__topo--end"><span class="tr__knot"></span></div>
+        <div class="tr__body"><div class="grow"><div class="tr__name">Request VP approval</div>
+          <div class="tr__type">slack.send-message</div>
+          <div class="tr__why">↳ branch not taken (true)</div></div></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>
