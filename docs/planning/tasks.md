@@ -420,16 +420,16 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-04 · Runner upgrades · 3d
+### ✅ AF-M2-04 · Runner upgrades · 3d · DONE 2026-08-26
 *(Re-scoped: the step-based runner exists — topo order, memoized `step.run` per node, trace steps, `NonRetriableError`, `onFailure`. This task adds the missing execution semantics; per Decision A no items-model/compile-stage rebuild.)*
 
 **Acceptance**
-- [ ] **Branch-taken semantics**: a condition-style node routes on its output ports; nodes reachable only via untaken edges are recorded as `SKIPPED` with reason — **no node is ever absent from the trace**. *(Today SKIPPED is only written for post-failure downstream.)*
-- [ ] Per-node timeout (default 60s) and per-node retry policy override of `ENGINE_RETRIES`.
-- [ ] `continueOnFail`: node records FAILED, run continues.
-- [ ] Cancellation: cancel stops scheduling further nodes, marks run `CANCELLED`, unwritten nodes SKIPPED.
-- [ ] Concurrency keys: per-workflow and per-tenant.
-- [ ] Test: kill mid-run, resume — completed side effects are not re-executed *(partially proven today by step memoization; make it an explicit test)*.
+- [x] **Branch-taken semantics**: a condition-style node routes on its output ports; nodes reachable only via untaken edges are recorded as `SKIPPED` with reason — **no node is ever absent from the trace**. *(Today SKIPPED is only written for post-failure downstream.)*
+- [x] Per-node timeout (default 60s) and per-node retry policy override of `ENGINE_RETRIES`.
+- [x] `continueOnFail`: node records FAILED, run continues.
+- [x] Cancellation: cancel stops scheduling further nodes, marks run `CANCELLED`, unwritten nodes SKIPPED.
+- [x] Concurrency keys: per-workflow and per-tenant.
+- [x] Test: kill mid-run, resume — completed side effects are not re-executed *(partially proven today by step memoization; make it an explicit test)*.
 
 ---
 
