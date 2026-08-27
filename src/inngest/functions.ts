@@ -4,6 +4,7 @@ import {
   type GraphNode,
   validate,
 } from "@/engine/validate";
+import { resolveNodeCredentials } from "@/features/executions/server/credential-resolver";
 import { buildTemplateContext } from "@/features/executions/template";
 import {
   ExecutionStatus,
@@ -341,7 +342,7 @@ export const executeWorkflow = inngest.createFunction(
         continue;
       }
 
-      const { execute } = getNodeRegistration(node.type);
+      const { execute, credentials } = getNodeRegistration(node.type);
       let startedAtMs = Date.now();
 
       try {
@@ -374,6 +375,24 @@ export const executeWorkflow = inngest.createFunction(
           templateMeta,
         );
 
+        // AF-M3-04: Decrypt this node's required credentials exactly once,
+        // before execution. The result is passed to the executor and never
+        // merged into `context`/`output`/trace, keeping plaintext out of
+        // `NodeExecution.input/output`.
+        const credentialsForNode = await step.run(
+          `resolve-credentials:${node.id}`,
+          async () =>
+            resolveNodeCredentials({
+              requirements: credentials,
+              nodeData: nodeExec.data,
+              userId,
+              loadCredentialRow: async (credentialId) =>
+                prisma.credential.findUnique({
+                  where: { id: credentialId, userId },
+                }),
+            }),
+        );
+
         // AF-M2-04: Per-node retry loop with timeout.
         let result: Record<string, unknown> | undefined;
         let lastError: unknown;
@@ -393,6 +412,7 @@ export const executeWorkflow = inngest.createFunction(
                   context: enrichedContext,
                   step,
                   publish,
+                  credentials: credentialsForNode,
                 });
 
                 const timeoutPromise = new Promise<never>((_, reject) => {

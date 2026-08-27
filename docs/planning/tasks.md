@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-26 (deep-plan reconciliation)
+**Last updated:** 2026-08-27 (AF-M3-04 credential injection shipped)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -535,10 +535,17 @@ A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgr
 - [ ] Create/edit/delete with type-driven forms, masked inputs, and a working "Test connection".
 - [ ] Deleting a credential in use warns with the list of affected workflows.
 
-### ⬜ AF-M3-04 · Credential injection into execution · 1.5d
-- [ ] Nodes declare requirements; the config panel offers matching credentials only.
-- [ ] Decryption happens exactly once, inside runtime context construction.
-- [ ] Test asserts credential values never appear in `NodeExecution.input/output` or any log line.
+### ✅ AF-M3-04 · Credential injection into execution · 1.5d
+- [x] Nodes declare requirements; the config panel offers matching credentials only.
+- [x] Decryption happens exactly once, inside runtime context construction.
+- [x] Test asserts credential values never appear in `NodeExecution.input/output` or any log line.
+
+**Notes (shipped):**
+- `NodeDefinition.credentials: CredentialRequirement[]` (`{ key, type, required }`) — AI nodes declare `{ key: "credentialId", type: "<provider>.apiKey", required: true }`.
+- New `src/features/executions/server/credential-resolver.ts` — **the single decrypt site** for node runs. `resolveNodeCredentials()` is injected a `loadCredentialRow` loader (tenant-scoped `prisma.credential.findUnique`), returns `Record<string, CredentialSecret>`, throws `MissingRequiredCredentialError` on missing required, skips optional. It is the module unit-tested (not the executors).
+- Engine (`src/inngest/functions.ts`) calls `resolveNodeCredentials` in a per-node `step.run("resolve-credentials:…")` and threads the result into `execute` via `NodeRunParams.credentials`. The map is **never** merged into `context`/`output`/trace → plaintext has no path to `NodeExecution.input/output`.
+- Executors (`openai`/`anthropic`/`gemini`) dropped their own `prisma.credential.findUnique` + `openSecret`; they now read `credentials?.credentialId` and throw `NonRetriableError` if absent.
+- 13 new tests: resolver round-trip (loader called once), missing-required throws, optional skipped, multi-requirement order, leak guard (decrypted secret absent from node data/output), registry-parity (each declared type exists in `credentialRegistry`), AI-def requirement assertions.
 
 ### ⬜ AF-M3-05 · OAuth2 flow + auto-refresh · 3d
 - [ ] Generic OAuth2 authorization-code connect flow with per-provider config and CSRF-protected state.

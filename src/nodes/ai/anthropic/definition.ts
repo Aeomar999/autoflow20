@@ -16,4 +16,7 @@ export const definition: NodeDefinition = {
   defaults: {},
   inputs: [{ id: "main", label: "In" }],
   outputs: [{ id: "main", label: "Out" }],
+  credentials: [
+    { key: "credentialId", type: "anthropic.apiKey", required: true },
+  ],
 };

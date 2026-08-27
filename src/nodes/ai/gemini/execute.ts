@@ -2,10 +2,8 @@ import "server-only";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NonRetriableError } from "inngest";
-import { openSecret } from "@/features/credentials/server/vault";
 import { compileTemplate } from "@/features/executions/template";
 import { geminiChannel } from "@/inngest/channels/gemini";
-import prisma from "@/lib/db";
 import type { NodeRun } from "@/nodes/types";
 
 type GeminiData = {
@@ -18,10 +16,10 @@ type GeminiData = {
 export const execute: NodeRun<GeminiData> = async ({
   data,
   nodeId,
-  userId,
   context,
   step,
   publish,
+  credentials,
 }) => {
   await publish(
     geminiChannel().status({
@@ -60,21 +58,8 @@ export const execute: NodeRun<GeminiData> = async ({
     throw new NonRetriableError("Gemini node: User prompt is missing");
   }
 
-  const systemPrompt = data.systemPrompt
-    ? compileTemplate(data.systemPrompt)(context)
-    : "You are a helpful assistant.";
-  const userPrompt = compileTemplate(data.userPrompt)(context);
-
-  const credential = await step.run("get-credential", () => {
-    return prisma.credential.findUnique({
-      where: {
-        id: data.credentialId,
-        userId,
-      },
-    });
-  });
-
-  if (!credential) {
+  const secret = credentials?.credentialId;
+  if (!secret) {
     await publish(
       geminiChannel().status({
         nodeId,
@@ -84,7 +69,10 @@ export const execute: NodeRun<GeminiData> = async ({
     throw new NonRetriableError("Gemini node: Credential not found");
   }
 
-  const secret = openSecret(credential);
+  const systemPrompt = data.systemPrompt
+    ? compileTemplate(data.systemPrompt)(context)
+    : "You are a helpful assistant.";
+  const userPrompt = compileTemplate(data.userPrompt)(context);
 
   const google = createGoogleGenerativeAI({
     apiKey: secret.apiKey,

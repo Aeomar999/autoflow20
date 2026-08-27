@@ -15,15 +15,15 @@ An automation platform holds the keys to every system its customers connect. The
 | Password storage | ✅ Better Auth (hashed) |
 | Session management | ✅ Better Auth |
 | Authorization | 🟠 Ownership-only (`userId`). No roles, no workspace boundary. |
-| Credential storage | 🔴 **None exists.** No model, no encryption. |
-| Secrets in logs | 🔴 No redaction layer. Sentry receives raw context. |
+| Credential storage | ✅ Envelope encryption (AES-256-GCM, per-record DEK, AF-M3-01/02); engine-level injection via single decrypt site (AF-M3-04); no plaintext read path. |
+| Secrets in logs | ✅ Redacting logger (`src/lib/logger.ts`) + Sentry `beforeSend` scrubbing (AF-M0-07); credentials never in `NodeExecution` IO (AF-M3-04 leak guard tests). |
 | Audit trail | 🔴 None. |
 | Rate limiting | 🔴 None on any route, including auth. |
-| SSRF protection | 🔴 None (no HTTP node yet — must land with it). |
-| Webhook authentication | 🔴 No webhook endpoints yet. |
-| Input validation | 🟠 Zod on tRPC inputs; nothing on other surfaces. |
+| SSRF protection | ✅ `egress-guard.ts` — scheme/host allowlist, private-IP blocks, DNS resolve check (AF-A-02). |
+| Webhook authentication | ✅ Per-workflow secret + Stripe signature verification (AF-A-01). |
+| Input validation | 🟠 Zod on tRPC inputs + per-node-type config schemas at save boundary (AF-A-04); nothing on other surfaces. |
 | Dependency scanning | 🔴 No CI, no audit. |
-| Env validation | 🔴 Unvalidated `process.env` reads. |
+| Env validation | ✅ `src/lib/env.ts` Zod validation at boot; app refuses to start misconfigured (AF-M0-08). |
 
 Nothing here is alarming for a pre-alpha, but every 🔴 must close before external users touch the system. Most are M0–M3 tasks.
 
@@ -71,7 +71,7 @@ Rules:
 ### Access
 
 - **[HARD]** No tRPC procedure, REST endpoint, server action, or server component returns decrypted credential material. There is no read path. Not for the owner, not for an admin, not "just for the test button".
-- **[HARD]** Decryption happens in exactly two server-only sites: the node executors' runtime (`openSecret`, `src/features/credentials/server/vault.ts`) and the `test` connection probe. Never in a response path.
+- **[HARD]** Decryption happens in exactly two server-only sites: the node runtime's credential resolver (`openSecret`, `src/features/credentials/server/vault.ts`, invoked once per node by `resolveNodeCredentials` in the execution engine — AF-M3-04) and the `test` connection probe. Never in a response path.
 - **[HARD]** Credential values never appear in `NodeExecution.input` or `output`. Node authors must not echo config secrets — enforced by review and by a test per credentialed node.
 - "Test connection" runs server-side and returns a boolean plus an error class. Never the request that was sent.
 - The UI shows `preview` only — a non-reversible fragment generated at write time.
@@ -85,6 +85,16 @@ Rules:
 > byte columns at runtime (rows cross Inngest serialization). Legacy rows are
 > converted by `npm run migrate:credentials` (registry id mapping
 > OPENAI→openai.apiKey, etc.).
+
+> **Implemented, AF-M3-04 (2026-08-27).** Credential injection into the
+> execution engine: `NodeDefinition.credentials` declares per-node requirements
+> (`CredentialRequirement[]`); the engine resolves them in a dedicated Inngest
+> step via `resolveNodeCredentials` (`src/features/executions/server/credential-resolver.ts`)
+> — the single decrypt site for node runs. Resolved secrets are threaded into
+> executors via `NodeRunParams.credentials` and **never** merged into
+> `context`, `output`, or trace data. AI executors (`openai`/`anthropic`/`gemini`)
+> no longer call `openSecret` directly; they read from the `credentials` param.
+> Leak guard tests assert decrypted values are absent from `NodeExecution.input/output`.
 
 ### Rotation
 
