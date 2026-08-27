@@ -1,9 +1,9 @@
 "use client";
 
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { SaveIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -15,42 +15,110 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
+  edgesAtom,
+  nodesAtom,
+  saveStatusAtom,
+} from "@/features/editor/store/atoms";
+import {
+  useSaveWorkflow,
   useSuspenseWorkflow,
-  useUpdateWorkflow,
   useUpdateWorkflowName,
 } from "@/features/workflows/hooks/use-workflows";
-import { editorAtom } from "../store/atoms";
+
+function useDebounce(callback: () => void, delayMs: number) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  const cancel = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: callback is stored in ref but must trigger re-run to restart timer
+  useEffect(() => {
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current();
+      timeoutRef.current = null;
+    }, delayMs);
+    return cancel;
+  }, [callback, delayMs, cancel]);
+
+  return cancel;
+}
 
 export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
-  const editor = useAtomValue(editorAtom);
-  const saveWorkflow = useUpdateWorkflow();
+  const { data: workflow } = useSuspenseWorkflow(workflowId);
+  const saveWorkflow = useSaveWorkflow();
+  const nodes = useAtomValue(nodesAtom);
+  const edges = useAtomValue(edgesAtom);
+  const saveStatus = useAtomValue(saveStatusAtom);
+  const setSaveStatus = useSetAtom(saveStatusAtom);
 
-  const handleSave = () => {
-    if (!editor) {
-      return;
-    }
-
-    // Every renderable node carries a type; drop any that somehow do not
-    // so the save payload satisfies the typed per-node schema (AF-A-04).
-    const nodes = editor
-      .getNodes()
-      .filter((node): node is typeof node & { type: string } =>
-        Boolean(node.type),
-      );
-    const edges = editor.getEdges();
-
+  const performSave = useCallback(() => {
+    if (saveStatus === "saving") return;
+    setSaveStatus("saving");
     saveWorkflow.mutate({
       id: workflowId,
-      nodes,
+      nodes: nodes.filter((n): n is typeof n & { type: string } => !!n.type),
       edges,
+      revision: workflow.revision,
     });
+  }, [
+    saveWorkflow,
+    workflowId,
+    workflow.revision,
+    nodes,
+    edges,
+    saveStatus,
+    setSaveStatus,
+  ]);
+
+  // Debounced autosave: triggers 1.5s after last change.
+  const cancelAutosave = useDebounce(
+    useCallback(() => {
+      if (saveStatus === "unsaved") {
+        performSave();
+      }
+    }, [saveStatus, performSave]),
+    1500,
+  );
+
+  // beforeunload warning when dirty.
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (saveStatus === "unsaved" || saveStatus === "failed") {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [saveStatus]);
+
+  const handleSave = () => {
+    cancelAutosave();
+    performSave();
   };
 
+  const statusLabel =
+    saveStatus === "saved"
+      ? "Saved"
+      : saveStatus === "saving"
+        ? "Saving..."
+        : saveStatus === "failed"
+          ? "Save failed"
+          : "";
+
   return (
-    <div className="ml-auto">
-      <Button size="sm" onClick={handleSave} disabled={saveWorkflow.isPending}>
+    <div className="ml-auto flex items-center gap-2">
+      {saveStatus !== "unsaved" && saveStatus !== "saving" && (
+        <span className="text-xs text-muted-foreground">{statusLabel}</span>
+      )}
+      <Button size="sm" onClick={handleSave} disabled={saveStatus === "saving"}>
         <SaveIcon className="size-4" />
-        Save
+        {saveStatus === "saving" ? "Saving..." : "Save"}
       </Button>
     </div>
   );

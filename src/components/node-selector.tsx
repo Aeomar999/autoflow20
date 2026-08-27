@@ -1,7 +1,7 @@
 "use client";
 
 import { createId } from "@paralleldrive/cuid2";
-import { useReactFlow } from "@xyflow/react";
+import { useAtomValue, useSetAtom } from "jotai";
 import { GlobeIcon, MousePointerIcon } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -13,11 +13,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { NodeType } from "@/generated/prisma/browser";
+import {
+  edgesAtom,
+  nodesAtom,
+  saveStatusAtom,
+} from "@/features/editor/store/atoms";
 import { Separator } from "./ui/separator";
 
 export type NodeTypeOption = {
-  type: NodeType;
+  type: string;
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string }> | string;
@@ -25,20 +29,20 @@ export type NodeTypeOption = {
 
 const triggerNodes: NodeTypeOption[] = [
   {
-    type: NodeType.MANUAL_TRIGGER,
+    type: "MANUAL_TRIGGER",
     label: "Trigger manually",
     description:
       "Runs the flow on clicking a button. Good for getting started quickly",
     icon: MousePointerIcon,
   },
   {
-    type: NodeType.GOOGLE_FORM_TRIGGER,
+    type: "GOOGLE_FORM_TRIGGER",
     label: "Google Form",
     description: "Runs the flow when a Google Form is submitted",
     icon: "/logos/googleform.svg",
   },
   {
-    type: NodeType.STRIPE_TRIGGER,
+    type: "STRIPE_TRIGGER",
     label: "Stripe Event",
     description: "Runs the flow when a Stripe Event is captured",
     icon: "/logos/stripe.svg",
@@ -47,37 +51,37 @@ const triggerNodes: NodeTypeOption[] = [
 
 const executionNodes: NodeTypeOption[] = [
   {
-    type: NodeType.HTTP_REQUEST,
+    type: "HTTP_REQUEST",
     label: "HTTP Request",
     description: "Makes an HTTP request",
     icon: GlobeIcon,
   },
   {
-    type: NodeType.GEMINI,
+    type: "GEMINI",
     label: "Gemini",
     description: "Uses Google Gemini to generate text",
     icon: "/logos/gemini.svg",
   },
   {
-    type: NodeType.OPENAI,
+    type: "OPENAI",
     label: "OpenAI",
     description: "Uses OpenAI to generate text",
     icon: "/logos/openai.svg",
   },
   {
-    type: NodeType.ANTHROPIC,
+    type: "ANTHROPIC",
     label: "Anthropic",
     description: "Uses Anthropic to generate text",
     icon: "/logos/anthropic.svg",
   },
   {
-    type: NodeType.DISCORD,
+    type: "DISCORD",
     label: "Discord",
     description: "Send a message to Discord",
     icon: "/logos/discord.svg",
   },
   {
-    type: NodeType.SLACK,
+    type: "SLACK",
     label: "Slack",
     description: "Send a message to Slack",
     icon: "/logos/slack.svg",
@@ -95,15 +99,17 @@ export function NodeSelector({
   onOpenChange,
   children,
 }: NodeSelectorProps) {
-  const { setNodes, getNodes, screenToFlowPosition } = useReactFlow();
+  const nodes = useAtomValue(nodesAtom);
+  const setNodes = useSetAtom(nodesAtom);
+  const setSaveStatus = useSetAtom(saveStatusAtom);
+  // edges not needed for node creation, but required by atoms contract
+  useAtomValue(edgesAtom);
 
   const handleNodeSelect = useCallback(
     (selection: NodeTypeOption) => {
-      // Check if trying to add a manual trigger when one already exists
-      if (selection.type === NodeType.MANUAL_TRIGGER) {
-        const nodes = getNodes();
+      if (selection.type === "MANUAL_TRIGGER") {
         const hasManualTrigger = nodes.some(
-          (node) => node.type === NodeType.MANUAL_TRIGGER,
+          (node) => node.type === "MANUAL_TRIGGER",
         );
 
         if (hasManualTrigger) {
@@ -112,36 +118,30 @@ export function NodeSelector({
         }
       }
 
-      setNodes((nodes) => {
-        const hasInitialTrigger = nodes.some(
-          (node) => node.type === NodeType.INITIAL,
-        );
+      const hasInitialTrigger = nodes.some((node) => node.type === "INITIAL");
 
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2;
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
 
-        const flowPosition = screenToFlowPosition({
+      const newNode = {
+        id: createId(),
+        type: selection.type,
+        data: {},
+        position: {
           x: centerX + (Math.random() - 0.5) * 200,
           y: centerY + (Math.random() - 0.5) * 200,
-        });
+        },
+      };
 
-        const newNode = {
-          id: createId(),
-          data: {},
-          position: flowPosition,
-          type: selection.type,
-        };
-
-        if (hasInitialTrigger) {
-          return [newNode];
-        }
-
-        return [...nodes, newNode];
-      });
-
+      if (hasInitialTrigger) {
+        setNodes([newNode]);
+      } else {
+        setNodes((prev) => [...prev, newNode]);
+      }
+      setSaveStatus("unsaved");
       onOpenChange(false);
     },
-    [setNodes, getNodes, onOpenChange, screenToFlowPosition],
+    [nodes, setNodes, setSaveStatus, onOpenChange],
   );
 
   return (

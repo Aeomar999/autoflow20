@@ -14,8 +14,10 @@ const validSave: {
   id: string;
   nodes: TestNode[];
   edges: Array<{ source: string; target: string }>;
+  revision: number;
 } = {
   id: "ckv9x0p1a0000abcd0000000",
+  revision: 0,
   nodes: [
     {
       id: "n1",
@@ -141,5 +143,45 @@ describe("saveWorkflowInputSchema (AF-A-04)", () => {
     const ok = structuredClone(validSave);
     ok.nodes[0].data = {};
     expect(saveWorkflowInputSchema.safeParse(ok).success).toBe(true);
+  });
+});
+
+describe("saveWorkflowInputSchema — revision field (AF-M1-03)", () => {
+  it("requires a non-negative integer revision", () => {
+    expect(
+      saveWorkflowInputSchema.safeParse({ ...validSave, revision: 0 }).success,
+    ).toBe(true);
+    expect(
+      saveWorkflowInputSchema.safeParse({ ...validSave, revision: 5 }).success,
+    ).toBe(true);
+    expect(
+      saveWorkflowInputSchema.safeParse({ ...validSave, revision: -1 }).success,
+    ).toBe(false);
+    expect(
+      saveWorkflowInputSchema.safeParse({ ...validSave, revision: 1.5 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("accepts an empty graph (no nodes, no edges)", () => {
+    expect(
+      saveWorkflowInputSchema.safeParse({
+        id: validSave.id,
+        nodes: [],
+        edges: [],
+        revision: 0,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts a graph with nodes but no edges", () => {
+    expect(
+      saveWorkflowInputSchema.safeParse({
+        id: validSave.id,
+        nodes: [validSave.nodes[0]],
+        edges: [],
+        revision: 0,
+      }).success,
+    ).toBe(true);
   });
 });

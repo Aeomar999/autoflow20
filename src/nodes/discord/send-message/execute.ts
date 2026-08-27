@@ -1,10 +1,11 @@
+import "server-only";
 import { decode } from "html-entities";
 import { NonRetriableError } from "inngest";
 import ky from "ky";
 import { assertSafeEndpoint } from "@/features/executions/components/http-request/egress-guard";
 import { compileTemplate } from "@/features/executions/template";
-import type { NodeExecutor } from "@/features/executions/types";
 import { discordChannel } from "@/inngest/channels/discord";
+import type { NodeRun } from "@/nodes/types";
 
 type DiscordData = {
   variableName?: string;
@@ -13,7 +14,7 @@ type DiscordData = {
   username?: string;
 };
 
-export const discordExecutor: NodeExecutor<DiscordData> = async ({
+export const execute: NodeRun<DiscordData> = async ({
   data,
   nodeId,
   context,

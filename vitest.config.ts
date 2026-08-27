@@ -6,6 +6,9 @@ import { defineConfig } from "vitest/config";
 // inherited by inline projects, so the alias must be declared per project.
 const alias = {
   "@": path.resolve(__dirname, "./src"),
+  // The real package throws outside RSC rendering; tests import server
+  // modules (e.g. src/nodes/registry.ts) directly, so stub it everywhere.
+  "server-only": path.resolve(__dirname, "./vitest.server-only-stub.ts"),
 };
 
 export default defineConfig({

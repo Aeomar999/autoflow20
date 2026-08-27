@@ -1,11 +1,12 @@
+import "server-only";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
-import type { NodeExecutor } from "@/features/executions/types";
 import { openAiChannel } from "@/inngest/channels/openai";
 import prisma from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
+import type { NodeRun } from "@/nodes/types";
 
 type OpenAiData = {
   variableName?: string;
@@ -14,7 +15,7 @@ type OpenAiData = {
   userPrompt?: string;
 };
 
-export const openAiExecutor: NodeExecutor<OpenAiData> = async ({
+export const execute: NodeRun<OpenAiData> = async ({
   data,
   nodeId,
   userId,
@@ -56,7 +57,7 @@ export const openAiExecutor: NodeExecutor<OpenAiData> = async ({
         status: "error",
       }),
     );
-    throw new NonRetriableError("OpenAi node: User prompt is missing");
+    throw new NonRetriableError("OpenAI node: User prompt is missing");
   }
 
   const systemPrompt = data.systemPrompt

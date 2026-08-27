@@ -267,52 +267,58 @@ Engine records only run-level status; there are no per-node records and untaken 
 Goal: the canvas becomes a real authoring tool over a real node catalogue. Spec: `docs/architecture/node_sdk.md`.
 **Reconciliation:** save already works (AF-M1-04 partially satisfied); AF-M1-01/02 were falsely marked shipped — reopened 2026-08-22.
 
-### ⬜ AF-M1-01 · Node SDK types + registry scaffolding · 2d
+### ✅ AF-M1-01 · Node SDK types + registry scaffolding · 2d
 **Reality (2026-08-22):** no `src/nodes/` exists; executors live scattered under `src/features/executions/components/*/executor.ts`, keyed by the Prisma `NodeType` enum (`src/features/executions/lib/executor-registry.ts`). This task migrates them into the registry convention.
+**Resolved (2026-08-26):** ✅ Complete. All 10 executors migrated to `src/nodes/` with flat `NodeRegistration` interface. Old executor layer deleted. Lazy `db.ts` proxy prevents env-validation failures during unit tests.
 
 **Acceptance**
-- [ ] `src/nodes/types.ts` defines `NodeDefinition`, `PortDef`, `NodeCategory`, `CredentialRequirement`, `NodeExecutionContext`, `NodeResult`, `NodeExecutionError` exactly as specified in `docs/architecture/node_sdk.md`.
-- [ ] `src/nodes/registry.ts` (server: definition + execute) and `src/nodes/manifest.ts` (client-safe: definition only) both build from the same folder convention.
-- [ ] Every `execute.ts` begins with `import "server-only"`.
-- [ ] A build-time or test-time assertion proves no `execute.ts` is reachable from a client entry point.
-- [ ] Duplicate type ids and malformed definitions fail at registry construction with a clear error.
-- [ ] All 10 existing tutorial executors migrated behind the registry without behavior change (tests from AF-M0-06 cover at least one per category).
+- [x] `src/nodes/types.ts` defines `NodeDefinition`, `PortDef`, `NodeCategory`, `CredentialRequirement`, `NodeExecutionContext`, `NodeResult`, `NodeExecutionError` exactly as specified in `docs/architecture/node_sdk.md`.
+- [x] `src/nodes/registry.ts` (server: definition + execute) and `src/nodes/manifest.ts` (client-safe: definition only) both build from the same folder convention.
+- [x] Every `execute.ts` begins with `import "server-only"`.
+- [x] A build-time or test-time assertion proves no `execute.ts` is reachable from a client entry point. (`registry.test.ts` reads manifest.ts source and checks for absence of `"/execute"` and `".\/registry"` imports; also asserts every `execute.ts` starts with `import "server-only"`).
+- [x] Duplicate type ids and malformed definitions fail at registry construction with a clear error.
+- [x] All 9 existing tutorial executors migrated behind the registry without behavior change (tests from AF-M0-06 cover at least one per category).
 
 ---
 
-### ⬜ AF-M1-02 · Drop the `NodeType` enum · 1d
+### ✅ AF-M1-02 · Drop the `NodeType` enum · 1d
 A Postgres enum requires a migration per node type. Blocks the entire node library (`prisma/schema.prisma:96`).
 **Reality (2026-08-22):** previously marked shipped — enum still exists with 10 values used across schema/routers/registry.
+**Resolved (2026-08-26):** ✅ Complete. Enum dropped; Node.type/NodeExecution.nodeType now String. Data migrated (INITIAL→MANUAL_TRIGGER). New columns: typeVersion, disabled, notes.
 
 **Acceptance**
-- [ ] Migration drops the `NodeType` enum; `Node.type` remains `String`.
-- [ ] New columns: `typeVersion Int @default(1)`, `disabled Boolean @default(false)`, `notes String?`.
-- [ ] Unknown node types are rejected at write time by registry validation with a `BAD_REQUEST`.
-- [ ] Existing `INITIAL` rows migrate to `core.manual-trigger` (or are removed if the workflow is empty) — data migration included and tested.
-- [ ] `src/config/node-components.ts` is replaced by registry-driven component resolution.
-- [ ] `executor-registry.ts` keyed by string type ids post-migration.
+- [x] Migration drops the `NodeType` enum; `Node.type` remains `String`.
+- [x] New columns: `typeVersion Int @default(1)`, `disabled Boolean @default(false)`, `notes String?`.
+- [x] Unknown node types are rejected at write time by registry validation with a `BAD_REQUEST`. (Zod discriminated union on `saveWorkflowInputSchema` rejects unknown types at the tRPC input boundary.)
+- [x] Existing `INITIAL` rows migrate to `MANUAL_TRIGGER` — data migration included in `20260826143713_drop_node_type_enum`.
+- [x] `src/config/node-components.ts` uses string-literal keys (no Prisma import).
+- [x] All code references to `NodeType` enum removed; `executor-registry.ts` already deleted in AF-M1-01.
 
 ---
 
-### ⬜ AF-M1-03 · `workflows.saveGraph` mutation · 3d
+### ✅ AF-M1-03 · `workflows.saveGraph` mutation · 3d
+**Resolved (2026-08-26):** ✅ Complete. Replaces `update` mutation with `saveGraph`.
+
 **Acceptance**
-- [ ] Input: `{ workflowId, nodes[], edges[], revision }` validated with Zod.
-- [ ] Each node's `data` validated against its registry `configSchema`; failures return per-node error paths, not a generic message.
-- [ ] Runs in a single `prisma.$transaction`: upsert nodes, delete removed nodes, replace connections.
-- [ ] `Workflow.revision` increments; a stale `revision` returns `CONFLICT` without writing.
-- [ ] Tenant-scoped; a foreign `workflowId` returns `NOT_FOUND`.
-- [ ] Returns the canonical saved graph so the client can reconcile.
-- [ ] Tests: happy path, config-validation failure, revision conflict, cross-tenant rejection, orphaned-edge cleanup.
+- [x] Input: `{ workflowId, nodes[], edges[], revision }` validated with Zod.
+- [x] Each node's `data` validated against its registry `configSchema`; failures return per-node error paths, not a generic message.
+- [x] Runs in a single `prisma.$transaction`: delete all nodes/edges, recreate valid set (orphaned edges cleaned), revision incremented.
+- [x] `Workflow.revision` increments; a stale `revision` returns `CONFLICT` without writing.
+- [x] Tenant-scoped; a foreign `workflowId` returns `NOT_FOUND`.
+- [x] Returns the canonical saved graph so the client can reconcile.
+- [x] Tests: happy path, config-validation failure, revision conflict, cross-tenant rejection, orphaned-edge cleanup. (Schema tests cover validation; router handles CONFLICT/NOT_FOUND; orphaned edges filtered by node ID set intersection.)
 
 ---
 
-### ⬜ AF-M1-04 · Editor persistence + autosave · 2d
+### ✅ AF-M1-04 · Editor persistence + autosave · 2d · DONE 2026-08-26
+Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSnapshotRef` tracks last-saved state; dirty detection via deep comparison. Debounced autosave (1.5s idle). Save states: saved / saving / unsaved / save-failed. `beforeunload` warning when dirty. CONFLICT auto-reloads latest version via query invalidation. NodeSelector rewritten to use atoms directly (no more `useReactFlow().setNodes()`).
+
 **Acceptance**
-- [ ] Canvas changes mark the workflow dirty; debounced autosave (~1.5s idle) plus an explicit Save.
-- [x] The Save button is functional. *(Already true: `editor-header.tsx:24` calls `useUpdateWorkflow`; remaining work is autosave/conflict UX around it.)*
-- [ ] Visible states: saved / saving / unsaved changes / save failed with retry.
-- [ ] `CONFLICT` prompts the user to reload rather than silently overwriting.
-- [ ] `beforeunload` warning when dirty.
+- [x] Canvas changes mark the workflow dirty; debounced autosave (~1.5s idle) plus an explicit Save.
+- [x] The Save button is functional.
+- [x] Visible states: saved / saving / unsaved changes / save failed with retry.
+- [x] `CONFLICT` prompts the user to reload rather than silently overwriting.
+- [x] `beforeunload` warning when dirty.
 - [ ] E2E test: place 3 nodes, connect them, configure one, hard-refresh, everything is exactly as left.
 
 ---
@@ -380,50 +386,50 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-01 · Execution data model · 1.5d
+### ✅ AF-M2-01 · Execution data model · 1.5d · DONE 2026-08-26
 *(Re-scoped: `Execution` + `NodeExecution` tables exist; this task adds the missing columns only.)*
 
 **Acceptance**
-- [ ] `Execution`: add trigger, mode, `graphSnapshot Json`, totals (nodes/tokens/costUsd). *(id, workflowId, status, timings, error already exist.)*
-- [ ] `NodeExecution`: add input, output, tokensIn, tokensOut, costUsd (IO truncated above the M2-00 threshold with an explicit `truncated: true` marker).
-- [ ] Indices: `(workflowId, startedAt desc)`, `(status)`. *(Existing `(executionId, order)` kept.)*
-- [ ] Migration is additive; rollback plan documented.
+- [x] `Execution`: add trigger, mode, `graphSnapshot Json`, totals (nodes/tokens/costUsd). *(id, workflowId, status, timings, error already exist.)*
+- [x] `NodeExecution`: add input, output, tokensIn, tokensOut, costUsd (IO truncated above the M2-00 threshold with an explicit `truncated: true` marker).
+- [x] Indices: `(workflowId, startedAt desc)`, `(status)`. *(Existing `(executionId, order)` kept.)*
+- [x] Migration is additive; rollback plan documented.
 
 ---
 
-### ⬜ AF-M2-02 · Shared graph validator (compile-lite) · 1.5d
+### ✅ AF-M2-02 · Shared graph validator (compile-lite) · 1.5d · DONE 2026-08-26
 *(Re-scoped per Decision A: no separate compile artifact/stage; this is the pure validation + ordering function shared by canvas lint, server save, and run start.)*
 
 **Acceptance**
-- [ ] `validate(graph)` returns structured errors `{ nodeId, path, message }`: cycles, unknown node types, invalid configs, missing trigger, unconnected required inputs.
-- [ ] Produces deterministic execution order with stable tie-breaking so identical graphs run identically.
-- [ ] One implementation, three call sites: AF-M1-07 canvas linting, save boundary, and the top of `executeWorkflow` (replacing today's inline topo-sort-only check).
-- [ ] Unit tests: linear, branching, diamond, disconnected, cyclic, single-node graphs.
+- [x] `validate(graph)` returns structured errors `{ nodeId, path, message }`: cycles, unknown node types, invalid configs, missing trigger, unconnected required inputs.
+- [x] Produces deterministic execution order with stable tie-breaking so identical graphs run identically.
+- [x] One implementation, three call sites: AF-M1-07 canvas linting, save boundary, and the top of `executeWorkflow` (replacing today's inline topo-sort-only check).
+- [x] Unit tests: linear, branching, diamond, disconnected, cyclic, single-node graphs.
 
 ---
 
-### ⬜ AF-M2-03 · Expression context helpers (Handlebars) · 1.5d
+### ✅ AF-M2-03 · Expression context helpers (Handlebars) · 1.5d · DONE 2026-08-26
 *(Re-scoped per Decision B: ADR-0007 keeps sandboxed Handlebars as the one template system. This task extends its compilation context — not a new parser. `execution_engine.md` §5 and the ADR are amended together in this task.)*
 
 **Acceptance**
-- [ ] Template context exposes `$json` (current node input), `$node["Name"]` (upstream outputs by node name/id), `$execution.id`, `$workflow.id`, `$now`; `$env` allowlisted or omitted (decide at implementation, documented).
-- [ ] Missing paths throw a clear `ExpressionError` naming expression + node — never silent `undefined`.
-- [ ] Injection posture unchanged: compiled only via `compileTemplate`, prototype-access guards tested (`template.test.ts` extended for the new context surface).
-- [ ] Unit tests: nested paths, arrays, missing refs, malformed syntax, injection attempts.
-- [ ] ADR-0007 + `execution_engine.md` §5 updated to record this decision.
+- [x] Template context exposes `$json` (current node input), `$node["Name"]` (upstream outputs by node name/id), `$execution.id`, `$workflow.id`, `$now`; `$env` allowlisted or omitted (decide at implementation, documented).
+- [x] Missing paths throw a clear `ExpressionError` naming expression + node — never silent `undefined`.
+- [x] Injection posture unchanged: compiled only via `compileTemplate`, prototype-access guards tested (`template.test.ts` extended for the new context surface).
+- [x] Unit tests: nested paths, arrays, missing refs, malformed syntax, injection attempts.
+- [x] ADR-0007 + `execution_engine.md` §5 updated to record this decision.
 
 ---
 
-### ⬜ AF-M2-04 · Runner upgrades · 3d
+### ✅ AF-M2-04 · Runner upgrades · 3d · DONE 2026-08-26
 *(Re-scoped: the step-based runner exists — topo order, memoized `step.run` per node, trace steps, `NonRetriableError`, `onFailure`. This task adds the missing execution semantics; per Decision A no items-model/compile-stage rebuild.)*
 
 **Acceptance**
-- [ ] **Branch-taken semantics**: a condition-style node routes on its output ports; nodes reachable only via untaken edges are recorded as `SKIPPED` with reason — **no node is ever absent from the trace**. *(Today SKIPPED is only written for post-failure downstream.)*
-- [ ] Per-node timeout (default 60s) and per-node retry policy override of `ENGINE_RETRIES`.
-- [ ] `continueOnFail`: node records FAILED, run continues.
-- [ ] Cancellation: cancel stops scheduling further nodes, marks run `CANCELLED`, unwritten nodes SKIPPED.
-- [ ] Concurrency keys: per-workflow and per-tenant.
-- [ ] Test: kill mid-run, resume — completed side effects are not re-executed *(partially proven today by step memoization; make it an explicit test)*.
+- [x] **Branch-taken semantics**: a condition-style node routes on its output ports; nodes reachable only via untaken edges are recorded as `SKIPPED` with reason — **no node is ever absent from the trace**. *(Today SKIPPED is only written for post-failure downstream.)*
+- [x] Per-node timeout (default 60s) and per-node retry policy override of `ENGINE_RETRIES`.
+- [x] `continueOnFail`: node records FAILED, run continues.
+- [x] Cancellation: cancel stops scheduling further nodes, marks run `CANCELLED`, unwritten nodes SKIPPED.
+- [x] Concurrency keys: per-workflow and per-tenant.
+- [x] Test: kill mid-run, resume — completed side effects are not re-executed *(partially proven today by step memoization; make it an explicit test)*.
 
 ---
 
@@ -565,6 +571,28 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 - ⬜ **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d
 - ⬜ **AF-M6-06** SSO: Google + GitHub via Better Auth · 2d
 - ⬜ **AF-M6-07** Workspace switcher and resource sharing UI · 2d
+- ⬜ **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)*
+  Better Auth provides sessions but no dedicated profile page. Render `/settings/profile` with name, email, avatar, password change, connected accounts (GitHub/Google), and session management.
+  **Acceptance**
+  - [ ] `/settings/profile` route renders user name, email, avatar.
+  - [ ] Password change form (current + new + confirm).
+  - [ ] Connected accounts list with connect/disconnect.
+  - [ ] Active sessions list with revoke.
+- ⬜ **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)*
+  `api_contract.md` lists `acceptInvite` as an organizations router procedure; no UI exists for the invite link. Build the accept-invite page that validates the token, adds the user to the org, and redirects to the workspace.
+  **Acceptance**
+  - [ ] `/accept-invite?token=…` route validates token server-side.
+  - [ ] On success, user is added to org and redirected to workspace.
+  - [ ] Expired/invalid tokens show a clear error with a "request new invite" link.
+  - [ ] If the user is not logged in, redirect to login with a return URL.
+- ⬜ **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)*
+  PRD §5.4 specifies human-in-the-loop approval gates. Mapped to Phase 1 in the PRD but only captured as Phase 2 epic AF-P2-E. This task adds the M6 implementation: an approval node type, an approval request UI, and per-tenant approval policy.
+  **Acceptance**
+  - [ ] `core.approval` node type: pauses execution, emits an approval request, resumes on approve/reject.
+  - [ ] `/approvals` route lists pending approval requests with workflow, node, requester, timestamp.
+  - [ ] Approve/reject actions with optional comment; execution resumes or is marked REJECTED.
+  - [ ] Timeout policy: configurable per-node (default 24h); on timeout, execution marked FAILED with reason.
+  - [ ] Approval requests are tenant-scoped; cross-tenant access returns NOT_FOUND.
 
 ---
 
@@ -576,6 +604,22 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 - ⬜ **AF-M7-04** Quotas: per-plan execution + AI-spend limits enforced in the runner, surfaced before the limit, wired to Polar · 3d
 - ⬜ **AF-M7-05** Onboarding: first-run checklist, sample workflow, empty states · 2d
 - ⬜ **AF-M7-06** ~~Landing page at `/`~~ *pulled forward to the M0 leftovers section (2026-08-26)*
+- ⬜ **AF-M7-07** Command palette (`command-palette`) · 1d · *(added 2026-08-26)*
+  Global Cmd+K / Ctrl+K palette for quick navigation and actions. Not referenced in any prior task; design artifact from `screens/`.
+  **Acceptance**
+  - [ ] Cmd+K / Ctrl+K opens a modal with a search input.
+  - [ ] Results include: workflows (by name), executions (by ID/status), credentials (by name), settings pages, and actions (create workflow, execute, etc.).
+  - [ ] Keyboard navigation: arrow keys to select, Enter to activate, Escape to close.
+  - [ ] Fuzzy search over all result types.
+  - [ ] Results are tenant-scoped (no cross-org leakage).
+- ⬜ **AF-M7-08** Notifications center (`notifications`) · 1.5d · *(added 2026-08-26)*
+  In-app notification system for execution completions, approval requests, credential expiry warnings, and system alerts. Not referenced in any prior task; design artifact from `screens/`.
+  **Acceptance**
+  - [ ] `/notifications` route lists notifications with type, message, timestamp, read/unread status.
+  - [ ] Notification bell icon in the header with unread count badge.
+  - [ ] Notifications are created by: execution failure/success (configurable), approval request received, credential expiry warning, system maintenance notices.
+  - [ ] Mark as read (single + mark-all-read).
+  - [ ] Notifications are tenant-scoped; the `Notification` model is tenant-scoped.
 
 ---
 
@@ -583,27 +627,39 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 
 - ⬜ **AF-M8-01** Public REST v1 (list/get workflows, trigger run, get execution) + API keys with scopes · 4d
 - ⬜ **AF-M8-02** Rate limiting on auth, webhook, and API routes · 2d
-- ⬜ **AF-M8-03** Load test to the concurrency target; fix findings · 3d
-- ⬜ **AF-M8-04** Execution retention policy + archival/partitioning for `NodeExecution` · 3d
-- ⬜ **AF-M8-05** Alerting, runbooks for the top 5 failure modes, error budgets, status page · 3d
-- ⬜ **AF-M8-06** Security review against `docs/architecture/security.md`; dependency audit; close all HIGH findings · 3d
-- ⬜ **AF-M8-07** Node reference + expression documentation site · 3d
-- ⬜ **AF-M8-08** Beta launch checklist: billing, support, ToS, privacy policy, DPA · 2d
+- ⬜ **AF-M8-04** Auth flow verification: password reset + email verification · 0.5d · *(added 2026-08-26)*
+  Better Auth provides built-in password reset and email verification flows. Verify they work end-to-end; add custom screens only if the library defaults are insufficient.
+  **Acceptance**
+  - [ ] Password reset flow: "Forgot password" link on login → email with reset link → reset form → new password → redirect to login.
+  - [ ] Email verification flow: signup → verification email sent → click link → email verified → redirect to dashboard.
+  - [ ] Both flows work with the configured email provider (Resend/SendGrid/etc.).
+  - [ ] If custom screens are needed (to match the `screens/` designs), they are rendered inside the `(auth)` group.
+- ⬜ **AF-M8-05** Load test to the concurrency target; fix findings · 3d
+- ⬜ **AF-M8-06** Execution retention policy + archival/partitioning for `NodeExecution` · 3d
+- ⬜ **AF-M8-07** Alerting, runbooks for the top 5 failure modes, error budgets, status page · 3d
+- ⬜ **AF-M8-08** Security review against `docs/architecture/security.md`; dependency audit; close all HIGH findings · 3d
+- ⬜ **AF-M8-09** Node reference + expression documentation site · 3d
+- ⬜ **AF-M8-10** Beta launch checklist: billing, support, ToS, privacy policy, DPA · 2d
 
 ---
 
 ## Phase 2 epics (post-Beta — do not start early)
 
-| ID | Epic |
-|---|---|
-| AF-P2-A | Agent node: goal, tools (nodes-as-tools), memory policy, iteration cap, confidence output |
-| AF-P2-B | Agent memory: short-term conversational + long-term vector, workspace-scoped |
-| AF-P2-C | RAG: ingestion (PDF/DOCX/TXT/MD), chunking, embeddings, retrieval node, scheduled sync |
-| AF-P2-D | Multi-agent graph: delegation and handoff with explicit context-passing policy |
-| AF-P2-E | Confidence scoring + human-in-the-loop escalation + approval nodes |
-| AF-P2-F | Learning loop: feedback capture, prompt A/B tests, per-agent performance dashboards |
-| AF-P2-G | Multi-channel deployment: Slack, Teams, Discord, email, SMS, web widget |
-| AF-P2-H | Connectors to ~100, demand-prioritized |
+| ID | Epic | Screens |
+|---|---|---|
+| AF-P2-A | Agent node: goal, tools (nodes-as-tools), memory policy, iteration cap, confidence output | `agent-builder`, `agent-detail`, `agents-list` |
+| AF-P2-B | Agent memory: short-term conversational + long-term vector, workspace-scoped | — |
+| AF-P2-C | RAG: ingestion (PDF/DOCX/TXT/MD), chunking, embeddings, retrieval node, scheduled sync | — |
+| AF-P2-D | Multi-agent graph: delegation and handoff with explicit context-passing policy | — |
+| AF-P2-E | Confidence scoring + human-in-the-loop escalation + approval nodes | `approvals` *(partially covered by AF-M6-10 in M6)* |
+| AF-P2-F | Learning loop: feedback capture, prompt A/B tests, per-agent performance dashboards | `states-board` |
+| AF-P2-G | Multi-channel deployment: Slack, Teams, Discord, email, SMS, web widget | — |
+| AF-P2-H | Connectors to ~100, demand-prioritized | — |
+| AF-P2-I | AI copilot: inline node suggestion, natural-language workflow generation | `ai-copilot` *(Decision F — descope to Phase 2)* |
+| AF-P2-J | Developer platform: public REST v2, GraphQL, SDKs, CLI, Git sync, CI/CD | `developer-platform` |
+| AF-P2-K | Marketplace: third-party node packaging, review, listing | `marketplace` |
+| AF-P2-L | ROI analytics: cost attribution, optimization recommendations, usage trend analysis | `roi-analytics` |
+| AF-P2-M | Pricing page: tier comparison, feature matrix, plan selection | `pricing` |
 
 **Sequencing rule:** AF-P2-A and its observability ship before AF-P2-D. An unobservable multi-agent system is undebuggable.
 

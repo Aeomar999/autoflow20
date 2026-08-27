@@ -1,9 +1,9 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2Icon } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,8 +37,8 @@ const BillingSuccessPage = () => {
           </div>
           <CardTitle>You're on Pro</CardTitle>
           <CardDescription>
-            Your subscription is active. Premium actions are unlocked right
-            away — no reload needed.
+            Your subscription is active. Premium actions are unlocked right away
+            — no reload needed.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

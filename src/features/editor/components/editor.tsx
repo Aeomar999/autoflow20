@@ -15,17 +15,21 @@ import {
   Panel,
   ReactFlow,
 } from "@xyflow/react";
-import { useCallback, useMemo, useState } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { ErrorView, LoadingView } from "@/components/entity-components";
-import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
-
-import "@xyflow/react/dist/style.css";
-import { useSetAtom } from "jotai";
 import { nodeComponents } from "@/config/node-components";
-import { NodeType } from "@/generated/prisma/browser";
-import { editorAtom } from "../store/atoms";
+import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
+import {
+  edgesAtom,
+  editorAtom,
+  nodesAtom,
+  saveStatusAtom,
+} from "../store/atoms";
 import { AddNodeButton } from "./add-node-button";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
+
+import "@xyflow/react/dist/style.css";
 
 export const EditorLoading = () => {
   return <LoadingView message="Loading editor..." />;
@@ -35,33 +39,64 @@ export const EditorError = () => {
   return <ErrorView message="Error loading editor" />;
 };
 
-export const Editor = ({ workflowId }: { workflowId: string }) => {
+export const Editor = memo(function Editor({
+  workflowId,
+}: {
+  workflowId: string;
+}) {
   const { data: workflow } = useSuspenseWorkflow(workflowId);
 
   const setEditor = useSetAtom(editorAtom);
+  const setNodes = useSetAtom(nodesAtom);
+  const setEdges = useSetAtom(edgesAtom);
+  const setSaveStatus = useSetAtom(saveStatusAtom);
 
-  const [nodes, setNodes] = useState<Node[]>(workflow.nodes);
-  const [edges, setEdges] = useState<Edge[]>(workflow.edges);
+  const nodes = useAtomValue(nodesAtom);
+  const edges = useAtomValue(edgesAtom);
+
+  // Snapshot of the last server-known state. Used to compute isDirty.
+  const serverSnapshotRef = useRef<{
+    nodes: Node[];
+    edges: Edge[];
+  } | null>(null);
+
+  // Initialize atoms from server data; rebuild snapshot on workflow refetch
+  // (e.g. after CONFLICT reload or successful save + query invalidation).
+  useEffect(() => {
+    setNodes(workflow.nodes);
+    setEdges(workflow.edges);
+    serverSnapshotRef.current = {
+      nodes: structuredClone(workflow.nodes),
+      edges: structuredClone(workflow.edges),
+    };
+    setSaveStatus("saved");
+  }, [workflow, setNodes, setEdges, setSaveStatus]);
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) =>
-      setNodes((nodesSnapshot) => applyNodeChanges(changes, nodesSnapshot)),
-    [],
-  );
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) =>
-      setEdges((edgesSnapshot) => applyEdgeChanges(changes, edgesSnapshot)),
-    [],
-  );
-  const onConnect = useCallback(
-    (params: Connection) =>
-      setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
-    [],
+    (changes: NodeChange[]) => {
+      setNodes((prev) => applyNodeChanges(changes, prev));
+      setSaveStatus("unsaved");
+    },
+    [setNodes, setSaveStatus],
   );
 
-  const hasManualTrigger = useMemo(() => {
-    return nodes.some((node) => node.type === NodeType.MANUAL_TRIGGER);
-  }, [nodes]);
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      setEdges((prev) => applyEdgeChanges(changes, prev));
+      setSaveStatus("unsaved");
+    },
+    [setEdges, setSaveStatus],
+  );
+
+  const onConnect = useCallback(
+    (params: Connection) => {
+      setEdges((prev) => addEdge(params, prev));
+      setSaveStatus("unsaved");
+    },
+    [setEdges, setSaveStatus],
+  );
+
+  const hasManualTrigger = nodes.some((node) => node.type === "MANUAL_TRIGGER");
 
   return (
     <div className="size-full">
@@ -94,4 +129,4 @@ export const Editor = ({ workflowId }: { workflowId: string }) => {
       </ReactFlow>
     </div>
   );
-};
+});

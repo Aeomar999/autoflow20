@@ -1,14 +1,8 @@
-import type { NodeExecutor } from "@/features/executions/types";
+import "server-only";
 import { stripeTriggerChannel } from "@/inngest/channels/stripe-trigger";
+import type { NodeRun } from "@/nodes/types";
 
-type StripeTriggerData = Record<string, unknown>;
-
-export const stripeTriggerExecutor: NodeExecutor<StripeTriggerData> = async ({
-  nodeId,
-  context,
-  step,
-  publish,
-}) => {
+export const execute: NodeRun = async ({ nodeId, context, step, publish }) => {
   await publish(
     stripeTriggerChannel().status({
       nodeId,

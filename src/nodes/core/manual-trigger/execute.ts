@@ -1,14 +1,8 @@
-import type { NodeExecutor } from "@/features/executions/types";
+import "server-only";
 import { manualTriggerChannel } from "@/inngest/channels/manual-trigger";
+import type { NodeRun } from "@/nodes/types";
 
-type ManualTriggerData = Record<string, unknown>;
-
-export const manualTriggerExecutor: NodeExecutor<ManualTriggerData> = async ({
-  nodeId,
-  context,
-  step,
-  publish,
-}) => {
+export const execute: NodeRun = async ({ nodeId, context, step, publish }) => {
   await publish(
     manualTriggerChannel().status({
       nodeId,
