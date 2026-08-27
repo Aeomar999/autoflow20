@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -233,7 +234,14 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
           <div className="flex items-center gap-3">
             {getStatusIcon(execution.status)}
             <div>
-              <CardTitle>{formatStatus(execution.status)}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                {formatStatus(execution.status)}
+                {execution.mode === "TEST" && (
+                  <Badge variant="outline" className="text-[10px]">
+                    TEST
+                  </Badge>
+                )}
+              </CardTitle>
               <CardDescription>
                 Execution for {execution.workflow.name}
               </CardDescription>

@@ -470,12 +470,12 @@ A basic executions list/detail already exists (tutorial lesson 27+); this task u
 
 ---
 
-### ⬜ AF-M2-08 · In-editor test runs · 2d
+### ✅ AF-M2-08 · In-editor test runs · 2d
 **Acceptance**
-- [ ] "Test workflow" runs the current draft and paints per-node status onto the canvas.
-- [ ] "Test this node" runs a single node with mock or upstream input.
-- [ ] Results panel shows the node's output inline; failures focus the offending node.
-- [ ] Test runs are recorded as executions with `mode: TEST` and are filterable out of the main list.
+- [x] "Test workflow" runs the current draft and paints per-node status onto the canvas.
+- [x] "Test this node" runs a single node with mock or upstream input.
+- [x] Results panel shows the node's output inline; failures focus the offending node.
+- [x] Test runs are recorded as executions with `mode: TEST` and are filterable out of the main list.
 
 ---
 

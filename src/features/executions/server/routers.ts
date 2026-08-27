@@ -27,6 +27,7 @@ export const executionsRouter = createTRPCRouter({
         status: executionStatusSchema.optional(),
         startedAfter: z.date().optional(),
         startedBefore: z.date().optional(),
+        mode: z.enum(["PRODUCTION", "TEST"]).optional(),
         page: z.number().default(PAGINATION.DEFAULT_PAGE),
         pageSize: z
           .number()
@@ -41,6 +42,7 @@ export const executionsRouter = createTRPCRouter({
         status,
         startedAfter,
         startedBefore,
+        mode,
         page,
         pageSize,
       } = input;
@@ -50,6 +52,8 @@ export const executionsRouter = createTRPCRouter({
           userId: ctx.auth.user.id,
           ...(workflowId ? { id: workflowId } : {}),
         },
+        // Test runs (AF-M2-08) are filtered out unless explicitly queried.
+        mode: mode ?? { not: "TEST" },
         ...(status ? { status } : {}),
         ...(startedAfter || startedBefore
           ? {

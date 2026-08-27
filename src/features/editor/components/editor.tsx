@@ -29,6 +29,10 @@ import {
 import { NodeStatusProvider } from "../store/node-status-context";
 import { AddNodeButton } from "./add-node-button";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
+import {
+  TestSelectedNodeButton,
+  TestWorkflowButton,
+} from "./test-workflow-button";
 
 import "@xyflow/react/dist/style.css";
 
@@ -131,6 +135,12 @@ export const Editor = memo(function Editor({
               <ExecuteWorkflowButton workflowId={workflowId} />
             </Panel>
           )}
+          <Panel position="bottom-center">
+            <div className="flex items-center gap-2">
+              <TestWorkflowButton workflowId={workflowId} />
+              <TestSelectedNodeButton workflowId={workflowId} />
+            </div>
+          </Panel>
         </ReactFlow>
       </NodeStatusProvider>
     </div>
