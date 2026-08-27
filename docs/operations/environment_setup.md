@@ -48,12 +48,13 @@ verified walkthrough of Jerry's Windows/Podman setup, see
 
 | Piece | What it needs from `.env` |
 |---|---|
-| Next.js server (`npm run dev`) | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY` |
+| Next.js server (`npm run dev`) | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY`, `CREDENTIAL_MASTER_KEY` |
 | Better Auth (`/login`, `/signup`) | same four; social providers only if their vars are set |
 | Prisma 7 CLI (via `prisma.config.ts`) | `DATABASE_URL` (schema-level `url` was removed in v7 — P1012 without it) |
 | Prisma 7 runtime client | driver adapter `@prisma/adapter-pg`, wired in `src/lib/db.ts` |
 | Inngest dev server (`npm run inngest:dev`) | nothing — cloud keys are production-only |
-| Credential encryption (Cryptr, `src/lib/encryption.ts`) | `ENCRYPTION_KEY` |
+| Credential encryption (envelope, `src/lib/crypto.ts`) | `CREDENTIAL_MASTER_KEY` |
+| (legacy Cryptr path, `src/lib/encryption.ts`) | `ENCRYPTION_KEY` — replaced by the master-key envelope in AF-M3-02 |
 
 Boot-time Zod validation lives in `src/lib/env.ts`, called from
 `src/instrumentation.ts`. A bad or missing required value stops the boot with
@@ -62,7 +63,8 @@ one readable error naming every offending variable. Set
 
 **AI node API keys (OpenAI/Anthropic/Gemini), Discord/Slack tokens etc. are
 NOT env variables.** They are entered per-user through the app's Credentials
-UI, encrypted at rest with `ENCRYPTION_KEY`, and injected into nodes at
+UI, encrypted at rest with the credential vault (envelope encryption keyed by
+`CREDENTIAL_MASTER_KEY`, `src/lib/crypto.ts`), and injected into nodes at
 execution time. Never put them in `.env`.
 
 ---
@@ -117,7 +119,8 @@ tables are the source of truth for meaning and requiredness.
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/autoflow?schema=public` | Prisma CLI + runtime adapter | single Postgres connection string |
 | `BETTER_AUTH_SECRET` | 32+ random chars | `src/lib/auth.ts` | session signing secret |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | Better Auth | base URL for auth callbacks/redirects; must be browser-reachable |
-| `ENCRYPTION_KEY` | 64 hex chars | `src/lib/encryption.ts` | symmetric key encrypting all stored credentials |
+| `ENCRYPTION_KEY` | 64 hex chars | `src/lib/encryption.ts` | legacy symmetric key for stored credentials; being replaced by the envelope vault (AF-M3-02) |
+| `CREDENTIAL_MASTER_KEY` | base64 of 32 bytes | `src/lib/crypto.ts` | KEK of the envelope-encrypted credential vault; app refuses to boot without it |
 
 ### 4.2 Optional — features degrade cleanly when unset
 
@@ -182,17 +185,20 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/autoflow?schema=publ
 
 Any Postgres >= 15 works identically (Supabase, Railway, RDS...).
 
-### 5.2 `BETTER_AUTH_SECRET` and `ENCRYPTION_KEY` — generated secrets
+### 5.2 `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY` and `CREDENTIAL_MASTER_KEY` — generated secrets
 
 Generate locally; no provider involved:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # BETTER_AUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # BETTER_AUTH_SECRET and CREDENTIAL_MASTER_KEY
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # ENCRYPTION_KEY
 ```
 
-Both must be >= 32 chars (Zod enforces). Never reuse dev values in production;
-rotating `ENCRYPTION_KEY` makes previously saved credentials undecryptable.
+All must be >= 32 chars (Zod enforces; `CREDENTIAL_MASTER_KEY` has the stricter
+32-byte-base64 requirement). Never reuse dev values in production. Rotating
+`ENCRYPTION_KEY` makes previously saved credentials undecryptable; rotating
+`CREDENTIAL_MASTER_KEY` works through the versioned re-wrap path
+(`src/lib/crypto.ts`) once the vault stores `keyVersion` per row (AF-M3-02).
 
 ### 5.3 GitHub OAuth (optional)
 
@@ -381,6 +387,7 @@ DATABASE_URL="<direct-url>" npx prisma migrate deploy
 | `BETTER_AUTH_SECRET` | fresh 32+ char secret (never the dev value) |
 | `BETTER_AUTH_URL` | `https://your-domain.com` |
 | `ENCRYPTION_KEY` | fresh 64-hex key (never the dev value) |
+| `CREDENTIAL_MASTER_KEY` | fresh 32-byte base64 key (never the dev value) |
 | `NEXT_PUBLIC_APP_URL` | `https://your-domain.com` |
 | GitHub/Google OAuth pairs | prod apps with prod callback URLs |
 | Polar set (token/product/slug/success URL) | see 8.4 |
@@ -486,6 +493,6 @@ Postgres service container.
   `polarProductId`, `polarProductSlug`) in feature code; nodes read `ctx.env`,
   never `process.env`.
 - Dev and production secrets are always different values, especially
-  `ENCRYPTION_KEY` (credential decryptability) and `BETTER_AUTH_SECRET`
-  (session forgery).
+  `ENCRYPTION_KEY` / `CREDENTIAL_MASTER_KEY` (credential decryptability) and
+  `BETTER_AUTH_SECRET` (session forgery).
 

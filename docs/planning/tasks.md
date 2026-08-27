@@ -483,12 +483,24 @@ A basic executions list/detail already exists (tutorial lesson 27+); this task u
 
 Spec: `docs/architecture/security.md`.
 
-### ⬜ AF-M3-01 · Crypto module · 2d
+### ✅ AF-M3-01 · Crypto module · 2d
 **Acceptance**
-- [ ] `src/lib/crypto.ts`: envelope encryption (AES-256-GCM), per-record DEK wrapped by a KEK from `CREDENTIAL_MASTER_KEY`, `keyVersion` stored per record.
-- [ ] App refuses to boot without a valid master key.
-- [ ] Tests: round-trip, ciphertext tamper → decrypt fails loudly, wrong key → fails, key rotation path.
-- [ ] No plaintext is ever written to a log, even at `debug`.
+- [x] `src/lib/crypto.ts`: envelope encryption (AES-256-GCM), per-record DEK wrapped by a KEK from `CREDENTIAL_MASTER_KEY`, `keyVersion` stored per record.
+- [x] App refuses to boot without a valid master key.
+- [x] Tests: round-trip, ciphertext tamper → decrypt fails loudly, wrong key → fails, key rotation path.
+- [x] No plaintext is ever written to a log, even at `debug`.
+
+**Notes**
+- `CURRENT_KEY_VERSION = 1`; `decryptCredential` takes an optional `CredentialKeyRing`
+  (Map `keyVersion → KEK`) so N-1 generations stay decryptable during rotation;
+  `rewrapCredential` re-wraps a DEK without touching the payload (the rolling
+  rotation path, per security.md §3).
+- Boot gates: `CREDENTIAL_MASTER_KEY` is required in `src/lib/env.ts` (Zod) and
+  validated as 32-decode-bytes by `assertCredentialMasterKey` in
+  `src/instrumentation.ts` (skipped under `SKIP_ENV_VALIDATION=1`).
+- `ENCRYPTION_KEY`/Cryptr legacy path (`src/lib/encryption.ts`) still powers the
+  three AI node executors until AF-M3-02 re-shapes the `Credential` model; the
+  two keys coexist this milestone. *(Completed 2026-08-27, 16 unit tests.)*
 
 ### ⬜ AF-M3-02 · Credential model + registry + API · 3d
 - [ ] `Credential` model (tenant-scoped, typed, encrypted payload, OAuth fields, `lastUsedAt`).

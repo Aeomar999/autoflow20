@@ -16,6 +16,9 @@ const serverEnvSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32, "must be at least 32 characters"),
   BETTER_AUTH_URL: z.url("must be a valid absolute URL"),
   ENCRYPTION_KEY: z.string().min(32, "must be at least 32 characters"),
+  CREDENTIAL_MASTER_KEY: z
+    .string()
+    .min(1, "must be 32 bytes, base64-encoded (AF-M3-01)"),
 
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),

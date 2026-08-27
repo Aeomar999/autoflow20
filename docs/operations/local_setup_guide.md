@@ -34,12 +34,13 @@ AutoFlow is a Next.js 15 app with three moving parts in development:
 
 | Piece | What it needs from `.env` |
 |---|---|
-| Next.js server | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY`, `NEXT_PUBLIC_APP_URL` |
+| Next.js server | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY`, `CREDENTIAL_MASTER_KEY`, `NEXT_PUBLIC_APP_URL` |
 | Better Auth (email/password sign-up at `/login`) | same as above; social providers only if configured |
 | Prisma 7 CLI (`prisma.config.ts` + `dotenv`) | `DATABASE_URL` (schema-level `url` was removed in v7 — P1012) |
 | Prisma 7 runtime client | driver adapter `@prisma/adapter-pg`, wired in `src/lib/db.ts` |
 | Inngest dev server (`npm run inngest:dev`) | nothing — cloud keys are production-only |
-| Credential encryption (Cryptr, `src/lib/encryption.ts`) | `ENCRYPTION_KEY` |
+| Credential vault (envelope, `src/lib/crypto.ts`) | `CREDENTIAL_MASTER_KEY` |
+| (legacy Cryptr path, `src/lib/encryption.ts`) | `ENCRYPTION_KEY` — replaced by the vault in AF-M3-02 |
 
 Boot-time validation lives in `src/lib/env.ts`: on startup the app parses `.env`
 against a Zod schema and **refuses to boot with a single readable error naming every
@@ -89,6 +90,7 @@ DATABASE_URL="postgresql://autoflow:5piMKhK3lsAXKl9yu9kUKgjO@localhost:5432/auto
 BETTER_AUTH_SECRET="jSHn0S6uALj8hxyTiaUrlG90YqNRBmKtJM4QuU9bdbw="
 BETTER_AUTH_URL="http://localhost:3000"
 ENCRYPTION_KEY="1be965563412a6d2f0b2c1df897ea529e60072826d3a63b3c43381fc35d76ed0"
+CREDENTIAL_MASTER_KEY="+Xd4MmXc8AX7VARYnI1RoW7kumnTkO/y/BBCLntI+Vc="
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
 GITHUB_CLIENT_ID=""
@@ -113,7 +115,8 @@ NGROK_URL=""
 | `DATABASE_URL` | must be a valid Postgres URL | Prisma connection (`prisma/schema.prisma:14`) |
 | `BETTER_AUTH_SECRET` | ≥ 32 chars | Signs Better Auth sessions (`src/lib/auth.ts`) |
 | `BETTER_AUTH_URL` | absolute URL | Base URL for auth callbacks/redirects; must match `NEXT_PUBLIC_APP_URL` in dev |
-| `ENCRYPTION_KEY` | ≥ 32 chars | Cryptr key encrypting user credentials at rest (`src/lib/encryption.ts`). **Losing it = losing every saved credential.** Back it up somewhere safe before wiping `.env` |
+| `ENCRYPTION_KEY` | ≥ 32 chars | Legacy Cryptr key encrypting user credentials at rest (`src/lib/encryption.ts`). **Losing it = losing every saved credential.** Back it up somewhere safe before wiping `.env`. Being replaced by the envelope vault (AF-M3-02) |
+| `CREDENTIAL_MASTER_KEY` | base64 of exactly 32 bytes | KEK of the envelope-encrypted credential vault (`src/lib/crypto.ts`). App **refuses to boot** without it. Rotation works via per-row `keyVersion` re-wrap |
 
 ### Required-ish — defaults exist but keep them set
 
@@ -165,12 +168,14 @@ podman exec autoflow-db psql -U autoflow -d autoflow -c 'CREATE DATABASE "autofl
 ### Secrets — generated with Node's crypto
 
 ```powershell
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # BETTER_AUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # BETTER_AUTH_SECRET and CREDENTIAL_MASTER_KEY
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # ENCRYPTION_KEY (64 hex chars)
 ```
 
 Regenerating `BETTER_AUTH_SECRET` just logs everyone out (sessions become invalid).
 **Regenerating `ENCRYPTION_KEY` destroys access to previously saved credentials** — don't do it casually.
+Rotating `CREDENTIAL_MASTER_KEY` re-wraps stored envelopes via `keyVersion`
+(`src/lib/crypto.ts`) instead.
 
 ---
 
@@ -281,6 +286,7 @@ Only relevant when deploying; local `inngest-cli dev` ignores them. Leave empty.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `AutoFlow cannot start: invalid environment configuration` + bullet list | Zod validation failed in `src/lib/env.ts` | Add/fix the named variables in `.env`, restart |
+| Boot error `CREDENTIAL_MASTER_KEY ... 32 bytes` / `refuses to boot` | missing or wrong-length master key | Generate `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` into `.env` |
 | Boot OK but `PrismaClientInitializationError` / P1001 can't reach DB | Podman machine or container stopped | §5 "Making sure the container is running" |
 | `P1010: User was denied access` | Wrong password/user/db in `DATABASE_URL` | Re-read creds via the `podman inspect` command in §4 |
 | `P3018`/history mismatch on migrate | You pointed this repo at `autoflow` (foreign migration lineage) | Point back at `autoflow20` |

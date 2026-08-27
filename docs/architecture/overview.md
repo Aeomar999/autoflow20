@@ -79,7 +79,7 @@ graph TB
 | Node registry | `src/nodes/**` | The catalogue of what a node *is* and what it *does* | **[PLANNED M1]** — 10 executors currently scattered in `src/features/executions/components/*/executor.ts`, keyed by Prisma enum |
 | Engine | `src/engine/**` + `src/inngest/functions.ts` | Graph compile, validate, topologically execute, resolve expressions | **[PARTIAL]** — tutorial-grade topological execution works (`src/inngest/utils.ts`); no per-node records, no expression resolver, no SKIPPED semantics |
 | Durable jobs | `src/inngest/**` | Long-running/retryable execution, cron, OAuth refresh | **[PARTIAL]** — real `execute-workflow` function exists |
-| Infra libs | `src/lib/**` | db, auth, polar, crypto (`Cryptr`), ai provider registry, logger | **[PARTIAL]** — no logger; `ENCRYPTION_KEY!` non-null asserted |
+| Infra libs | `src/lib/**` | db, auth, polar, crypto (envelope AES-256-GCM, `CURRENT_KEY_VERSION`), ai provider registry, logger | **[PARTIAL]** — Cryptr legacy path still used by credentials until AF-M3-02 |
 | Persistence | `prisma/**` | Schema + migrations | **[PARTIAL]** — 9 tables incl. `Execution`, `Credential`; graph-only era is over |
 
 ---
