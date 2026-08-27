@@ -445,14 +445,14 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-06 · Executions API · 2d
+### ✅ AF-M2-06 · Executions API · 2d
 **Acceptance**
-- [ ] `executions.list` (filters: workflow, status, date range; paginated; **does not** select large IO columns).
-- [ ] `executions.getOne` returns the run plus ordered node traces.
-- [ ] `executions.cancel`, `executions.retry`, `executions.retryFromNode`.
-- [ ] `workflows.run` creates an execution and emits the event.
-- [ ] Tenant-scoped; cross-tenant access returns `NOT_FOUND`.
-- [ ] Integration tests for each procedure including authz rejection.
+- [x] `executions.list` (filters: workflow, status, date range; paginated; **does not** select large IO columns).
+- [x] `executions.getOne` returns the run plus ordered node traces.
+- [x] `executions.cancel`, `executions.retry`, `executions.retryFromNode`.
+- [x] `workflows.run` creates an execution and emits the event.
+- [x] Tenant-scoped; cross-tenant access returns `NOT_FOUND`.
+- [x] Integration tests for each procedure including authz rejection.
 
 ---
 

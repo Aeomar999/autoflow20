@@ -9,7 +9,7 @@ export const useSuspenseExecutions = () => {
   const trpc = useTRPC();
   const [params] = useExecutionsParams();
 
-  return useSuspenseQuery(trpc.executions.getMany.queryOptions(params));
+  return useSuspenseQuery(trpc.executions.list.queryOptions(params));
 };
 
 /**

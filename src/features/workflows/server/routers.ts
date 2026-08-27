@@ -1,3 +1,4 @@
+import { createId } from "@paralleldrive/cuid2";
 import { TRPCError } from "@trpc/server";
 import type { Edge, Node } from "@xyflow/react";
 import { generateSlug } from "random-word-slugs";
@@ -15,6 +16,7 @@ import {
 } from "@/trpc/init";
 
 export const workflowsRouter = createTRPCRouter({
+  /** @deprecated Use `run` instead. Kept for backward compatibility. */
   execute: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -30,6 +32,45 @@ export const workflowsRouter = createTRPCRouter({
       });
 
       return workflow;
+    }),
+  /**
+   * Run a workflow: create an Execution record (AF-M2-06) then emit
+   * the inngest event. Returns the new execution so the client can
+   * navigate to the detail page immediately.
+   */
+  run: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: {
+          id: input.id,
+          userId: ctx.auth.user.id,
+        },
+        select: { id: true, name: true },
+      });
+
+      const placeholderEventId = createId();
+      const execution = await prisma.execution.create({
+        data: {
+          workflowId: workflow.id,
+          trigger: "MANUAL",
+          mode: "PRODUCTION",
+          status: "RUNNING",
+          inngestEventId: placeholderEventId,
+        },
+      });
+
+      const { eventId } = await sendWorkflowExecution({
+        workflowId: workflow.id,
+        executionId: execution.id,
+      });
+
+      await prisma.execution.update({
+        where: { id: execution.id },
+        data: { inngestEventId: eventId },
+      });
+
+      return execution;
     }),
   create: premiumProcedure.mutation(({ ctx }) => {
     return prisma.workflow.create({
@@ -140,7 +181,23 @@ export const workflowsRouter = createTRPCRouter({
         const updated = await tx.workflow.update({
           where: { id },
           data: { revision: { increment: 1 }, updatedAt: new Date() },
-          include: { nodes: true, connections: true },
+          select: {
+            id: true,
+            name: true,
+            revision: true,
+            nodes: {
+              select: { id: true, type: true, position: true, data: true },
+            },
+            connections: {
+              select: {
+                id: true,
+                fromNodeId: true,
+                toNodeId: true,
+                fromOutput: true,
+                toInput: true,
+              },
+            },
+          },
         });
 
         return {
@@ -176,7 +233,24 @@ export const workflowsRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: input.id, userId: ctx.auth.user.id },
-        include: { nodes: true, connections: true },
+        select: {
+          id: true,
+          name: true,
+          webhookSecret: true,
+          revision: true,
+          nodes: {
+            select: { id: true, type: true, position: true, data: true },
+          },
+          connections: {
+            select: {
+              id: true,
+              fromNodeId: true,
+              toNodeId: true,
+              fromOutput: true,
+              toInput: true,
+            },
+          },
+        },
       });
 
       // Transform server nodes to react-flow compatible nodes
@@ -230,6 +304,13 @@ export const workflowsRouter = createTRPCRouter({
               contains: search,
               mode: "insensitive",
             },
+          },
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+            updatedAt: true,
+            revision: true,
           },
           orderBy: {
             updatedAt: "desc",

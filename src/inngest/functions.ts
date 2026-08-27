@@ -1,5 +1,5 @@
 import { NonRetriableError } from "inngest";
-import { validate } from "@/engine/validate";
+import { validate, type GraphConnection, type GraphNode } from "@/engine/validate";
 import { buildTemplateContext } from "@/features/executions/template";
 import {
   ExecutionStatus,
@@ -126,6 +126,13 @@ export const executeWorkflow = inngest.createFunction(
     }
 
     const execution = await step.run("create-execution", async () => {
+      // New flow: execution pre-created by workflows.run (AF-M2-06).
+      if (event.data.executionId) {
+        return prisma.execution.findUniqueOrThrow({
+          where: { id: event.data.executionId as string },
+        });
+      }
+      // Legacy flow: create execution from event data.
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: workflowId },
         include: { nodes: true, connections: true },
@@ -154,22 +161,23 @@ export const executeWorkflow = inngest.createFunction(
             connections: true,
           },
         });
+        const nodeRows: GraphNode[] = workflow.nodes.map((n) => ({
+          id: n.id,
+          name: n.name,
+          type: n.type,
+          data: (n.data ?? {}) as Record<string, unknown>,
+        }));
+        const connectionRows: GraphConnection[] = workflow.connections.map(
+          (c) => ({
+            fromNodeId: c.fromNodeId,
+            toNodeId: c.toNodeId,
+            fromOutput: c.fromOutput,
+            toInput: c.toInput,
+          }),
+        );
 
         const { errors, order } = validate(
-          {
-            nodes: workflow.nodes.map((n) => ({
-              id: n.id,
-              name: n.name,
-              type: n.type,
-              data: (n.data ?? {}) as Record<string, unknown>,
-            })),
-            connections: workflow.connections.map((c) => ({
-              fromNodeId: c.fromNodeId,
-              toNodeId: c.toNodeId,
-              fromOutput: c.fromOutput,
-              toInput: c.toInput,
-            })),
-          },
+          { nodes: nodeRows, connections: connectionRows },
           // Registry is imported dynamically on the server to avoid
           // pulling it into the client bundle.
           nodeRegistry,
@@ -182,12 +190,12 @@ export const executeWorkflow = inngest.createFunction(
           );
         }
 
-        const nodeMap = new Map(workflow.nodes.map((n) => [n.id, n]));
+        const nodeMap = new Map(nodeRows.map((n) => [n.id, n]));
         const sorted = order
           .map((id) => nodeMap.get(id))
           .filter((n): n is NonNullable<typeof n> => Boolean(n));
 
-        const graphEdges: GraphEdge[] = workflow.connections.map((c) => ({
+        const graphEdges: GraphEdge[] = connectionRows.map((c) => ({
           fromNodeId: c.fromNodeId,
           toNodeId: c.toNodeId,
           fromOutput: c.fromOutput,
@@ -399,8 +407,7 @@ export const executeWorkflow = inngest.createFunction(
         // Without continueOnFail: stop scheduling. Record remaining
         // nodes as SKIPPED.
         await step.run("trace-skip-remaining", async () => {
-          const remaining = sortedNodes.slice(index + 1);
-          const rows = remaining.map((n, offset) => ({
+          const rows = sortedNodes.slice(index + 1).map((n, offset) => ({
             executionId: execution.id,
             nodeId: n.id,
             nodeName: n.name,
