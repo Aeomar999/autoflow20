@@ -24,6 +24,7 @@ describe("credentialPublicSchema", () => {
     preview: "sk-a••••••1234",
     lastUsedAt: null,
     oauthExpiresAt: null,
+    refreshError: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-02T00:00:00Z"),
     usageCount: 3,
@@ -100,6 +101,7 @@ describe("credentialPublicSelect", () => {
       "preview",
       "lastUsedAt",
       "oauthExpiresAt",
+      "refreshError",
       "createdAt",
       "updatedAt",
     ]) {
@@ -116,6 +118,7 @@ const rowFixture = (): CredentialPublicRow => ({
   preview: "sk-ant••••••zzzz",
   lastUsedAt: new Date("2026-02-01T00:00:00Z"),
   oauthExpiresAt: null,
+  refreshError: null,
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
   _count: { Node: 7 },

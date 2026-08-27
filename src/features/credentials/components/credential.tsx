@@ -134,6 +134,7 @@ interface CredentialFormProps {
     type: string;
     preview?: string | null;
     usageCount?: number;
+    refreshError?: string | null;
   };
 }
 
@@ -318,66 +319,99 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                 )}
               />
 
-              {def.fields.map((fieldDef) => {
-                const editHint =
-                  fieldDef.secret && isEdit
-                    ? `Current value: ${initialData?.preview ?? "hidden"}. Leave blank to keep unchanged.`
-                    : undefined;
+              {def.oauth ? (
+                <div className="space-y-4 rounded-md border p-6 bg-muted/30">
+                  {initialData?.refreshError && (
+                    <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200 font-medium">
+                      ⚠️ Background token refresh failed:{" "}
+                      {initialData.refreshError}. Please reconnect to authorize
+                      again.
+                    </div>
+                  )}
+                  {isEdit && !initialData?.refreshError && (
+                    <div className="text-sm text-muted-foreground">
+                      Connected to {def.label}. To rotate tokens or change
+                      scopes, reconnect.
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="w-full sm:w-auto"
+                    asChild
+                  >
+                    <a href={`/api/oauth/${def.type}/connect`}>
+                      <Plug2 className="mr-2 size-4" />
+                      {isEdit
+                        ? `Reconnect ${def.label}`
+                        : `Connect with ${def.label}`}
+                    </a>
+                  </Button>
+                </div>
+              ) : (
+                def.fields.map((fieldDef) => {
+                  const editHint =
+                    fieldDef.secret && isEdit
+                      ? `Current value: ${initialData?.preview ?? "hidden"}. Leave blank to keep unchanged.`
+                      : undefined;
 
-                const createHint = fieldDef.optional
-                  ? "Optional — leave blank to skip."
-                  : fieldDef.secret
-                    ? "Stored encrypted. You will only see a masked preview."
-                    : undefined;
+                  const createHint = fieldDef.optional
+                    ? "Optional — leave blank to skip."
+                    : fieldDef.secret
+                      ? "Stored encrypted. You will only see a masked preview."
+                      : undefined;
 
-                const hint = isEdit ? editHint : createHint;
+                  const hint = isEdit ? editHint : createHint;
 
-                return (
-                  <FormField
-                    key={fieldDef.key}
-                    control={form.control}
-                    name={fieldDef.key}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {fieldDef.label}
-                          {!fieldDef.optional && !isEdit && <span> *</span>}
-                        </FormLabel>
-                        <FormControl>
-                          {fieldDef.secret ? (
-                            <SecretInput
-                              placeholder={
-                                isEdit
-                                  ? "Enter new value to replace…"
-                                  : fieldDef.placeholder
-                              }
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          ) : (
-                            <Input
-                              placeholder={fieldDef.placeholder}
-                              autoComplete="off"
-                              {...field}
-                              value={field.value ?? ""}
-                            />
-                          )}
-                        </FormControl>
-                        {hint ? (
-                          <FormDescription>{hint}</FormDescription>
-                        ) : null}
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                );
-              })}
+                  return (
+                    <FormField
+                      key={fieldDef.key}
+                      control={form.control}
+                      name={fieldDef.key}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {fieldDef.label}
+                            {!fieldDef.optional && !isEdit && <span> *</span>}
+                          </FormLabel>
+                          <FormControl>
+                            {fieldDef.secret ? (
+                              <SecretInput
+                                placeholder={
+                                  isEdit
+                                    ? "Enter new value to replace…"
+                                    : fieldDef.placeholder
+                                }
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            ) : (
+                              <Input
+                                placeholder={fieldDef.placeholder}
+                                autoComplete="off"
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            )}
+                          </FormControl>
+                          {hint ? (
+                            <FormDescription>{hint}</FormDescription>
+                          ) : null}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  );
+                })
+              )}
 
               <div className="flex items-center gap-4">
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving && <Loader2 className="size-4 animate-spin" />}
-                  {isEdit ? "Save changes" : "Create"}
-                </Button>
+                {(!def.oauth || isEdit) && (
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Loader2 className="size-4 animate-spin" />}
+                    {isEdit ? "Save changes" : "Create"}
+                  </Button>
+                )}
                 <Button type="button" variant="outline" asChild>
                   <Link href="/credentials" prefetch>
                     Cancel
@@ -428,6 +462,7 @@ export const CredentialView = ({ credentialId }: { credentialId: string }) => {
         type: credential.type,
         preview: credential.preview,
         usageCount: credential.usageCount,
+        refreshError: credential.refreshError,
       }}
     />
   );

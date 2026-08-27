@@ -35,7 +35,7 @@ import { useExecutions, useSuspenseExecutions } from "../hooks/use-executions";
 import { useExecutionsParams } from "../hooks/use-executions-params";
 
 const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
+  { value: "ALL", label: "All statuses" },
   { value: "RUNNING", label: "Running" },
   { value: "SUCCESS", label: "Success" },
   { value: "FAILED", label: "Failed" },
@@ -97,9 +97,13 @@ export const ExecutionsHeader = () => {
       </div>
       <div className="flex items-center gap-2">
         <Select
-          value={params.status ?? ""}
+          value={params.status ?? "ALL"}
           onValueChange={(value) =>
-            setParams({ ...params, status: value, page: 1 })
+            setParams({
+              ...params,
+              status: value === "ALL" ? null : value,
+              page: 1,
+            })
           }
         >
           <SelectTrigger className="w-[160px] h-8 text-xs">

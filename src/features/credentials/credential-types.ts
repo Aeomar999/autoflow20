@@ -170,6 +170,44 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
     testable: true,
     fields: [{ key: "apiKey", label: "API key", secret: true }],
   },
+  {
+    type: "slack.oauth2",
+    kind: "oauth2",
+    label: "Slack (OAuth)",
+    description: "Connect your Slack workspace",
+    logo: "/logos/slack.svg",
+    oauth: true,
+    testable: false,
+    fields: [
+      { key: "accessToken", label: "Access token", secret: true },
+      {
+        key: "refreshToken",
+        label: "Refresh token",
+        secret: true,
+        optional: true,
+      },
+      { key: "scopes", label: "Scopes", secret: false, optional: true },
+    ],
+  },
+  {
+    type: "google.oauth2",
+    kind: "oauth2",
+    label: "Google (OAuth)",
+    description: "Connect your Google account",
+    logo: "/logos/google.svg",
+    oauth: true,
+    testable: false,
+    fields: [
+      { key: "accessToken", label: "Access token", secret: true },
+      {
+        key: "refreshToken",
+        label: "Refresh token",
+        secret: true,
+        optional: true,
+      },
+      { key: "scopes", label: "Scopes", secret: false, optional: true },
+    ],
+  },
 ];
 
 export const credentialDefsById = new Map(

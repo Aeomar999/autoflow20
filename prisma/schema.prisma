@@ -94,6 +94,7 @@ model Credential {
   keyVersion Int @default(1)
   preview String?
   oauthExpiresAt DateTime?
+  refreshError String?
   lastUsedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

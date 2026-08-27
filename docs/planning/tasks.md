@@ -547,10 +547,10 @@ A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgr
 - Executors (`openai`/`anthropic`/`gemini`) dropped their own `prisma.credential.findUnique` + `openSecret`; they now read `credentials?.credentialId` and throw `NonRetriableError` if absent.
 - 13 new tests: resolver round-trip (loader called once), missing-required throws, optional skipped, multi-requirement order, leak guard (decrypted secret absent from node data/output), registry-parity (each declared type exists in `credentialRegistry`), AI-def requirement assertions.
 
-### ⬜ AF-M3-05 · OAuth2 flow + auto-refresh · 3d
-- [ ] Generic OAuth2 authorization-code connect flow with per-provider config and CSRF-protected state.
-- [ ] Scheduled Inngest function refreshes tokens before expiry.
-- [ ] Refresh failure creates a visible, actionable alert — the "tokens silently expire and workflows break" gap.
+### ✅ AF-M3-05 · OAuth2 flow + auto-refresh · 3d
+- [x] Generic OAuth2 authorization-code connect flow with per-provider config and CSRF-protected state.
+- [x] Scheduled Inngest function refreshes tokens before expiry.
+- [x] Refresh failure creates a visible, actionable alert — the "tokens silently expire and workflows break" gap.
 
 ### ⬜ AF-M3-06 · Eight connectors · 5d
 Slack · Gmail/SMTP · Google Sheets · Postgres · Airtable · HubSpot · OpenAI-compatible HTTP · Webhook-out.

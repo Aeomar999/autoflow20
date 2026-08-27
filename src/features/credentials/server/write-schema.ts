@@ -48,6 +48,24 @@ export const credentialWriteVariants = [
   z
     .object({ type: z.literal("gemini.apiKey"), apiKey: requiredSecret })
     .strict(),
+  z
+    .object({
+      type: z.literal("slack.oauth2"),
+      accessToken: requiredSecret,
+      refreshToken: optionalSecret,
+      scopes: optionalSecret,
+      oauthExpiresAt: z.iso.datetime({ offset: true }).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("google.oauth2"),
+      accessToken: requiredSecret,
+      refreshToken: optionalSecret,
+      scopes: optionalSecret,
+      oauthExpiresAt: z.iso.datetime({ offset: true }).optional(),
+    })
+    .strict(),
 ] as const;
 
 export const credentialWriteBody = z.discriminatedUnion(
@@ -100,6 +118,24 @@ export const credentialUpdateVariants = [
     .strict(),
   z
     .object({ type: z.literal("gemini.apiKey"), apiKey: optionalSecret })
+    .strict(),
+  z
+    .object({
+      type: z.literal("slack.oauth2"),
+      accessToken: optionalSecret,
+      refreshToken: optionalSecret,
+      scopes: optionalSecret,
+      oauthExpiresAt: z.iso.datetime({ offset: true }).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("google.oauth2"),
+      accessToken: optionalSecret,
+      refreshToken: optionalSecret,
+      scopes: optionalSecret,
+      oauthExpiresAt: z.iso.datetime({ offset: true }).optional(),
+    })
     .strict(),
 ] as const;
 
