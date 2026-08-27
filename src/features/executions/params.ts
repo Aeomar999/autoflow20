@@ -1,4 +1,4 @@
-import { parseAsInteger } from "nuqs/server";
+import { parseAsInteger, parseAsString } from "nuqs/server";
 import { PAGINATION } from "@/config/constants";
 
 export const executionsParams = {
@@ -8,4 +8,5 @@ export const executionsParams = {
   pageSize: parseAsInteger
     .withDefault(PAGINATION.DEFAULT_PAGE_SIZE)
     .withOptions({ clearOnDefault: true }),
+  status: parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
 };

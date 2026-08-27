@@ -1,11 +1,9 @@
 "use client";
 
 import { type Node, type NodeProps, useReactFlow } from "@xyflow/react";
-import { memo, useState } from "react";
-import { GEMINI_CHANNEL_NAME } from "@/inngest/channels/gemini";
+import { memo, useCallback, useState } from "react";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { BaseExecutionNode } from "../base-execution-node";
-import { fetchGeminiRealtimeToken } from "./actions";
 import { GeminiDialog, type GeminiFormValues } from "./dialog";
 
 type GeminiNodeData = {
@@ -21,14 +19,9 @@ export const GeminiNode = memo((props: NodeProps<GeminiNodeType>) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
-    nodeId: props.id,
-    channel: GEMINI_CHANNEL_NAME,
-    topic: "status",
-    refreshToken: fetchGeminiRealtimeToken,
-  });
+  const nodeStatus = useNodeStatus({ nodeId: props.id });
 
-  const handleOpenSettings = () => setDialogOpen(true);
+  const handleOpenSettings = useCallback(() => setDialogOpen(true), []);
 
   const handleSubmit = (values: GeminiFormValues) => {
     setNodes((nodes) =>

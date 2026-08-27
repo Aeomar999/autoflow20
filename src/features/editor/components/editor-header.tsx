@@ -1,6 +1,6 @@
 "use client";
 
-import { useAtomValue, useSetAtom } from "jotai";
+import { getDefaultStore, useAtomValue, useSetAtom } from "jotai";
 import { SaveIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,6 +24,8 @@ import {
   useSuspenseWorkflow,
   useUpdateWorkflowName,
 } from "@/features/workflows/hooks/use-workflows";
+
+const jotaiStore = getDefaultStore();
 
 function useDebounce(callback: () => void, delayMs: number) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,13 +54,20 @@ function useDebounce(callback: () => void, delayMs: number) {
 export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   const { data: workflow } = useSuspenseWorkflow(workflowId);
   const saveWorkflow = useSaveWorkflow();
-  const nodes = useAtomValue(nodesAtom);
-  const edges = useAtomValue(edgesAtom);
   const saveStatus = useAtomValue(saveStatusAtom);
   const setSaveStatus = useSetAtom(saveStatusAtom);
 
+  // Read nodes/edges lazily inside save — avoids subscribing to these
+  // high-frequency atoms at render time, which would re-render this
+  // component on every drag tick and restart the autosave debounce.
   const performSave = useCallback(() => {
     if (saveStatus === "saving") return;
+    if (typeof workflow.revision !== "number") return;
+
+    // Lazy read: get current atom values at save time, not render time.
+    const nodes = jotaiStore.get(nodesAtom);
+    const edges = jotaiStore.get(edgesAtom);
+
     setSaveStatus("saving");
     saveWorkflow.mutate({
       id: workflowId,
@@ -66,15 +75,7 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
       edges,
       revision: workflow.revision,
     });
-  }, [
-    saveWorkflow,
-    workflowId,
-    workflow.revision,
-    nodes,
-    edges,
-    saveStatus,
-    setSaveStatus,
-  ]);
+  }, [saveWorkflow, workflowId, workflow.revision, saveStatus, setSaveStatus]);
 
   // Debounced autosave: triggers 1.5s after last change.
   const cancelAutosave = useDebounce(

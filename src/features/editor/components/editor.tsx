@@ -16,7 +16,7 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { ErrorView, LoadingView } from "@/components/entity-components";
 import { nodeComponents } from "@/config/node-components";
 import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
@@ -26,6 +26,7 @@ import {
   nodesAtom,
   saveStatusAtom,
 } from "../store/atoms";
+import { NodeStatusProvider } from "../store/node-status-context";
 import { AddNodeButton } from "./add-node-button";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
 
@@ -96,37 +97,42 @@ export const Editor = memo(function Editor({
     [setEdges, setSaveStatus],
   );
 
-  const hasManualTrigger = nodes.some((node) => node.type === "MANUAL_TRIGGER");
+  const hasManualTrigger = useMemo(
+    () => nodes.some((node) => node.type === "MANUAL_TRIGGER"),
+    [nodes],
+  );
 
   return (
     <div className="size-full">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        nodeTypes={nodeComponents}
-        onInit={setEditor}
-        fitView
-        snapGrid={[10, 10]}
-        snapToGrid
-        panOnScroll
-        panOnDrag={false}
-        selectionOnDrag
-      >
-        <Background />
-        <Controls />
-        <MiniMap />
-        <Panel position="top-right">
-          <AddNodeButton />
-        </Panel>
-        {hasManualTrigger && (
-          <Panel position="bottom-center">
-            <ExecuteWorkflowButton workflowId={workflowId} />
+      <NodeStatusProvider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodeTypes={nodeComponents}
+          onInit={setEditor}
+          fitView
+          snapGrid={[10, 10]}
+          snapToGrid
+          panOnScroll
+          panOnDrag={false}
+          selectionOnDrag
+        >
+          <Background />
+          <Controls />
+          <MiniMap />
+          <Panel position="top-right">
+            <AddNodeButton />
           </Panel>
-        )}
-      </ReactFlow>
+          {hasManualTrigger && (
+            <Panel position="bottom-center">
+              <ExecuteWorkflowButton workflowId={workflowId} />
+            </Panel>
+          )}
+        </ReactFlow>
+      </NodeStatusProvider>
     </div>
   );
 });

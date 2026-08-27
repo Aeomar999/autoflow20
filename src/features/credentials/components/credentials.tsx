@@ -3,6 +3,7 @@
 import { formatDistanceToNow } from "date-fns";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { memo } from "react";
 import {
   EmptyView,
   EntityContainer,
@@ -18,6 +19,7 @@ import { CredentialType } from "@/generated/prisma/browser";
 import type { Credential } from "@/generated/prisma/client";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import {
+  useCredentials,
   useRemoveCredential,
   useSuspenseCredentials,
 } from "../hooks/use-credentials";
@@ -65,8 +67,10 @@ export const CredentialsHeader = ({ disabled }: { disabled?: boolean }) => {
 };
 
 export const CredentialsPagination = () => {
-  const credentials = useSuspenseCredentials();
+  const credentials = useCredentials();
   const [params, setParams] = useCredentialsParams();
+
+  if (!credentials.data) return null;
 
   return (
     <EntityPagination
@@ -123,7 +127,7 @@ const credentialLogos: Record<CredentialType, string> = {
   [CredentialType.GEMINI]: "/logos/gemini.svg",
 };
 
-export const CredentialItem = ({ data }: { data: Credential }) => {
+export const CredentialItem = memo(({ data }: { data: Credential }) => {
   const removeCredential = useRemoveCredential();
 
   const handleRemove = () => {
@@ -152,4 +156,4 @@ export const CredentialItem = ({ data }: { data: Credential }) => {
       isRemoving={removeCredential.isPending}
     />
   );
-};
+});

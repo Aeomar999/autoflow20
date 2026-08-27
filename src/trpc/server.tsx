@@ -27,10 +27,9 @@ export function prefetch<
   if (queryOptions.queryKey[1]?.type === "infinite") {
     // tRPC infinite-query options don't fit TanStack's narrower prefetch type.
     // biome-ignore lint/suspicious/noExplicitAny: same upstream type mismatch
-    void queryClient.prefetchInfiniteQuery(queryOptions as any);
-  } else {
-    void queryClient.prefetchQuery(queryOptions);
+    return queryClient.prefetchInfiniteQuery(queryOptions as any);
   }
+  return queryClient.prefetchQuery(queryOptions);
 }
 
 export function HydrateClient(props: { children: React.ReactNode }) {

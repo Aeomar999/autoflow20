@@ -20,13 +20,15 @@ const Page = async ({ params }: PageProps) => {
   await requireAuth();
 
   const { workflowId } = await params;
-  prefetchWorkflow(workflowId);
+  await prefetchWorkflow(workflowId);
 
   return (
     <HydrateClient>
       <ErrorBoundary fallback={<EditorError />}>
         <Suspense fallback={<EditorLoading />}>
           <EditorHeader workflowId={workflowId} />
+        </Suspense>
+        <Suspense fallback={<EditorLoading />}>
           <main className="flex-1">
             <Editor workflowId={workflowId} />
           </main>

@@ -456,17 +456,17 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-07 · Executions UI · 4d
+### ✅ AF-M2-07 · Executions UI · 4d
 A basic executions list/detail already exists (tutorial lesson 27+); this task upgrades it to the flagship spec.
 
 **Acceptance**
-- [ ] Run list: status, workflow, trigger, started, duration, cost; filters; pagination; auto-refresh while runs are active.
-- [ ] Run detail: node-by-node timeline with per-node status, duration, and attempt count.
-- [ ] Per-node input and output JSON viewers (collapsible, searchable, copyable, truncation clearly marked).
-- [ ] Errors show message, node, attempt, and stack where available.
-- [ ] `SKIPPED` nodes visibly explain *why* they were skipped.
-- [ ] Actions: cancel running, retry, retry-from-node.
-- [ ] E2E test: run a 5-node workflow with a branch and a deliberate failure; assert every node appears with the correct status.
+- [x] Run list: status, workflow, trigger, started, duration, cost; filters; pagination; auto-refresh while runs are active.
+- [x] Run detail: node-by-node timeline with per-node status, duration, and attempt count.
+- [x] Per-node input and output JSON viewers (collapsible, searchable, copyable, truncation clearly marked).
+- [x] Errors show message, node, attempt, and stack where available.
+- [x] `SKIPPED` nodes visibly explain *why* they were skipped.
+- [x] Actions: cancel running, retry, retry-from-node.
+- [x] E2E test: run a 5-node workflow with a branch and a deliberate failure; assert every node appears with the correct status.
 
 ---
 

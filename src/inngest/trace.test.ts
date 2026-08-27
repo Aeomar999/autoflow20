@@ -78,7 +78,7 @@ describe("buildGraphMaps", () => {
       { fromNodeId: "A", toNodeId: "B", fromOutput: "main", toInput: "main" },
       { fromNodeId: "B", toNodeId: "C", fromOutput: "main", toInput: "main" },
     ];
-  const { adjacency, incoming } = buildGraphMaps(edges);
+    const { adjacency, incoming } = buildGraphMaps(edges);
     expect(adjacency.get("A")).toHaveLength(1);
     expect(adjacency.get("A")?.[0].toNodeId).toBe("B");
     expect(incoming.get("B")).toHaveLength(1);
@@ -169,12 +169,9 @@ describe("buildSkippableNodes", () => {
   });
 
   it("always keeps triggers reachable even with no edges", () => {
-    const skippable = computeSkippableNodes(
-      [triggerId],
-      new Set(),
-      new Map(),
-      [triggerId],
-    );
+    const skippable = computeSkippableNodes([triggerId], new Set(), new Map(), [
+      triggerId,
+    ]);
     expect(skippable.has(triggerId)).toBe(false);
   });
 });

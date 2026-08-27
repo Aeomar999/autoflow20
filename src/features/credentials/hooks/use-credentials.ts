@@ -20,6 +20,16 @@ export const useSuspenseCredentials = () => {
 };
 
 /**
+ * Non-suspending hook for pagination (returns data or undefined)
+ */
+export const useCredentials = () => {
+  const trpc = useTRPC();
+  const [params] = useCredentialsParams();
+
+  return useQuery(trpc.credentials.getMany.queryOptions(params));
+};
+
+/**
  * Hook to create a new credentials
  */
 export const useCreateCredential = () => {

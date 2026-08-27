@@ -20,7 +20,16 @@ const Page = async ({ searchParams }: Props) => {
   await requireAuth();
 
   const params = await executionsParamsLoader(searchParams);
-  prefetchExecutions(params);
+  await prefetchExecutions({
+    ...params,
+    status: (params.status || undefined) as
+      | "RUNNING"
+      | "SUCCESS"
+      | "FAILED"
+      | "CANCELLED"
+      | "TIMED_OUT"
+      | undefined,
+  });
 
   return (
     <ExecutionsContainer>
