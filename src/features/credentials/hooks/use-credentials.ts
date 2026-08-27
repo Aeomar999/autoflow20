@@ -5,7 +5,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { CredentialType } from "@/generated/prisma/client";
+import { PAGINATION } from "@/config/constants";
 import { useTRPC } from "@/trpc/client";
 import { useCredentialsParams } from "./use-credentials-params";
 
@@ -16,7 +16,7 @@ export const useSuspenseCredentials = () => {
   const trpc = useTRPC();
   const [params] = useCredentialsParams();
 
-  return useSuspenseQuery(trpc.credentials.getMany.queryOptions(params));
+  return useSuspenseQuery(trpc.credentials.list.queryOptions(params));
 };
 
 /**
@@ -26,7 +26,7 @@ export const useCredentials = () => {
   const trpc = useTRPC();
   const [params] = useCredentialsParams();
 
-  return useQuery(trpc.credentials.getMany.queryOptions(params));
+  return useQuery(trpc.credentials.list.queryOptions(params));
 };
 
 /**
@@ -40,9 +40,7 @@ export const useCreateCredential = () => {
     trpc.credentials.create.mutationOptions({
       onSuccess: (data) => {
         toast.success(`Credential "${data.name}" created`);
-        queryClient.invalidateQueries(
-          trpc.credentials.getMany.queryOptions({}),
-        );
+        queryClient.invalidateQueries(trpc.credentials.list.queryOptions({}));
       },
       onError: (error) => {
         toast.error(`Failed to create credential: ${error.message}`);
@@ -61,10 +59,8 @@ export const useRemoveCredential = () => {
   return useMutation(
     trpc.credentials.remove.mutationOptions({
       onSuccess: (data) => {
-        toast.success(`Credential "${data.name}" removed`);
-        queryClient.invalidateQueries(
-          trpc.credentials.getMany.queryOptions({}),
-        );
+        toast.success(`Credential removed`);
+        queryClient.invalidateQueries(trpc.credentials.list.queryOptions({}));
         queryClient.invalidateQueries(
           trpc.credentials.getOne.queryFilter({ id: data.id }),
         );
@@ -92,9 +88,7 @@ export const useUpdateCredential = () => {
     trpc.credentials.update.mutationOptions({
       onSuccess: (data) => {
         toast.success(`Credential "${data.name}" saved`);
-        queryClient.invalidateQueries(
-          trpc.credentials.getMany.queryOptions({}),
-        );
+        queryClient.invalidateQueries(trpc.credentials.list.queryOptions({}));
         queryClient.invalidateQueries(
           trpc.credentials.getOne.queryOptions({ id: data.id }),
         );
@@ -107,9 +101,15 @@ export const useUpdateCredential = () => {
 };
 
 /**
- * Hook to fetch credentials by type
+ * Hook to fetch credentials of one registry type (used by node dialogs).
+ * Type ids are registry ids, e.g. "openai.apiKey" — never enum names.
  */
-export const useCredentialsByType = (type: CredentialType) => {
+export const useCredentialsByType = (type: string) => {
   const trpc = useTRPC();
-  return useQuery(trpc.credentials.getByType.queryOptions({ type }));
+  return useQuery(
+    trpc.credentials.list.queryOptions({
+      type,
+      pageSize: PAGINATION.MAX_PAGE_SIZE,
+    }),
+  );
 };

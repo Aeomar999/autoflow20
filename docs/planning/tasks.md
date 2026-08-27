@@ -498,15 +498,36 @@ Spec: `docs/architecture/security.md`.
 - Boot gates: `CREDENTIAL_MASTER_KEY` is required in `src/lib/env.ts` (Zod) and
   validated as 32-decode-bytes by `assertCredentialMasterKey` in
   `src/instrumentation.ts` (skipped under `SKIP_ENV_VALIDATION=1`).
-- `ENCRYPTION_KEY`/Cryptr legacy path (`src/lib/encryption.ts`) still powers the
-  three AI node executors until AF-M3-02 re-shapes the `Credential` model; the
-  two keys coexist this milestone. *(Completed 2026-08-27, 16 unit tests.)*
+- `ENCRYPTION_KEY`/Cryptr legacy path (`src/lib/encryption.ts`) now exists only
+  for `scripts/migrate-credentials.ts` (one-time converter); the three AI node
+  executors decrypt via the vault (`openSecret`, AF-M3-02), `ENCRYPTION_KEY` is
+  optional in `src/lib/env.ts`. *(Completed 2026-08-27, 16 unit tests.)*
 
-### ⬜ AF-M3-02 · Credential model + registry + API · 3d
-- [ ] `Credential` model (tenant-scoped, typed, encrypted payload, OAuth fields, `lastUsedAt`).
-- [ ] Credential type registry mirroring the node registry (apiKey, bearer, basic, header, oauth2).
-- [ ] `credentials.create/update/delete/list/test` — **no procedure returns plaintext**, verified by test.
-- [ ] List shows masked previews and usage counts.
+### ✅ AF-M3-02 · Credential model + registry + API · 3d
+**Acceptance**
+- [x] `Credential` model (tenant-scoped, typed, encrypted payload, OAuth fields, `lastUsedAt`).
+- [x] Credential type registry mirroring the node registry (apiKey, bearer, basic, header, oauth2).
+- [x] `credentials.create/update/remove/list/getOne/test` — **no procedure returns plaintext**, verified by test.
+- [x] List shows masked previews and usage counts.
+
+**Notes**
+- Storage is the sealed envelope (ADR-0004) as five `Bytes` columns
+  (`ciphertext/iv/authTag/wrappedDek`) + `keyVersion`; `type` is the registry id
+  (enum dropped). Hand-written migration
+  `20260827170000_credential_vault_af_m3_02` + one-time converter
+  `npm run migrate:credentials [-- --yes]` (run BEFORE `migrate deploy`, idempotent,
+  dry-run by default).
+- Registry split like the node SDK: isomorphic defs/helpers in
+  `credential-types.ts` (kind union + 8 registered ids incl. migrated
+  `openai.apiKey`/`anthropic.apiKey`/`gemini.apiKey`), validation + network testers
+  server-only in `credential-registry.ts`.
+- Decrypt call sites: node executors (`openSecret`) and the server-side `test`
+  probe only. Outputs are `.output(...)`-validated against a `.strict()`
+  `CredentialPublic` schema (metadata + `preview` + `usageCount`) — a secret field
+  in any response fails the schema.
+- Legacy Cryptr rows: converted by `scripts/migrate-credentials.ts`;
+  `ENCRYPTION_KEY` demoted to optional/legacy. *(Completed 2026-08-27, 42 new
+  unit tests — registry/vault/security.)*
 
 ### ⬜ AF-M3-03 · Credentials UI · 2d
 A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgrades it to the vault spec.

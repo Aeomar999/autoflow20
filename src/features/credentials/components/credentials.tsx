@@ -15,15 +15,15 @@ import {
   ErrorView,
   LoadingView,
 } from "@/components/entity-components";
-import { CredentialType } from "@/generated/prisma/browser";
-import type { Credential } from "@/generated/prisma/client";
 import { useEntitySearch } from "@/hooks/use-entity-search";
+import { credentialDefsById } from "../credential-types";
 import {
   useCredentials,
   useRemoveCredential,
   useSuspenseCredentials,
 } from "../hooks/use-credentials";
 import { useCredentialsParams } from "../hooks/use-credentials-params";
+import type { CredentialPublic } from "../server/serialize";
 
 export const CredentialsSearch = () => {
   const [params, setParams] = useCredentialsParams();
@@ -121,20 +121,14 @@ export const CredentialsEmpty = () => {
   );
 };
 
-const credentialLogos: Record<CredentialType, string> = {
-  [CredentialType.OPENAI]: "/logos/openai.svg",
-  [CredentialType.ANTHROPIC]: "/logos/anthropic.svg",
-  [CredentialType.GEMINI]: "/logos/gemini.svg",
-};
-
-export const CredentialItem = memo(({ data }: { data: Credential }) => {
+export const CredentialItem = memo(({ data }: { data: CredentialPublic }) => {
   const removeCredential = useRemoveCredential();
 
   const handleRemove = () => {
     removeCredential.mutate({ id: data.id });
   };
 
-  const logo = credentialLogos[data.type] || "/logos/openai.svg";
+  const logo = credentialDefsById.get(data.type)?.logo ?? "/logos/logo.svg";
 
   return (
     <EntityItem

@@ -82,8 +82,19 @@ model Verification {
 model Credential {
   id String @id @default(cuid())
   name String
-  value String
-  type CredentialType
+  type String
+
+  /// Envelope encryption (AF-M3-01/02): per-record AES-256-GCM ciphertext
+  /// (Bytes), DEK wrapped by the KEK from CREDENTIAL_MASTER_KEY. No plaintext
+  /// column and no read path — only `preview` (write-time fragment) is stored.
+  ciphertext Bytes
+  iv Bytes
+  authTag Bytes
+  wrappedDek Bytes
+  keyVersion Int @default(1)
+  preview String?
+  oauthExpiresAt DateTime?
+  lastUsedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -93,12 +104,8 @@ model Credential {
   Node Node[]
 
   @@index([userId])
-}
-
-enum CredentialType {
-  OPENAI
-  ANTHROPIC
-  GEMINI
+  @@index([type])
+  @@index([oauthExpiresAt])
 }
 
 model Workflow {

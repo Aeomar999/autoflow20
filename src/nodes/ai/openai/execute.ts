@@ -2,10 +2,10 @@ import "server-only";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { NonRetriableError } from "inngest";
+import { openSecret } from "@/features/credentials/server/vault";
 import { compileTemplate } from "@/features/executions/template";
 import { openAiChannel } from "@/inngest/channels/openai";
 import prisma from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
 import type { NodeRun } from "@/nodes/types";
 
 type OpenAiData = {
@@ -84,8 +84,10 @@ export const execute: NodeRun<OpenAiData> = async ({
     throw new NonRetriableError("OpenAI node: Credential not found");
   }
 
+  const secret = openSecret(credential);
+
   const openai = createOpenAI({
-    apiKey: decrypt(credential.value),
+    apiKey: secret.apiKey,
   });
 
   try {

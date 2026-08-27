@@ -2,10 +2,10 @@ import "server-only";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NonRetriableError } from "inngest";
+import { openSecret } from "@/features/credentials/server/vault";
 import { compileTemplate } from "@/features/executions/template";
 import { geminiChannel } from "@/inngest/channels/gemini";
 import prisma from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
 import type { NodeRun } from "@/nodes/types";
 
 type GeminiData = {
@@ -84,8 +84,10 @@ export const execute: NodeRun<GeminiData> = async ({
     throw new NonRetriableError("Gemini node: Credential not found");
   }
 
+  const secret = openSecret(credential);
+
   const google = createGoogleGenerativeAI({
-    apiKey: decrypt(credential.value),
+    apiKey: secret.apiKey,
   });
 
   try {

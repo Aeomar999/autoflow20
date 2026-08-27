@@ -80,9 +80,22 @@ Error messages returned to the client never contain SQL, stack traces, internal 
 | `retry` | new execution from the same snapshot |
 | `retryFromNode` | new execution reusing prior outputs up to that node |
 
-### `credentials` — **[M3]**
-`list` · `getOne` (metadata + `preview` only) · `create` · `update` · `remove` (warns on in-use) · `test`.
-**[HARD]** No procedure returns decrypted material. Asserted by test.
+### `credentials` — **[M3]** *(as built AF-M3-02)*
+| Procedure | Notes |
+|---|---|
+| `create` | premium-gated; input = `{ name, type, …secret fields by kind }` (strict discriminated union — unknown keys rejected); creates envelope + `preview`; returns `CredentialPublic` |
+| `update` | same input, must own the credential |
+| `remove` | deletes; in-use warning on the UI (AF-M3-03), not a server block |
+| `getOne` | metadata + `preview` + `usageCount` only |
+| `list` | paginated (`page/pageSize`, `DEFAULT_PAGE_SIZE=5`, `MAX_PAGE_SIZE=100`, shared count-`where` — no off-by-one), query search, `type` filter (registry id); dialogs use `pageSize=MAX` |
+| `test` | server-side probe; returns `{ ok }` or `{ ok:false, error: "AUTH"\|"CONNECTION"\|"TIMEOUT"\|"NOT_TESTABLE" }`; sets `lastUsedAt` on success |
+
+`CredentialPublic` (`src/features/credentials/server/serialize.ts`) is the only
+response shape and is `.strict()`: `id, name, type, kind, preview, lastUsedAt,
+oauthExpiresAt, createdAt, updatedAt, usageCount`. **[HARD]** No procedure
+returns decrypted material — a secret field in a response fails the strict
+schema (asserted by `credentials-security.test.ts`). Not-testable kinds
+(`apiKey`/`bearer`/`basic`/`header`) return `NOT_TESTABLE`.
 
 ### `organizations` — **[M6]**
 `list` · `create` · `update` · `invite` · `acceptInvite` · `listMembers` · `updateRole` · `removeMember` · `listAuditLogs`.

@@ -71,10 +71,20 @@ Rules:
 ### Access
 
 - **[HARD]** No tRPC procedure, REST endpoint, server action, or server component returns decrypted credential material. There is no read path. Not for the owner, not for an admin, not "just for the test button".
-- **[HARD]** The only decrypt call site is the engine's `NodeExecutionContext` construction.
+- **[HARD]** Decryption happens in exactly two server-only sites: the node executors' runtime (`openSecret`, `src/features/credentials/server/vault.ts`) and the `test` connection probe. Never in a response path.
 - **[HARD]** Credential values never appear in `NodeExecution.input` or `output`. Node authors must not echo config secrets — enforced by review and by a test per credentialed node.
 - "Test connection" runs server-side and returns a boolean plus an error class. Never the request that was sent.
 - The UI shows `preview` only — a non-reversible fragment generated at write time.
+
+> **Implemented, AF-M3-02 (2026-08-27).** `Credential` stores the sealed
+> envelope (ADR-0004) with **no plaintext column**; `type` is the registry id
+> (8 kinds in `credential-types.ts`). Every credential-returning procedure is
+> `.output(...)`-validated against a `.strict()` `CredentialPublic` schema — a
+> leaked secret field fails the schema, and `credentials-security.test.ts`
+> asserts schema, select, and serializer stay closed. `openSecret` validates
+> byte columns at runtime (rows cross Inngest serialization). Legacy rows are
+> converted by `npm run migrate:credentials` (registry id mapping
+> OPENAI→openai.apiKey, etc.).
 
 ### Rotation
 

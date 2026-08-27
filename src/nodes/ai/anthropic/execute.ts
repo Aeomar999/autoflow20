@@ -2,10 +2,10 @@ import "server-only";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { NonRetriableError } from "inngest";
+import { openSecret } from "@/features/credentials/server/vault";
 import { compileTemplate } from "@/features/executions/template";
 import { anthropicChannel } from "@/inngest/channels/anthropic";
 import prisma from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
 import type { NodeRun } from "@/nodes/types";
 
 type AnthropicData = {
@@ -84,8 +84,10 @@ export const execute: NodeRun<AnthropicData> = async ({
     throw new NonRetriableError("Anthropic node: Credential not found");
   }
 
+  const secret = openSecret(credential);
+
   const anthropic = createAnthropic({
-    apiKey: decrypt(credential.value),
+    apiKey: secret.apiKey,
   });
 
   try {

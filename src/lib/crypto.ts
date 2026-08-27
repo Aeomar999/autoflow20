@@ -220,3 +220,43 @@ export function rewrapCredential(
     ),
   };
 }
+
+/**
+ * Storage columns for the five-field envelope — what a `Credential` row
+ * actually holds (AF-M3-02). Keeping this adapter here (not in the vault) lets
+ * the pre-AF-M3-02 data-migration script reuse it without pulling server-only
+ * modules into a `tsx` process. `Uint8Array` (Prisma `Bytes`) instead of
+ * `Buffer` so the columns drop straight into a create/update data object.
+ */
+export interface CredentialEnvelopeColumns {
+  ciphertext: Uint8Array<ArrayBuffer>;
+  iv: Uint8Array<ArrayBuffer>;
+  authTag: Uint8Array<ArrayBuffer>;
+  wrappedDek: Uint8Array<ArrayBuffer>;
+  keyVersion: number;
+}
+
+const toUint8 = (buffer: Buffer): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(buffer);
+
+const fromUint8 = (bytes: Uint8Array): Buffer => Buffer.from(bytes);
+
+export const envelopeToColumns = (
+  envelope: CredentialEnvelope,
+): CredentialEnvelopeColumns => ({
+  ciphertext: toUint8(Buffer.from(envelope.ct, "base64")),
+  iv: toUint8(Buffer.from(envelope.iv, "base64")),
+  authTag: toUint8(Buffer.from(envelope.tag, "base64")),
+  wrappedDek: toUint8(Buffer.from(envelope.dek, "base64")),
+  keyVersion: envelope.v,
+});
+
+export const columnsToEnvelope = (
+  columns: CredentialEnvelopeColumns,
+): CredentialEnvelope => ({
+  v: columns.keyVersion,
+  ct: fromUint8(columns.ciphertext).toString("base64"),
+  iv: fromUint8(columns.iv).toString("base64"),
+  tag: fromUint8(columns.authTag).toString("base64"),
+  dek: fromUint8(columns.wrappedDek).toString("base64"),
+});

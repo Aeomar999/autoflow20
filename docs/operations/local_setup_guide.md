@@ -34,13 +34,13 @@ AutoFlow is a Next.js 15 app with three moving parts in development:
 
 | Piece | What it needs from `.env` |
 |---|---|
-| Next.js server | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY`, `CREDENTIAL_MASTER_KEY`, `NEXT_PUBLIC_APP_URL` |
+| Next.js server | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CREDENTIAL_MASTER_KEY`, `NEXT_PUBLIC_APP_URL` |
 | Better Auth (email/password sign-up at `/login`) | same as above; social providers only if configured |
 | Prisma 7 CLI (`prisma.config.ts` + `dotenv`) | `DATABASE_URL` (schema-level `url` was removed in v7 — P1012) |
 | Prisma 7 runtime client | driver adapter `@prisma/adapter-pg`, wired in `src/lib/db.ts` |
 | Inngest dev server (`npm run inngest:dev`) | nothing — cloud keys are production-only |
-| Credential vault (envelope, `src/lib/crypto.ts`) | `CREDENTIAL_MASTER_KEY` |
-| (legacy Cryptr path, `src/lib/encryption.ts`) | `ENCRYPTION_KEY` — replaced by the vault in AF-M3-02 |
+| Credential vault (envelope, `src/lib/crypto.ts` + `server/vault.ts`) | `CREDENTIAL_MASTER_KEY` |
+| legacy Cryptr converter (`scripts/migrate-credentials.ts`) | `ENCRYPTION_KEY` (optional — only to convert pre-AF-M3-02 rows) |
 
 Boot-time validation lives in `src/lib/env.ts`: on startup the app parses `.env`
 against a Zod schema and **refuses to boot with a single readable error naming every

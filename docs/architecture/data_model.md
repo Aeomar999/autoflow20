@@ -284,6 +284,16 @@ model Credential {
 
 There is **no plaintext column and no read path**. `preview` is generated at write time and is deliberately non-reversible.
 
+> **As built, AF-M3-02 (2026-08-27).** The target above adds org tenancy; the
+> shipped table is tenant-scoped by `userId` until the M-org migration (data
+> model §3-step 1), plus `@@index([type])` (kind-filtered list) and a `Node[]`
+> relation for usage counts (`_count.Node`). `type` holds the **registry id**,
+> not an enum: the 8 kinds in `src/features/credentials/credential-types.ts`
+> (`apiKey`/`bearer`/`basic`/`header`/`oauth2` + provider-scoped ids). The
+> five envelope columns are all `Bytes`/`Int` per ADR-0004. Schema migration:
+> `prisma/migrations/20260827170000_credential_vault_af_m3_02` (drops the
+> legacy `value` column; data ported by `npm run migrate:credentials`).
+
 ### 2.6 Governance — M6
 
 ```prisma
