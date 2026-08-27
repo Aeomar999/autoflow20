@@ -23,15 +23,15 @@ const Page = async ({ searchParams }: Props) => {
   await prefetchCredentials(params);
 
   return (
-    <CredentialsContainer>
-      <HydrateClient>
+    <HydrateClient>
+      <CredentialsContainer>
         <ErrorBoundary fallback={<CredentialsError />}>
           <Suspense fallback={<CredentialsLoading />}>
             <CredentialsList />
           </Suspense>
         </ErrorBoundary>
-      </HydrateClient>
-    </CredentialsContainer>
+      </CredentialsContainer>
+    </HydrateClient>
   );
 };
 

@@ -23,15 +23,15 @@ const Page = async ({ searchParams }: Props) => {
   await prefetchWorkflows(params);
 
   return (
-    <WorkflowsContainer>
-      <HydrateClient>
+    <HydrateClient>
+      <WorkflowsContainer>
         <ErrorBoundary fallback={<WorkflowsError />}>
           <Suspense fallback={<WorkflowsLoading />}>
             <WorkflowsList />
           </Suspense>
         </ErrorBoundary>
-      </HydrateClient>
-    </WorkflowsContainer>
+      </WorkflowsContainer>
+    </HydrateClient>
   );
 };
 
