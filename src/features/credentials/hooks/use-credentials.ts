@@ -113,3 +113,43 @@ export const useCredentialsByType = (type: string) => {
     }),
   );
 };
+
+/**
+ * Hook to test a credential's connection via its provider tester.
+ * Returns { ok } or { ok: false, error }.
+ */
+export const useTestCredential = () => {
+  const trpc = useTRPC();
+
+  return useMutation(
+    trpc.credentials.test.mutationOptions({
+      onSuccess: (data) => {
+        if (data.ok) {
+          toast.success("Connection successful");
+        } else {
+          const messages: Record<string, string> = {
+            AUTH: "Authentication failed — check your credentials",
+            CONNECTION: "Connection error — could not reach the provider",
+            TIMEOUT: "Connection timed out",
+            NOT_TESTABLE: "This credential type does not support testing",
+          };
+          toast.error(messages[data.error] ?? "Test failed");
+        }
+      },
+      onError: (error) => {
+        toast.error(`Test failed: ${error.message}`);
+      },
+    }),
+  );
+};
+
+/**
+ * Hook to fetch workflows that reference a credential (for delete warnings).
+ */
+export const useCredentialUsage = (credentialId: string, enabled: boolean) => {
+  const trpc = useTRPC();
+  return useQuery({
+    ...trpc.credentials.getUsage.queryOptions({ id: credentialId }),
+    enabled,
+  });
+};

@@ -17,7 +17,12 @@ import {
   toPublicCredential,
 } from "./serialize";
 import { openSecret, sealSecret } from "./vault";
-import { credentialWriteInput, oauthExpiresAtOf } from "./write-schema";
+import {
+  credentialUpdateInput,
+  credentialWriteInput,
+  hasSecretChanges,
+  oauthExpiresAtOf,
+} from "./write-schema";
 
 /**
  * Credentials router (AF-M3-02). [HARD]
@@ -83,21 +88,75 @@ export const credentialsRouter = createTRPCRouter({
       });
       return toPublicCredential(credential);
     }),
+  /**
+   * Update a credential. Secret fields are optional — when omitted or blank
+   * the existing envelope is preserved (name-only rename). When any secret
+   * field is provided, the entire envelope is re-encrypted.
+   */
   update: protectedProcedure
-    .input(credentialIdInput.and(credentialWriteInput))
+    .input(credentialUpdateInput)
     .output(credentialPublicSchema)
     .mutation(async ({ ctx, input }) => {
-      const { id, ...rest } = input;
+      const { id, name, type, ...rest } = input;
+      const def = credentialRegistry.resolve(type);
+      const fieldKeys = def.fields.map((f) => f.key);
+      const secretsChanged = hasSecretChanges(
+        rest as Record<string, unknown>,
+        fieldKeys,
+      );
+
+      let envelopeData: Record<string, unknown> = {};
+      if (secretsChanged) {
+        // Re-encrypt: build a full write payload from the provided fields.
+        // Missing required fields in this path will fail at secretFromInput.
+        const secret = secretFromInput(def, input);
+        const envelope = sealSecret(secret);
+        envelopeData = {
+          ...envelope,
+          preview: computePreview(def, secret),
+          oauthExpiresAt: oauthExpiresAtOf(input),
+        };
+      }
+
       const credential = await prisma.credential.update({
         where: { id, userId: ctx.auth.user.id },
-        data: {
-          name: rest.name,
-          type: rest.type,
-          ...upsertSecretColumns(rest),
-        },
+        data: { name, type, ...envelopeData },
         select: credentialPublicSelect,
       });
       return toPublicCredential(credential);
+    }),
+  /**
+   * Returns workflows that reference a credential (via Node.credentialId).
+   * Used by the UI's delete-confirmation dialog to warn the user.
+   */
+  getUsage: protectedProcedure
+    .input(credentialIdInput)
+    .output(
+      z.object({
+        workflows: z.array(z.object({ id: z.string(), name: z.string() })),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      // Verify ownership first
+      await prisma.credential.findUniqueOrThrow({
+        where: { id: input.id, userId: ctx.auth.user.id },
+        select: { id: true },
+      });
+
+      const nodes = await prisma.node.findMany({
+        where: { credentialId: input.id },
+        select: {
+          workflow: { select: { id: true, name: true } },
+        },
+        distinct: ["workflowId"],
+      });
+
+      return {
+        workflows: nodes.map((node) => ({
+          id: node.workflow.id,
+          name: node.workflow.name,
+        })),
+      };
     }),
   remove: protectedProcedure
     .input(credentialIdInput)

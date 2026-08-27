@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-27 (AF-M3-04 credential injection shipped)
+**Last updated:** 2026-08-27 (AF-M3-03 credentials UI shipped)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -529,11 +529,11 @@ Spec: `docs/architecture/security.md`.
   `ENCRYPTION_KEY` demoted to optional/legacy. *(Completed 2026-08-27, 42 new
   unit tests — registry/vault/security.)*
 
-### ⬜ AF-M3-03 · Credentials UI · 2d
+### ✅ AF-M3-03 · Credentials UI · 2d
 A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgrades it to the vault spec.
 - [x] Basic create/edit/delete exists. *(Upgrade, not greenfield.)*
-- [ ] Create/edit/delete with type-driven forms, masked inputs, and a working "Test connection".
-- [ ] Deleting a credential in use warns with the list of affected workflows.
+- [x] Create/edit/delete with type-driven forms, masked inputs, and a working "Test connection".
+- [x] Deleting a credential in use warns with the list of affected workflows.
 
 ### ✅ AF-M3-04 · Credential injection into execution · 1.5d
 - [x] Nodes declare requirements; the config panel offers matching credentials only.

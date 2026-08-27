@@ -41,6 +41,8 @@ export interface CredentialTypeDef {
   logo?: string;
   /** OAuth-type credential with expiry bookkeeping (`oauthExpiresAt`). */
   oauth?: boolean;
+  /** True when a server-side connection tester exists for this type. */
+  testable?: boolean;
 }
 
 export const credentialKindLabel = (kind: CredentialKind): string => {
@@ -138,6 +140,7 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
     label: "OpenAI API key",
     description: "API key for api.openai.com (existing rows migrated)",
     logo: "/logos/openai.svg",
+    testable: true,
     fields: [
       { key: "apiKey", label: "API key", secret: true, placeholder: "sk-..." },
     ],
@@ -148,6 +151,7 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
     label: "Anthropic API key",
     description: "API key for api.anthropic.com (existing rows migrated)",
     logo: "/logos/anthropic.svg",
+    testable: true,
     fields: [
       {
         key: "apiKey",
@@ -163,6 +167,7 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
     label: "Gemini API key",
     description: "API key for generativelanguage.googleapis.com",
     logo: "/logos/gemini.svg",
+    testable: true,
     fields: [{ key: "apiKey", label: "API key", secret: true }],
   },
 ];
