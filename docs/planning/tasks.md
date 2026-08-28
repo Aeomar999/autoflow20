@@ -40,7 +40,7 @@ The React Flow editor (`src/components/initial-node.tsx`, `src/components/react-
 
 **Acceptance**
 - [x] Editor work tracked in git on `main`. *(Verified 2026-08-22.)*
-- [ ] `npm run build` passes from a fresh clone. *(Unverified — deps install + build not yet exercised end-to-end in CI-less env.)*
+- [x] `npm run build` passes from a fresh clone. *(Verified 2026-08-28 — Vercel `main` (04b9a35) build is green: `npm install` → `postinstall: prisma generate` emits the gitignored `src/generated/prisma` client → `next build --turbopack`, all 15 pages generated, no `Module not found` errors.)*
 - [x] `.next/` and `src/generated/` are gitignored.
 
 ---
