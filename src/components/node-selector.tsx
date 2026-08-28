@@ -1,15 +1,13 @@
 "use client";
 
 import { createId } from "@paralleldrive/cuid2";
+import { useReactFlow } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
-  Contact,
+  Bot,
   Database,
   GlobeIcon,
-  Mail,
   MousePointerIcon,
-  Table,
-  Table2,
   Webhook,
 } from "lucide-react";
 import { useCallback } from "react";
@@ -74,6 +72,12 @@ const executionNodes: NodeTypeOption[] = [
     icon: "/logos/openai.svg",
   },
   {
+    type: "OPENAI_COMPATIBLE_CHAT",
+    label: "OpenAI-Compatible",
+    description: "Chat with any OpenAI-compatible endpoint",
+    icon: Bot,
+  },
+  {
     type: "ANTHROPIC",
     label: "Anthropic",
     description: "Uses Anthropic to generate text",
@@ -101,25 +105,25 @@ const executionNodes: NodeTypeOption[] = [
     type: "EMAIL_SEND",
     label: "Send Email",
     description: "Send an email through an SMTP relay",
-    icon: Mail,
+    icon: "/logos/Logos/Email.png",
   },
   {
     type: "GOOGLE_SHEETS_APPEND",
     label: "Google Sheets",
     description: "Append rows to a Google Sheets spreadsheet",
-    icon: Table2,
+    icon: "/logos/Logos/Google sheet.png",
   },
   {
     type: "AIRTABLE_CREATE_RECORD",
     label: "Airtable",
     description: "Create a record in an Airtable table",
-    icon: Table,
+    icon: "/logos/Logos/Airtable.png",
   },
   {
     type: "HUBSPOT_CREATE_CONTACT",
     label: "HubSpot",
     description: "Create a contact in HubSpot",
-    icon: Contact,
+    icon: "/logos/Logos/Hubspot.png",
   },
   {
     type: "POSTGRES_QUERY",
@@ -144,6 +148,8 @@ export function NodeSelector({
   const setNodes = useSetAtom(nodesAtom);
   const setSaveStatus = useSetAtom(saveStatusAtom);
 
+  const reactFlow = useReactFlow();
+
   const handleNodeSelect = useCallback(
     (selection: NodeTypeOption) => {
       if (selection.type === "MANUAL_TRIGGER") {
@@ -162,13 +168,18 @@ export function NodeSelector({
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
 
+      const position = reactFlow.screenToFlowPosition({
+        x: centerX,
+        y: centerY,
+      });
+
       const newNode = {
         id: createId(),
         type: selection.type,
         data: {},
         position: {
-          x: centerX + (Math.random() - 0.5) * 200,
-          y: centerY + (Math.random() - 0.5) * 200,
+          x: position.x + (Math.random() - 0.5) * 200,
+          y: position.y + (Math.random() - 0.5) * 200,
         },
       };
 
@@ -180,7 +191,7 @@ export function NodeSelector({
       setSaveStatus("unsaved");
       onOpenChange(false);
     },
-    [nodes, setNodes, setSaveStatus, onOpenChange],
+    [nodes, setNodes, setSaveStatus, onOpenChange, reactFlow],
   );
 
   return (
