@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import type { NodeStatus } from "@/components/react-flow/node-status-indicator";
+import { fetchAirtableCreateRecordRealtimeToken } from "@/features/executions/components/airtable-create-record/actions";
 import { fetchAnthropicRealtimeToken } from "@/features/executions/components/anthropic/actions";
 import { fetchDiscordRealtimeToken } from "@/features/executions/components/discord/actions";
 import { fetchEmailSendRealtimeToken } from "@/features/executions/components/email-send/actions";
@@ -23,6 +24,10 @@ import { fetchWebhookOutRealtimeToken } from "@/features/executions/components/w
 import { fetchGoogleFormTriggerRealtimeToken } from "@/features/triggers/components/google-form-trigger/actions";
 import { fetchManualTriggerRealtimeToken } from "@/features/triggers/components/manual-trigger/actions";
 import { fetchStripeTriggerRealtimeToken } from "@/features/triggers/components/stripe-trigger/actions";
+import {
+  AIRTABLE_CREATE_RECORD_CHANNEL_NAME,
+  airtableCreateRecordChannel,
+} from "@/inngest/channels/airtable-create-record";
 import {
   ANTHROPIC_CHANNEL_NAME,
   anthropicChannel,
@@ -106,6 +111,11 @@ const CHANNEL_SUBSCRIPTIONS = [
     channelName: GOOGLE_SHEETS_APPEND_CHANNEL_NAME,
     channel: googleSheetsAppendChannel,
     refreshToken: fetchGoogleSheetsAppendRealtimeToken,
+  },
+  {
+    channelName: AIRTABLE_CREATE_RECORD_CHANNEL_NAME,
+    channel: airtableCreateRecordChannel,
+    refreshToken: fetchAirtableCreateRecordRealtimeToken,
   },
   {
     channelName: DISCORD_CHANNEL_NAME,

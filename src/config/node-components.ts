@@ -1,5 +1,6 @@
 import type { NodeTypes } from "@xyflow/react";
 import { InitialNode } from "@/components/initial-node";
+import { AirtableCreateRecordNode } from "@/features/executions/components/airtable-create-record/node";
 import { AnthropicNode } from "@/features/executions/components/anthropic/node";
 import { DiscordNode } from "@/features/executions/components/discord/node";
 import { EmailSendNode } from "@/features/executions/components/email-send/node";
@@ -24,6 +25,7 @@ export const nodeComponents = {
   OPENAI: OpenAiNode,
   POSTGRES_QUERY: PostgresQueryNode,
   GOOGLE_SHEETS_APPEND: GoogleSheetsAppendNode,
+  AIRTABLE_CREATE_RECORD: AirtableCreateRecordNode,
   ANTHROPIC: AnthropicNode,
   DISCORD: DiscordNode,
   SLACK: SlackNode,

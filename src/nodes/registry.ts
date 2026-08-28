@@ -2,6 +2,7 @@ import "server-only";
 import aiAnthropic from "./ai/anthropic";
 import aiGemini from "./ai/gemini";
 import aiOpenai from "./ai/openai";
+import airtableCreateRecord from "./airtable/create-record";
 import coreCondition from "./core/condition";
 import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
@@ -161,6 +162,7 @@ export const nodeRegistry = createNodeRegistry(
     coreMerge,
     formsGoogleForm,
     googleSheetsAppend,
+    airtableCreateRecord,
     paymentsStripeTrigger,
     postgresQuery,
     httpHttpRequest,

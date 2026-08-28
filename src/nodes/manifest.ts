@@ -1,6 +1,7 @@
 import { definition as aiAnthropic } from "./ai/anthropic/definition";
 import { definition as aiGemini } from "./ai/gemini/definition";
 import { definition as aiOpenai } from "./ai/openai/definition";
+import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
 import { definition as coreCondition } from "./core/condition/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
 import { definition as coreMerge } from "./core/merge/definition";
@@ -36,6 +37,7 @@ export const nodeManifest: NodeDefinition[] = [
   coreMerge,
   formsGoogleForm,
   googleSheetsAppend,
+  airtableCreateRecord,
   paymentsStripeTrigger,
   postgresQuery,
   httpHttpRequest,

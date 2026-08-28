@@ -136,6 +136,7 @@ describe("production node registry + manifest", () => {
       ["webhook", "out"],
       ["postgres", "query"],
       ["google-sheets", "append"],
+      ["airtable", "create-record"],
     ];
     for (const [ns, node] of folders) {
       const source = readFileSync(

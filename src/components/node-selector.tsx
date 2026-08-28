@@ -7,6 +7,7 @@ import {
   GlobeIcon,
   Mail,
   MousePointerIcon,
+  Table,
   Table2,
   Webhook,
 } from "lucide-react";
@@ -106,6 +107,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Google Sheets",
     description: "Append rows to a Google Sheets spreadsheet",
     icon: Table2,
+  },
+  {
+    type: "AIRTABLE_CREATE_RECORD",
+    label: "Airtable",
+    description: "Create a record in an Airtable table",
+    icon: Table,
   },
   {
     type: "POSTGRES_QUERY",
