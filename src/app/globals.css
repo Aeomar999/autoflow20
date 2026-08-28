@@ -211,6 +211,36 @@
   @apply ring-3 ring-muted-foreground/25 shadow-lg;
 }
 
+/* Landing motion primitives — subtle, transform-only, no layout shift */
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-rise {
+    animation: reveal-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .reveal-rise-delay-1 {
+    animation-delay: 0.08s;
+  }
+  .reveal-rise-delay-2 {
+    animation-delay: 0.16s;
+  }
+  .reveal-rise-delay-3 {
+    animation-delay: 0.24s;
+  }
+  .reveal-rise-delay-4 {
+    animation-delay: 0.32s;
+  }
+}
+
 /* Node status loading spinner */
 @keyframes node-spinner {
   from {
