@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-27 (AF-M3-03 credentials UI shipped)
+**Last updated:** 2026-08-28 (AF-M3-06 stage 0 — five connector credential types with testers)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -552,8 +552,10 @@ A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgr
 - [x] Scheduled Inngest function refreshes tokens before expiry.
 - [x] Refresh failure creates a visible, actionable alert — the "tokens silently expire and workflows break" gap.
 
-### ⬜ AF-M3-06 · Eight connectors · 5d
+### 🟡 AF-M3-06 · Eight connectors · 5d
 Slack · Gmail/SMTP · Google Sheets · Postgres · Airtable · HubSpot · OpenAI-compatible HTTP · Webhook-out.
+
+Stage 0 done 2026-08-28: `postgres`, `smtp`, `airtable.apiKey`, `hubspot.apiKey`, `openaiCompatible.apiKey` credential types + server-side connection testers (Postgres/SMTP/Airtable/HubSpot; OpenAI-compatible intentionally not testable). Connector nodes below.
 
 - [ ] Each: definition + execute + credential type + unit tests + palette metadata.
 - [ ] Each documented in `docs/nodes/<name>.md` with config reference and an example.

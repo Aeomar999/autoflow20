@@ -208,6 +208,102 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
       { key: "scopes", label: "Scopes", secret: false, optional: true },
     ],
   },
+  {
+    type: "postgres",
+    kind: "basic",
+    label: "PostgreSQL",
+    description: "Credentials for a PostgreSQL server",
+    testable: true,
+    fields: [
+      {
+        key: "host",
+        label: "Host",
+        secret: false,
+        placeholder: "db.example.com",
+      },
+      { key: "port", label: "Port", secret: false, placeholder: "5432" },
+      { key: "database", label: "Database", secret: false },
+      { key: "username", label: "Username", secret: false },
+      { key: "password", label: "Password", secret: true },
+      {
+        key: "ssl",
+        label: "SSL (require or disable)",
+        secret: false,
+        optional: true,
+        placeholder: "require",
+      },
+    ],
+  },
+  {
+    type: "smtp",
+    kind: "basic",
+    label: "SMTP",
+    description: "Outbound email relay",
+    testable: true,
+    fields: [
+      {
+        key: "host",
+        label: "Host",
+        secret: false,
+        placeholder: "smtp.example.com",
+      },
+      { key: "port", label: "Port", secret: false, placeholder: "587" },
+      { key: "username", label: "Username", secret: false },
+      { key: "password", label: "Password", secret: true },
+      {
+        key: "tls",
+        label: "TLS (none, starttls, ssl)",
+        secret: false,
+        optional: true,
+        placeholder: "starttls",
+      },
+    ],
+  },
+  {
+    type: "airtable.apiKey",
+    kind: "apiKey",
+    label: "Airtable API key",
+    description: "Personal access token for api.airtable.com",
+    testable: true,
+    fields: [
+      {
+        key: "apiKey",
+        label: "API key",
+        secret: true,
+        placeholder: "pat...",
+      },
+    ],
+  },
+  {
+    type: "hubspot.apiKey",
+    kind: "apiKey",
+    label: "HubSpot API key",
+    description: "Private app access token for api.hubapi.com",
+    testable: true,
+    fields: [
+      {
+        key: "apiKey",
+        label: "API key",
+        secret: true,
+        placeholder: "pat-eu1-...",
+      },
+    ],
+  },
+  {
+    type: "openaiCompatible.apiKey",
+    kind: "apiKey",
+    label: "OpenAI-compatible API key",
+    description: "Bearer key for a custom OpenAI-compatible endpoint",
+    testable: false,
+    fields: [
+      {
+        key: "apiKey",
+        label: "API key",
+        secret: true,
+        placeholder: "sk-...",
+      },
+    ],
+  },
 ];
 
 export const credentialDefsById = new Map(

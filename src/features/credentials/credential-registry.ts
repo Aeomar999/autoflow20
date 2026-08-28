@@ -1,4 +1,6 @@
 import "server-only";
+import nodemailer from "nodemailer";
+import { Client as PgClient } from "pg";
 import {
   CREDENTIAL_KINDS,
   CREDENTIAL_TYPE_DEFINITIONS,
@@ -141,6 +143,58 @@ export function createCredentialRegistry(
 
 const TIMEOUT_MS = 10_000;
 
+/**
+ * Race a promise against a timeout. The losing promise gets a rejection
+ * guard so a slow network op can never surface as an unhandled rejection
+ * after the timeout already won.
+ */
+async function runWithTimeout<T>(
+  promise: Promise<T>,
+  ms: number = TIMEOUT_MS,
+): Promise<T | "timeout"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const guarded = promise.catch(() => undefined as T);
+  const timeout = new Promise<T | "timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), ms);
+  });
+  try {
+    return await Promise.race([guarded, timeout]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+function classifySmtpError(error: unknown): CredentialTestResult {
+  if (error instanceof Error) {
+    const code = (error as { code?: string }).code;
+    if (code === "EAUTH" || code === "EENVELOPE") {
+      return { ok: false, error: "AUTH" };
+    }
+    const message = error.message.toLowerCase();
+    if (message.includes("timeout") || message.includes("timed out")) {
+      return { ok: false, error: "TIMEOUT" };
+    }
+  }
+  return { ok: false, error: "CONNECTION" };
+}
+
+function classifyPgError(error: unknown): CredentialTestResult {
+  if (error instanceof Error) {
+    const code = (error as { code?: string }).code;
+    // 28P01 = invalid_password, 28000 = invalid_authorization_specification
+    if (code === "28P01" || code === "28000") {
+      return { ok: false, error: "AUTH" };
+    }
+    const message = error.message.toLowerCase();
+    if (message.includes("timeout") || message.includes("timed out")) {
+      return { ok: false, error: "TIMEOUT" };
+    }
+  }
+  return { ok: false, error: "CONNECTION" };
+}
+
 async function checkAuth(
   url: string,
   headers: Record<string, string>,
@@ -198,6 +252,89 @@ export const credentialTesters: Record<string, CredentialTester> = {
     );
     url.searchParams.set("key", key);
     return checkAuth(url.toString(), { Accept: "application/json" });
+  },
+  "airtable.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.airtable.com/v0/meta/whoami", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "hubspot.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.hubapi.com/crm/v3/objects/contacts?limit=1", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  postgres: async (secret) => {
+    const host = secret.host;
+    const database = secret.database;
+    const username = secret.username;
+    const password = secret.password;
+    if (!host || !database || !username || !password) {
+      return { ok: false, error: "AUTH" };
+    }
+    const client = new PgClient({
+      host,
+      port: Number(secret.port ?? 5432),
+      database,
+      user: username,
+      password,
+      ssl: secret.ssl === "require" ? { rejectUnauthorized: false } : undefined,
+      connectionTimeoutMillis: TIMEOUT_MS,
+    });
+    try {
+      const outcome = await runWithTimeout(client.connect());
+      if (outcome === "timeout") {
+        return { ok: false, error: "TIMEOUT" };
+      }
+      return { ok: true };
+    } catch (error) {
+      return classifyPgError(error);
+    } finally {
+      try {
+        await client.end();
+      } catch {
+        // Cleanup only — the test outcome is already decided above.
+      }
+    }
+  },
+  smtp: async (secret) => {
+    const host = secret.host;
+    const username = secret.username;
+    const password = secret.password;
+    if (!host || !username || !password) {
+      return { ok: false, error: "AUTH" };
+    }
+    const tlsMode = secret.tls ?? "starttls";
+    const transport = nodemailer.createTransport({
+      host,
+      port: Number(secret.port ?? 587),
+      secure: tlsMode === "ssl",
+      auth: { user: username, pass: password },
+      requireTLS: tlsMode === "starttls",
+      connectionTimeout: TIMEOUT_MS,
+      greetingTimeout: TIMEOUT_MS,
+      socketTimeout: TIMEOUT_MS,
+    });
+    try {
+      const outcome = await runWithTimeout(transport.verify());
+      if (outcome === "timeout") {
+        return { ok: false, error: "TIMEOUT" };
+      }
+      return outcome === true
+        ? { ok: true }
+        : { ok: false, error: "CONNECTION" };
+    } catch (error) {
+      return classifySmtpError(error);
+    }
   },
 };
 

@@ -66,6 +66,45 @@ export const credentialWriteVariants = [
       oauthExpiresAt: z.iso.datetime({ offset: true }).optional(),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal("postgres"),
+      host: requiredSecret,
+      port: requiredSecret,
+      database: requiredSecret,
+      username: requiredSecret,
+      password: requiredSecret,
+      ssl: optionalSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("smtp"),
+      host: requiredSecret,
+      port: requiredSecret,
+      username: requiredSecret,
+      password: requiredSecret,
+      tls: optionalSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("airtable.apiKey"),
+      apiKey: requiredSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("hubspot.apiKey"),
+      apiKey: requiredSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("openaiCompatible.apiKey"),
+      apiKey: requiredSecret,
+    })
+    .strict(),
 ] as const;
 
 export const credentialWriteBody = z.discriminatedUnion(
@@ -135,6 +174,45 @@ export const credentialUpdateVariants = [
       refreshToken: optionalSecret,
       scopes: optionalSecret,
       oauthExpiresAt: z.iso.datetime({ offset: true }).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("postgres"),
+      host: optionalSecret,
+      port: optionalSecret,
+      database: optionalSecret,
+      username: optionalSecret,
+      password: optionalSecret,
+      ssl: optionalSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("smtp"),
+      host: optionalSecret,
+      port: optionalSecret,
+      username: optionalSecret,
+      password: optionalSecret,
+      tls: optionalSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("airtable.apiKey"),
+      apiKey: optionalSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("hubspot.apiKey"),
+      apiKey: optionalSecret,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("openaiCompatible.apiKey"),
+      apiKey: optionalSecret,
     })
     .strict(),
 ] as const;

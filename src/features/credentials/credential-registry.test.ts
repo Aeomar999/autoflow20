@@ -127,11 +127,21 @@ describe("credentialRegistry (built-in)", () => {
     expect(credentialManifest).toBe(CREDENTIAL_TYPE_DEFINITIONS);
   });
 
-  it("exposes testers for the three migrated provider types only", () => {
-    expect(credentialRegistry.isTestable("openai.apiKey")).toBe(true);
-    expect(credentialRegistry.isTestable("anthropic.apiKey")).toBe(true);
-    expect(credentialRegistry.isTestable("gemini.apiKey")).toBe(true);
-    expect(credentialRegistry.isTestable("apiKey")).toBe(false);
+  it("exposes testers for connection-testable provider types only", () => {
+    for (const type of [
+      "openai.apiKey",
+      "anthropic.apiKey",
+      "gemini.apiKey",
+      "airtable.apiKey",
+      "hubspot.apiKey",
+      "postgres",
+      "smtp",
+    ]) {
+      expect(credentialRegistry.isTestable(type)).toBe(true);
+    }
+    for (const type of ["apiKey", "openaiCompatible.apiKey"]) {
+      expect(credentialRegistry.isTestable(type)).toBe(false);
+    }
   });
 });
 
@@ -180,6 +190,29 @@ describe("write-schema <-> registry parity (anti-drift)", () => {
       { type: "openai.apiKey", payload: { apiKey: "sk-xyz" } },
       { type: "anthropic.apiKey", payload: { apiKey: "sk-ant-xyz" } },
       { type: "gemini.apiKey", payload: { apiKey: "ai-zyx" } },
+      { type: "airtable.apiKey", payload: { apiKey: "pat-abc" } },
+      { type: "hubspot.apiKey", payload: { apiKey: "pat-eu1-abc" } },
+      {
+        type: "postgres",
+        payload: {
+          host: "db.local",
+          port: "5432",
+          database: "apps",
+          username: "admin",
+          password: "pw",
+        },
+      },
+      {
+        type: "smtp",
+        payload: {
+          host: "smtp.local",
+          port: "587",
+          username: "sender",
+          password: "pw",
+          tls: "starttls",
+        },
+      },
+      { type: "openaiCompatible.apiKey", payload: { apiKey: "sk-abc" } },
     ];
     const body = z.discriminatedUnion("type", credentialWriteVariants);
     for (const { type, payload } of samples) {
