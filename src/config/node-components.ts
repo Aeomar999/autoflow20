@@ -4,6 +4,7 @@ import { AnthropicNode } from "@/features/executions/components/anthropic/node";
 import { DiscordNode } from "@/features/executions/components/discord/node";
 import { EmailSendNode } from "@/features/executions/components/email-send/node";
 import { GeminiNode } from "@/features/executions/components/gemini/node";
+import { GoogleSheetsAppendNode } from "@/features/executions/components/google-sheets-append/node";
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
 import { PostgresQueryNode } from "@/features/executions/components/postgres-query/node";
@@ -22,6 +23,7 @@ export const nodeComponents = {
   GEMINI: GeminiNode,
   OPENAI: OpenAiNode,
   POSTGRES_QUERY: PostgresQueryNode,
+  GOOGLE_SHEETS_APPEND: GoogleSheetsAppendNode,
   ANTHROPIC: AnthropicNode,
   DISCORD: DiscordNode,
   SLACK: SlackNode,

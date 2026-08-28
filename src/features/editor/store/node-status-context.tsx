@@ -14,6 +14,7 @@ import { fetchAnthropicRealtimeToken } from "@/features/executions/components/an
 import { fetchDiscordRealtimeToken } from "@/features/executions/components/discord/actions";
 import { fetchEmailSendRealtimeToken } from "@/features/executions/components/email-send/actions";
 import { fetchGeminiRealtimeToken } from "@/features/executions/components/gemini/actions";
+import { fetchGoogleSheetsAppendRealtimeToken } from "@/features/executions/components/google-sheets-append/actions";
 import { fetchHttpRequestRealtimeToken } from "@/features/executions/components/http-request/actions";
 import { fetchOpenAiRealtimeToken } from "@/features/executions/components/openai/actions";
 import { fetchPostgresQueryRealtimeToken } from "@/features/executions/components/postgres-query/actions";
@@ -39,6 +40,10 @@ import {
   GOOGLE_FORM_TRIGGER_CHANNEL_NAME,
   googleFormTriggerChannel,
 } from "@/inngest/channels/google-form-trigger";
+import {
+  GOOGLE_SHEETS_APPEND_CHANNEL_NAME,
+  googleSheetsAppendChannel,
+} from "@/inngest/channels/google-sheets-append";
 import {
   HTTP_REQUEST_CHANNEL_NAME,
   httpRequestChannel,
@@ -96,6 +101,11 @@ const CHANNEL_SUBSCRIPTIONS = [
     channelName: HTTP_REQUEST_CHANNEL_NAME,
     channel: httpRequestChannel,
     refreshToken: fetchHttpRequestRealtimeToken,
+  },
+  {
+    channelName: GOOGLE_SHEETS_APPEND_CHANNEL_NAME,
+    channel: googleSheetsAppendChannel,
+    refreshToken: fetchGoogleSheetsAppendRealtimeToken,
   },
   {
     channelName: DISCORD_CHANNEL_NAME,

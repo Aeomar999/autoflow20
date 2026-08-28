@@ -7,6 +7,7 @@ import {
   GlobeIcon,
   Mail,
   MousePointerIcon,
+  Table2,
   Webhook,
 } from "lucide-react";
 import { useCallback } from "react";
@@ -99,6 +100,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Send Email",
     description: "Send an email through an SMTP relay",
     icon: Mail,
+  },
+  {
+    type: "GOOGLE_SHEETS_APPEND",
+    label: "Google Sheets",
+    description: "Append rows to a Google Sheets spreadsheet",
+    icon: Table2,
   },
   {
     type: "POSTGRES_QUERY",

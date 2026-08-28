@@ -135,6 +135,7 @@ describe("production node registry + manifest", () => {
       ["email", "send"],
       ["webhook", "out"],
       ["postgres", "query"],
+      ["google-sheets", "append"],
     ];
     for (const [ns, node] of folders) {
       const source = readFileSync(
