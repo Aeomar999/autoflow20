@@ -1,6 +1,6 @@
 "use client";
 
-import { getDefaultStore, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { SaveIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,8 +24,6 @@ import {
   useSuspenseWorkflow,
   useUpdateWorkflowName,
 } from "@/features/workflows/hooks/use-workflows";
-
-const jotaiStore = getDefaultStore();
 
 function useDebounce(callback: () => void, delayMs: number) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,6 +54,7 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   const saveWorkflow = useSaveWorkflow();
   const saveStatus = useAtomValue(saveStatusAtom);
   const setSaveStatus = useSetAtom(saveStatusAtom);
+  const store = useStore();
 
   // Read nodes/edges lazily inside save — avoids subscribing to these
   // high-frequency atoms at render time, which would re-render this
@@ -65,8 +64,8 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
     if (typeof workflow.revision !== "number") return;
 
     // Lazy read: get current atom values at save time, not render time.
-    const nodes = jotaiStore.get(nodesAtom);
-    const edges = jotaiStore.get(edgesAtom);
+    const nodes = store.get(nodesAtom);
+    const edges = store.get(edgesAtom);
 
     setSaveStatus("saving");
     saveWorkflow.mutate({
@@ -75,7 +74,14 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
       edges,
       revision: workflow.revision,
     });
-  }, [saveWorkflow, workflowId, workflow.revision, saveStatus, setSaveStatus]);
+  }, [
+    saveWorkflow,
+    workflowId,
+    workflow.revision,
+    saveStatus,
+    setSaveStatus,
+    store,
+  ]);
 
   // Debounced autosave: triggers 1.5s after last change.
   const cancelAutosave = useDebounce(
@@ -216,13 +222,18 @@ export const EditorBreadcrumbs = ({ workflowId }: { workflowId: string }) => {
   );
 };
 
+import { VersionHistorySheet } from "@/features/workflows/components/version-history";
+
 export const EditorHeader = ({ workflowId }: { workflowId: string }) => {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 bg-background">
       <SidebarTrigger />
       <div className="flex flex-row items-center justify-between gap-x-4 w-full">
         <EditorBreadcrumbs workflowId={workflowId} />
-        <EditorSaveButton workflowId={workflowId} />
+        <div className="flex items-center gap-2">
+          <VersionHistorySheet workflowId={workflowId} />
+          <EditorSaveButton workflowId={workflowId} />
+        </div>
       </div>
     </header>
   );

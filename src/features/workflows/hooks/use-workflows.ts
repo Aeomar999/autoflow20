@@ -175,3 +175,74 @@ export const useTestWorkflow = () => {
     }),
   );
 };
+
+export const useWorkflowVersions = (id: string) => {
+  const trpc = useTRPC();
+  return useQuery(trpc.workflows.getVersions.queryOptions({ id }));
+};
+
+export const usePublishWorkflow = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.workflows.publish.mutationOptions({
+      onSuccess: (data, variables) => {
+        toast.success(`Published version ${data.version}`);
+        queryClient.invalidateQueries(
+          trpc.workflows.getVersions.queryOptions({ id: variables.id }),
+        );
+        queryClient.invalidateQueries(
+          trpc.workflows.getOne.queryOptions({ id: variables.id }),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to publish: ${error.message}`);
+      },
+    }),
+  );
+};
+
+export const useActivateVersion = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.workflows.activate.mutationOptions({
+      onSuccess: (_data, variables) => {
+        toast.success("Version activated");
+        queryClient.invalidateQueries(
+          trpc.workflows.getVersions.queryOptions({ id: variables.workflowId }),
+        );
+        queryClient.invalidateQueries(
+          trpc.workflows.getOne.queryOptions({ id: variables.workflowId }),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to activate version: ${error.message}`);
+      },
+    }),
+  );
+};
+
+export const useDeactivateWorkflow = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.workflows.deactivate.mutationOptions({
+      onSuccess: (_data, variables) => {
+        toast.success("Workflow deactivated");
+        queryClient.invalidateQueries(
+          trpc.workflows.getVersions.queryOptions({ id: variables.id }),
+        );
+        queryClient.invalidateQueries(
+          trpc.workflows.getOne.queryOptions({ id: variables.id }),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to deactivate: ${error.message}`);
+      },
+    }),
+  );
+};

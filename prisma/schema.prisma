@@ -121,9 +121,14 @@ model Workflow {
   /// Optimistic concurrency counter — incremented on every saveGraph (AF-M1-03)
   revision Int @default(0)
 
+  /// The currently active published version
+  activeVersionId String?
+  activeVersion WorkflowVersion? @relation("ActiveVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+
   nodes Node[]
   connections Connection[]
   executions Execution[]
+  versions WorkflowVersion[] @relation("WorkflowVersions")
 
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -189,7 +194,6 @@ model Execution {
 
   status ExecutionStatus @default(RUNNING)
 
-  /// What triggered this run: MANUAL, WEBHOOK, SCHEDULE, API, SUBWORKFLOW
   trigger String @default("MANUAL")
   /// PRODUCTION or TEST (in-editor test runs)
   mode String @default("PRODUCTION")
@@ -197,6 +201,10 @@ model Execution {
   graphSnapshot Json @default("{}")
   /// Trigger input payload
   input Json?
+  
+  /// The specific published version that was run, if applicable
+  workflowVersionId String?
+  workflowVersion WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: SetNull)
 
   error String? @db.Text
   errorStack String? @db.Text
@@ -268,4 +276,29 @@ model NodeExecution {
   @@index([executionId, order])
   @@index([executionId, startedAt(sort: Desc)])
   @@index([status])
+}
+
+model WorkflowVersion {
+  id String @id @default(cuid())
+
+  workflowId String
+  workflow Workflow @relation("WorkflowVersions", fields: [workflowId], references: [id], onDelete: Cascade)
+
+  /// The sequential version number for this workflow (e.g. 1, 2, 3)
+  version Int
+  /// The revision of the draft Workflow at the time of publish
+  workflowRevision Int
+
+  /// Snapshot of nodes and edges at publish time
+  graphSnapshot Json
+
+  createdAt DateTime @default(now())
+  
+  /// Workflows that have this version as their currently active version
+  activeFor Workflow[] @relation("ActiveVersion")
+  /// Executions that ran this specific version
+  executions Execution[]
+
+  @@unique([workflowId, version])
+  @@index([workflowId])
 }
