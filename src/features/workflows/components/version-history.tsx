@@ -2,6 +2,7 @@
 
 import { formatDistanceToNow } from "date-fns";
 import { CheckCircle2Icon, HistoryIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,10 +22,17 @@ import {
 } from "../hooks/use-workflows";
 
 // Diff utility
-function getDiffSummary(currentSnapshot: any, previousSnapshot: any) {
-  if (!currentSnapshot || !currentSnapshot.nodes) return null;
-  const currentNodes = currentSnapshot.nodes as any[];
-  const prevNodes = (previousSnapshot?.nodes as any[]) || [];
+type VersionSnapshot = {
+  nodes?: Array<{ id: string; type: string }>;
+};
+
+function getDiffSummary(
+  currentSnapshot: VersionSnapshot | null | undefined,
+  previousSnapshot: VersionSnapshot | null | undefined,
+): ReactNode {
+  if (!currentSnapshot?.nodes) return null;
+  const currentNodes = currentSnapshot.nodes;
+  const prevNodes = previousSnapshot?.nodes ?? [];
 
   const currentTypes = currentNodes.reduce(
     (acc, n) => {
@@ -136,8 +144,8 @@ export const VersionHistorySheet = ({ workflowId }: { workflowId: string }) => {
               const previousVersion = versions[index + 1];
               const isActive = v.id === activeId;
               const diffNode = getDiffSummary(
-                v.graphSnapshot,
-                previousVersion?.graphSnapshot,
+                v.graphSnapshot as VersionSnapshot,
+                previousVersion?.graphSnapshot as VersionSnapshot | undefined,
               );
 
               return (

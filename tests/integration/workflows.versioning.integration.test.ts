@@ -59,7 +59,10 @@ describe.runIf(hasDb)("Workflows Router Versioning", () => {
     expect(version.version).toBe(1);
     expect(version.workflowId).toBe(wfId);
     expect(version.workflowRevision).toBe(0);
-    expect((version.graphSnapshot as any).nodes).toHaveLength(1);
+    expect(
+      (version.graphSnapshot as { nodes?: Array<{ id: string }> } | null)
+        ?.nodes,
+    ).toHaveLength(1);
 
     const updatedWf = await prisma.workflow.findUnique({
       where: { id: wfId },
