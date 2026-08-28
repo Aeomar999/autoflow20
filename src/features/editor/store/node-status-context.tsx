@@ -12,6 +12,7 @@ import {
 import type { NodeStatus } from "@/components/react-flow/node-status-indicator";
 import { fetchAnthropicRealtimeToken } from "@/features/executions/components/anthropic/actions";
 import { fetchDiscordRealtimeToken } from "@/features/executions/components/discord/actions";
+import { fetchEmailSendRealtimeToken } from "@/features/executions/components/email-send/actions";
 import { fetchGeminiRealtimeToken } from "@/features/executions/components/gemini/actions";
 import { fetchHttpRequestRealtimeToken } from "@/features/executions/components/http-request/actions";
 import { fetchOpenAiRealtimeToken } from "@/features/executions/components/openai/actions";
@@ -28,6 +29,10 @@ import {
   DISCORD_CHANNEL_NAME,
   discordChannel,
 } from "@/inngest/channels/discord";
+import {
+  EMAIL_SEND_CHANNEL_NAME,
+  emailSendChannel,
+} from "@/inngest/channels/email-send";
 import { GEMINI_CHANNEL_NAME, geminiChannel } from "@/inngest/channels/gemini";
 import {
   GOOGLE_FORM_TRIGGER_CHANNEL_NAME,
@@ -91,6 +96,11 @@ const CHANNEL_SUBSCRIPTIONS = [
     channelName: SLACK_CHANNEL_NAME,
     channel: slackChannel,
     refreshToken: fetchSlackRealtimeToken,
+  },
+  {
+    channelName: EMAIL_SEND_CHANNEL_NAME,
+    channel: emailSendChannel,
+    refreshToken: fetchEmailSendRealtimeToken,
   },
   {
     channelName: MANUAL_TRIGGER_CHANNEL_NAME,

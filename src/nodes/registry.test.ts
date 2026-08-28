@@ -132,6 +132,7 @@ describe("production node registry + manifest", () => {
       ["ai", "openai"],
       ["discord", "send-message"],
       ["slack", "send-message"],
+      ["email", "send"],
       ["webhook", "out"],
     ];
     for (const [ns, node] of folders) {

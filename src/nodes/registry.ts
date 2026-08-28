@@ -9,6 +9,7 @@ import coreScheduleTrigger from "./core/schedule-trigger";
 import coreSet from "./core/set";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
+import emailSend from "./email/send";
 import formsGoogleForm from "./forms/google-form";
 import httpHttpRequest from "./http/request";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
@@ -164,6 +165,7 @@ export const nodeRegistry = createNodeRegistry(
     aiOpenai,
     discordSendMessage,
     slackSendMessage,
+    emailSend,
     webhookOut,
   ],
   { aliases: { INITIAL: "MANUAL_TRIGGER" } },

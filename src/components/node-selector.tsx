@@ -2,7 +2,7 @@
 
 import { createId } from "@paralleldrive/cuid2";
 import { useAtomValue, useSetAtom } from "jotai";
-import { GlobeIcon, MousePointerIcon, Webhook } from "lucide-react";
+import { GlobeIcon, Mail, MousePointerIcon, Webhook } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import {
@@ -87,6 +87,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Webhook",
     description: "Send a POST request to a webhook URL",
     icon: Webhook,
+  },
+  {
+    type: "EMAIL_SEND",
+    label: "Send Email",
+    description: "Send an email through an SMTP relay",
+    icon: Mail,
   },
 ];
 
