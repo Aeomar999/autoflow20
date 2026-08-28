@@ -1,7 +1,7 @@
 # AutoFlow — Progress
 
 **Snapshot date:** 2026-08-28
-**Current milestone:** M3 credential vault + connectors — AF-M3-01/02/03/04/05 done; connectors (M3-06) in progress (stage 0: five new credential types + testers)
+**Current milestone:** M4 triggers/publish/versioning — AF-M4-01/02 done (versioning backend + version history UI); M3 complete (all 8 connectors). AF-M1-05 palette partial (fuzzy search, drag-onto-canvas, manifest-driven rendering remain).
 **Overall vs. PRD Phase 1:** ~32% implemented
 **Overall vs. full PRD (Phases 1–3):** ~8%
 
@@ -142,8 +142,8 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 | M0 | Stabilize the base | 🟠 Mostly done | M0-00/01/05/06/07/08/02/03/04/09 ✅ (M0-06 Testing Library done 2026-08-24; only DB-backed integration tests remain, blocked on live DB). |
 | M1 | Graph persistence + Node SDK | ✅ Done | AF-M1-01 ✅, AF-M1-02 ✅, AF-M1-03 ✅, AF-M1-04 ✅ (2026-08-26): saveGraph with concurrency; autosave + dirty tracking + CONFLICT reload. M1 complete. |
 | M2 | Execution engine + traces | ✅ Done | AF-M2-01 .. AF-M2-08 ✅ (2026-08-26/27): node executors, executions API, executions UI, in-editor test runs, branch-taken skip semantics, expression helpers, shared validator, execution data model. M2 complete. |
-| M3 | Credential vault + connectors | 🟠 In progress | AF-M3-01 ✅ (2026-08-27): envelope crypto module. AF-M3-02 ✅ (2026-08-27): vault model + typed registry (8 kinds). AF-M3-04 ✅ (2026-08-27): credential injection into execution engine. AF-M3-03 ✅ (2026-08-27): UI upgrade with masked inputs, partial edits, test connection, and in-use warnings. AF-M3-05 ✅ (2026-08-27): OAuth2 flow + auto-refresh. AF-M3-06 stage 0 ✅ (2026-08-28): five new credential types (Postgres / SMTP / Airtable / HubSpot / OpenAI-compatible) with server-side connection testers; the eight connector nodes remain. |
-| M4 | Triggers, publish, versioning | 🟨 In progress | Webhook triggers exist but unauthenticated; no cron/versioning. |
+| M3 | Credential vault + connectors | ✅ Done | AF-M3-01 ✅ (2026-08-27): envelope crypto module. AF-M3-02 ✅ (2026-08-27): vault model + typed registry (8 kinds). AF-M3-04 ✅ (2026-08-27): credential injection into execution engine. AF-M3-03 ✅ (2026-08-27): UI upgrade with masked inputs, partial edits, test connection, and in-use warnings. AF-M3-05 ✅ (2026-08-27): OAuth2 flow + auto-refresh. AF-M3-06 ✅ (2026-08-28): five new credential types + testers (stage 0) then all **eight connector nodes** committed — definition + execute + unit tests + palette metadata + `docs/nodes/*.md`; Postgres uses parameterized queries only. M3 complete. |
+| M4 | Triggers, publish, versioning | 🟨 In progress | AF-M4-01 ✅ + AF-M4-02 ✅ (2026-08-28): WorkflowVersion model, publish/activate/deactivate router, version history UI with rollback (both `56cbb86`). Webhook route (AF-M4-03), cron trigger (AF-M4-04), manual payload editor (AF-M4-05), concurrency limits (AF-M4-06) remain. |
 | M5–M8 | As planned | ⬜ Not started | AI cost layer, tenancy, templates, beta hardening. |
 
 ---
@@ -153,15 +153,15 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 | Metric | Value | Source |
 |---|---|---|
 | Source files (`src/**` ts/tsx) | 197 | file listing |
-| Prisma models | 10 (`User`, `Session`, `Account`, `Verification`, `Credential`, `Workflow`, `Node`, `Connection`, `Execution`, `NodeExecution`) | `schema.prisma` |
+| Prisma models | 11 (`User`, `Session`, `Account`, `Verification`, `Credential`, `Workflow`, `Node`, `Connection`, `Execution`, `NodeExecution`, `WorkflowVersion`) | `schema.prisma` |
 | tRPC routers | 3 (`workflows`, `executions`, `credentials`) | `src/trpc/routers/_app.ts` |
-| Executable node types | 14 | `src/nodes/manifest.ts` |
+| Executable node types | 21 | `src/nodes/manifest.ts` |
 | Inngest functions | 1 (`execute-workflow`) + 9 realtime channels | `src/inngest/functions.ts` |
 | Tests | **359 collected** — 342 passed + 17 skipped (integration/env-gated without `TEST_DATABASE_URL`) | `npm test` |
 | CI pipelines | 1 (`.github/workflows/ci.yml`: lint + tsc + test + build on postgres:16) **+ Vercel production build green** — `postinstall: prisma generate` emits the gitignored client before `next build` (`04b9a35`, 2026-08-28) | repo root |
 | Type check | ✅ clean after `npx prisma generate` | `tsc --noEmit` exit 0 |
 | Lint | ✅ clean (`biome check` exits 0; vendored-UI overrides documented) | `biome check` |
-| Migrations | 16 (latest `20260827170000_credential_vault_af_m3_02` — `Credential` switches from `value` to envelope columns + registry-id `type`; `20260824100000` drops the dead tutorial `Post` table — all unapplied locally, CI applies via `migrate deploy`) | `prisma/migrations` |
+| Migrations | 21 (latest `20260828042727_add_workflow_version` — `WorkflowVersion` model + `Workflow.activeVersionId` + `Execution.workflowVersionId`; prior `20260827170000_credential_vault_af_m3_02` switches `Credential` from `value` to envelope columns + registry-id `type`; `20260824100000` drops the dead tutorial `Post` table — all unapplied locally, CI applies via `migrate deploy`) | `prisma/migrations` |
 | Connectors | 8 nodes (Slack · SMTP · Sheets · Postgres · Airtable · HubSpot · OpenAI-compatible · Webhook-out) | `src/nodes/manifest.ts` |
 | Templates | 0 | — |
 
@@ -173,6 +173,8 @@ Newest first.
 
 | Date | Change | Milestone |
 |---|---|---|
+| 2026-08-28 | **AF-M3-06 - Eight connectors (stage 1 completed).** All eight connector nodes now ship definition + execute + unit tests + palette metadata + `docs/nodes/<name>.md`: Webhook-out `97f95ac`, Email/SMTP `3776de1`, Postgres `9cf42fc` (parameterized `$1`/`$2` with bound values — string-concatenated SQL is a rejection, enforced and tested; node doc forbids it), Google Sheets `eca50ce`, Airtable `3d64c8c`, HubSpot `eedbd73`, OpenAI-compatible chat `b311262`, and Slack send-message tests + doc `9a475d9`. Palette logos + save-status polish in `4e8b364`. The stage-1 "held commit" caveat is moot — the versioning `graphSnapshot` type error that blocked `next build` was fixed in `28764f4` and the build is green (infra row, `04b9a35`). Two follow-ups carried forward: Slack sends via incoming webhook (`slack.oauth2` credential type registered but unused — API/token path out of scope) and `webhookUrl` does not compile `{{...}}` templates (only `content` does). Suite 359 collected (342 passed, 17 skipped). | M3 |
+| 2026-08-28 | **AF-M4-02 - Version history UI (completes the AF-M4-01 backend).** `56cbb86` adds `VersionHistorySheet` to the editor header (`editor-header.tsx`): revision list with a node-level diff summary, Deactivate, and one-click "Rollback to vN" via the publish/activate/deactivate procedures from AF-M4-01; `Execution` rows may pin a `workflowVersionId`. The versioning integration tests pass and the build is green — the last 5 `noExplicitAny` warnings in the diff/rollback UI were fixed in `28764f4`, resolving the blocker the AF-M3-06 stage-1 row below warned about. | M4 |
 | 2026-08-28 | **Vercel production build green on `main` (04b9a35).** Root-caused the `main` deploy failure — 17 Turbopack `Module not found: Can't resolve '@/generated/prisma/{browser,client}'` — to the generated Prisma client being absent on the build machine: `/src/generated/prisma` is gitignored, and the build ran `next build` with no generation step. Fixed by adding `"postinstall": "prisma generate"` to `package.json` (Vercel runs `npm install` → postinstall → client emitted to `./src/generated/prisma` before `next build`). Also pinned `turbopack.root: __dirname` in `next.config.ts` so a stray `package-lock.json` in the user home dir can't confuse Turbopack's root detection and cause an all-routes `PageNotFoundError: Cannot find module for page` at page-data collection (a local-only artifact, not the Vercel cause). Verified end-to-end: local build compiles and generates all 15 static pages; Vercel `main` (04b9a35) build now succeeds. Remaining (non-blocking, pre-existing) Vercel warnings: npm ERESOLVE peer overrides for `@polar-sh/*` (React 18 peers vs app React 19), npm allow-scripts list for 8 packages incl. `@prisma/engines`/`@sentry/cli`/`sharp`, and no `SENTRY_AUTH_TOKEN` (source-map upload skipped). | infra |
 | 2026-08-28 | **AF-M4-01 - Workflow versioning (backend).** Added WorkflowVersion model to schema, linking draft states to published revisions via graphSnapshot. Workflow model gains ctiveVersionId. Router updated with publish (creates version + activates by default), ctivate (rolls forward/back to specific version), deactivate (removes active version), and getVersions (lists history). Executions can now optionally reference a specific workflowVersionId. 5 integration tests added verifying publish defaults, manual overrides, and version incrementing against a real database. Schema synced, tests pass. | M4 |
 

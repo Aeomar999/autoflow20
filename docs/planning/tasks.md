@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-28 (AF-M3-06 stage 0 — five connector credential types with testers)
+**Last updated:** 2026-08-28 (AF-M3-06 ✅ all 8 connectors; AF-M4-01/02 ✅ versioning; AF-M1-05 🟡 partial — fuzzy search, drag-onto-canvas, manifest-driven rendering remain)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -323,13 +323,15 @@ Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSn
 
 ---
 
-### ⬜ AF-M1-05 · Node palette · 2d
+### 🟡 AF-M1-05 · Node palette · 2d
 **Acceptance**
 - [ ] Palette lists all manifest nodes grouped by category with icon, label, description.
 - [ ] Fuzzy search over label, description, and keywords.
 - [ ] Add by drag-onto-canvas and by click-to-append from a node's `+` handle.
 - [ ] Trigger nodes only insertable when the workflow has no trigger; the constraint is explained in the UI, not silently enforced.
 - [ ] Adding a node is a `src/nodes/` change only — no palette edits required.
+
+**Status 2026-08-28 — partial, do not close:** `src/components/node-selector.tsx` ships a static grouped palette (Trigger/Execution sections) with real connector + AI logos, label + description, and click-to-append that inserts near the canvas center with jitter; the single-manual-trigger guard explains itself via toast ("Only one manual trigger is allowed per workflow"); landed together with save-status polish in `4e8b364`. Remaining AC: fuzzy search, drag-onto-canvas, and manifest-driven rendering — the node list is hardcoded, so a `src/nodes/` change still requires a palette edit (the schema-driven config panel is AF-M1-06).
 
 ---
 
@@ -552,29 +554,26 @@ A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgr
 - [x] Scheduled Inngest function refreshes tokens before expiry.
 - [x] Refresh failure creates a visible, actionable alert — the "tokens silently expire and workflows break" gap.
 
-### 🟡 AF-M3-06 · Eight connectors · 5d
+### ✅ AF-M3-06 · Eight connectors · 5d
 Slack · Gmail/SMTP · Google Sheets · Postgres · Airtable · HubSpot · OpenAI-compatible HTTP · Webhook-out.
 
-Stage 0 done 2026-08-28: `postgres`, `smtp`, `airtable.apiKey`, `hubspot.apiKey`, `openaiCompatible.apiKey` credential types + server-side connection testers (Postgres/SMTP/Airtable/HubSpot; OpenAI-compatible intentionally not testable). Connector nodes below.
+Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hubspot.apiKey`, `openaiCompatible.apiKey` credential types + server-side connection testers (Postgres/SMTP/Airtable/HubSpot; OpenAI-compatible intentionally not testable). Connector nodes below.
 
-- [ ] Each: definition + execute + credential type + unit tests + palette metadata.
-- [ ] Each documented in `docs/nodes/<name>.md` with config reference and an example.
-- [ ] Postgres node uses parameterized queries only — string-concatenated SQL is a rejection.
+- [x] Each: definition + execute + credential type + unit tests + palette metadata.
+- [x] Each documented in `docs/nodes/<name>.md` with config reference and an example.
+- [x] Postgres node uses parameterized queries only — string-concatenated SQL is a rejection.
 
-**Status 2026-08-28 (stage 1):** all eight connector nodes exist; seven ship definition + execute + unit tests + palette metadata + `docs/nodes/<name>.md`. The **OpenAI-compatible HTTP** node (`OPENAI_COMPATIBLE_CHAT`, `src/nodes/ai/compatible/`, credential `openaiCompatible.apiKey`) and **Webhook-out** node (`WEBHOOK_OUT`) are complete. Slack send-message gained unit tests
-(`src/nodes/slack/send-message/definition.test.ts`, `execute.test.ts`) and `docs/nodes/slack-send-message.md`. Known gaps, not yet committed:
+**Status 2026-08-28 — done.** All eight connectors ship definition + execute + unit tests + palette metadata + `docs/nodes/<name>.md`: `97f95ac` Webhook-out · `3776de1` Email/SMTP · `9cf42fc` Postgres (`$1`-bound parameterized queries; `src/nodes/postgres/query/definition.ts` explicitly forbids string-concatenated SQL) · `eca50ce` Google Sheets · `3d64c8c` Airtable · `eedbd73` HubSpot · `b311262` OpenAI-compatible chat (`src/nodes/ai/compatible/`, credential `openaiCompatible.apiKey`) · `9a475d9` Slack send-message tests + doc. Palette logos + node-status icon map polished in `4e8b364`. Follow-ups carried forward (non-blocking):
 - Slack node sends via **incoming webhook** (`webhookUrl`); the `slack.oauth2` credential type exists (stage 0) but the node does not use it — API/token path out of scope.
 - Slack `webhookUrl` does **not** compile `{{...}}` templates today (content does); URL templating is a follow-up.
-- Connector commit is held while the AF-M4-01 versioning WIP (version-history `graphSnapshot` type error) blocks `next build`.
-
-**Stage-1 commit:** OpenAI-Compatible connector; Slack tests + doc.
+- The palette is a static hardcoded list rather than manifest-rendered — tracked under AF-M1-05.
 
 ---
 
 ## M4 — Triggers, publish, versioning · 2 weeks
 
-- ⬜ **AF-M4-01** `WorkflowVersion` model, publish/activate/deactivate, draft-vs-active separation · 2d
-- ⬜ **AF-M4-02** Version history UI with diff summary and one-click rollback · 2d
+- [x] **AF-M4-01** `WorkflowVersion` model, publish/activate/deactivate, draft-vs-active separation · 2d — **done `56cbb86`**: `WorkflowVersion` model + `activeVersionId` on `Workflow`; router `publish`/`activate`/`deactivate`/`getVersions`; `Execution` optionally binds `workflowVersionId`; 5 integration tests.
+- [x] **AF-M4-02** Version history UI with diff summary and one-click rollback · 2d — **done `56cbb86`**: `VersionHistorySheet` (diff summary, Deactivate, one-click rollback) wired into the editor header (`editor-header.tsx`).
 - ⬜ **AF-M4-03** `POST /api/webhooks/:workflowId/:path` — secret/signature verification, raw capture, `202` fast path, optional sync-respond with hard timeout, rate limited · 3d
 - ⬜ **AF-M4-04** Schedule trigger via Inngest cron with timezone support and next-run preview · 2d
 - ⬜ **AF-M4-05** Manual trigger payload editor · 1d
