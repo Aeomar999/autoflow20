@@ -12,6 +12,7 @@ import { definition as emailSend } from "./email/send/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
+import { definition as postgresQuery } from "./postgres/query/definition";
 import { definition as slackSendMessage } from "./slack/send-message/definition";
 import type { NodeDefinition } from "./types";
 import { definition as webhookOut } from "./webhook/out/definition";
@@ -34,6 +35,7 @@ export const nodeManifest: NodeDefinition[] = [
   coreMerge,
   formsGoogleForm,
   paymentsStripeTrigger,
+  postgresQuery,
   httpHttpRequest,
   aiAnthropic,
   aiGemini,

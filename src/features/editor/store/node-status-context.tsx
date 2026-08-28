@@ -16,6 +16,7 @@ import { fetchEmailSendRealtimeToken } from "@/features/executions/components/em
 import { fetchGeminiRealtimeToken } from "@/features/executions/components/gemini/actions";
 import { fetchHttpRequestRealtimeToken } from "@/features/executions/components/http-request/actions";
 import { fetchOpenAiRealtimeToken } from "@/features/executions/components/openai/actions";
+import { fetchPostgresQueryRealtimeToken } from "@/features/executions/components/postgres-query/actions";
 import { fetchSlackRealtimeToken } from "@/features/executions/components/slack/actions";
 import { fetchWebhookOutRealtimeToken } from "@/features/executions/components/webhook-out/actions";
 import { fetchGoogleFormTriggerRealtimeToken } from "@/features/triggers/components/google-form-trigger/actions";
@@ -47,6 +48,10 @@ import {
   manualTriggerChannel,
 } from "@/inngest/channels/manual-trigger";
 import { OPENAI_CHANNEL_NAME, openAiChannel } from "@/inngest/channels/openai";
+import {
+  POSTGRES_QUERY_CHANNEL_NAME,
+  postgresQueryChannel,
+} from "@/inngest/channels/postgres-query";
 import { SLACK_CHANNEL_NAME, slackChannel } from "@/inngest/channels/slack";
 import {
   STRIPE_TRIGGER_CHANNEL_NAME,
@@ -71,6 +76,11 @@ const CHANNEL_SUBSCRIPTIONS = [
     channelName: OPENAI_CHANNEL_NAME,
     channel: openAiChannel,
     refreshToken: fetchOpenAiRealtimeToken,
+  },
+  {
+    channelName: POSTGRES_QUERY_CHANNEL_NAME,
+    channel: postgresQueryChannel,
+    refreshToken: fetchPostgresQueryRealtimeToken,
   },
   {
     channelName: ANTHROPIC_CHANNEL_NAME,

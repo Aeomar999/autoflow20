@@ -13,6 +13,7 @@ import emailSend from "./email/send";
 import formsGoogleForm from "./forms/google-form";
 import httpHttpRequest from "./http/request";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
+import postgresQuery from "./postgres/query";
 import slackSendMessage from "./slack/send-message";
 import type { NodeCategory, NodeRegistration } from "./types";
 import webhookOut from "./webhook/out";
@@ -159,6 +160,7 @@ export const nodeRegistry = createNodeRegistry(
     coreMerge,
     formsGoogleForm,
     paymentsStripeTrigger,
+    postgresQuery,
     httpHttpRequest,
     aiAnthropic,
     aiGemini,

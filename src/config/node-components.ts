@@ -6,6 +6,7 @@ import { EmailSendNode } from "@/features/executions/components/email-send/node"
 import { GeminiNode } from "@/features/executions/components/gemini/node";
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
+import { PostgresQueryNode } from "@/features/executions/components/postgres-query/node";
 import { SlackNode } from "@/features/executions/components/slack/node";
 import { WebhookOutNode } from "@/features/executions/components/webhook-out/node";
 import { GoogleFormTrigger } from "@/features/triggers/components/google-form-trigger/node";
@@ -20,6 +21,7 @@ export const nodeComponents = {
   STRIPE_TRIGGER: StripeTriggerNode,
   GEMINI: GeminiNode,
   OPENAI: OpenAiNode,
+  POSTGRES_QUERY: PostgresQueryNode,
   ANTHROPIC: AnthropicNode,
   DISCORD: DiscordNode,
   SLACK: SlackNode,

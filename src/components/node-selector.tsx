@@ -2,7 +2,13 @@
 
 import { createId } from "@paralleldrive/cuid2";
 import { useAtomValue, useSetAtom } from "jotai";
-import { GlobeIcon, Mail, MousePointerIcon, Webhook } from "lucide-react";
+import {
+  Database,
+  GlobeIcon,
+  Mail,
+  MousePointerIcon,
+  Webhook,
+} from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import {
@@ -93,6 +99,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Send Email",
     description: "Send an email through an SMTP relay",
     icon: Mail,
+  },
+  {
+    type: "POSTGRES_QUERY",
+    label: "Postgres Query",
+    description: "Run a parameterized SQL query",
+    icon: Database,
   },
 ];
 
