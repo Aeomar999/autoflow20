@@ -1,6 +1,7 @@
 import type { Realtime } from "@inngest/realtime";
 import type { GetStepTools, Inngest } from "inngest";
 import type { z } from "zod";
+import type { CredentialSecret } from "@/features/credentials/server/vault";
 
 /**
  * Node SDK types (AF-M1-01) — the contract for everything on the canvas.
@@ -99,6 +100,15 @@ export interface NodeRunParams<TData = Record<string, unknown>> {
   context: WorkflowContext;
   step: StepTools;
   publish: Realtime.PublishFn;
+  /**
+   * Resolved, decrypted credentials for this node, keyed by the
+   * `CredentialRequirement.key` (i.e. the node-config field that holds the
+   * credential id). Filled exactly once by the engine before the executor runs
+   * (AF-M3-04) — executors MUST read from here, never query/openSecret
+   * themselves. This map is never merged into `context`, `output`, or the
+   * trace, so plaintext cannot reach `NodeExecution.input/output`.
+   */
+  credentials?: Record<string, CredentialSecret>;
 }
 
 export type NodeRun<TData = Record<string, unknown>> = (

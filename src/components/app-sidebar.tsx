@@ -11,6 +11,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -53,6 +54,7 @@ export const AppSidebar = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { hasActiveSubscription, isLoading } = useHasActiveSubscription();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   return (
     <Sidebar collapsible="icon">
@@ -128,15 +130,17 @@ export const AppSidebar = () => {
             <SidebarMenuButton
               tooltip="Sign out"
               className="gap-x-4 h-10 px-4"
-              onClick={() =>
+              disabled={isSigningOut}
+              onClick={() => {
+                setIsSigningOut(true);
                 authClient.signOut({
                   fetchOptions: {
                     onSuccess: () => {
                       router.push("/login");
                     },
                   },
-                })
-              }
+                });
+              }}
             >
               <LogOutIcon className="h-4 w-4" />
               <span>Sign out</span>

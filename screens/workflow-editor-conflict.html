@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Save conflict — AutoFlow editor</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /workflows/[id] — saveGraph returned CONFLICT   [PLANNED M1]
+     Workflow.revision gives optimistic concurrency. Without this dialog the
+     later save silently wins and someone's afternoon disappears. The dialog
+     never offers a one-click "overwrite" without naming what gets lost. -->
+
+<div class="shell shell--bare" style="height:100vh;position:relative;overflow:hidden">
+  <div class="main" style="height:100vh">
+
+    <header class="topbar" style="gap:10px" data-component="AppHeader">
+      <button class="btn btn--ghost btn--icon btn--sm">☰</button>
+      <nav class="crumbs">
+        <a href="workflows-list.html">Workflows</a>
+        <span class="crumbs__sep">/</span>
+        <span class="crumbs__here">Invoice → Slack approval</span>
+      </nav>
+      <span class="badge badge--warn">⚠ Save failed</span>
+      <div class="push rowx">
+        <button class="btn btn--sm">Test run</button>
+        <button class="btn btn--sm">Save</button>
+        <button class="btn btn--sm btn--primary" aria-disabled="true">Deploy</button>
+      </div>
+    </header>
+
+    <div class="editor editor--full">
+      <aside class="epanel">
+        <div class="epanel__head"><span class="epanel__title">Nodes</span></div>
+        <div class="epanel__body">
+          <div class="palitem"><span class="icon icon--brand">⇥</span><span class="grow"><span class="palitem__label">Webhook</span></span></div>
+          <div class="palitem"><span class="icon">⑂</span><span class="grow"><span class="palitem__label">Condition</span></span></div>
+        </div>
+      </aside>
+      <div class="canvaswrap">
+        <div class="canvas">
+          <div class="nodecard nodecard--trigger" style="left:40px;top:160px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⇥</span>
+              <span class="grow"><span class="nodecard__label">Invoice received</span>
+              <span class="nodecard__type">core.webhook-trigger</span></span></div>
+          </div>
+          <div class="nodecard" style="left:300px;top:160px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⊞</span>
+              <span class="grow"><span class="nodecard__label">Extract invoice fields</span>
+              <span class="nodecard__type">ai.extract</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Conflict dialog ────────────────────────────────────────────────── -->
+    <div class="scrim scrim--center" data-component="AlertDialog">
+      <div class="dialog dialog--lg">
+        <div class="dialog__head">
+          <div class="rowx">
+            <span class="icon" style="border-color:color-mix(in oklab, var(--destructive) 40%, transparent);color:var(--destructive)">⚠</span>
+            <div>
+              <div class="dialog__title">Priya saved this workflow while you were editing</div>
+              <p class="dialog__desc">
+                The version on the server moved from revision 41 to 42. Your changes have not been
+                saved and nothing has been lost yet.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="dialog__body">
+          <div class="grid grid--2" style="gap:12px">
+            <div class="card">
+              <div class="card__head" style="padding:10px 12px">
+                <span class="t-sm strong grow">Their version</span>
+                <span class="badge badge--mono">rev 42</span>
+              </div>
+              <div class="card__body" style="padding:10px 12px">
+                <div class="t-xs dim" style="margin-bottom:8px">Priya Raghunathan · 2 minutes ago</div>
+                <div class="diff">
+                  <div class="diff__row diff__row--add"><span class="diff__sign">+</span>
+                    <span class="diff__what t-sm">Retry policy on “Post to #finance-ops” → 5 attempts</span></div>
+                  <div class="diff__row"><span class="diff__sign">~</span>
+                    <span class="diff__what t-sm">Timeout on “Extract invoice fields” → 60s</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="border-color:var(--primary)">
+              <div class="card__head" style="padding:10px 12px">
+                <span class="t-sm strong grow">Your version</span>
+                <span class="badge badge--brand">unsaved</span>
+              </div>
+              <div class="card__body" style="padding:10px 12px">
+                <div class="t-xs dim" style="margin-bottom:8px">You · edited over the last 18 minutes</div>
+                <div class="diff">
+                  <div class="diff__row diff__row--add"><span class="diff__sign">+</span>
+                    <span class="diff__what t-sm">Node “Wait for VP approval” (core.approval)</span></div>
+                  <div class="diff__row diff__row--add"><span class="diff__sign">+</span>
+                    <span class="diff__what t-sm">Node “Mark auto-approved” (core.set)</span></div>
+                  <div class="diff__row"><span class="diff__sign">~</span>
+                    <span class="diff__what t-sm">Branches on “Amount over $5,000?”</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert" style="margin-top:14px" data-component="Alert">
+            <span aria-hidden="true">→</span>
+            <div>
+              <div class="alert__title">These changes don’t overlap</div>
+              <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+                Priya changed node settings; you added nodes and rewired a branch. Merging keeps both.
+                Review the result before you deploy.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="dialog__foot">
+          <button class="btn" data-component="Button">Copy my changes to clipboard</button>
+          <button class="btn" data-component="Button">Discard mine, load rev 42</button>
+          <button class="btn btn--primary" data-component="Button">Merge and review</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

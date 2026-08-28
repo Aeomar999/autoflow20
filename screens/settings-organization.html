@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organization — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/organization   [PLANNED M6 — Organization + Workspace]
+     Today ownership is Workflow.userId; there is no org concept in the schema.
+     ADR 0005 puts tenancy at M6 deliberately, ahead of most governance work. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / Organization"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="organization"></nav>
+
+        <div class="stack-4" style="max-width:720px">
+          <div>
+            <h1 class="pagehead__title">Organization</h1>
+            <p class="pagehead__desc">Northwind Retail · created 12 Jun 2026</p>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__body stack-4">
+              <div class="rowx-4">
+                <span class="avatar avatar--lg">NR</span>
+                <div class="grow"><button class="btn btn--sm">Upload logo</button>
+                  <p class="t-xs dim" style="margin-top:6px">Shown in the sidebar and on invitations.</p></div>
+              </div>
+              <div class="field" data-component="Field">
+                <label class="field__label">Organization name</label>
+                <input class="input" value="Northwind Retail" data-component="Input">
+              </div>
+              <div class="field" data-component="Field">
+                <label class="field__label">URL slug</label>
+                <input class="input input--mono" value="northwind-retail" data-component="Input">
+                <span class="field__help mono t-xs">app.autoflow.com/northwind-retail — changing this breaks existing links.</span>
+              </div>
+              <div class="field" data-component="Field">
+                <label class="field__label">Alert channel</label>
+                <select class="select" data-component="Select">
+                  <option>#autoflow-alerts (Slack)</option><option>Email admins only</option><option>None</option>
+                </select>
+                <span class="field__help">Where budget warnings, credential expiry, and failed-run spikes go.</span>
+              </div>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--primary">Save changes</button></div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Workspaces</span>
+              <button class="btn btn--sm push">New workspace</button></div>
+            <div class="list" style="border:0;border-radius:0">
+              <div class="row">
+                <div class="gutter gutter--running"><span class="mono t-xs">●</span></div>
+                <div class="row__main">
+                  <div class="grow"><div class="row__title">Production</div>
+                    <div class="row__meta">5 workflows · 6 credentials · 6 members</div></div>
+                  <button class="btn btn--sm">Manage</button>
+                </div>
+              </div>
+              <div class="row">
+                <div class="gutter gutter--queued"><span class="mono t-xs">○</span></div>
+                <div class="row__main">
+                  <div class="grow"><div class="row__title">Staging</div>
+                    <div class="row__meta">2 workflows · 1 credential · 2 members</div></div>
+                  <button class="btn btn--sm">Manage</button>
+                </div>
+              </div>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">Credentials and workflows never cross a workspace boundary.</span>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Security defaults</span></div>
+            <div class="card__body stack-4">
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Require two-factor authentication</div>
+                  <div class="field__help">2 of 6 members have it on. Turning this on signs the other 4 out until they enrol.</div></div>
+                <span class="switch" role="switch" aria-checked="false" data-component="Switch"></span>
+              </div>
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Require approval before deploying to Production</div>
+                  <div class="field__help">An admin signs off on every deploy. Editors can still deploy to Staging.</div></div>
+                <span class="switch" role="switch" aria-checked="true" data-component="Switch"></span>
+              </div>
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Block outbound requests to private IP ranges</div>
+                  <div class="field__help">Stops HTTP nodes reaching loopback, link-local, and RFC 1918 addresses. Leave on.</div></div>
+                <span class="switch" role="switch" aria-checked="true" data-component="Switch"></span>
+              </div>
+              <div class="field">
+                <label class="field__label">Run history retention</label>
+                <select class="select" style="max-width:220px" data-component="Select">
+                  <option>30 days (plan maximum)</option><option>14 days</option><option>7 days</option>
+                </select>
+                <span class="field__help">Traces are deleted permanently after this. Aggregate metrics are kept.</span>
+              </div>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--primary">Save defaults</button></div>
+          </div>
+
+          <div class="card" style="border-color:color-mix(in oklab, var(--destructive) 35%, var(--border))" data-component="Card">
+            <div class="card__head"><span class="card__title" style="color:var(--destructive)">Danger zone</span></div>
+            <div class="card__body stack-3">
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Transfer ownership</div>
+                  <div class="field__help">Hand the OWNER role to another admin. You become an ADMIN.</div></div>
+                <button class="btn btn--sm">Transfer</button>
+              </div>
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Delete organization</div>
+                  <div class="field__help">
+                    Removes 7 workflows, 6 credentials, and 98,412 run records. This cannot be undone.
+                  </div></div>
+                <button class="btn btn--sm btn--danger">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Executions — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /executions   CURRENT CODE: <p>Executions Page</p>
+     TARGET: M2 (executions.list — filters: workflowId, status, dateRange, mode).
+     List queries must never select graphSnapshot / input / output. Every column
+     below is a scalar on the Execution row, which is why this list can be fast. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="executions"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Executions"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Executions</h1>
+          <p class="pagehead__desc">Every run, kept for 30 days on your plan.</p>
+        </div>
+        <div class="rowx">
+          <button class="btn" data-component="Button">Export CSV</button>
+          <button class="btn" data-component="Button">⟳ Auto-refresh <span class="badge badge--brand">on</span></button>
+        </div>
+      </div>
+
+      <!-- rolled up from the same rows below -->
+      <div class="grid grid--4" style="margin-bottom:16px">
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">Runs · 24h</div>
+          <div class="stat__value num">3,412</div>
+          <div class="stat__sub">+8.1% vs. yesterday</div>
+        </div>
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">Success rate</div>
+          <div class="stat__value num">99.1%</div>
+          <div class="stat__sub">31 failed runs</div>
+        </div>
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">p95 duration</div>
+          <div class="stat__value num">4.2s</div>
+          <div class="stat__sub">p50 1.1s</div>
+        </div>
+        <div class="card stat" data-component="Card">
+          <div class="stat__label">Cost · 24h</div>
+          <div class="stat__value num">$18.44</div>
+          <div class="stat__sub stat__delta--down">62% of daily budget</div>
+        </div>
+      </div>
+
+      <div class="toolstrip">
+        <div class="inputgroup" style="width:260px" data-component="InputGroup">
+          <span class="inputgroup__icon mono t-xs">⌕</span>
+          <input class="input" placeholder="Run id, node name, error…" data-component="Input">
+        </div>
+        <select class="select" style="width:auto" data-component="Select">
+          <option>All workflows</option>
+          <option>Invoice → Slack approval</option>
+          <option>Lead scoring — multi-model</option>
+          <option>Zendesk ticket triage</option>
+        </select>
+        <select class="select" style="width:auto" data-component="Select">
+          <option>All statuses</option><option>Success</option><option>Failed</option>
+          <option>Running</option><option>Queued</option><option>Cancelled</option><option>Timed out</option>
+        </select>
+        <select class="select" style="width:auto" data-component="Select">
+          <option>Last 24 hours</option><option>Last 7 days</option><option>Last 30 days</option><option>Custom range…</option>
+        </select>
+        <select class="select" style="width:auto" data-component="Select">
+          <option>Production &amp; test</option><option>Production only</option><option>Test only</option>
+        </select>
+        <button class="btn btn--ghost btn--sm push" data-component="Button">Clear filters</button>
+      </div>
+
+      <div class="card" style="overflow:hidden" data-component="Card">
+        <table class="tbl" data-component="DataTable">
+          <thead>
+            <tr>
+              <th style="width:118px">Status</th>
+              <th>Run</th>
+              <th>Trigger</th>
+              <th class="cell-num">Nodes</th>
+              <th class="cell-num">Duration</th>
+              <th class="cell-num">Tokens</th>
+              <th class="cell-num">Cost</th>
+              <th>Started</th>
+              <th class="cell-tight"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="st st--running" data-glyph="◐">RUNNING</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_a20f7e13</a>
+                <div class="t-xs dim">Lead scoring — multi-model</div>
+              </td>
+              <td class="t-sm dim mono">schedule</td>
+              <td class="cell-num">6 / 11</td>
+              <td class="cell-num dim">2.1s…</td>
+              <td class="cell-num">1,206</td>
+              <td class="cell-num">$0.0044</td>
+              <td class="t-sm dim">just now</td>
+              <td class="cell-tight"><button class="btn btn--sm" data-component="Button">Cancel</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--failed" data-glyph="✕">FAILED</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_8f31c2a4</a>
+                <div class="t-xs dim">Invoice → Slack approval · <span style="color:var(--destructive)">Post to #finance-ops — 429 rate limited</span></div>
+              </td>
+              <td class="t-sm dim mono">webhook</td>
+              <td class="cell-num">8</td>
+              <td class="cell-num">3.94s</td>
+              <td class="cell-num">2,104</td>
+              <td class="cell-num">$0.0031</td>
+              <td class="t-sm dim">2 min ago</td>
+              <td class="cell-tight"><button class="btn btn--sm" data-component="Button">Retry</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_77b1de90</a>
+                <div class="t-xs dim">Zendesk ticket triage</div>
+              </td>
+              <td class="t-sm dim mono">webhook</td>
+              <td class="cell-num">5</td>
+              <td class="cell-num">840ms</td>
+              <td class="cell-num">612</td>
+              <td class="cell-num">$0.0008</td>
+              <td class="t-sm dim">4 min ago</td>
+              <td class="cell-tight"></td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_77b1dc4f</a>
+                <div class="t-xs dim">Zendesk ticket triage</div>
+              </td>
+              <td class="t-sm dim mono">webhook</td>
+              <td class="cell-num">5</td>
+              <td class="cell-num">791ms</td>
+              <td class="cell-num">588</td>
+              <td class="cell-num">$0.0007</td>
+              <td class="t-sm dim">6 min ago</td>
+              <td class="cell-tight"></td>
+            </tr>
+            <tr>
+              <td><span class="st st--timedout" data-glyph="◷">TIMED OUT</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_5c0aa8b2</a>
+                <div class="t-xs dim">Contract clause extraction · <span style="color:var(--destructive)">run budget 15m exceeded</span></div>
+              </td>
+              <td class="t-sm dim mono">manual</td>
+              <td class="cell-num">12</td>
+              <td class="cell-num">15m 00s</td>
+              <td class="cell-num">48,220</td>
+              <td class="cell-num">$0.7133</td>
+              <td class="t-sm dim">22 min ago</td>
+              <td class="cell-tight"><button class="btn btn--sm" data-component="Button">Retry</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--cancelled" data-glyph="⊘">CANCELLED</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_5bfe1104</a>
+                <div class="t-xs dim">Contract clause extraction · cancelled by Priya Raghunathan</div>
+              </td>
+              <td class="t-sm dim mono">manual</td>
+              <td class="cell-num">12</td>
+              <td class="cell-num">48.2s</td>
+              <td class="cell-num">9,004</td>
+              <td class="cell-num">$0.1322</td>
+              <td class="t-sm dim">31 min ago</td>
+              <td class="cell-tight"></td>
+            </tr>
+            <tr>
+              <td><span class="st st--queued" data-glyph="○">QUEUED</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_a20f8801</a>
+                <div class="t-xs dim">Nightly Postgres → warehouse sync · waiting on org concurrency slot</div>
+              </td>
+              <td class="t-sm dim mono">schedule</td>
+              <td class="cell-num dim">— / 9</td>
+              <td class="cell-num dim">—</td>
+              <td class="cell-num dim">—</td>
+              <td class="cell-num dim">—</td>
+              <td class="t-sm dim">queued 40s</td>
+              <td class="cell-tight"><button class="btn btn--sm" data-component="Button">Cancel</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SUCCESS</span></td>
+              <td>
+                <a class="mono t-sm strong" href="execution-detail.html">exec_4ee2b7a0</a>
+                <div class="t-xs dim">Invoice → Slack approval</div>
+              </td>
+              <td class="t-sm dim mono">webhook</td>
+              <td class="cell-num">8</td>
+              <td class="cell-num">2.88s</td>
+              <td class="cell-num">1,980</td>
+              <td class="cell-num">$0.0029</td>
+              <td class="t-sm dim">44 min ago</td>
+              <td class="cell-tight"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager" data-component="Pagination">
+        <span>Showing 1–8 of 3,412</span>
+        <div class="rowx">
+          <button class="btn btn--sm" disabled>Previous</button>
+          <button class="btn btn--sm">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

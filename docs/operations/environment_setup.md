@@ -48,12 +48,13 @@ verified walkthrough of Jerry's Windows/Podman setup, see
 
 | Piece | What it needs from `.env` |
 |---|---|
-| Next.js server (`npm run dev`) | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY` |
-| Better Auth (`/login`, `/signup`) | same four; social providers only if their vars are set |
+| Next.js server (`npm run dev`) | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CREDENTIAL_MASTER_KEY` (`ENCRYPTION_KEY` optional — legacy, migration script only) |
+| Better Auth (`/login`, `/signup`) | same; social providers only if their vars are set |
 | Prisma 7 CLI (via `prisma.config.ts`) | `DATABASE_URL` (schema-level `url` was removed in v7 — P1012 without it) |
 | Prisma 7 runtime client | driver adapter `@prisma/adapter-pg`, wired in `src/lib/db.ts` |
 | Inngest dev server (`npm run inngest:dev`) | nothing — cloud keys are production-only |
-| Credential encryption (Cryptr, `src/lib/encryption.ts`) | `ENCRYPTION_KEY` |
+| Credential vault (envelope, `src/lib/crypto.ts` + `server/vault.ts`) | `CREDENTIAL_MASTER_KEY` |
+| legacy Cryptr path, `scripts/migrate-credentials.ts` only | `ENCRYPTION_KEY` (optional; the pre-AF-M3-02 value, needed only to convert old rows) |
 
 Boot-time Zod validation lives in `src/lib/env.ts`, called from
 `src/instrumentation.ts`. A bad or missing required value stops the boot with
@@ -62,7 +63,8 @@ one readable error naming every offending variable. Set
 
 **AI node API keys (OpenAI/Anthropic/Gemini), Discord/Slack tokens etc. are
 NOT env variables.** They are entered per-user through the app's Credentials
-UI, encrypted at rest with `ENCRYPTION_KEY`, and injected into nodes at
+UI, encrypted at rest with the credential vault (envelope encryption keyed by
+`CREDENTIAL_MASTER_KEY`, `src/lib/crypto.ts`), and injected into nodes at
 execution time. Never put them in `.env`.
 
 ---
@@ -91,6 +93,10 @@ npm ci
 cp .env.example .env          # then fill values per section 5
 docker run --name autoflow-db -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=autoflow -p 5432:5432 -d postgres:16
+# ONLY on a database created before AF-M3-02 (has a `Credential.value` column):
+# convert legacy Cryptr rows to sealed envelopes BEFORE deploying the schema.
+# Dry-runs by default; add -- --yes to write.
+npm run migrate:credentials
 npx prisma migrate deploy     # apply all migrations
 npx prisma generate           # client -> src/generated/prisma
 npm run dev:all               # mprocs: next + inngest (+ ngrok if configured)
@@ -117,7 +123,7 @@ tables are the source of truth for meaning and requiredness.
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/autoflow?schema=public` | Prisma CLI + runtime adapter | single Postgres connection string |
 | `BETTER_AUTH_SECRET` | 32+ random chars | `src/lib/auth.ts` | session signing secret |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | Better Auth | base URL for auth callbacks/redirects; must be browser-reachable |
-| `ENCRYPTION_KEY` | 64 hex chars | `src/lib/encryption.ts` | symmetric key encrypting all stored credentials |
+| `CREDENTIAL_MASTER_KEY` | base64 of 32 bytes | `src/lib/crypto.ts` | KEK of the envelope-encrypted credential vault; app refuses to boot without it |
 
 ### 4.2 Optional — features degrade cleanly when unset
 
@@ -130,6 +136,7 @@ tables are the source of truth for meaning and requiredness.
 | `POLAR_SUCCESS_URL` | checkout plugin | server-side post-checkout redirect |
 | `POLAR_PRODUCT_ID` | `polarProductId` export | Pro product UUID; unset = empty products list, app still boots |
 | `POLAR_PRODUCT_SLUG` | `polarProductSlug` export | server-side slug override |
+| `ENCRYPTION_KEY` | 64 hex chars | `scripts/migrate-credentials.ts` | **legacy** pre-AF-M3-02 key (Cryptr); required only to convert old credential rows — the vault uses `CREDENTIAL_MASTER_KEY` |
 | `NEXT_PUBLIC_POLAR_PRODUCT_SLUG` | client checkout buttons | slug for sidebar/upgrade-modal checkout; falls back to `"pro"` |
 | `INNGEST_EVENT_KEY` | SDK convention | production event ingestion only |
 | `INNGEST_SIGNING_KEY` | SDK convention | verifies inbound Inngest requests (required on cloud) |
@@ -182,17 +189,20 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/autoflow?schema=publ
 
 Any Postgres >= 15 works identically (Supabase, Railway, RDS...).
 
-### 5.2 `BETTER_AUTH_SECRET` and `ENCRYPTION_KEY` — generated secrets
+### 5.2 `BETTER_AUTH_SECRET` and `CREDENTIAL_MASTER_KEY` — generated secrets
 
 Generate locally; no provider involved:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # BETTER_AUTH_SECRET
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # ENCRYPTION_KEY
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # BETTER_AUTH_SECRET and CREDENTIAL_MASTER_KEY
 ```
 
-Both must be >= 32 chars (Zod enforces). Never reuse dev values in production;
-rotating `ENCRYPTION_KEY` makes previously saved credentials undecryptable.
+Both must be >= 32 chars (Zod enforces; `CREDENTIAL_MASTER_KEY` has the stricter
+32-byte-base64 requirement). Never reuse dev values in production. Rotating
+`CREDENTIAL_MASTER_KEY` works through the versioned re-wrap path
+(`src/lib/crypto.ts`) since rows store `keyVersion` (AF-M3-01/02).
+`ENCRYPTION_KEY` is legacy and only needed to convert pre-AF-M3-02 rows via
+`npm run migrate:credentials`; set it only if you're running that converter.
 
 ### 5.3 GitHub OAuth (optional)
 
@@ -380,7 +390,7 @@ DATABASE_URL="<direct-url>" npx prisma migrate deploy
 | `DATABASE_URL` | prod URL with `?sslmode=require` |
 | `BETTER_AUTH_SECRET` | fresh 32+ char secret (never the dev value) |
 | `BETTER_AUTH_URL` | `https://your-domain.com` |
-| `ENCRYPTION_KEY` | fresh 64-hex key (never the dev value) |
+| `CREDENTIAL_MASTER_KEY` | fresh 32-byte base64 key (never the dev value) |
 | `NEXT_PUBLIC_APP_URL` | `https://your-domain.com` |
 | GitHub/Google OAuth pairs | prod apps with prod callback URLs |
 | Polar set (token/product/slug/success URL) | see 8.4 |
@@ -486,6 +496,6 @@ Postgres service container.
   `polarProductId`, `polarProductSlug`) in feature code; nodes read `ctx.env`,
   never `process.env`.
 - Dev and production secrets are always different values, especially
-  `ENCRYPTION_KEY` (credential decryptability) and `BETTER_AUTH_SECRET`
-  (session forgery).
+  `ENCRYPTION_KEY` / `CREDENTIAL_MASTER_KEY` (credential decryptability) and
+  `BETTER_AUTH_SECRET` (session forgery).
 

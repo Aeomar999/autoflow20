@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /pricing   [PLANNED]
+     Billing runs on Polar and is already wired for a single Pro product
+     (src/lib/auth.ts). Three tiers here means two more Polar products —
+     see DESIGN.md §9 Q4. -->
+
+<header class="mk-nav" data-component="NavigationMenu">
+  <div class="mk rowx-4" style="width:100%">
+    <a class="rowx" href="landing.html">
+      <span class="sidebar__mark" aria-hidden="true">A</span>
+      <span class="strong t-lg" style="letter-spacing:-0.02em">AutoFlow</span>
+    </a>
+    <nav class="mk-nav__links">
+      <a href="landing.html#observability">Observability</a>
+      <a href="landing.html#nodes">Nodes</a>
+      <a href="pricing.html" style="color:var(--foreground)">Pricing</a>
+      <a href="developer-platform.html">Docs</a>
+    </nav>
+    <div class="push rowx">
+      <a class="btn btn--ghost btn--sm" href="login.html">Sign in</a>
+      <a class="btn btn--primary btn--sm" href="signup.html">Start building</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="mk-section mk-section--tight" style="border-bottom:0">
+    <div class="mk" style="text-align:center">
+      <p class="eyebrow">Pricing</p>
+      <h1 class="display" style="margin-top:16px">Priced per run, not per seat.</h1>
+      <p class="lede" style="margin:16px auto 0;text-align:center">
+        Adding a colleague who only reads run history should not cost anything. It doesn’t.
+      </p>
+
+      <div class="rowx" style="justify-content:center;margin-top:24px;gap:10px">
+        <div class="btngroup" data-component="ToggleGroup">
+          <button class="btn btn--sm" aria-pressed="true">Monthly</button>
+          <button class="btn btn--sm" aria-pressed="false">Yearly · save 20%</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-section" style="padding-top:8px">
+    <div class="mk">
+      <div class="grid grid--3">
+
+        <div class="card pricecard" data-component="Card">
+          <div class="card__body">
+            <p class="eyebrow">Free</p>
+            <div class="price" style="margin-top:12px">$0<span class="price__per"> / month</span></div>
+            <p class="t-sm dim" style="margin-top:8px">For trying it properly, not a crippled demo.</p>
+            <a class="btn btn--block" href="signup.html" style="margin-top:18px" data-component="Button">Start free</a>
+            <div class="hr" style="margin:20px 0"></div>
+            <ul class="featlist" data-component="List">
+              <li><span class="featlist__mark">→</span><span><span class="strong">1,000</span> runs a month</span></li>
+              <li><span class="featlist__mark">→</span><span>All 512 nodes</span></li>
+              <li><span class="featlist__mark">→</span><span>Full per-node traces, 7-day retention</span></li>
+              <li><span class="featlist__mark">→</span><span>Bring your own model keys</span></li>
+              <li><span class="featlist__mark">→</span><span>1 workspace, 2 members</span></li>
+              <li><span class="featlist__mark featlist__mark--off">·</span><span class="dim">Community support</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card pricecard pricecard--featured" data-component="Card">
+          <div class="card__body">
+            <div class="rowx between">
+              <p class="eyebrow" style="color:var(--primary)">Pro</p>
+              <span class="badge badge--brand">Most teams</span>
+            </div>
+            <div class="price" style="margin-top:12px">$49<span class="price__per"> / month</span></div>
+            <p class="t-sm dim" style="margin-top:8px">For a team running automations in production.</p>
+            <a class="btn btn--primary btn--block" href="signup.html" style="margin-top:18px" data-component="Button">Start 14-day trial</a>
+            <div class="hr" style="margin:20px 0"></div>
+            <ul class="featlist" data-component="List">
+              <li><span class="featlist__mark">→</span><span><span class="strong">50,000</span> runs a month, then $1 per 1,000</span></li>
+              <li><span class="featlist__mark">→</span><span>30-day trace retention</span></li>
+              <li><span class="featlist__mark">→</span><span>Unlimited members and workspaces</span></li>
+              <li><span class="featlist__mark">→</span><span>Roles: owner, admin, editor, viewer</span></li>
+              <li><span class="featlist__mark">→</span><span>Approval gates and the approval inbox</span></li>
+              <li><span class="featlist__mark">→</span><span>Cost budgets and threshold alerts</span></li>
+              <li><span class="featlist__mark">→</span><span>Version history and one-click rollback</span></li>
+              <li><span class="featlist__mark">→</span><span>REST API and webhooks</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card pricecard" data-component="Card">
+          <div class="card__body">
+            <p class="eyebrow">Business</p>
+            <div class="price" style="margin-top:12px">Custom</div>
+            <p class="t-sm dim" style="margin-top:8px">For teams with a compliance reviewer.</p>
+            <a class="btn btn--block" href="#" style="margin-top:18px" data-component="Button">Talk to us</a>
+            <div class="hr" style="margin:20px 0"></div>
+            <ul class="featlist" data-component="List">
+              <li><span class="featlist__mark">→</span><span>Everything in Pro</span></li>
+              <li><span class="featlist__mark">→</span><span>SSO with Okta, Entra, or Google</span></li>
+              <li><span class="featlist__mark">→</span><span>Audit log with configurable retention</span></li>
+              <li><span class="featlist__mark">→</span><span>1-year trace retention</span></li>
+              <li><span class="featlist__mark">→</span><span>Dedicated execution concurrency</span></li>
+              <li><span class="featlist__mark">→</span><span>99.9% uptime SLA</span></li>
+              <li><span class="featlist__mark">→</span><span>Invoicing and procurement review</span></li>
+              <li><span class="featlist__mark featlist__mark--off">·</span><span class="dim">Self-hosting and BYOK — Phase 3</span></li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+
+      <p class="t-xs dim" style="margin-top:20px;text-align:center">
+        A run is one workflow execution, however many nodes it contains. Model tokens are billed by
+        your provider at cost — we don’t mark them up.
+      </p>
+    </div>
+  </section>
+
+  <!-- Cost worked example: automation pricing is confusing, so do the maths. -->
+  <section class="mk-section">
+    <div class="mk">
+      <p class="eyebrow">Worked example</p>
+      <h2 class="display display--sm" style="margin-top:14px;max-width:22ch">What a real month costs.</h2>
+
+      <div class="card" style="margin-top:24px">
+        <div class="card__head">
+          <span class="card__title">Northwind Retail · July 2026</span>
+          <span class="badge push">Pro plan</span>
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Line</th><th class="cell-num">Volume</th><th class="cell-num">Rate</th><th class="cell-num">Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Pro subscription</td><td class="cell-num dim">—</td><td class="cell-num dim">—</td><td class="cell-num">$49.00</td></tr>
+            <tr><td>Included runs</td><td class="cell-num">50,000</td><td class="cell-num">$0.00</td><td class="cell-num">$0.00</td></tr>
+            <tr><td>Additional runs</td><td class="cell-num">18,400</td><td class="cell-num">$0.001</td><td class="cell-num">$18.40</td></tr>
+            <tr><td>Model tokens · Anthropic <span class="t-xs dim">(billed by provider)</span></td><td class="cell-num">14.2M</td><td class="cell-num dim">at cost</td><td class="cell-num">$61.90</td></tr>
+            <tr><td>Model tokens · Groq <span class="t-xs dim">(billed by provider)</span></td><td class="cell-num">31.7M</td><td class="cell-num dim">at cost</td><td class="cell-num">$22.15</td></tr>
+            <tr style="background:color-mix(in oklab, var(--muted) 60%, transparent)">
+              <td class="strong">Total</td><td></td><td></td><td class="cell-num strong">$151.45</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-section" style="border-bottom:0">
+    <div class="mk">
+      <p class="eyebrow">Questions we actually get</p>
+      <div class="grid grid--2" style="gap:28px;margin-top:24px">
+        <div>
+          <h3 class="t-lg strong">Does a failed run count?</h3>
+          <p class="t-sm dim" style="margin-top:6px">Yes. It consumed compute and produced a trace. A run that never starts — one rejected at the webhook — does not.</p>
+        </div>
+        <div>
+          <h3 class="t-lg strong">What happens when I hit the limit?</h3>
+          <p class="t-sm dim" style="margin-top:6px">On Pro, overage bills at $1 per 1,000 runs. On Free, new runs queue and you get an email. Nothing is silently dropped.</p>
+        </div>
+        <div>
+          <h3 class="t-lg strong">Can I use my own model keys?</h3>
+          <p class="t-sm dim" style="margin-top:6px">On every plan, including Free. Your keys are stored envelope-encrypted and cannot be read back — not by you, not by us.</p>
+        </div>
+        <div>
+          <h3 class="t-lg strong">Can I self-host?</h3>
+          <p class="t-sm dim" style="margin-top:6px">Not yet. It’s on the Phase 3 roadmap and we’d rather say so than sell you a date.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer style="border-top:1px solid var(--border);padding:32px 0">
+  <div class="mk rowx between">
+    <span class="t-xs dim">© 2026 AutoFlow</span>
+    <div class="rowx-4 t-xs dim">
+      <a href="#">Security</a><a href="#">Status</a><a href="#">Terms</a><a href="#">Privacy</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

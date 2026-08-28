@@ -2,7 +2,12 @@ import "server-only";
 import aiAnthropic from "./ai/anthropic";
 import aiGemini from "./ai/gemini";
 import aiOpenai from "./ai/openai";
+import coreCondition from "./core/condition";
 import coreManualTrigger from "./core/manual-trigger";
+import coreMerge from "./core/merge";
+import coreScheduleTrigger from "./core/schedule-trigger";
+import coreSet from "./core/set";
+import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
 import formsGoogleForm from "./forms/google-form";
 import httpHttpRequest from "./http/request";
@@ -145,6 +150,11 @@ export function createNodeRegistry(
 export const nodeRegistry = createNodeRegistry(
   [
     coreManualTrigger,
+    coreWebhookTrigger,
+    coreScheduleTrigger,
+    coreSet,
+    coreCondition,
+    coreMerge,
     formsGoogleForm,
     paymentsStripeTrigger,
     httpHttpRequest,

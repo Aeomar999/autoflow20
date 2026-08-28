@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command palette — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: none — an overlay available on every route. Shown here over
+     /workflows/[workflowId].   CURRENT CODE: ui/command.tsx is installed and unused.
+     TARGET: M1 (needs nodes.list for the node picker half).
+
+     COMPONENT: cmdk (shadcn Command / CommandDialog), opened with ⌘K anywhere.
+     Same component, two jobs: on the canvas it's the node picker (typing filters
+     512 node types); elsewhere it's navigation and actions. Results are grouped
+     by what they do, and the group you need first is on top for that context. -->
+
+<div class="shell" style="height:100vh;position:relative;overflow:hidden">
+  <aside class="sidebar" data-sidebar data-nav="workflows"></aside>
+
+  <div class="main" style="height:100vh">
+    <header class="topbar" data-topbar data-crumbs="Workflows / Invoice → Slack approval"></header>
+
+    <!-- dimmed background: the editor canvas -->
+    <div class="editor editor--full" style="filter:blur(0.4px)">
+      <aside class="epanel">
+        <div class="epanel__head"><span class="epanel__title">Nodes</span></div>
+        <div class="epanel__body">
+          <div class="palitem"><span class="icon icon--brand">⇥</span><span class="grow"><span class="palitem__label">Webhook</span></span></div>
+          <div class="palitem"><span class="icon">⑂</span><span class="grow"><span class="palitem__label">Condition</span></span></div>
+          <div class="palitem"><span class="icon">✦</span><span class="grow"><span class="palitem__label">LLM</span></span></div>
+        </div>
+      </aside>
+      <div class="canvaswrap">
+        <div class="canvas">
+          <div class="nodecard nodecard--trigger" style="left:40px;top:150px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⇥</span>
+              <span class="grow"><span class="nodecard__label">Invoice received</span>
+              <span class="nodecard__type">core.webhook-trigger</span></span></div>
+          </div>
+          <div class="nodecard" style="left:300px;top:150px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⊞</span>
+              <span class="grow"><span class="nodecard__label">Extract invoice fields</span>
+              <span class="nodecard__type">ai.extract</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── The palette ────────────────────────────────────────────────────── -->
+    <div class="scrim" data-component="CommandDialog">
+      <div class="cmdk" data-component="Command">
+
+        <div class="cmdk__input" data-component="CommandInput">
+          <span class="dim mono">⌕</span>
+          <span class="grow">slack<span style="border-left:1px solid var(--foreground);margin-left:1px"></span></span>
+          <span class="badge badge--mono">On canvas</span>
+        </div>
+
+        <div class="cmdk__list" data-component="CommandList">
+
+          <!-- On the canvas, nodes come first. -->
+          <div class="cmdk__group eyebrow" data-component="CommandGroup">Add node · 4 of 512 match</div>
+          <div class="cmdk__item" aria-selected="true" data-component="CommandItem">
+            <span class="icon" style="width:24px;height:24px;font-size:11px">◧</span>
+            <span class="grow">
+              <span class="t-sm strong" style="display:block">Send Slack message</span>
+              <span class="t-xs dim mono">slack.send-message · ACTION</span>
+            </span>
+            <span class="kbd">↵</span>
+          </div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="icon" style="width:24px;height:24px;font-size:11px">◧</span>
+            <span class="grow">
+              <span class="t-sm strong" style="display:block">Slack — wait for approval</span>
+              <span class="t-xs dim mono">slack.approval · LOGIC</span>
+            </span>
+          </div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="icon" style="width:24px;height:24px;font-size:11px">◧</span>
+            <span class="grow">
+              <span class="t-sm strong" style="display:block">Slack — read channel history</span>
+              <span class="t-xs dim mono">slack.read-messages · DATA</span>
+            </span>
+          </div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="icon" style="width:24px;height:24px;font-size:11px">▤</span>
+            <span class="grow">
+              <span class="t-sm strong" style="display:block">Sync a Slack channel into a knowledge base</span>
+              <span class="t-xs dim mono">knowledge.slack-sync · DATA</span>
+            </span>
+          </div>
+
+          <div class="cmdk__group eyebrow" data-component="CommandGroup">Go to</div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="mono dim" style="width:24px;text-align:center">⚿</span>
+            <span class="grow"><span class="t-sm">Credentials → Slack — Finance workspace</span></span>
+            <span class="badge badge--warn">expires in 6 days</span>
+          </div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="mono dim" style="width:24px;text-align:center">▷</span>
+            <span class="grow"><span class="t-sm">Executions filtered to Slack failures</span></span>
+            <span class="badge">31</span>
+          </div>
+
+          <div class="cmdk__group eyebrow" data-component="CommandGroup">Actions</div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="mono dim" style="width:24px;text-align:center">▷</span>
+            <span class="grow"><span class="t-sm">Test run this workflow</span></span>
+            <span class="rowx" style="gap:3px"><span class="kbd">⌘</span><span class="kbd">↵</span></span>
+          </div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="mono dim" style="width:24px;text-align:center">✦</span>
+            <span class="grow"><span class="t-sm">Ask the copilot to add a Slack step</span></span>
+            <span class="rowx" style="gap:3px"><span class="kbd">⌘</span><span class="kbd">I</span></span>
+          </div>
+          <div class="cmdk__item" data-component="CommandItem">
+            <span class="mono dim" style="width:24px;text-align:center">◐</span>
+            <span class="grow"><span class="t-sm">Switch to light theme</span></span>
+          </div>
+        </div>
+
+        <div class="cmdk__foot" data-component="CommandFooter">
+          <span class="rowx" style="gap:4px"><span class="kbd">↑</span><span class="kbd">↓</span> navigate</span>
+          <span class="rowx" style="gap:4px"><span class="kbd">↵</span> add at cursor</span>
+          <span class="rowx" style="gap:4px"><span class="kbd">⇥</span> preview config</span>
+          <span class="rowx push" style="gap:4px"><span class="kbd">esc</span> close</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

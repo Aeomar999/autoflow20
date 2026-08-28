@@ -1,13 +1,13 @@
 import type { inferInput } from "@trpc/tanstack-react-query";
 import { prefetch, trpc } from "@/trpc/server";
 
-type Input = inferInput<typeof trpc.credentials.getMany>;
+type Input = inferInput<typeof trpc.credentials.list>;
 
 /**
  * Prefetch all credentials
  */
 export const prefetchCredentials = (params: Input) => {
-  return prefetch(trpc.credentials.getMany.queryOptions(params));
+  return prefetch(trpc.credentials.list.queryOptions(params));
 };
 
 /**

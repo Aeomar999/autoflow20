@@ -1,3 +1,4 @@
+import { createId } from "@paralleldrive/cuid2";
 import { TRPCError } from "@trpc/server";
 import type { Edge, Node } from "@xyflow/react";
 import { generateSlug } from "random-word-slugs";
@@ -5,6 +6,7 @@ import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { validate } from "@/engine/validate";
 import { saveWorkflowInputSchema } from "@/features/workflows/schemas";
+import type { Prisma } from "@/generated/prisma/client";
 import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
 import { nodeRegistry } from "@/nodes/registry";
@@ -13,8 +15,15 @@ import {
   premiumProcedure,
   protectedProcedure,
 } from "@/trpc/init";
+import {
+  buildNodeTestRunPlan,
+  buildTestGraph,
+  buildTestRunPlan,
+  type TestRunPlan,
+} from "./test-run";
 
 export const workflowsRouter = createTRPCRouter({
+  /** @deprecated Use `run` instead. Kept for backward compatibility. */
   execute: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -30,6 +39,125 @@ export const workflowsRouter = createTRPCRouter({
       });
 
       return workflow;
+    }),
+  /**
+   * Run a workflow: create an Execution record (AF-M2-06) then emit
+   * the inngest event. Returns the new execution so the client can
+   * navigate to the detail page immediately.
+   */
+  run: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: {
+          id: input.id,
+          userId: ctx.auth.user.id,
+        },
+        select: { id: true, name: true },
+      });
+
+      const placeholderEventId = createId();
+      const execution = await prisma.execution.create({
+        data: {
+          workflowId: workflow.id,
+          trigger: "MANUAL",
+          mode: "PRODUCTION",
+          status: "RUNNING",
+          inngestEventId: placeholderEventId,
+        },
+      });
+
+      const { eventId } = await sendWorkflowExecution({
+        workflowId: workflow.id,
+        executionId: execution.id,
+      });
+
+      await prisma.execution.update({
+        where: { id: execution.id },
+        data: { inngestEventId: eventId },
+      });
+
+      return execution;
+    }),
+  /**
+   * In-editor test run (AF-M2-08). Runs the CURRENT DRAFT (unsaved canvas),
+   * recorded as a `mode: TEST` execution that is filtered out of the main
+   * executions list by default. With `testNodeId` only that single node
+   * executes; without it the whole draft runs.
+   */
+  testRun: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        nodes: z
+          .array(
+            z.object({
+              id: z.string().min(1).max(64),
+              type: z.string().min(1).max(128),
+              data: z.record(z.string(), z.unknown()).optional(),
+            }),
+          )
+          .min(1),
+        edges: z.array(
+          z.object({
+            source: z.string().min(1).max(64),
+            target: z.string().min(1).max(64),
+            sourceHandle: z.string().max(128).nullish(),
+            targetHandle: z.string().max(128).nullish(),
+          }),
+        ),
+        testNodeId: z.string().min(1).max(64).optional(),
+        initialData: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: {
+          id: input.id,
+          userId: ctx.auth.user.id,
+        },
+        select: { id: true, name: true },
+      });
+
+      const graph = buildTestGraph(input.nodes, input.edges);
+      let plan: TestRunPlan;
+      try {
+        plan = input.testNodeId
+          ? buildNodeTestRunPlan(graph, input.testNodeId)
+          : buildTestRunPlan(graph);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new TRPCError({ code: "BAD_REQUEST", message });
+      }
+
+      const placeholderEventId = createId();
+      const execution = await prisma.execution.create({
+        data: {
+          workflowId: workflow.id,
+          trigger: "MANUAL",
+          mode: "TEST",
+          status: "RUNNING",
+          inngestEventId: placeholderEventId,
+          graphSnapshot: plan.graphSnapshot as unknown as Prisma.InputJsonValue,
+        },
+      });
+
+      const { eventId } = await sendWorkflowExecution({
+        workflowId: workflow.id,
+        executionId: execution.id,
+        graphSnapshot: plan.graphSnapshot,
+        skipNodes: plan.skipNodes,
+        skipReason: plan.skipReason,
+        endAfterNodeId: plan.endAfterNodeId,
+        initialData: input.initialData,
+      });
+
+      await prisma.execution.update({
+        where: { id: execution.id },
+        data: { inngestEventId: eventId },
+      });
+
+      return execution;
     }),
   create: premiumProcedure.mutation(({ ctx }) => {
     return prisma.workflow.create({
@@ -140,7 +268,23 @@ export const workflowsRouter = createTRPCRouter({
         const updated = await tx.workflow.update({
           where: { id },
           data: { revision: { increment: 1 }, updatedAt: new Date() },
-          include: { nodes: true, connections: true },
+          select: {
+            id: true,
+            name: true,
+            revision: true,
+            nodes: {
+              select: { id: true, type: true, position: true, data: true },
+            },
+            connections: {
+              select: {
+                id: true,
+                fromNodeId: true,
+                toNodeId: true,
+                fromOutput: true,
+                toInput: true,
+              },
+            },
+          },
         });
 
         return {
@@ -176,7 +320,24 @@ export const workflowsRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: input.id, userId: ctx.auth.user.id },
-        include: { nodes: true, connections: true },
+        select: {
+          id: true,
+          name: true,
+          webhookSecret: true,
+          revision: true,
+          nodes: {
+            select: { id: true, type: true, position: true, data: true },
+          },
+          connections: {
+            select: {
+              id: true,
+              fromNodeId: true,
+              toNodeId: true,
+              fromOutput: true,
+              toInput: true,
+            },
+          },
+        },
       });
 
       // Transform server nodes to react-flow compatible nodes
@@ -230,6 +391,13 @@ export const workflowsRouter = createTRPCRouter({
               contains: search,
               mode: "insensitive",
             },
+          },
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+            updatedAt: true,
+            revision: true,
           },
           orderBy: {
             updatedAt: "desc",

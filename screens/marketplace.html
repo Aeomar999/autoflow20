@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marketplace — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- TIER 2 · ROUTE: /marketplace   [PLANNED PHASE 3]
+     Distinct from /templates: templates are ours, the marketplace is other
+     people's. That distinction drives the whole screen — publisher, version,
+     and what a template can reach are shown before install, not after.
+     Third-party CODE execution is a separate sandboxing problem and is not
+     part of this (security.md §6). Marketplace items are graphs, not plugins. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="templates"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Marketplace"></header>
+
+    <div class="page page--wide">
+      <div class="alert" style="margin-bottom:20px" data-component="Alert">
+        <span class="badge badge--planned">PLANNED PHASE 3</span>
+        <div class="grow">
+          <div class="alert__title">Direction only</div>
+          <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+            Community-published graphs, not executable plugins. A marketplace item is a workflow
+            definition we can validate against the node registry — it cannot ship code.
+          </p>
+        </div>
+      </div>
+
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Marketplace</h1>
+          <p class="pagehead__desc">Workflows published by other teams. Install, fork, rate.</p>
+        </div>
+        <button class="btn" aria-disabled="true" data-component="Button">Publish a workflow</button>
+      </div>
+
+      <div class="toolstrip">
+        <div class="inputgroup" style="width:280px">
+          <span class="inputgroup__icon mono t-xs">⌕</span>
+          <input class="input" placeholder="Search 512 published workflows…">
+        </div>
+        <span class="chip" aria-pressed="true">All</span>
+        <span class="chip">Verified publishers</span>
+        <span class="chip">No credentials needed</span>
+        <select class="select push" style="width:auto"><option>Top rated</option><option>Most installed</option><option>Newest</option></select>
+      </div>
+
+      <div class="grid grid--3">
+
+        <div class="card" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">◍</span>
+              <span class="badge badge--brand push">✓ verified</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">Salesforce → Slack deal alerts</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Posts to a channel when an opportunity crosses a stage, with the owner and amount.
+            </p>
+            <div class="rowx" style="margin-top:14px;gap:8px">
+              <span class="t-sm strong num">4.8</span>
+              <span class="t-xs dim">★★★★★ · 214 ratings</span>
+            </div>
+            <div class="rowx wrap" style="gap:6px;margin-top:10px">
+              <span class="badge badge--mono">6 nodes</span><span class="badge badge--mono">2 credentials</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">by Fieldwork Labs · 3,402 installs · v6</div>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">▦</span>
+              <span class="badge badge--brand push">✓ verified</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">dbt run status → incident channel</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Watches a dbt Cloud job and opens an incident thread when a model fails twice running.
+            </p>
+            <div class="rowx" style="margin-top:14px;gap:8px">
+              <span class="t-sm strong num">4.6</span>
+              <span class="t-xs dim">★★★★★ · 88 ratings</span>
+            </div>
+            <div class="rowx wrap" style="gap:6px;margin-top:10px">
+              <span class="badge badge--mono">9 nodes</span><span class="badge badge--mono">2 credentials</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">by Harbourline Data · 1,180 installs · v3</div>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__body">
+            <div class="rowx"><span class="icon">✦</span>
+              <span class="badge push">community</span></div>
+            <h3 class="t-base strong" style="margin-top:12px">Meeting notes → action items → Linear</h3>
+            <p class="t-sm dim" style="margin-top:6px">
+              Transcribes a recording, pulls out commitments, and files them as issues.
+            </p>
+            <div class="rowx" style="margin-top:14px;gap:8px">
+              <span class="t-sm strong num">4.1</span>
+              <span class="t-xs dim">★★★★☆ · 42 ratings</span>
+            </div>
+            <div class="rowx wrap" style="gap:6px;margin-top:10px">
+              <span class="badge badge--mono">11 nodes</span><span class="badge badge--mono">3 credentials</span>
+              <span class="badge badge--warn">~$0.08 / run</span>
+            </div>
+            <div class="t-xs dim" style="margin-top:12px">by @tomasoliveira · 604 installs · v2</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="card" style="margin-top:20px" data-component="Card">
+        <div class="card__head"><span class="card__title">What we check before something is listed</span></div>
+        <div class="card__body">
+          <div class="grid grid--2" style="gap:20px">
+            <ul class="featlist">
+              <li><span class="featlist__mark">→</span><span>Every node type resolves against the registry at the published version</span></li>
+              <li><span class="featlist__mark">→</span><span>The graph compiles: one trigger, no cycles, no unconnected required inputs</span></li>
+              <li><span class="featlist__mark">→</span><span>No credential values are embedded in the definition</span></li>
+            </ul>
+            <ul class="featlist">
+              <li><span class="featlist__mark">→</span><span>Every outbound host it can reach is listed on the detail page</span></li>
+              <li><span class="featlist__mark">→</span><span>Estimated per-run cost is computed, not publisher-supplied</span></li>
+              <li><span class="featlist__mark featlist__mark--off">·</span><span class="dim">We do not review what the workflow does with your data — read the graph before installing</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

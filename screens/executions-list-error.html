@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Executions (error) — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- STATE: /executions — partial failure.
+     The summary tiles resolved; the list query timed out. Showing the tiles as
+     stale rather than blanking the page keeps the operator oriented, and the
+     banner is explicit about which half is missing. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="executions"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Executions"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow"><h1 class="pagehead__title">Executions</h1></div>
+        <button class="btn" data-component="Button">Retry</button>
+      </div>
+
+      <div class="alert alert--warn" style="margin-bottom:16px" data-component="Alert">
+        <span aria-hidden="true">⚠</span>
+        <div class="grow">
+          <div class="alert__title">Run list didn’t load</div>
+          <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+            The query took longer than 10 seconds and was dropped. Totals below are from
+            14:02 UTC and may be stale. Runs are still executing normally.
+          </p>
+        </div>
+        <button class="btn btn--sm" data-component="Button">Retry</button>
+      </div>
+
+      <div class="grid grid--4" style="margin-bottom:16px;opacity:0.6">
+        <div class="card stat"><div class="stat__label">Runs · 24h</div><div class="stat__value num">3,412</div><div class="stat__sub">as of 14:02 UTC</div></div>
+        <div class="card stat"><div class="stat__label">Success rate</div><div class="stat__value num">99.1%</div><div class="stat__sub">as of 14:02 UTC</div></div>
+        <div class="card stat"><div class="stat__label">p95 duration</div><div class="stat__value num">4.2s</div><div class="stat__sub">as of 14:02 UTC</div></div>
+        <div class="card stat"><div class="stat__label">Cost · 24h</div><div class="stat__value num">$18.44</div><div class="stat__sub">as of 14:02 UTC</div></div>
+      </div>
+
+      <div class="card" data-component="Card">
+        <div class="state state--error">
+          <div class="state__icon">✕</div>
+          <div class="state__title">Couldn’t load runs</div>
+          <p class="state__desc">
+            Narrowing the time range usually fixes this — 30-day queries across every workflow are
+            the slowest thing you can ask for.
+          </p>
+          <div class="state__actions">
+            <button class="btn btn--primary" data-component="Button">Retry</button>
+            <button class="btn" data-component="Button">Narrow to last hour</button>
+          </div>
+          <p class="t-xs dim mono" style="margin-top:20px">
+            TIMEOUT · trace 91ba0f2c · 06 Aug 2026, 14:12:04 UTC
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-26 (deep-plan reconciliation)
+**Last updated:** 2026-08-28 (AF-M3-06 stage 0 — five connector credential types with testers)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -433,49 +433,49 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-05 · `execute()` for the first 7 nodes · 3d
+### ✅ AF-M2-05 · `execute()` for the first 7 nodes · 3d
 **Acceptance**
-- [ ] Manual trigger emits its input payload as items.
-- [ ] `set` maps/sets fields with expression support.
-- [ ] `condition` evaluates and routes to `true`/`false`.
-- [ ] `merge` combines branches (append and by-key modes).
-- [ ] `http.request` supports methods, headers, query, body, timeout, retry, and non-2xx handling; **SSRF guard enforced** (no loopback/link-local/internal ranges).
-- [ ] Webhook/schedule triggers implemented as no-op passthroughs pending M4.
-- [ ] Each node: happy-path + failure-path unit tests with the external call mocked.
+- [x] Manual trigger emits its input payload as items.
+- [x] `set` maps/sets fields with expression support.
+- [x] `condition` evaluates and routes to `true`/`false`.
+- [x] `merge` combines branches (append and by-key modes).
+- [x] `http.request` supports methods, headers, query, body, timeout, retry, and non-2xx handling; **SSRF guard enforced** (no loopback/link-local/internal ranges).
+- [x] Webhook/schedule triggers implemented as no-op passthroughs pending M4.
+- [x] Each node: happy-path + failure-path unit tests with the external call mocked.
 
 ---
 
-### ⬜ AF-M2-06 · Executions API · 2d
+### ✅ AF-M2-06 · Executions API · 2d
 **Acceptance**
-- [ ] `executions.list` (filters: workflow, status, date range; paginated; **does not** select large IO columns).
-- [ ] `executions.getOne` returns the run plus ordered node traces.
-- [ ] `executions.cancel`, `executions.retry`, `executions.retryFromNode`.
-- [ ] `workflows.run` creates an execution and emits the event.
-- [ ] Tenant-scoped; cross-tenant access returns `NOT_FOUND`.
-- [ ] Integration tests for each procedure including authz rejection.
+- [x] `executions.list` (filters: workflow, status, date range; paginated; **does not** select large IO columns).
+- [x] `executions.getOne` returns the run plus ordered node traces.
+- [x] `executions.cancel`, `executions.retry`, `executions.retryFromNode`.
+- [x] `workflows.run` creates an execution and emits the event.
+- [x] Tenant-scoped; cross-tenant access returns `NOT_FOUND`.
+- [x] Integration tests for each procedure including authz rejection.
 
 ---
 
-### ⬜ AF-M2-07 · Executions UI · 4d
+### ✅ AF-M2-07 · Executions UI · 4d
 A basic executions list/detail already exists (tutorial lesson 27+); this task upgrades it to the flagship spec.
 
 **Acceptance**
-- [ ] Run list: status, workflow, trigger, started, duration, cost; filters; pagination; auto-refresh while runs are active.
-- [ ] Run detail: node-by-node timeline with per-node status, duration, and attempt count.
-- [ ] Per-node input and output JSON viewers (collapsible, searchable, copyable, truncation clearly marked).
-- [ ] Errors show message, node, attempt, and stack where available.
-- [ ] `SKIPPED` nodes visibly explain *why* they were skipped.
-- [ ] Actions: cancel running, retry, retry-from-node.
-- [ ] E2E test: run a 5-node workflow with a branch and a deliberate failure; assert every node appears with the correct status.
+- [x] Run list: status, workflow, trigger, started, duration, cost; filters; pagination; auto-refresh while runs are active.
+- [x] Run detail: node-by-node timeline with per-node status, duration, and attempt count.
+- [x] Per-node input and output JSON viewers (collapsible, searchable, copyable, truncation clearly marked).
+- [x] Errors show message, node, attempt, and stack where available.
+- [x] `SKIPPED` nodes visibly explain *why* they were skipped.
+- [x] Actions: cancel running, retry, retry-from-node.
+- [x] E2E test: run a 5-node workflow with a branch and a deliberate failure; assert every node appears with the correct status.
 
 ---
 
-### ⬜ AF-M2-08 · In-editor test runs · 2d
+### ✅ AF-M2-08 · In-editor test runs · 2d
 **Acceptance**
-- [ ] "Test workflow" runs the current draft and paints per-node status onto the canvas.
-- [ ] "Test this node" runs a single node with mock or upstream input.
-- [ ] Results panel shows the node's output inline; failures focus the offending node.
-- [ ] Test runs are recorded as executions with `mode: TEST` and are filterable out of the main list.
+- [x] "Test workflow" runs the current draft and paints per-node status onto the canvas.
+- [x] "Test this node" runs a single node with mock or upstream input.
+- [x] Results panel shows the node's output inline; failures focus the offending node.
+- [x] Test runs are recorded as executions with `mode: TEST` and are filterable out of the main list.
 
 ---
 
@@ -483,37 +483,79 @@ A basic executions list/detail already exists (tutorial lesson 27+); this task u
 
 Spec: `docs/architecture/security.md`.
 
-### ⬜ AF-M3-01 · Crypto module · 2d
+### ✅ AF-M3-01 · Crypto module · 2d
 **Acceptance**
-- [ ] `src/lib/crypto.ts`: envelope encryption (AES-256-GCM), per-record DEK wrapped by a KEK from `CREDENTIAL_MASTER_KEY`, `keyVersion` stored per record.
-- [ ] App refuses to boot without a valid master key.
-- [ ] Tests: round-trip, ciphertext tamper → decrypt fails loudly, wrong key → fails, key rotation path.
-- [ ] No plaintext is ever written to a log, even at `debug`.
+- [x] `src/lib/crypto.ts`: envelope encryption (AES-256-GCM), per-record DEK wrapped by a KEK from `CREDENTIAL_MASTER_KEY`, `keyVersion` stored per record.
+- [x] App refuses to boot without a valid master key.
+- [x] Tests: round-trip, ciphertext tamper → decrypt fails loudly, wrong key → fails, key rotation path.
+- [x] No plaintext is ever written to a log, even at `debug`.
 
-### ⬜ AF-M3-02 · Credential model + registry + API · 3d
-- [ ] `Credential` model (tenant-scoped, typed, encrypted payload, OAuth fields, `lastUsedAt`).
-- [ ] Credential type registry mirroring the node registry (apiKey, bearer, basic, header, oauth2).
-- [ ] `credentials.create/update/delete/list/test` — **no procedure returns plaintext**, verified by test.
-- [ ] List shows masked previews and usage counts.
+**Notes**
+- `CURRENT_KEY_VERSION = 1`; `decryptCredential` takes an optional `CredentialKeyRing`
+  (Map `keyVersion → KEK`) so N-1 generations stay decryptable during rotation;
+  `rewrapCredential` re-wraps a DEK without touching the payload (the rolling
+  rotation path, per security.md §3).
+- Boot gates: `CREDENTIAL_MASTER_KEY` is required in `src/lib/env.ts` (Zod) and
+  validated as 32-decode-bytes by `assertCredentialMasterKey` in
+  `src/instrumentation.ts` (skipped under `SKIP_ENV_VALIDATION=1`).
+- `ENCRYPTION_KEY`/Cryptr legacy path (`src/lib/encryption.ts`) now exists only
+  for `scripts/migrate-credentials.ts` (one-time converter); the three AI node
+  executors decrypt via the vault (`openSecret`, AF-M3-02), `ENCRYPTION_KEY` is
+  optional in `src/lib/env.ts`. *(Completed 2026-08-27, 16 unit tests.)*
 
-### ⬜ AF-M3-03 · Credentials UI · 2d
+### ✅ AF-M3-02 · Credential model + registry + API · 3d
+**Acceptance**
+- [x] `Credential` model (tenant-scoped, typed, encrypted payload, OAuth fields, `lastUsedAt`).
+- [x] Credential type registry mirroring the node registry (apiKey, bearer, basic, header, oauth2).
+- [x] `credentials.create/update/remove/list/getOne/test` — **no procedure returns plaintext**, verified by test.
+- [x] List shows masked previews and usage counts.
+
+**Notes**
+- Storage is the sealed envelope (ADR-0004) as five `Bytes` columns
+  (`ciphertext/iv/authTag/wrappedDek`) + `keyVersion`; `type` is the registry id
+  (enum dropped). Hand-written migration
+  `20260827170000_credential_vault_af_m3_02` + one-time converter
+  `npm run migrate:credentials [-- --yes]` (run BEFORE `migrate deploy`, idempotent,
+  dry-run by default).
+- Registry split like the node SDK: isomorphic defs/helpers in
+  `credential-types.ts` (kind union + 8 registered ids incl. migrated
+  `openai.apiKey`/`anthropic.apiKey`/`gemini.apiKey`), validation + network testers
+  server-only in `credential-registry.ts`.
+- Decrypt call sites: node executors (`openSecret`) and the server-side `test`
+  probe only. Outputs are `.output(...)`-validated against a `.strict()`
+  `CredentialPublic` schema (metadata + `preview` + `usageCount`) — a secret field
+  in any response fails the schema.
+- Legacy Cryptr rows: converted by `scripts/migrate-credentials.ts`;
+  `ENCRYPTION_KEY` demoted to optional/legacy. *(Completed 2026-08-27, 42 new
+  unit tests — registry/vault/security.)*
+
+### ✅ AF-M3-03 · Credentials UI · 2d
 A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgrades it to the vault spec.
 - [x] Basic create/edit/delete exists. *(Upgrade, not greenfield.)*
-- [ ] Create/edit/delete with type-driven forms, masked inputs, and a working "Test connection".
-- [ ] Deleting a credential in use warns with the list of affected workflows.
+- [x] Create/edit/delete with type-driven forms, masked inputs, and a working "Test connection".
+- [x] Deleting a credential in use warns with the list of affected workflows.
 
-### ⬜ AF-M3-04 · Credential injection into execution · 1.5d
-- [ ] Nodes declare requirements; the config panel offers matching credentials only.
-- [ ] Decryption happens exactly once, inside runtime context construction.
-- [ ] Test asserts credential values never appear in `NodeExecution.input/output` or any log line.
+### ✅ AF-M3-04 · Credential injection into execution · 1.5d
+- [x] Nodes declare requirements; the config panel offers matching credentials only.
+- [x] Decryption happens exactly once, inside runtime context construction.
+- [x] Test asserts credential values never appear in `NodeExecution.input/output` or any log line.
 
-### ⬜ AF-M3-05 · OAuth2 flow + auto-refresh · 3d
-- [ ] Generic OAuth2 authorization-code connect flow with per-provider config and CSRF-protected state.
-- [ ] Scheduled Inngest function refreshes tokens before expiry.
-- [ ] Refresh failure creates a visible, actionable alert — the "tokens silently expire and workflows break" gap.
+**Notes (shipped):**
+- `NodeDefinition.credentials: CredentialRequirement[]` (`{ key, type, required }`) — AI nodes declare `{ key: "credentialId", type: "<provider>.apiKey", required: true }`.
+- New `src/features/executions/server/credential-resolver.ts` — **the single decrypt site** for node runs. `resolveNodeCredentials()` is injected a `loadCredentialRow` loader (tenant-scoped `prisma.credential.findUnique`), returns `Record<string, CredentialSecret>`, throws `MissingRequiredCredentialError` on missing required, skips optional. It is the module unit-tested (not the executors).
+- Engine (`src/inngest/functions.ts`) calls `resolveNodeCredentials` in a per-node `step.run("resolve-credentials:…")` and threads the result into `execute` via `NodeRunParams.credentials`. The map is **never** merged into `context`/`output`/trace → plaintext has no path to `NodeExecution.input/output`.
+- Executors (`openai`/`anthropic`/`gemini`) dropped their own `prisma.credential.findUnique` + `openSecret`; they now read `credentials?.credentialId` and throw `NonRetriableError` if absent.
+- 13 new tests: resolver round-trip (loader called once), missing-required throws, optional skipped, multi-requirement order, leak guard (decrypted secret absent from node data/output), registry-parity (each declared type exists in `credentialRegistry`), AI-def requirement assertions.
 
-### ⬜ AF-M3-06 · Eight connectors · 5d
+### ✅ AF-M3-05 · OAuth2 flow + auto-refresh · 3d
+- [x] Generic OAuth2 authorization-code connect flow with per-provider config and CSRF-protected state.
+- [x] Scheduled Inngest function refreshes tokens before expiry.
+- [x] Refresh failure creates a visible, actionable alert — the "tokens silently expire and workflows break" gap.
+
+### 🟡 AF-M3-06 · Eight connectors · 5d
 Slack · Gmail/SMTP · Google Sheets · Postgres · Airtable · HubSpot · OpenAI-compatible HTTP · Webhook-out.
+
+Stage 0 done 2026-08-28: `postgres`, `smtp`, `airtable.apiKey`, `hubspot.apiKey`, `openaiCompatible.apiKey` credential types + server-side connection testers (Postgres/SMTP/Airtable/HubSpot; OpenAI-compatible intentionally not testable). Connector nodes below.
 
 - [ ] Each: definition + execute + credential type + unit tests + palette metadata.
 - [ ] Each documented in `docs/nodes/<name>.md` with config reference and an example.

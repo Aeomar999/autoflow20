@@ -15,7 +15,10 @@ type HttpRequestData = {
   endpoint?: string;
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: string;
+  headers?: Record<string, string>;
+  queryParams?: Record<string, string>;
   timeoutMs?: number;
+  failOnNon2xx?: boolean;
 };
 
 export const execute: NodeRun<HttpRequestData> = async ({
@@ -70,6 +73,14 @@ export const execute: NodeRun<HttpRequestData> = async ({
 
       const endpoint = compileTemplate(data.endpoint)(context);
       const url = await assertSafeEndpoint(endpoint);
+
+      // Append query parameters (template-resolved).
+      if (data.queryParams) {
+        for (const [key, value] of Object.entries(data.queryParams)) {
+          url.searchParams.set(key, compileTemplate(value)(context));
+        }
+      }
+
       const method = data.method;
 
       const options: KyOptions = {
@@ -77,13 +88,26 @@ export const execute: NodeRun<HttpRequestData> = async ({
         timeout: resolveTimeoutMs(data.timeoutMs),
       };
 
+      // Resolve and attach headers.
+      if (data.headers) {
+        const resolvedHeaders: Record<string, string> = {};
+        for (const [key, value] of Object.entries(data.headers)) {
+          resolvedHeaders[key] = compileTemplate(value)(context);
+        }
+        options.headers = resolvedHeaders;
+      }
+
       if (["POST", "PUT", "PATCH"].includes(method)) {
         const resolved = compileTemplate(data.body || "{}")(context);
         JSON.parse(resolved);
         options.body = resolved;
-        options.headers = {
-          "Content-Type": "application/json",
-        };
+        // Set Content-Type only if the user hasn't provided it via headers.
+        if (!data.headers?.["Content-Type"]) {
+          options.headers = {
+            ...(options.headers as Record<string, string>),
+            "Content-Type": "application/json",
+          };
+        }
       }
 
       const response = await ky(url, options);
@@ -93,6 +117,16 @@ export const execute: NodeRun<HttpRequestData> = async ({
       const responseData = contentType?.includes("application/json")
         ? JSON.parse(rawBody)
         : rawBody;
+
+      // Non-2xx handling: throw when failOnNon2xx is set.
+      if (
+        data.failOnNon2xx &&
+        (response.status < 200 || response.status >= 300)
+      ) {
+        throw new NonRetriableError(
+          `HTTP Request node: received status ${response.status} ${response.statusText}`,
+        );
+      }
 
       const responsePayload = {
         httpResponse: {

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Members &amp; roles — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/members   [PLANNED M6 — Membership + Role]
+     Roles are OWNER / ADMIN / EDITOR / VIEWER, enforced in orgProcedure(minRole).
+     The permission matrix is shown on the page rather than hidden in docs,
+     because a role picker with four opaque words is how people get over-granted. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / Members &amp; roles"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="members"></nav>
+
+        <div class="stack-4">
+          <div class="rowx">
+            <div class="grow">
+              <h1 class="pagehead__title">Members &amp; roles</h1>
+              <p class="pagehead__desc">6 members · 2 pending invitations · unlimited on your plan</p>
+            </div>
+            <button class="btn btn--primary" data-component="Button">Invite people</button>
+          </div>
+
+          <div class="card" style="overflow:hidden" data-component="Card">
+            <table class="tbl" data-component="DataTable">
+              <thead><tr><th>Member</th><th>Role</th><th>Workspaces</th><th>Last active</th><th class="cell-tight"></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm">PR</span>
+                    <span><span class="t-sm strong" style="display:block">Priya Raghunathan</span>
+                    <span class="t-xs dim">priya@northwindretail.com</span></span></div></td>
+                  <td><span class="badge badge--brand">OWNER</span></td>
+                  <td class="t-sm dim">All</td>
+                  <td class="t-sm dim">3 minutes ago</td>
+                  <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                </tr>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm">JM</span>
+                    <span><span class="t-sm strong" style="display:block">Jordan Mensah <span class="t-xs dim">(you)</span></span>
+                    <span class="t-xs dim">jordan@northwindretail.com</span></span></div></td>
+                  <td><select class="select" style="width:auto;height:26px;font-size:12px"><option>ADMIN</option><option>EDITOR</option><option>VIEWER</option></select></td>
+                  <td class="t-sm dim">All</td>
+                  <td class="t-sm dim">now</td>
+                  <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                </tr>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm">TO</span>
+                    <span><span class="t-sm strong" style="display:block">Tomás Oliveira</span>
+                    <span class="t-xs dim">tomas@northwindretail.com</span></span></div></td>
+                  <td><select class="select" style="width:auto;height:26px;font-size:12px"><option>EDITOR</option><option>ADMIN</option><option>VIEWER</option></select></td>
+                  <td class="t-sm dim">Production, Staging</td>
+                  <td class="t-sm dim">1 hour ago</td>
+                  <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                </tr>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm">AK</span>
+                    <span><span class="t-sm strong" style="display:block">Amara Kone</span>
+                    <span class="t-xs dim">amara@northwindretail.com</span></span></div></td>
+                  <td><select class="select" style="width:auto;height:26px;font-size:12px"><option>EDITOR</option><option>ADMIN</option><option>VIEWER</option></select></td>
+                  <td class="t-sm dim">Staging</td>
+                  <td class="t-sm dim">yesterday</td>
+                  <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                </tr>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm">DL</span>
+                    <span><span class="t-sm strong" style="display:block">Dana Lindqvist</span>
+                    <span class="t-xs dim">dana@northwindretail.com · Finance</span></span></div></td>
+                  <td><select class="select" style="width:auto;height:26px;font-size:12px"><option>VIEWER</option><option>EDITOR</option><option>ADMIN</option></select></td>
+                  <td class="t-sm dim">Production</td>
+                  <td class="t-sm dim">2 days ago</td>
+                  <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                </tr>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm">RC</span>
+                    <span><span class="t-sm strong" style="display:block">Ruth Chen</span>
+                    <span class="t-xs dim">ruth@northwindretail.com</span></span></div></td>
+                  <td><select class="select" style="width:auto;height:26px;font-size:12px"><option>VIEWER</option><option>EDITOR</option><option>ADMIN</option></select></td>
+                  <td class="t-sm dim">Production</td>
+                  <td class="t-sm dim">1 week ago</td>
+                  <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                </tr>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm" style="background:var(--muted)">?</span>
+                    <span><span class="t-sm" style="display:block">sam@northwindretail.com</span>
+                    <span class="t-xs dim">invited by Priya 2 days ago</span></span></div></td>
+                  <td><span class="badge">EDITOR · pending</span></td>
+                  <td class="t-sm dim">Production</td>
+                  <td class="t-sm dim">—</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Resend</button></td>
+                </tr>
+                <tr>
+                  <td><div class="rowx"><span class="avatar avatar--sm" style="background:var(--muted)">?</span>
+                    <span><span class="t-sm" style="display:block">nina@northwindretail.com</span>
+                    <span class="t-xs dim">invited by you 6 days ago · expires tomorrow</span></span></div></td>
+                  <td><span class="badge">VIEWER · pending</span></td>
+                  <td class="t-sm dim">Production</td>
+                  <td class="t-sm dim">—</td>
+                  <td class="cell-tight"><button class="btn btn--sm">Resend</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">What each role can do</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl compare" data-component="Table">
+                <thead>
+                  <tr><th style="width:38%"></th>
+                    <th class="cell-mid">OWNER</th><th class="cell-mid">ADMIN</th>
+                    <th class="cell-mid">EDITOR</th><th class="cell-mid">VIEWER</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class="t-sm">View workflows and run history</td>
+                    <td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid">●</td></tr>
+                  <tr><td class="t-sm">Build and edit workflows</td>
+                    <td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid dim">·</td></tr>
+                  <tr><td class="t-sm">Deploy and roll back</td>
+                    <td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid dim">·</td></tr>
+                  <tr><td class="t-sm">Create and delete credentials</td>
+                    <td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid dim">·</td></tr>
+                  <tr><td class="t-sm">Read stored credential values</td>
+                    <td class="cell-mid dim">·</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td></tr>
+                  <tr><td class="t-sm">Invite people and change roles</td>
+                    <td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td></tr>
+                  <tr><td class="t-sm">Change billing and quotas</td>
+                    <td class="cell-mid">●</td><td class="cell-mid">●</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td></tr>
+                  <tr><td class="t-sm">Configure SSO</td>
+                    <td class="cell-mid">●</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td></tr>
+                  <tr><td class="t-sm">Delete the organization</td>
+                    <td class="cell-mid">●</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td><td class="cell-mid dim">·</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">
+                Nobody can read a stored credential — there is no code path that returns one. Roles
+                control who can replace or delete them.
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

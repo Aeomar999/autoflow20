@@ -3,6 +3,7 @@
 import { formatDistanceToNow } from "date-fns";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { memo, useState } from "react";
 import {
   EmptyView,
   EntityContainer,
@@ -14,14 +15,15 @@ import {
   ErrorView,
   LoadingView,
 } from "@/components/entity-components";
-import { CredentialType } from "@/generated/prisma/browser";
-import type { Credential } from "@/generated/prisma/client";
 import { useEntitySearch } from "@/hooks/use-entity-search";
+import { credentialDefsById } from "../credential-types";
 import {
-  useRemoveCredential,
+  useCredentials,
   useSuspenseCredentials,
 } from "../hooks/use-credentials";
 import { useCredentialsParams } from "../hooks/use-credentials-params";
+import type { CredentialPublic } from "../server/serialize";
+import { DeleteCredentialDialog } from "./delete-credential-dialog";
 
 export const CredentialsSearch = () => {
   const [params, setParams] = useCredentialsParams();
@@ -65,8 +67,10 @@ export const CredentialsHeader = ({ disabled }: { disabled?: boolean }) => {
 };
 
 export const CredentialsPagination = () => {
-  const credentials = useSuspenseCredentials();
+  const credentials = useCredentials();
   const [params, setParams] = useCredentialsParams();
+
+  if (!credentials.data) return null;
 
   return (
     <EntityPagination
@@ -117,39 +121,50 @@ export const CredentialsEmpty = () => {
   );
 };
 
-const credentialLogos: Record<CredentialType, string> = {
-  [CredentialType.OPENAI]: "/logos/openai.svg",
-  [CredentialType.ANTHROPIC]: "/logos/anthropic.svg",
-  [CredentialType.GEMINI]: "/logos/gemini.svg",
-};
+export const CredentialItem = memo(({ data }: { data: CredentialPublic }) => {
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
-export const CredentialItem = ({ data }: { data: Credential }) => {
-  const removeCredential = useRemoveCredential();
+  const logo = credentialDefsById.get(data.type)?.logo ?? "/logos/logo.svg";
 
-  const handleRemove = () => {
-    removeCredential.mutate({ id: data.id });
-  };
-
-  const logo = credentialLogos[data.type] || "/logos/openai.svg";
+  const subtitle = (
+    <>
+      {data.preview && (
+        <span className="font-mono text-xs">{data.preview}</span>
+      )}
+      {data.preview && " · "}
+      Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}
+      {data.usageCount > 0 && (
+        <>
+          {" · "}
+          <span className="text-muted-foreground">
+            Used by {data.usageCount} workflow
+            {data.usageCount !== 1 ? "s" : ""}
+          </span>
+        </>
+      )}
+    </>
+  );
 
   return (
-    <EntityItem
-      href={`/credentials/${data.id}`}
-      title={data.name}
-      subtitle={
-        <>
-          Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
-          &bull; Created{" "}
-          {formatDistanceToNow(data.createdAt, { addSuffix: true })}
-        </>
-      }
-      image={
-        <div className="size-8 flex items-center justify-center">
-          <Image src={logo} alt={data.type} width={20} height={20} />
-        </div>
-      }
-      onRemove={handleRemove}
-      isRemoving={removeCredential.isPending}
-    />
+    <>
+      <EntityItem
+        href={`/credentials/${data.id}`}
+        title={data.name}
+        subtitle={subtitle}
+        image={
+          <div className="size-8 flex items-center justify-center">
+            <Image src={logo} alt={data.type} width={20} height={20} />
+          </div>
+        }
+        onRemove={() => setDeleteOpen(true)}
+      />
+      <DeleteCredentialDialog
+        credentialId={data.id}
+        credentialName={data.name}
+        usageCount={data.usageCount}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+      />
+    </>
   );
-};
+});

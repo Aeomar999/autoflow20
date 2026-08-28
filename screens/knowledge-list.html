@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /knowledge   [PLANNED Phase 2 — Document / Chunk / Embedding, pgvector]
+     A knowledge base that silently goes stale is worse than none, so freshness
+     and last-sync outcome are columns, not details. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="knowledge"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Knowledge"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Knowledge</h1>
+          <p class="pagehead__desc">Sources your agents and retrieval nodes can search.</p>
+        </div>
+        <div class="rowx">
+          <span class="badge badge--planned">PLANNED PHASE 2</span>
+          <button class="btn btn--primary" data-component="Button">New knowledge base</button>
+        </div>
+      </div>
+
+      <div class="toolstrip">
+        <div class="inputgroup" style="width:280px" data-component="InputGroup">
+          <span class="inputgroup__icon mono t-xs">⌕</span>
+          <input class="input" placeholder="Search knowledge bases…" data-component="Input">
+        </div>
+        <select class="select" style="width:auto" data-component="Select">
+          <option>All sources</option><option>Files</option><option>URLs</option><option>Slack</option>
+        </select>
+      </div>
+
+      <div class="card" style="overflow:hidden" data-component="Card">
+        <table class="tbl" data-component="DataTable">
+          <thead>
+            <tr>
+              <th style="width:118px">Last sync</th><th>Knowledge base</th><th>Sources</th>
+              <th class="cell-num">Documents</th><th class="cell-num">Chunks</th>
+              <th class="cell-num">Queries (7d)</th><th>Updated</th><th class="cell-tight"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SYNCED</span></td>
+              <td><a class="strong" href="knowledge-detail.html">Support handbook</a>
+                <div class="t-xs dim">Used by 2 workflows</div></td>
+              <td class="t-sm dim">12 files · 1 Slack channel</td>
+              <td class="cell-num">318</td><td class="cell-num">7,412</td><td class="cell-num">18,904</td>
+              <td class="t-sm dim">1 hour ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--running" data-glyph="◐">INDEXING</span></td>
+              <td><a class="strong" href="knowledge-detail.html">Product documentation</a>
+                <div class="t-xs dim">Used by 1 workflow · 44 of 210 documents embedded</div></td>
+              <td class="t-sm dim">Scheduled URL crawl</td>
+              <td class="cell-num">210</td><td class="cell-num">1,802</td><td class="cell-num">6,110</td>
+              <td class="t-sm dim">now</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--failed" data-glyph="✕">SYNC FAILED</span></td>
+              <td><a class="strong" href="knowledge-detail.html">Contract library</a>
+                <div class="t-xs dim" style="color:var(--destructive)">3 PDFs could not be parsed — password protected</div></td>
+              <td class="t-sm dim">88 files</td>
+              <td class="cell-num">85</td><td class="cell-num">12,048</td><td class="cell-num">402</td>
+              <td class="t-sm dim">yesterday</td>
+              <td class="cell-tight"><button class="btn btn--sm">Fix</button></td>
+            </tr>
+            <tr>
+              <td><span class="st st--success" data-glyph="■">SYNCED</span></td>
+              <td><a class="strong" href="knowledge-detail.html">Competitor tracking</a>
+                <div class="t-xs dim">Not used by any workflow</div></td>
+              <td class="t-sm dim">6 URLs, weekly</td>
+              <td class="cell-num">6</td><td class="cell-num">944</td><td class="cell-num">0</td>
+              <td class="t-sm dim">3 days ago</td>
+              <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

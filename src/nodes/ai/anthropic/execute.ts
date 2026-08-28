@@ -4,8 +4,6 @@ import { generateText } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
 import { anthropicChannel } from "@/inngest/channels/anthropic";
-import prisma from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
 import type { NodeRun } from "@/nodes/types";
 
 type AnthropicData = {
@@ -18,10 +16,10 @@ type AnthropicData = {
 export const execute: NodeRun<AnthropicData> = async ({
   data,
   nodeId,
-  userId,
   context,
   step,
   publish,
+  credentials,
 }) => {
   await publish(
     anthropicChannel().status({
@@ -60,21 +58,8 @@ export const execute: NodeRun<AnthropicData> = async ({
     throw new NonRetriableError("Anthropic node: User prompt is missing");
   }
 
-  const systemPrompt = data.systemPrompt
-    ? compileTemplate(data.systemPrompt)(context)
-    : "You are a helpful assistant.";
-  const userPrompt = compileTemplate(data.userPrompt)(context);
-
-  const credential = await step.run("get-credential", () => {
-    return prisma.credential.findUnique({
-      where: {
-        id: data.credentialId,
-        userId,
-      },
-    });
-  });
-
-  if (!credential) {
+  const secret = credentials?.credentialId;
+  if (!secret) {
     await publish(
       anthropicChannel().status({
         nodeId,
@@ -84,8 +69,13 @@ export const execute: NodeRun<AnthropicData> = async ({
     throw new NonRetriableError("Anthropic node: Credential not found");
   }
 
+  const systemPrompt = data.systemPrompt
+    ? compileTemplate(data.systemPrompt)(context)
+    : "You are a helpful assistant.";
+  const userPrompt = compileTemplate(data.userPrompt)(context);
+
   const anthropic = createAnthropic({
-    apiKey: decrypt(credential.value),
+    apiKey: secret.apiKey,
   });
 
   try {

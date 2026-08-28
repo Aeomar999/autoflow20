@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quotas &amp; limits — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/quotas   [PLANNED M7 — UsageCounter + per-org Inngest concurrency keys]
+     Two different things live here and must not be conflated: PLAN limits, which
+     you change by upgrading, and RUNTIME limits, which you tune. Mixing them
+     makes every limit look negotiable. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / Quotas &amp; limits"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="quotas"></nav>
+
+        <div class="stack-4" style="max-width:760px">
+          <div>
+            <h1 class="pagehead__title">Quotas &amp; limits</h1>
+            <p class="pagehead__desc">What your plan allows, and what you’ve chosen to allow.</p>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Plan limits</span>
+              <span class="badge push">Pro</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl" data-component="Table">
+                <thead><tr><th>Limit</th><th class="cell-num">Used</th><th class="cell-num">Allowed</th><th style="width:150px"></th></tr></thead>
+                <tbody>
+                  <tr><td class="t-sm">Runs this period</td><td class="cell-num">31,604</td><td class="cell-num">50,000</td>
+                    <td><div class="bar"><div class="bar__fill" style="width:63%"></div></div></td></tr>
+                  <tr><td class="t-sm">Concurrent runs</td><td class="cell-num">4</td><td class="cell-num">25</td>
+                    <td><div class="bar"><div class="bar__fill" style="width:16%"></div></div></td></tr>
+                  <tr><td class="t-sm">Deployed workflows</td><td class="cell-num">5</td><td class="cell-num">unlimited</td>
+                    <td><span class="t-xs dim">—</span></td></tr>
+                  <tr><td class="t-sm">Members</td><td class="cell-num">6</td><td class="cell-num">unlimited</td>
+                    <td><span class="t-xs dim">—</span></td></tr>
+                  <tr><td class="t-sm">Trace retention</td><td class="cell-num">30d</td><td class="cell-num">30d</td>
+                    <td><div class="bar"><div class="bar__fill bar__fill--warn" style="width:100%"></div></div></td></tr>
+                  <tr><td class="t-sm">Knowledge base storage</td><td class="cell-num">1.9 GB</td><td class="cell-num">10 GB</td>
+                    <td><div class="bar"><div class="bar__fill" style="width:19%"></div></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim grow">Runs over 50,000 bill at $1 per 1,000. Nothing is dropped.</span>
+              <a class="btn btn--sm" href="pricing.html">Compare plans</a>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Runtime limits you control</span></div>
+            <div class="card__body stack-4">
+              <div class="grid grid--2" style="gap:16px">
+                <div class="field" data-component="Field">
+                  <label class="field__label">Run wall-clock timeout</label>
+                  <select class="select" data-component="Select"><option>15 minutes (default)</option><option>5 minutes</option><option>60 minutes</option></select>
+                  <span class="field__help">A run past this is TIMED_OUT and its unstarted nodes are recorded SKIPPED.</span>
+                </div>
+                <div class="field" data-component="Field">
+                  <label class="field__label">Nodes per run</label>
+                  <input class="input input--mono" value="500" data-component="Input">
+                  <span class="field__help">A guard against a loop that never terminates.</span>
+                </div>
+                <div class="field" data-component="Field">
+                  <label class="field__label">Items per node output</label>
+                  <input class="input input--mono" value="10000" data-component="Input">
+                  <span class="field__help">Exceeding this fails the node rather than truncating silently.</span>
+                </div>
+                <div class="field" data-component="Field">
+                  <label class="field__label">Concurrent nodes per run</label>
+                  <input class="input input--mono" value="5" data-component="Input">
+                  <span class="field__help">Higher finishes wide graphs sooner and hits third-party rate limits sooner.</span>
+                </div>
+                <div class="field" data-component="Field">
+                  <label class="field__label">Concurrent runs per workflow</label>
+                  <input class="input input--mono" value="10" data-component="Input">
+                  <span class="field__help">Extra triggers queue rather than pile up.</span>
+                </div>
+                <div class="field" data-component="Field">
+                  <label class="field__label">Stored input/output per node</label>
+                  <select class="select" data-component="Select"><option>128 KB (default)</option><option>512 KB</option><option>1 MB</option></select>
+                  <span class="field__help">Larger payloads are truncated in the trace with a visible marker.</span>
+                </div>
+              </div>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--primary">Save limits</button>
+              <span class="t-xs dim push">Applies to runs started after saving. In-flight runs keep their old limits.</span></div>
+          </div>
+
+          <div class="alert" data-component="Alert">
+            <span aria-hidden="true">→</span>
+            <div><div class="alert__title">Why limits exist</div>
+              <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+                Every run has a ceiling so one workflow can’t starve the rest of your organization —
+                and so your organization can’t starve anyone else’s. Hitting a limit is always
+                recorded on the run, never silent.
+              </p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

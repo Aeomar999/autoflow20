@@ -20,18 +20,18 @@ const Page = async ({ searchParams }: Props) => {
   await requireAuth();
 
   const params = await workflowsParamsLoader(searchParams);
-  prefetchWorkflows(params);
+  await prefetchWorkflows(params);
 
   return (
-    <WorkflowsContainer>
-      <HydrateClient>
+    <HydrateClient>
+      <WorkflowsContainer>
         <ErrorBoundary fallback={<WorkflowsError />}>
           <Suspense fallback={<WorkflowsLoading />}>
             <WorkflowsList />
           </Suspense>
         </ErrorBoundary>
-      </HydrateClient>
-    </WorkflowsContainer>
+      </WorkflowsContainer>
+    </HydrateClient>
   );
 };
 

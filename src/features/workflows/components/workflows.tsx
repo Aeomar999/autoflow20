@@ -3,6 +3,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { WorkflowIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { memo } from "react";
 import {
   EmptyView,
   EntityContainer,
@@ -14,13 +15,13 @@ import {
   ErrorView,
   LoadingView,
 } from "@/components/entity-components";
-import type { Workflow } from "@/generated/prisma/client";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
 import {
   useCreateWorkflow,
   useRemoveWorkflow,
   useSuspenseWorkflows,
+  useWorkflows,
 } from "../hooks/use-workflows";
 import { useWorkflowsParams } from "../hooks/use-workflows-params";
 
@@ -85,8 +86,10 @@ export const WorkflowsHeader = ({ disabled }: { disabled?: boolean }) => {
 };
 
 export const WorkflowsPagination = () => {
-  const workflows = useSuspenseWorkflows();
+  const workflows = useWorkflows();
   const [params, setParams] = useWorkflowsParams();
+
+  if (!workflows.data) return null;
 
   return (
     <EntityPagination
@@ -149,31 +152,43 @@ export const WorkflowsEmpty = () => {
   );
 };
 
-export const WorkflowItem = ({ data }: { data: Workflow }) => {
-  const removeWorkflow = useRemoveWorkflow();
+export const WorkflowItem = memo(
+  ({
+    data,
+  }: {
+    data: {
+      id: string;
+      name: string;
+      createdAt: Date;
+      updatedAt: Date;
+      revision: number;
+    };
+  }) => {
+    const removeWorkflow = useRemoveWorkflow();
 
-  const handleRemove = () => {
-    removeWorkflow.mutate({ id: data.id });
-  };
+    const handleRemove = () => {
+      removeWorkflow.mutate({ id: data.id });
+    };
 
-  return (
-    <EntityItem
-      href={`/workflows/${data.id}`}
-      title={data.name}
-      subtitle={
-        <>
-          Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
-          &bull; Created{" "}
-          {formatDistanceToNow(data.createdAt, { addSuffix: true })}
-        </>
-      }
-      image={
-        <div className="size-8 flex items-center justify-center">
-          <WorkflowIcon className="size-5 text-muted-foreground" />
-        </div>
-      }
-      onRemove={handleRemove}
-      isRemoving={removeWorkflow.isPending}
-    />
-  );
-};
+    return (
+      <EntityItem
+        href={`/workflows/${data.id}`}
+        title={data.name}
+        subtitle={
+          <>
+            Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
+            &bull; Created{" "}
+            {formatDistanceToNow(data.createdAt, { addSuffix: true })}
+          </>
+        }
+        image={
+          <div className="size-8 flex items-center justify-center">
+            <WorkflowIcon className="size-5 text-muted-foreground" />
+          </div>
+        }
+        onRemove={handleRemove}
+        isRemoving={removeWorkflow.isPending}
+      />
+    );
+  },
+);

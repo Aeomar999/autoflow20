@@ -1,9 +1,11 @@
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { saveStatusAtom } from "@/features/editor/store/atoms";
 import { useTRPC } from "@/trpc/client";
@@ -17,6 +19,16 @@ export const useSuspenseWorkflows = () => {
   const [params] = useWorkflowsParams();
 
   return useSuspenseQuery(trpc.workflows.getMany.queryOptions(params));
+};
+
+/**
+ * Non-suspending hook for pagination (returns data or undefined)
+ */
+export const useWorkflows = () => {
+  const trpc = useTRPC();
+  const [params] = useWorkflowsParams();
+
+  return useQuery(trpc.workflows.getMany.queryOptions(params));
 };
 
 /**
@@ -137,6 +149,28 @@ export const useExecuteWorkflow = () => {
       },
       onError: (error) => {
         toast.error(`Failed to execute workflow: ${error.message}`);
+      },
+    }),
+  );
+};
+
+/**
+ * Hook to run an in-editor test (AF-M2-08). Runs the current draft
+ * (`mode: TEST`) and navigates to the resulting execution, whose node
+ * traces show per-node status, output, and errors.
+ */
+export const useTestWorkflow = () => {
+  const trpc = useTRPC();
+  const router = useRouter();
+
+  return useMutation(
+    trpc.workflows.testRun.mutationOptions({
+      onSuccess: (data) => {
+        toast.success("Test run started");
+        router.push(`/executions/${data.id}`);
+      },
+      onError: (error) => {
+        toast.error(`Test run failed: ${error.message}`);
       },
     }),
   );

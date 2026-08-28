@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: app/not-found.tsx   [PLANNED]
+     404 is also our cross-tenant response: api_contract.md says a resource that
+     belongs to another tenant returns NOT_FOUND, never FORBIDDEN, so existence
+     is never disclosed. The copy therefore never says "you don't have access". -->
+
+<div class="authwrap authwrap--single">
+  <div class="authform">
+    <div class="authform__inner" style="max-width:440px;text-align:center">
+
+      <a class="rowx" href="landing.html" style="justify-content:center;margin-bottom:36px">
+        <span class="sidebar__mark" aria-hidden="true">A</span>
+        <span class="strong t-lg" style="letter-spacing:-0.02em">AutoFlow</span>
+      </a>
+
+      <p class="eyebrow">404</p>
+      <h1 class="display display--sm" style="margin-top:12px">Nothing here.</h1>
+      <p class="t-sm dim" style="margin-top:12px">
+        This page doesn’t exist, or it belongs to an organization you’re not a member of.
+        If someone sent you the link, ask them to invite you.
+      </p>
+
+      <div class="rowx" style="justify-content:center;gap:8px;margin-top:24px">
+        <a class="btn btn--primary" href="workflows-list.html" data-component="Button">Go to workflows</a>
+        <a class="btn" href="landing.html" data-component="Button">Home</a>
+      </div>
+
+      <div class="hr" style="margin:32px 0"></div>
+
+      <p class="eyebrow" style="margin-bottom:12px">Common destinations</p>
+      <div class="stack-2" style="text-align:left">
+        <a class="palitem" href="workflows-list.html"><span class="icon">◫</span>
+          <span class="grow"><span class="palitem__label">Workflows</span></span><span class="dim">›</span></a>
+        <a class="palitem" href="executions-list.html"><span class="icon">▷</span>
+          <span class="grow"><span class="palitem__label">Executions</span></span><span class="dim">›</span></a>
+        <a class="palitem" href="credentials-list.html"><span class="icon">⚿</span>
+          <span class="grow"><span class="palitem__label">Credentials</span></span><span class="dim">›</span></a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

@@ -4,8 +4,6 @@ import { generateText } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
 import { openAiChannel } from "@/inngest/channels/openai";
-import prisma from "@/lib/db";
-import { decrypt } from "@/lib/encryption";
 import type { NodeRun } from "@/nodes/types";
 
 type OpenAiData = {
@@ -18,10 +16,10 @@ type OpenAiData = {
 export const execute: NodeRun<OpenAiData> = async ({
   data,
   nodeId,
-  userId,
   context,
   step,
   publish,
+  credentials,
 }) => {
   await publish(
     openAiChannel().status({
@@ -60,32 +58,24 @@ export const execute: NodeRun<OpenAiData> = async ({
     throw new NonRetriableError("OpenAI node: User prompt is missing");
   }
 
-  const systemPrompt = data.systemPrompt
-    ? compileTemplate(data.systemPrompt)(context)
-    : "You are a helpful assistant.";
-  const userPrompt = compileTemplate(data.userPrompt)(context);
-
-  const credential = await step.run("get-credential", () => {
-    return prisma.credential.findUnique({
-      where: {
-        id: data.credentialId,
-        userId,
-      },
-    });
-  });
-
-  if (!credential) {
+  const secret = credentials?.credentialId;
+  if (!secret) {
     await publish(
       openAiChannel().status({
         nodeId,
         status: "error",
       }),
     );
-    throw new NonRetriableError("OpenAI node: Credential not found");
+    throw new NonRetriableError("OpenAi node: Credential not found");
   }
 
+  const systemPrompt = data.systemPrompt
+    ? compileTemplate(data.systemPrompt)(context)
+    : "You are a helpful assistant.";
+  const userPrompt = compileTemplate(data.userPrompt)(context);
+
   const openai = createOpenAI({
-    apiKey: decrypt(credential.value),
+    apiKey: secret.apiKey,
   });
 
   try {

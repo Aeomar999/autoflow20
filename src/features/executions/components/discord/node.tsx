@@ -1,11 +1,9 @@
 "use client";
 
 import { type Node, type NodeProps, useReactFlow } from "@xyflow/react";
-import { memo, useState } from "react";
-import { DISCORD_CHANNEL_NAME } from "@/inngest/channels/discord";
+import { memo, useCallback, useState } from "react";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { BaseExecutionNode } from "../base-execution-node";
-import { fetchDiscordRealtimeToken } from "./actions";
 import { DiscordDialog, type DiscordFormValues } from "./dialog";
 
 type DiscordNodeData = {
@@ -19,14 +17,9 @@ export const DiscordNode = memo((props: NodeProps<DiscordNodeType>) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
-    nodeId: props.id,
-    channel: DISCORD_CHANNEL_NAME,
-    topic: "status",
-    refreshToken: fetchDiscordRealtimeToken,
-  });
+  const nodeStatus = useNodeStatus({ nodeId: props.id });
 
-  const handleOpenSettings = () => setDialogOpen(true);
+  const handleOpenSettings = useCallback(() => setDialogOpen(true), []);
 
   const handleSubmit = (values: DiscordFormValues) => {
     setNodes((nodes) =>

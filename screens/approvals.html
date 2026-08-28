@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approvals — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /approvals   [PLANNED M7 — core.approval node + inbox]
+     A paused run is a run that is costing someone time. So the inbox leads with
+     how long each has been waiting and what happens when it times out, and every
+     decision shows the run context it came from. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="approvals"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Approvals"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Approvals</h1>
+          <p class="pagehead__desc">3 runs are paused waiting on you.</p>
+        </div>
+        <div class="rowx">
+          <button class="btn" data-component="Button">Notification settings</button>
+        </div>
+      </div>
+
+      <div class="tabs" style="margin-bottom:16px" data-component="Tabs">
+        <button class="tab" aria-selected="true">Waiting on me <span class="badge badge--warn">3</span></button>
+        <button class="tab" aria-selected="false">Waiting on others <span class="badge">7</span></button>
+        <button class="tab" aria-selected="false">Decided</button>
+      </div>
+
+      <div class="stack-3">
+
+        <!-- urgent -->
+        <div class="card" style="border-color:color-mix(in oklab, var(--destructive) 40%, transparent)" data-component="Card">
+          <div class="card__head">
+            <span class="stpill" style="color:var(--destructive)">◷ 2H 14M LEFT</span>
+            <div class="grow">
+              <div class="t-sm strong">Approve payment to Kestrel Logistics — $12,480.00</div>
+              <div class="t-xs dim mono">
+                <a href="execution-detail.html">exec_b7710e42</a> · Invoice → Slack approval ·
+                node “Wait for VP approval” · paused 21h 46m ago
+              </div>
+            </div>
+          </div>
+          <div class="card__body">
+            <div class="grid grid--2" style="gap:16px">
+              <div>
+                <p class="eyebrow" style="margin-bottom:8px">What you’re approving</p>
+                <div class="json" style="max-height:180px" data-component="JsonViewer">{
+  <span class="j-key">"invoiceId"</span><span class="j-punct">:</span> <span class="j-str">"INV-2026-4502"</span><span class="j-punct">,</span>
+  <span class="j-key">"vendor"</span><span class="j-punct">:</span> <span class="j-str">"Kestrel Logistics"</span><span class="j-punct">,</span>
+  <span class="j-key">"amount"</span><span class="j-punct">:</span> <span class="j-num">12480.00</span><span class="j-punct">,</span>
+  <span class="j-key">"currency"</span><span class="j-punct">:</span> <span class="j-str">"USD"</span><span class="j-punct">,</span>
+  <span class="j-key">"dueDate"</span><span class="j-punct">:</span> <span class="j-str">"2026-08-20"</span><span class="j-punct">,</span>
+  <span class="j-key">"poMatched"</span><span class="j-punct">:</span> <span class="j-bool">false</span>
+}</div>
+              </div>
+              <div>
+                <p class="eyebrow" style="margin-bottom:8px">If you approve</p>
+                <div class="trace">
+                  <div class="tr tr--queued">
+                    <div class="gutter gutter--queued"><span class="mono t-xs">○</span></div>
+                    <div class="tr__topo tr__topo--start"><span class="tr__knot"></span></div>
+                    <div class="tr__body"><div class="grow"><div class="tr__name">Post to #finance-ops</div>
+                      <div class="tr__type">slack.send-message</div></div></div>
+                  </div>
+                  <div class="tr tr--queued">
+                    <div class="gutter gutter--queued"><span class="mono t-xs">○</span></div>
+                    <div class="tr__topo tr__topo--end"><span class="tr__knot"></span></div>
+                    <div class="tr__body"><div class="grow"><div class="tr__name">Record in ledger</div>
+                      <div class="tr__type">postgres.query</div></div></div>
+                  </div>
+                </div>
+                <p class="t-xs dim" style="margin-top:10px">
+                  <span class="strong" style="color:var(--foreground)">No PO match.</span>
+                  This invoice has no matching purchase order, which is why it routed to you rather
+                  than approving automatically.
+                </p>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:14px">
+              <label class="field__label">Note <span class="dim" style="font-weight:400">(recorded in the audit log)</span></label>
+              <textarea class="textarea" placeholder="Why you decided this way…" data-component="Textarea"></textarea>
+            </div>
+          </div>
+          <div class="card__foot">
+            <button class="btn btn--sm btn--primary" data-component="Button">Approve and continue</button>
+            <button class="btn btn--sm btn--danger" data-component="Button">Reject and stop the run</button>
+            <button class="btn btn--sm btn--ghost" data-component="Button">Reassign</button>
+            <span class="t-xs dim push">
+              No decision by 16:16 UTC → the run is cancelled and finance is notified.
+            </span>
+          </div>
+        </div>
+
+        <!-- ordinary -->
+        <div class="card" data-component="Card">
+          <div class="card__head">
+            <span class="stpill" style="color:var(--muted-foreground)">◷ 19H LEFT</span>
+            <div class="grow">
+              <div class="t-sm strong">Publish “Q3 churn outreach” to 1,840 customers</div>
+              <div class="t-xs dim mono">
+                <a href="execution-detail.html">exec_b7719c05</a> · Churn-risk digest ·
+                node “Confirm send” · paused 5h 02m ago
+              </div>
+            </div>
+            <div class="rowx">
+              <button class="btn btn--sm">Review</button>
+              <button class="btn btn--sm btn--primary">Approve</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__head">
+            <span class="stpill" style="color:var(--muted-foreground)">◷ 3D LEFT</span>
+            <div class="grow">
+              <div class="t-sm strong">Grant “Nightly warehouse sync” write access to <span class="mono">analytics.fact_orders</span></div>
+              <div class="t-xs dim mono">
+                <a href="execution-detail.html">exec_b76f2210</a> · Nightly Postgres → warehouse sync ·
+                node “Schema change gate” · paused 1d 4h ago
+              </div>
+            </div>
+            <div class="rowx">
+              <button class="btn btn--sm">Review</button>
+              <button class="btn btn--sm btn--primary">Approve</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

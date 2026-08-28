@@ -79,7 +79,8 @@ graph TB
 | Node registry | `src/nodes/**` | The catalogue of what a node *is* and what it *does* | **[PLANNED M1]** — 10 executors currently scattered in `src/features/executions/components/*/executor.ts`, keyed by Prisma enum |
 | Engine | `src/engine/**` + `src/inngest/functions.ts` | Graph compile, validate, topologically execute, resolve expressions | **[PARTIAL]** — tutorial-grade topological execution works (`src/inngest/utils.ts`); no per-node records, no expression resolver, no SKIPPED semantics |
 | Durable jobs | `src/inngest/**` | Long-running/retryable execution, cron, OAuth refresh | **[PARTIAL]** — real `execute-workflow` function exists |
-| Infra libs | `src/lib/**` | db, auth, polar, crypto (`Cryptr`), ai provider registry, logger | **[PARTIAL]** — no logger; `ENCRYPTION_KEY!` non-null asserted |
+| Infra libs | `src/lib/**` | db, auth, polar, crypto (envelope AES-256-GCM, `CURRENT_KEY_VERSION`), ai provider registry, logger | **[PARTIAL]** — legacy Cryptr path (`src/lib/encryption.ts`) now used only by the one-time credential converter |
+| Credential registry + vault | `src/features/credentials/**` | Isomorphic type defs (8 kinds), server validation + testers, envelope seal/open, tRPC router | **[BUILT AF-M3-02]** — no plaintext read path; `.strict()` public schema |
 | Persistence | `prisma/**` | Schema + migrations | **[PARTIAL]** — 9 tables incl. `Execution`, `Credential`; graph-only era is over |
 
 ---
@@ -206,7 +207,8 @@ graph LR
 ```
 
 - Envelope encryption: a per-credential data key encrypts the payload; the data key is wrapped by a master key from the environment (`CREDENTIAL_MASTER_KEY`), with `keyVersion` on the row so rotation and later KMS/BYOK migration are mechanical.
-- **There is no read path for plaintext.** No tRPC procedure returns decrypted credential data, ever. The only decrypt call site is inside the engine's node context construction.
+- **There is no read path for plaintext.** No tRPC procedure returns decrypted credential data, ever. Decryption happens only inside node execution (`openSecret`, `server/vault.ts`) and the server-side `test` probe; every response is `.output()`-validated against a strict metadata-only schema (AF-M3-02).
+- A typed registry (`credential-types.ts` + `credential-registry.ts`) drives the form, API schema, and testers from one kind definition list (8 registered types).
 - OAuth refresh is a scheduled Inngest function scanning `expiresAt`, with failure surfaced as a workspace alert — this is the "N8N tokens silently expire and workflows break" gap.
 
 Details and threat model: `docs/architecture/security.md`.

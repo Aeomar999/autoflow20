@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webhooks — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/webhooks   [PLANNED M4 — WebhookEndpoint + POST /api/webhooks/:workflowId/:path]
+     Two directions, deliberately on one page: endpoints we EXPOSE (inbound
+     triggers) and endpoints we CALL (outbound event delivery). Confusing the
+     two is a classic source of misconfigured integrations. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / Webhooks"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="webhooks"></nav>
+
+        <div class="stack-4">
+          <div>
+            <h1 class="pagehead__title">Webhooks</h1>
+            <p class="pagehead__desc">Endpoints that start your workflows, and endpoints we notify.</p>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head">
+              <span class="card__title">Inbound · trigger a workflow</span>
+              <span class="badge push">3 endpoints</span>
+            </div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl" data-component="DataTable">
+                <thead><tr><th style="width:110px">Status</th><th>Endpoint</th><th>Workflow</th><th>Auth</th><th class="cell-num">Calls (7d)</th><th class="cell-tight"></th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><span class="st st--success" data-glyph="■">ACTIVE</span></td>
+                    <td class="mono t-sm">/api/webhooks/wf_4a91/invoices</td>
+                    <td class="t-sm">Invoice → Slack approval</td>
+                    <td><span class="badge badge--mono">HMAC SHA-256</span></td>
+                    <td class="cell-num">1,284</td>
+                    <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="st st--success" data-glyph="■">ACTIVE</span></td>
+                    <td class="mono t-sm">/api/webhooks/wf_7c02/tickets</td>
+                    <td class="t-sm">Zendesk ticket triage</td>
+                    <td><span class="badge badge--mono">Secret header</span></td>
+                    <td class="cell-num">4,022</td>
+                    <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                  </tr>
+                  <tr>
+                    <td><span class="st" data-glyph="○">PAUSED</span></td>
+                    <td class="mono t-sm dim">/api/webhooks/wf_9e33/signups</td>
+                    <td class="t-sm dim">New signup → CRM enrich <span class="badge">draft</span></td>
+                    <td><span class="badge badge--mono">HMAC SHA-256</span></td>
+                    <td class="cell-num dim">0</td>
+                    <td class="cell-tight"><button class="btn btn--ghost btn--icon btn--sm">⋯</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">
+                Unknown or paused endpoints return a plain 404 — they never reveal that a workflow
+                exists. Signatures are compared in constant time.
+              </span>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head">
+              <span class="card__title">Outbound · we notify you</span>
+              <button class="btn btn--sm push" data-component="Button">Add endpoint</button>
+            </div>
+            <div class="card__body stack-4">
+              <div class="field" data-component="Field">
+                <label class="field__label">Endpoint URL</label>
+                <input class="input input--mono" value="https://ops.northwindretail.com/hooks/autoflow" data-component="Input">
+              </div>
+
+              <div class="field" data-component="Field">
+                <label class="field__label">Events</label>
+                <div class="stack-2">
+                  <label class="rowx" style="gap:9px"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                    <span class="t-sm">execution.failed<span class="t-xs dim" style="display:block">A run ended FAILED or TIMED_OUT</span></span></label>
+                  <label class="rowx" style="gap:9px"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                    <span class="t-sm">approval.requested<span class="t-xs dim" style="display:block">A run paused on an approval gate</span></span></label>
+                  <label class="rowx" style="gap:9px"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                    <span class="t-sm">budget.threshold<span class="t-xs dim" style="display:block">Model spend crossed a configured threshold</span></span></label>
+                  <label class="rowx" style="gap:9px"><span class="check" role="checkbox" aria-checked="false"></span>
+                    <span class="t-sm">execution.completed<span class="t-xs dim" style="display:block">Every run, including successes — high volume</span></span></label>
+                  <label class="rowx" style="gap:9px"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                    <span class="t-sm">credential.expiring<span class="t-xs dim" style="display:block">An OAuth token expires within 7 days</span></span></label>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label">Signing secret</label>
+                <div class="rowx">
+                  <input class="input input--mono grow" value="whsec_••••••••••••••••3a01" readonly>
+                  <button class="btn">Rotate</button>
+                </div>
+                <span class="field__help">
+                  We sign every delivery as <span class="mono">X-AutoFlow-Signature</span>. Verify it before
+                  trusting the body.
+                </span>
+              </div>
+            </div>
+            <div class="card__foot">
+              <button class="btn btn--sm btn--primary">Save endpoint</button>
+              <button class="btn btn--sm">Send test event</button>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Recent deliveries</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl" data-component="Table">
+                <thead><tr><th style="width:110px">Result</th><th>Event</th><th class="cell-num">Response</th><th class="cell-num">Attempt</th><th>Sent</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="st st--success" data-glyph="■">200</span></td>
+                    <td class="mono t-sm">execution.failed · exec_8f31c2a4</td>
+                    <td class="cell-num">88ms</td><td class="cell-num">1</td><td class="t-sm dim">2 min ago</td></tr>
+                  <tr><td><span class="st st--success" data-glyph="■">200</span></td>
+                    <td class="mono t-sm">approval.requested · exec_b7710e42</td>
+                    <td class="cell-num">104ms</td><td class="cell-num">1</td><td class="t-sm dim">21 hours ago</td></tr>
+                  <tr><td><span class="st st--failed" data-glyph="✕">502</span></td>
+                    <td class="mono t-sm">budget.threshold · Aug budget 80%</td>
+                    <td class="cell-num">30,000ms</td><td class="cell-num">3</td><td class="t-sm dim">yesterday</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">Failed deliveries retry 3 times over 10 minutes, then stop and appear in Notifications.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

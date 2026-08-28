@@ -1,13 +1,13 @@
 import type { inferInput } from "@trpc/tanstack-react-query";
 import { prefetch, trpc } from "@/trpc/server";
 
-type Input = inferInput<typeof trpc.executions.getMany>;
+type ListInput = inferInput<typeof trpc.executions.list>;
 
 /**
- * Prefetch all executions
+ * Prefetch all executions with optional filters.
  */
-export const prefetchExecutions = (params: Input) => {
-  return prefetch(trpc.executions.getMany.queryOptions(params));
+export const prefetchExecutions = (params: ListInput) => {
+  return prefetch(trpc.executions.list.queryOptions(params));
 };
 
 /**

@@ -1,5 +1,10 @@
 import { NonRetriableError } from "inngest";
-import { validate } from "@/engine/validate";
+import {
+  type GraphConnection,
+  type GraphNode,
+  validate,
+} from "@/engine/validate";
+import { resolveNodeCredentials } from "@/features/executions/server/credential-resolver";
 import { buildTemplateContext } from "@/features/executions/template";
 import {
   ExecutionStatus,
@@ -126,6 +131,13 @@ export const executeWorkflow = inngest.createFunction(
     }
 
     const execution = await step.run("create-execution", async () => {
+      // New flow: execution pre-created by workflows.run (AF-M2-06).
+      if (event.data.executionId) {
+        return prisma.execution.findUniqueOrThrow({
+          where: { id: event.data.executionId as string },
+        });
+      }
+      // Legacy flow: create execution from event data.
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: workflowId },
         include: { nodes: true, connections: true },
@@ -147,29 +159,64 @@ export const executeWorkflow = inngest.createFunction(
     const { sortedNodes, edges } = await step.run(
       "prepare-workflow",
       async () => {
-        const workflow = await prisma.workflow.findUniqueOrThrow({
-          where: { id: workflowId },
-          include: {
-            nodes: true,
-            connections: true,
-          },
-        });
+        // Draft test runs (AF-M2-08) carry the graph inline so the run
+        // reflects the current canvas, not the persisted workflow.
+        const snapshot = (event.data.graphSnapshot ?? null) as {
+          nodes?: Array<{
+            id: string;
+            name: string;
+            type: string;
+            data?: unknown;
+          }>;
+          connections?: Array<{
+            fromNodeId: string;
+            toNodeId: string;
+            fromOutput?: string;
+            toInput?: string;
+          }>;
+        } | null;
+        const useSnapshot = snapshot !== null && Array.isArray(snapshot.nodes);
+
+        let nodeRows: GraphNode[];
+        let connectionRows: GraphConnection[];
+
+        if (useSnapshot) {
+          nodeRows = (snapshot.nodes ?? []).map((n) => ({
+            id: n.id,
+            name: n.name,
+            type: n.type,
+            data: (n.data as Record<string, unknown> | undefined) ?? {},
+          }));
+          connectionRows = (snapshot.connections ?? []).map((c) => ({
+            fromNodeId: c.fromNodeId,
+            toNodeId: c.toNodeId,
+            fromOutput: c.fromOutput ?? "main",
+            toInput: c.toInput ?? "main",
+          }));
+        } else {
+          const workflow = await prisma.workflow.findUniqueOrThrow({
+            where: { id: workflowId },
+            include: {
+              nodes: true,
+              connections: true,
+            },
+          });
+          nodeRows = workflow.nodes.map((n) => ({
+            id: n.id,
+            name: n.name,
+            type: n.type,
+            data: (n.data ?? {}) as Record<string, unknown>,
+          }));
+          connectionRows = workflow.connections.map((c) => ({
+            fromNodeId: c.fromNodeId,
+            toNodeId: c.toNodeId,
+            fromOutput: c.fromOutput,
+            toInput: c.toInput,
+          }));
+        }
 
         const { errors, order } = validate(
-          {
-            nodes: workflow.nodes.map((n) => ({
-              id: n.id,
-              name: n.name,
-              type: n.type,
-              data: (n.data ?? {}) as Record<string, unknown>,
-            })),
-            connections: workflow.connections.map((c) => ({
-              fromNodeId: c.fromNodeId,
-              toNodeId: c.toNodeId,
-              fromOutput: c.fromOutput,
-              toInput: c.toInput,
-            })),
-          },
+          { nodes: nodeRows, connections: connectionRows },
           // Registry is imported dynamically on the server to avoid
           // pulling it into the client bundle.
           nodeRegistry,
@@ -182,12 +229,12 @@ export const executeWorkflow = inngest.createFunction(
           );
         }
 
-        const nodeMap = new Map(workflow.nodes.map((n) => [n.id, n]));
+        const nodeMap = new Map(nodeRows.map((n) => [n.id, n]));
         const sorted = order
           .map((id) => nodeMap.get(id))
           .filter((n): n is NonNullable<typeof n> => Boolean(n));
 
-        const graphEdges: GraphEdge[] = workflow.connections.map((c) => ({
+        const graphEdges: GraphEdge[] = connectionRows.map((c) => ({
           fromNodeId: c.fromNodeId,
           toNodeId: c.toNodeId,
           fromOutput: c.fromOutput,
@@ -236,10 +283,47 @@ export const executeWorkflow = inngest.createFunction(
     const skippedNodes: { node: TraceNode; order: number; reason: string }[] =
       [];
 
+    // AF-M2-08: Explicit skip/stop policy (retry-from-node, single-node
+    // test runs). Nodes in skipNodeSet are marked SKIPPED up front; when
+    // endAfterNodeId is set the engine stops scheduling right after it.
+    const skipNodeSet = new Set<string>(
+      (Array.isArray(event.data.skipNodes)
+        ? event.data.skipNodes
+        : []) as string[],
+    );
+    const skipReason = (event.data.skipReason as string | undefined) ?? "";
+    const endAfterNodeId =
+      (event.data.endAfterNodeId as string | undefined) ?? "";
+    const endReason =
+      skipReason || "Skipped: test run stopped after the target node";
+
+    /** Rows marking every node after `fromIndex` as SKIPPED (test runs). */
+    const remainingSkipRows = (fromIndex: number, reason: string) =>
+      sortedNodes.slice(fromIndex + 1).map((n, offset) => ({
+        executionId: execution.id,
+        nodeId: n.id,
+        nodeName: n.name,
+        nodeType: n.type,
+        status: "SKIPPED" as const,
+        attempt: 0,
+        order: fromIndex + 1 + offset,
+        skipReason: reason,
+      }));
+
     // Execute each node with a per-node trace (AF-A-05). Trace writes are
     // their own steps so they are replay-safe and never re-fire.
     for (const [index, nodeExec] of plan.entries()) {
       const node = sortedNodes[index];
+
+      // AF-M2-08: Explicit skip (retry-from-node / single-node tests).
+      if (skipNodeSet.has(node.id)) {
+        skippedNodes.push({
+          node,
+          order: index,
+          reason: skipReason || "Skipped: execution started from a later node",
+        });
+        continue;
+      }
 
       // AF-M2-04: Branch-taken skip check.
       const skippable = computeSkippableNodes(
@@ -258,7 +342,7 @@ export const executeWorkflow = inngest.createFunction(
         continue;
       }
 
-      const { execute } = getNodeRegistration(node.type);
+      const { execute, credentials } = getNodeRegistration(node.type);
       let startedAtMs = Date.now();
 
       try {
@@ -291,6 +375,24 @@ export const executeWorkflow = inngest.createFunction(
           templateMeta,
         );
 
+        // AF-M3-04: Decrypt this node's required credentials exactly once,
+        // before execution. The result is passed to the executor and never
+        // merged into `context`/`output`/trace, keeping plaintext out of
+        // `NodeExecution.input/output`.
+        const credentialsForNode = await step.run(
+          `resolve-credentials:${node.id}`,
+          async () =>
+            resolveNodeCredentials({
+              requirements: credentials,
+              nodeData: nodeExec.data,
+              userId,
+              loadCredentialRow: async (credentialId) =>
+                prisma.credential.findUnique({
+                  where: { id: credentialId, userId },
+                }),
+            }),
+        );
+
         // AF-M2-04: Per-node retry loop with timeout.
         let result: Record<string, unknown> | undefined;
         let lastError: unknown;
@@ -310,6 +412,7 @@ export const executeWorkflow = inngest.createFunction(
                   context: enrichedContext,
                   step,
                   publish,
+                  credentials: credentialsForNode,
                 });
 
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -370,6 +473,18 @@ export const executeWorkflow = inngest.createFunction(
             },
           });
         });
+
+        // AF-M2-08: Single-node test runs stop right after the target.
+        if (endAfterNodeId === node.id) {
+          await step.run("trace-skip-test-remaining", async () => {
+            const rows = remainingSkipRows(index, endReason);
+            if (rows.length > 0) {
+              await prisma.nodeExecution.createMany({ data: rows });
+            }
+            return rows.length;
+          });
+          break;
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 
@@ -389,6 +504,19 @@ export const executeWorkflow = inngest.createFunction(
           });
         });
 
+        // AF-M2-08: A failing test target still stops the run (the test
+        // failed) even if the node would normally continue-on-fail.
+        if (endAfterNodeId === node.id) {
+          await step.run("trace-skip-test-remaining", async () => {
+            const rows = remainingSkipRows(index, endReason);
+            if (rows.length > 0) {
+              await prisma.nodeExecution.createMany({ data: rows });
+            }
+            return rows.length;
+          });
+          throw error;
+        }
+
         if (nodeExec.continueOnFail) {
           // AF-M2-04: Run continues. Mark outgoing edges as taken so
           // downstream nodes still execute (they receive error output).
@@ -399,17 +527,10 @@ export const executeWorkflow = inngest.createFunction(
         // Without continueOnFail: stop scheduling. Record remaining
         // nodes as SKIPPED.
         await step.run("trace-skip-remaining", async () => {
-          const remaining = sortedNodes.slice(index + 1);
-          const rows = remaining.map((n, offset) => ({
-            executionId: execution.id,
-            nodeId: n.id,
-            nodeName: n.name,
-            nodeType: n.type,
-            status: "SKIPPED" as const,
-            attempt: 0,
-            order: index + 1 + offset,
-            skipReason: "Skipped: an upstream node failed",
-          }));
+          const rows = remainingSkipRows(
+            index,
+            "Skipped: an upstream node failed",
+          );
           if (rows.length > 0) {
             await prisma.nodeExecution.createMany({ data: rows });
           }

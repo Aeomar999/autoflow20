@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent builder — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- TIER 2 · ROUTE: /agents/[id]/build   [PLANNED PHASE 2]
+     Same canvas, different node category. Delegation is "call and wait"; handoff
+     is a permanent transfer. Drawing them as different edge styles is the whole
+     point — a graph where you can't tell them apart can't be debugged. -->
+
+<div class="shell shell--bare" style="height:100vh">
+  <div class="main" style="height:100vh">
+
+    <header class="topbar" style="gap:10px" data-component="AppHeader">
+      <button class="btn btn--ghost btn--icon btn--sm">☰</button>
+      <nav class="crumbs">
+        <a href="agents-list.html">Agents</a><span class="crumbs__sep">/</span>
+        <span class="crumbs__here">Support triage agent</span>
+      </nav>
+      <span class="badge badge--planned">PLANNED PHASE 2</span>
+      <div class="push rowx">
+        <button class="btn btn--sm" aria-disabled="true">Test</button>
+        <button class="btn btn--sm btn--primary" aria-disabled="true">Deploy</button>
+      </div>
+    </header>
+
+    <div class="editor" data-component="ResizablePanelGroup">
+
+      <aside class="epanel">
+        <div class="epanel__head"><span class="epanel__title">Blocks</span></div>
+        <div class="epanel__body">
+          <div class="eyebrow" style="padding:8px 8px 4px">Agents</div>
+          <div class="palitem"><span class="icon icon--brand">◈</span>
+            <span class="grow"><span class="palitem__label">Agent</span>
+            <span class="palitem__type" style="display:block">agent.block</span></span></div>
+          <div class="palitem"><span class="icon">⇄</span>
+            <span class="grow"><span class="palitem__label">Handoff</span>
+            <span class="palitem__type" style="display:block">agent.handoff</span></span></div>
+          <div class="palitem"><span class="icon">⇉</span>
+            <span class="grow"><span class="palitem__label">Delegate and wait</span>
+            <span class="palitem__type" style="display:block">agent.delegate</span></span></div>
+          <div class="eyebrow" style="padding:12px 8px 4px">Escalation</div>
+          <div class="palitem"><span class="icon">↑</span>
+            <span class="grow"><span class="palitem__label">Human escalation</span>
+            <span class="palitem__type" style="display:block">agent.escalate</span></span></div>
+          <div class="eyebrow" style="padding:12px 8px 4px">Tools</div>
+          <div class="palitem"><span class="icon">▤</span>
+            <span class="grow"><span class="palitem__label">Knowledge search</span>
+            <span class="palitem__type" style="display:block">knowledge.search</span></span></div>
+          <div class="palitem"><span class="icon">⚯</span>
+            <span class="grow"><span class="palitem__label">HTTP request</span>
+            <span class="palitem__type" style="display:block">http.request</span></span></div>
+        </div>
+      </aside>
+
+      <div class="canvaswrap">
+        <div class="canvas">
+          <div class="ctoolbar">
+            <span class="t-xs dim" style="padding:0 8px">
+              Solid = delegate and wait · Dashed = permanent handoff
+            </span>
+          </div>
+
+          <svg class="edges" width="100%" height="100%" aria-hidden="true">
+            <path class="edge" d="M196,182 L236,182" />
+            <path class="edge" d="M412,174 C444,174 444,112 476,112" />
+            <path class="edge edge--dead" d="M412,192 C444,192 444,272 476,272" />
+          </svg>
+
+          <div class="nodecard nodecard--trigger" style="left:20px;top:156px;height:52px">
+            <div class="nodecard__top"><span class="icon icon--brand" style="width:24px;height:24px;font-size:11px">⇥</span>
+              <span class="grow"><span class="nodecard__label">Ticket received</span>
+              <span class="nodecard__type">core.webhook-trigger</span></span></div>
+          </div>
+
+          <div class="nodecard nodecard--selected" style="left:236px;top:156px;height:66px">
+            <div class="nodecard__top"><span class="icon icon--brand" style="width:24px;height:24px;font-size:11px">◈</span>
+              <span class="grow"><span class="nodecard__label">Triage agent</span>
+              <span class="nodecard__type">agent.block</span></span></div>
+            <div class="nodecard__sub">4 tools · claude-sonnet-4-5</div>
+          </div>
+
+          <div class="nodecard" style="left:476px;top:86px;height:66px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">◈</span>
+              <span class="grow"><span class="nodecard__label">Billing specialist</span>
+              <span class="nodecard__type">agent.block</span></span></div>
+            <div class="nodecard__sub">delegate · returns to triage</div>
+          </div>
+
+          <div class="nodecard" style="left:476px;top:246px;height:66px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">↑</span>
+              <span class="grow"><span class="nodecard__label">Escalate to a human</span>
+              <span class="nodecard__type">agent.escalate</span></span></div>
+            <div class="nodecard__sub">handoff · confidence &lt; 0.72</div>
+          </div>
+
+          <div class="cctl">
+            <button class="btn btn--icon btn--sm">+</button>
+            <button class="btn btn--icon btn--sm">−</button>
+            <button class="btn btn--icon btn--sm">⛶</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="epanel epanel--right">
+        <div class="epanel__head">
+          <span class="icon icon--brand" style="width:22px;height:22px;font-size:10px">◈</span>
+          <div class="grow"><div class="epanel__title">Triage agent</div>
+            <div class="t-xs dim mono">agent.block</div></div>
+        </div>
+        <div class="epanel__body stack-4">
+          <div class="field">
+            <label class="field__label">Goal</label>
+            <textarea class="textarea">Resolve the customer's issue using the support handbook. If the ticket is about billing, delegate to the billing specialist. If you are less than 72% confident, hand off to a human.</textarea>
+            <span class="field__help">Written as an instruction, not a prompt template. Tools and models are configured separately.</span>
+          </div>
+          <div class="field">
+            <label class="field__label">Model</label>
+            <select class="select"><option>anthropic:claude-sonnet-4-5</option><option>openai:gpt-5-mini</option></select>
+          </div>
+          <div class="field">
+            <label class="field__label">Tools</label>
+            <div class="stack-2">
+              <div class="rowx"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                <span class="t-sm grow">Search “Support handbook”</span></div>
+              <div class="rowx"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                <span class="t-sm grow">Read Zendesk ticket history</span></div>
+              <div class="rowx"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                <span class="t-sm grow">Look up order status</span></div>
+              <div class="rowx"><span class="check" role="checkbox" aria-checked="true">✓</span>
+                <span class="t-sm grow">Post a reply</span></div>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field__label">Escalate below confidence</label>
+            <div class="rowx-3">
+              <input class="grow" type="range" min="0" max="1" step="0.01" value="0.72">
+              <span class="mono t-sm num" style="width:34px;text-align:right">0.72</span>
+            </div>
+            <span class="field__help">In the last 7 days this would have escalated 214 of 2,880 tickets.</span>
+          </div>
+          <div class="field">
+            <label class="field__label">Step limit</label>
+            <input class="input input--mono" value="12">
+            <span class="field__help">Hitting the cap fails the run rather than looping. Every step is in the trace.</span>
+          </div>
+          <div class="field">
+            <label class="field__label">Memory</label>
+            <select class="select"><option>Conversation only</option><option>Conversation + long-term</option><option>None</option></select>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="desktoponly state">
+      <div class="state__icon">◈</div>
+      <div class="state__title">The agent builder needs a bigger screen</div>
+      <p class="state__desc">Agent graphs are built on the canvas, which is desktop-only.</p>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

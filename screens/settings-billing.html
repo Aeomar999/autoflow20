@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billing &amp; usage — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/billing   CURRENT CODE: Polar checkout + customer portal are
+     wired (authClient.checkout / authClient.customer.portal), gated by
+     premiumProcedure. Missing: usage metering, invoices in-app, overage display.
+     Note D5 — the Polar product id is hardcoded in two files today (AF-M0-03). -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Settings / Billing &amp; usage"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="billing"></nav>
+
+        <div class="stack-4">
+          <div>
+            <h1 class="pagehead__title">Billing &amp; usage</h1>
+            <p class="pagehead__desc">Current period: 1–31 Aug 2026 · 24 days remaining</p>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head">
+              <span class="card__title">Pro plan</span>
+              <span class="badge badge--brand">active</span>
+              <div class="push rowx">
+                <button class="btn btn--sm" data-component="Button">Open billing portal</button>
+                <button class="btn btn--sm" data-component="Button">Change plan</button>
+              </div>
+            </div>
+            <div class="card__body">
+              <div class="grid grid--3" style="gap:20px">
+                <div>
+                  <div class="stat__label">Runs used</div>
+                  <div class="stat__value num">31,604 <span class="dim" style="font-size:15px">/ 50,000</span></div>
+                  <div class="bar" style="margin-top:10px"><div class="bar__fill" style="width:63%"></div></div>
+                  <div class="t-xs dim" style="margin-top:6px">Tracking to about 41,000 this period.</div>
+                </div>
+                <div>
+                  <div class="stat__label">Model spend</div>
+                  <div class="stat__value num">$84.05 <span class="dim" style="font-size:15px">/ $400.00</span></div>
+                  <div class="bar" style="margin-top:10px"><div class="bar__fill bar__fill--warn" style="width:21%"></div></div>
+                  <div class="t-xs" style="margin-top:6px;color:var(--destructive)">Projecting $472 — 18% over budget.</div>
+                </div>
+                <div>
+                  <div class="stat__label">Estimated invoice</div>
+                  <div class="stat__value num">$49.00</div>
+                  <div class="t-xs dim" style="margin-top:16px">No overage yet. Model tokens are billed by your providers.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Payment method</span></div>
+            <div class="card__body">
+              <div class="rowx-3">
+                <span class="icon icon--lg">▭</span>
+                <div class="grow">
+                  <div class="t-sm strong">Visa ending 4242</div>
+                  <div class="t-xs dim">Expires 09/2028 · billed to Northwind Retail Ltd, London</div>
+                </div>
+                <button class="btn btn--sm" data-component="Button">Update in portal</button>
+              </div>
+              <p class="t-xs dim" style="margin-top:14px">
+                Card details are held by Polar. AutoFlow never sees or stores them.
+              </p>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Invoices</span>
+              <button class="btn btn--sm push" data-component="Button">Download all</button></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl" data-component="Table">
+                <thead><tr><th>Period</th><th>Status</th><th class="cell-num">Runs</th><th class="cell-num">Amount</th><th class="cell-tight"></th></tr></thead>
+                <tbody>
+                  <tr><td class="t-sm">Jul 2026</td><td><span class="st st--success" data-glyph="■">PAID</span></td>
+                    <td class="cell-num">68,400</td><td class="cell-num">$67.40</td>
+                    <td class="cell-tight"><button class="btn btn--sm">PDF</button></td></tr>
+                  <tr><td class="t-sm">Jun 2026</td><td><span class="st st--success" data-glyph="■">PAID</span></td>
+                    <td class="cell-num">44,120</td><td class="cell-num">$49.00</td>
+                    <td class="cell-tight"><button class="btn btn--sm">PDF</button></td></tr>
+                  <tr><td class="t-sm">May 2026</td><td><span class="st st--success" data-glyph="■">PAID</span></td>
+                    <td class="cell-num">21,880</td><td class="cell-num">$49.00</td>
+                    <td class="cell-tight"><button class="btn btn--sm">PDF</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Cost alerts</span></div>
+            <div class="card__body stack-4">
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Warn at 80% of the model budget</div>
+                  <div class="field__help">Emails admins and posts to your alert channel.</div></div>
+                <span class="switch" role="switch" aria-checked="true" data-component="Switch"></span>
+              </div>
+              <div class="rowx-3">
+                <div class="grow"><div class="field__label">Pause new runs at 100% of the model budget</div>
+                  <div class="field__help">In-flight runs finish. Queued runs stay queued rather than being dropped.</div></div>
+                <span class="switch" role="switch" aria-checked="false" data-component="Switch"></span>
+              </div>
+              <div class="field">
+                <label class="field__label">Monthly model budget</label>
+                <input class="input input--mono" value="400.00" style="max-width:180px" data-component="Input">
+                <span class="field__help">USD. Applies to the whole organization, across all workspaces.</span>
+              </div>
+            </div>
+            <div class="card__foot"><button class="btn btn--sm btn--primary">Save alerts</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

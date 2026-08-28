@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support handbook — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /knowledge/[id]   [PLANNED Phase 2]
+     Ingest, chunks, and versions. The chunk inspector matters: when an agent
+     answers wrongly, the question is always "what did it actually retrieve?" -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="knowledge"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Knowledge / Support handbook"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <span class="icon icon--lg">▤</span>
+        <div class="grow">
+          <h1 class="pagehead__title">Support handbook</h1>
+          <p class="pagehead__desc">318 documents · 7,412 chunks · text-embedding-3-large · 1,536 dims</p>
+        </div>
+        <div class="rowx">
+          <span class="badge badge--planned">PLANNED PHASE 2</span>
+          <button class="btn" data-component="Button">Sync now</button>
+          <button class="btn btn--primary" data-component="Button">Add source</button>
+        </div>
+      </div>
+
+      <div class="tabs" style="margin-bottom:16px" data-component="Tabs">
+        <button class="tab" aria-selected="true">Sources</button>
+        <button class="tab" aria-selected="false">Chunks</button>
+        <button class="tab" aria-selected="false">Versions</button>
+        <button class="tab" aria-selected="false">Test retrieval</button>
+        <button class="tab" aria-selected="false">Settings</button>
+      </div>
+
+      <div class="grid grid--2" style="gap:16px;align-items:start">
+
+        <div class="stack-4">
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Sources</span><span class="badge push">3</span></div>
+            <div class="list" style="border:0;border-radius:0">
+              <div class="row">
+                <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+                <div class="row__main">
+                  <div class="grow">
+                    <div class="row__title">Uploaded files</div>
+                    <div class="row__meta">12 files · PDF, DOCX, MD · 284 documents · synced 1 hour ago</div>
+                  </div>
+                  <button class="btn btn--sm">Manage</button>
+                </div>
+              </div>
+              <div class="row">
+                <div class="gutter gutter--success"><span class="mono t-xs">■</span></div>
+                <div class="row__main">
+                  <div class="grow">
+                    <div class="row__title">#support-playbook</div>
+                    <div class="row__meta">Slack channel · 34 documents · syncs hourly · last 1 hour ago</div>
+                  </div>
+                  <button class="btn btn--sm">Manage</button>
+                </div>
+              </div>
+              <div class="row">
+                <div class="gutter gutter--queued"><span class="mono t-xs">○</span></div>
+                <div class="row__main">
+                  <div class="grow">
+                    <div class="row__title">help.northwindretail.com</div>
+                    <div class="row__meta">Scheduled crawl · paused by Priya Raghunathan on 28 Jul</div>
+                  </div>
+                  <button class="btn btn--sm">Resume</button>
+                </div>
+              </div>
+            </div>
+            <div class="card__foot">
+              <button class="btn btn--sm">Upload files</button>
+              <button class="btn btn--sm">Add URL</button>
+              <button class="btn btn--sm">Connect Slack channel</button>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Chunking</span></div>
+            <div class="card__body stack-4">
+              <div class="field">
+                <label class="field__label">Strategy</label>
+                <select class="select" data-component="Select">
+                  <option>Recursive by heading, then by size</option>
+                  <option>Fixed size</option><option>By sentence</option>
+                </select>
+                <span class="field__help">Headings first keeps a procedure and its steps in one chunk.</span>
+              </div>
+              <div class="rowx-3">
+                <div class="field grow"><label class="field__label">Chunk size</label>
+                  <input class="input input--mono" value="800"></div>
+                <div class="field grow"><label class="field__label">Overlap</label>
+                  <input class="input input--mono" value="120"></div>
+              </div>
+              <div class="alert" data-component="Alert">
+                <span aria-hidden="true">⚠</span>
+                <div><div class="alert__title">Changing this re-embeds everything</div>
+                  <p class="t-sm" style="margin-top:3px;color:var(--muted-foreground)">
+                    7,412 chunks, about 11 minutes, roughly $0.94. The old version stays queryable
+                    until the new one finishes.
+                  </p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack-4">
+          <div class="card" data-component="Card">
+            <div class="card__head">
+              <span class="card__title">Test retrieval</span>
+            </div>
+            <div class="card__body">
+              <div class="inputgroup" style="margin-bottom:14px">
+                <span class="inputgroup__icon mono t-xs">⌕</span>
+                <input class="input" value="what is our refund window for damaged goods" data-component="Input">
+              </div>
+
+              <p class="eyebrow" style="margin-bottom:8px">3 chunks retrieved · 42ms</p>
+              <div class="stack-3">
+                <div class="card" style="background:var(--muted)">
+                  <div class="card__body" style="padding:12px">
+                    <div class="rowx between" style="margin-bottom:6px">
+                      <span class="t-xs mono dim">returns-policy.pdf · page 4 · chunk 118</span>
+                      <span class="badge badge--mono">0.891</span>
+                    </div>
+                    <p class="t-sm">
+                      “Damaged goods may be returned within 30 days of delivery. Photographic evidence
+                      is required for items over $200. Refunds are issued to the original payment
+                      method within 5 business days of receipt…”
+                    </p>
+                  </div>
+                </div>
+                <div class="card" style="background:var(--muted)">
+                  <div class="card__body" style="padding:12px">
+                    <div class="rowx between" style="margin-bottom:6px">
+                      <span class="t-xs mono dim">#support-playbook · 14 Jul · chunk 6,204</span>
+                      <span class="badge badge--mono">0.744</span>
+                    </div>
+                    <p class="t-sm">
+                      “Reminder from ops: the 30-day damaged-goods window is calculated from delivery
+                      date, not order date. Zendesk macro #44 has this wrong — use #51…”
+                    </p>
+                  </div>
+                </div>
+                <div class="card" style="background:var(--muted);opacity:0.7">
+                  <div class="card__body" style="padding:12px">
+                    <div class="rowx between" style="margin-bottom:6px">
+                      <span class="t-xs mono dim">returns-policy.pdf · page 2 · chunk 111</span>
+                      <span class="badge badge--mono">0.612</span>
+                    </div>
+                    <p class="t-sm">
+                      “Standard returns for change of mind are accepted within 14 days, unworn and in
+                      original packaging…”
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <p class="t-xs dim" style="margin-top:12px">
+                Chunks below your 0.60 similarity floor are not shown. Retrieval nodes see exactly this list.
+              </p>
+            </div>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Versions</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl">
+                <tbody>
+                  <tr><td class="mono t-sm">v3 <span class="badge badge--brand">live</span></td>
+                    <td class="t-sm">Re-embedded after Slack channel added</td><td class="t-sm dim cell-tight">1 hour ago</td></tr>
+                  <tr><td class="mono t-sm">v2</td>
+                    <td class="t-sm">Chunk size 640 → 800</td><td class="t-sm dim cell-tight">18 Jul</td></tr>
+                  <tr><td class="mono t-sm">v1</td>
+                    <td class="t-sm">Initial ingest, 12 files</td><td class="t-sm dim cell-tight">02 Jul</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot"><span class="t-xs dim">Runs record which KB version they queried.</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

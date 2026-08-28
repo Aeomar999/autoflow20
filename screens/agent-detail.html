@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support triage agent — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- TIER 2 · ROUTE: /agents/[id]   [PLANNED PHASE 2]
+     Confidence scoring and A/B results. The honest framing matters: an A/B test
+     between two prompts is only meaningful against an outcome metric the customer
+     recognises, so "resolved without a human" is the headline, not "accuracy". -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="agents"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Agents / Support triage agent"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <span class="icon icon--lg icon--brand">◈</span>
+        <div class="grow">
+          <h1 class="pagehead__title">Support triage agent</h1>
+          <p class="pagehead__desc">2,880 runs in 7 days · 4 tools · claude-sonnet-4-5</p>
+        </div>
+        <div class="rowx">
+          <span class="badge badge--planned">PLANNED PHASE 2</span>
+          <a class="btn" href="agent-builder.html" data-component="Button">Edit</a>
+        </div>
+      </div>
+
+      <div class="grid grid--4" style="margin-bottom:16px">
+        <div class="card stat"><div class="stat__label">Resolved without a human</div>
+          <div class="stat__value num">92.6%</div><div class="stat__sub">2,666 of 2,880</div></div>
+        <div class="card stat"><div class="stat__label">Escalated</div>
+          <div class="stat__value num">214</div><div class="stat__sub">7.4% · below 0.72 confidence</div></div>
+        <div class="card stat"><div class="stat__label">Avg confidence</div>
+          <div class="stat__value num">0.84</div><div class="stat__sub">p10 0.63</div></div>
+        <div class="card stat"><div class="stat__label">Cost per resolution</div>
+          <div class="stat__value num">$0.0071</div><div class="stat__sub">$18.90 total</div></div>
+      </div>
+
+      <div class="grid grid--2" style="gap:16px">
+
+        <div class="card" data-component="Card">
+          <div class="card__head"><span class="card__title">Confidence distribution</span>
+            <span class="badge push">threshold 0.72</span></div>
+          <div class="card__body">
+            <div class="chartbox" style="height:170px">
+              <div class="chartbox__col chartbox__col--bad" style="height:6%"></div>
+              <div class="chartbox__col chartbox__col--bad" style="height:9%"></div>
+              <div class="chartbox__col chartbox__col--bad" style="height:14%"></div>
+              <div class="chartbox__col chartbox__col--bad" style="height:22%"></div>
+              <div class="chartbox__col chartbox__col--bad" style="height:31%"></div>
+              <div class="chartbox__col" style="height:44%"></div>
+              <div class="chartbox__col" style="height:58%"></div>
+              <div class="chartbox__col" style="height:72%"></div>
+              <div class="chartbox__col" style="height:88%"></div>
+              <div class="chartbox__col" style="height:96%"></div>
+            </div>
+            <div class="chartaxis"><span>0.0</span><span>0.5</span><span>0.72</span><span>1.0</span></div>
+            <p class="t-xs dim" style="margin-top:10px">
+              Moving the threshold to 0.80 would escalate 512 tickets instead of 214, and catch an
+              estimated 31 more that the agent got wrong.
+            </p>
+          </div>
+        </div>
+
+        <div class="card" data-component="Card">
+          <div class="card__head"><span class="card__title">A/B test · goal wording</span>
+            <span class="badge badge--brand push">running · day 6 of 14</span></div>
+          <div class="card__body" style="padding:0">
+            <table class="tbl">
+              <thead><tr><th>Variant</th><th class="cell-num">Runs</th><th class="cell-num">Resolved</th>
+                <th class="cell-num">Escalated</th><th class="cell-num">Cost / run</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="t-sm strong">A · current</span>
+                    <div class="t-xs dim">“Resolve the customer’s issue…”</div></td>
+                  <td class="cell-num">1,442</td><td class="cell-num">92.1%</td>
+                  <td class="cell-num">7.9%</td><td class="cell-num">$0.0066</td>
+                </tr>
+                <tr>
+                  <td><span class="t-sm strong">B · cites sources</span>
+                    <div class="t-xs dim">“…and quote the handbook section you used.”</div></td>
+                  <td class="cell-num">1,438</td><td class="cell-num">93.1%</td>
+                  <td class="cell-num">6.9%</td><td class="cell-num">$0.0079</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card__foot">
+            <span class="t-xs dim grow">
+              A 1.0 point difference on 2,880 runs is not yet significant. Leave it running.
+            </span>
+            <button class="btn btn--sm" aria-disabled="true">Promote B</button>
+          </div>
+        </div>
+
+        <div class="card" style="grid-column:1 / -1" data-component="Card">
+          <div class="card__head"><span class="card__title">Recent escalations</span>
+            <a class="t-xs push" href="executions-list.html" style="color:var(--primary)">All runs →</a></div>
+          <div class="card__body" style="padding:0">
+            <table class="tbl">
+              <thead><tr><th style="width:118px">Outcome</th><th>Ticket</th><th class="cell-num">Confidence</th>
+                <th class="cell-num">Steps</th><th>Reason</th></tr></thead>
+              <tbody>
+                <tr><td><span class="st" data-glyph="↑">ESCALATED</span></td>
+                  <td class="t-sm">“Charged twice for order #88214”</td>
+                  <td class="cell-num">0.41</td><td class="cell-num">6</td>
+                  <td class="t-sm dim">No handbook match for duplicate charges</td></tr>
+                <tr><td><span class="st" data-glyph="↑">ESCALATED</span></td>
+                  <td class="t-sm">“Need an invoice reissued to a new entity”</td>
+                  <td class="cell-num">0.55</td><td class="cell-num">4</td>
+                  <td class="t-sm dim">Requires finance authority</td></tr>
+                <tr><td><span class="st st--failed" data-glyph="✕">FAILED</span></td>
+                  <td class="t-sm">“Where is my refund” (thread, 40 messages)</td>
+                  <td class="cell-num dim">—</td><td class="cell-num">12</td>
+                  <td class="t-sm" style="color:var(--destructive)">Hit the 12-step cap</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

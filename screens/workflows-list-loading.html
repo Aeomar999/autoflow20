@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflows (loading) — AutoFlow</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- STATE: /workflows — loading.
+     The layout is known, so this is a skeleton, not a spinner. Column widths and
+     row heights match workflows-list.html exactly so nothing shifts on arrival. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="workflows"></aside>
+
+  <div class="main">
+    <header class="topbar" data-topbar data-crumbs="Workflows"></header>
+
+    <div class="page page--wide">
+      <div class="pagehead">
+        <div class="grow">
+          <h1 class="pagehead__title">Workflows</h1>
+          <div class="skel skel--text" style="width:180px;margin-top:8px"></div>
+        </div>
+        <div class="rowx">
+          <a class="btn" href="templates.html">Start from a template</a>
+          <button class="btn btn--primary">New workflow</button>
+        </div>
+      </div>
+
+      <div class="toolstrip">
+        <div class="inputgroup" style="width:280px">
+          <span class="inputgroup__icon mono t-xs">⌕</span>
+          <input class="input" placeholder="Search workflows…">
+        </div>
+        <div class="skel" style="width:120px;height:32px"></div>
+        <div class="skel" style="width:120px;height:32px"></div>
+        <div class="push btngroup">
+          <button class="btn btn--sm" aria-pressed="true">▤ Table</button>
+          <button class="btn btn--sm" aria-pressed="false">▦ Grid</button>
+        </div>
+      </div>
+
+      <div class="card" style="overflow:hidden" data-component="Skeleton">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width:118px">Last run</th><th>Workflow</th><th>Trigger</th>
+              <th class="cell-num">Runs (7d)</th><th class="cell-num">Success</th>
+              <th class="cell-num">Cost (7d)</th><th>Updated</th><th class="cell-tight"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="skel" style="width:74px"></div></td>
+              <td><div class="skel skel--title" style="width:190px"></div><div class="skel" style="width:110px;margin-top:6px;height:8px"></div></td>
+              <td><div class="skel" style="width:60px"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:44px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:80px"></div></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><div class="skel" style="width:74px"></div></td>
+              <td><div class="skel skel--title" style="width:220px"></div><div class="skel" style="width:120px;margin-top:6px;height:8px"></div></td>
+              <td><div class="skel" style="width:110px"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:44px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:80px"></div></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><div class="skel" style="width:74px"></div></td>
+              <td><div class="skel skel--title" style="width:170px"></div><div class="skel" style="width:104px;margin-top:6px;height:8px"></div></td>
+              <td><div class="skel" style="width:60px"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:44px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:80px"></div></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><div class="skel" style="width:74px"></div></td>
+              <td><div class="skel skel--title" style="width:250px"></div><div class="skel" style="width:96px;margin-top:6px;height:8px"></div></td>
+              <td><div class="skel" style="width:96px"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:44px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:80px"></div></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><div class="skel" style="width:74px"></div></td>
+              <td><div class="skel skel--title" style="width:150px"></div><div class="skel" style="width:112px;margin-top:6px;height:8px"></div></td>
+              <td><div class="skel" style="width:96px"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:38px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:44px;margin-left:auto"></div></td>
+              <td><div class="skel" style="width:80px"></div></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

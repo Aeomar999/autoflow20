@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCredentialsByType } from "@/features/credentials/hooks/use-credentials";
-import { CredentialType } from "@/generated/prisma/browser";
 
 const formSchema = z.object({
   variableName: z
@@ -63,8 +62,9 @@ export const GeminiDialog = ({
   onSubmit,
   defaultValues = {},
 }: Props) => {
-  const { data: credentials, isLoading: isLoadingCredentials } =
-    useCredentialsByType(CredentialType.GEMINI);
+  const { data: credentialPage, isLoading: isLoadingCredentials } =
+    useCredentialsByType("gemini.apiKey");
+  const credentials = credentialPage?.items;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

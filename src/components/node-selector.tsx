@@ -13,11 +13,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  edgesAtom,
-  nodesAtom,
-  saveStatusAtom,
-} from "@/features/editor/store/atoms";
+import { nodesAtom, saveStatusAtom } from "@/features/editor/store/atoms";
 import { Separator } from "./ui/separator";
 
 export type NodeTypeOption = {
@@ -102,8 +98,6 @@ export function NodeSelector({
   const nodes = useAtomValue(nodesAtom);
   const setNodes = useSetAtom(nodesAtom);
   const setSaveStatus = useSetAtom(saveStatusAtom);
-  // edges not needed for node creation, but required by atoms contract
-  useAtomValue(edgesAtom);
 
   const handleNodeSelect = useCallback(
     (selection: NodeTypeOption) => {

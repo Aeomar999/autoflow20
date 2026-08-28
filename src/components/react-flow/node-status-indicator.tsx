@@ -43,23 +43,6 @@ export const BorderLoadingIndicator = ({
   return (
     <>
       <div className="absolute -left-[2px] -top-[2px] h-[calc(100%+4px)] w-[calc(100%+4px)]">
-        <style>
-          {`
-        @keyframes spin {
-          from { transform: translate(-50%, -50%) rotate(0deg); }
-          to { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-        .spinner {
-          animation: spin 2s linear infinite;
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          width: 140%;
-          aspect-ratio: 1;
-          transform-origin: center;
-        }
-      `}
-        </style>
         <div
           className={cn(
             "absolute inset-0 overflow-hidden rounded-sm",

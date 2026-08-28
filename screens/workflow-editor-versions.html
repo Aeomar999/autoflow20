@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Version history — AutoFlow editor</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /workflows/[id] → History   [PLANNED M4 — WorkflowVersion]
+     Draft and deployed are separate objects: editing never changes what
+     production runs. This drawer is where that distinction becomes visible. -->
+
+<div class="shell shell--bare" style="height:100vh;position:relative;overflow:hidden">
+  <div class="main" style="height:100vh">
+
+    <header class="topbar" style="gap:10px" data-component="AppHeader">
+      <button class="btn btn--ghost btn--icon btn--sm">☰</button>
+      <nav class="crumbs">
+        <a href="workflows-list.html">Workflows</a>
+        <span class="crumbs__sep">/</span>
+        <span class="crumbs__here">Invoice → Slack approval</span>
+      </nav>
+      <span class="badge badge--brand">● Unsaved changes</span>
+      <div class="push rowx">
+        <button class="btn btn--sm"><span class="mono">v7</span> <span class="dim">⌄</span></button>
+        <button class="btn btn--sm" aria-pressed="true">History</button>
+        <button class="btn btn--sm">Test run</button>
+        <button class="btn btn--sm">Save</button>
+        <button class="btn btn--sm btn--primary">Deploy</button>
+      </div>
+    </header>
+
+    <div class="editor editor--full">
+      <aside class="epanel">
+        <div class="epanel__head"><span class="epanel__title">Nodes</span></div>
+        <div class="epanel__body">
+          <div class="palitem"><span class="icon icon--brand">⇥</span><span class="grow"><span class="palitem__label">Webhook</span></span></div>
+          <div class="palitem"><span class="icon">⑂</span><span class="grow"><span class="palitem__label">Condition</span></span></div>
+        </div>
+      </aside>
+      <div class="canvaswrap">
+        <div class="canvas">
+          <div class="nodecard nodecard--trigger" style="left:40px;top:160px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⇥</span>
+              <span class="grow"><span class="nodecard__label">Invoice received</span>
+              <span class="nodecard__type">core.webhook-trigger</span></span></div>
+          </div>
+          <div class="nodecard" style="left:300px;top:160px;height:52px">
+            <div class="nodecard__top"><span class="icon" style="width:24px;height:24px;font-size:11px">⊞</span>
+              <span class="grow"><span class="nodecard__label">Extract invoice fields</span>
+              <span class="nodecard__type">ai.extract</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── History drawer ─────────────────────────────────────────────────── -->
+    <aside class="drawer" data-component="Sheet">
+      <div class="drawer__head">
+        <div class="grow">
+          <div class="t-base strong">Version history</div>
+          <div class="t-xs dim">Invoice → Slack approval</div>
+        </div>
+        <button class="btn btn--ghost btn--icon btn--sm">✕</button>
+      </div>
+
+      <div class="drawer__body" style="padding:0">
+
+        <!-- draft: not yet a version -->
+        <div style="padding:14px 16px;background:color-mix(in oklab, var(--primary) 7%, transparent);border-bottom:1px solid var(--border)">
+          <div class="rowx">
+            <span class="badge badge--brand">Draft</span>
+            <span class="t-sm strong grow">Working copy</span>
+            <span class="t-xs dim">edited 4 min ago</span>
+          </div>
+          <p class="t-xs dim" style="margin-top:8px">
+            2 nodes added, 1 connection changed since v7. Drafts never run in production —
+            deploy to make this the live version.
+          </p>
+          <div class="rowx" style="margin-top:10px;gap:8px">
+            <button class="btn btn--sm btn--primary">Deploy as v8</button>
+            <button class="btn btn--sm">Compare with v7</button>
+            <button class="btn btn--sm btn--ghost">Discard draft</button>
+          </div>
+        </div>
+
+        <!-- deployed versions -->
+        <div class="trace" style="border:0;border-radius:0">
+
+          <div class="tr">
+            <div class="gutter gutter--running"><span class="mono t-xs">●</span></div>
+            <div class="tr__topo tr__topo--start"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="rowx"><span class="tr__name mono">v7</span><span class="badge badge--brand">Live</span></div>
+                <div class="t-xs dim" style="margin-top:2px">
+                  Priya Raghunathan · 04 Aug 2026, 09:12 · 1,284 runs
+                </div>
+                <div class="t-xs" style="margin-top:5px">“Switch extraction to claude-sonnet-4-5”</div>
+              </div>
+              <button class="btn btn--sm">View</button>
+            </div>
+          </div>
+
+          <div class="tr">
+            <div class="gutter gutter--queued"><span class="mono t-xs">○</span></div>
+            <div class="tr__topo"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name mono">v6</div>
+                <div class="t-xs dim" style="margin-top:2px">Jordan Mensah · 28 Jul 2026, 16:40 · 3,902 runs</div>
+                <div class="t-xs" style="margin-top:5px">“Add retry policy to the Slack node”</div>
+              </div>
+              <div class="rowx"><button class="btn btn--sm">Diff</button><button class="btn btn--sm">Roll back</button></div>
+            </div>
+          </div>
+
+          <div class="tr">
+            <div class="gutter gutter--failed"><span class="mono t-xs">✕</span></div>
+            <div class="tr__topo"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="rowx"><span class="tr__name mono">v5</span>
+                  <span class="badge badge--warn">rolled back after 11 min</span></div>
+                <div class="t-xs dim" style="margin-top:2px">Jordan Mensah · 28 Jul 2026, 14:02 · 88 runs, 71 failed</div>
+                <div class="t-xs" style="margin-top:5px">“Point webhook at the new finance endpoint”</div>
+              </div>
+              <div class="rowx"><button class="btn btn--sm">Diff</button></div>
+            </div>
+          </div>
+
+          <div class="tr">
+            <div class="gutter gutter--queued"><span class="mono t-xs">○</span></div>
+            <div class="tr__topo"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name mono">v4</div>
+                <div class="t-xs dim" style="margin-top:2px">Priya Raghunathan · 21 Jul 2026, 11:25 · 7,410 runs</div>
+                <div class="t-xs" style="margin-top:5px">“Split approval by amount threshold”</div>
+              </div>
+              <div class="rowx"><button class="btn btn--sm">Diff</button><button class="btn btn--sm">Roll back</button></div>
+            </div>
+          </div>
+
+          <div class="tr">
+            <div class="gutter gutter--queued"><span class="mono t-xs">○</span></div>
+            <div class="tr__topo tr__topo--end"><span class="tr__knot"></span></div>
+            <div class="tr__body">
+              <div class="grow">
+                <div class="tr__name mono">v3</div>
+                <div class="t-xs dim" style="margin-top:2px">Jordan Mensah · 14 Jul 2026, 08:03 · 5,118 runs</div>
+              </div>
+              <div class="rowx"><button class="btn btn--sm">Diff</button><button class="btn btn--sm">Roll back</button></div>
+            </div>
+          </div>
+
+        </div>
+
+        <p class="t-xs dim" style="padding:14px 16px">
+          Past runs keep the graph they ran against, so rolling back never rewrites their traces.
+        </p>
+      </div>
+
+      <div class="drawer__foot">
+        <button class="btn btn--sm btn--ghost">Export all versions</button>
+        <button class="btn btn--sm btn--primary">Deploy as v8</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>

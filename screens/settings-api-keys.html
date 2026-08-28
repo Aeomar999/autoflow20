@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API keys — AutoFlow settings</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../mockups.css">
+</head>
+<body>
+
+<!-- ROUTE: /settings/api-keys   [PLANNED M8 — ApiKey, hashed at rest with scopes]
+     Shown at the one moment the plaintext key is visible: immediately after
+     creation, never again. Same rule as credentials — hashed at rest, no read path. -->
+
+<div class="shell">
+  <aside class="sidebar" data-sidebar data-nav="settings"></aside>
+  <div class="main" style="position:relative">
+    <header class="topbar" data-topbar data-crumbs="Settings / API keys"></header>
+
+    <div class="page page--wide">
+      <div class="settingslayout" style="display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px">
+        <nav data-settingsnav="apikeys"></nav>
+
+        <div class="stack-4">
+          <div class="rowx">
+            <div class="grow">
+              <h1 class="pagehead__title">API keys</h1>
+              <p class="pagehead__desc">For calling the REST API and triggering workflows from your own code.</p>
+            </div>
+            <button class="btn btn--primary" data-component="Button">Create key</button>
+          </div>
+
+          <div class="card" style="overflow:hidden" data-component="Card">
+            <table class="tbl" data-component="DataTable">
+              <thead><tr><th>Name</th><th>Key</th><th>Scopes</th><th class="cell-num">Requests (7d)</th><th>Last used</th><th class="cell-tight"></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="t-sm strong">Production backend</span>
+                    <div class="t-xs dim">created 14 Jun by Priya Raghunathan</div></td>
+                  <td class="mono t-sm dim">af_live_…8c14</td>
+                  <td><span class="badge badge--mono">workflows:execute</span> <span class="badge badge--mono">executions:read</span></td>
+                  <td class="cell-num">12,880</td>
+                  <td class="t-sm dim">4 min ago</td>
+                  <td class="cell-tight"><button class="btn btn--sm btn--danger">Revoke</button></td>
+                </tr>
+                <tr>
+                  <td><span class="t-sm strong">Data team notebook</span>
+                    <div class="t-xs dim">created 02 Jul by Amara Kone</div></td>
+                  <td class="mono t-sm dim">af_live_…21fa</td>
+                  <td><span class="badge badge--mono">executions:read</span></td>
+                  <td class="cell-num">402</td>
+                  <td class="t-sm dim">yesterday</td>
+                  <td class="cell-tight"><button class="btn btn--sm btn--danger">Revoke</button></td>
+                </tr>
+                <tr>
+                  <td><span class="t-sm strong">Staging CI</span>
+                    <div class="t-xs dim">created 21 Jul by Jordan Mensah</div></td>
+                  <td class="mono t-sm dim">af_test_…0b93</td>
+                  <td><span class="badge badge--mono">workflows:read</span> <span class="badge badge--mono">workflows:execute</span></td>
+                  <td class="cell-num">88</td>
+                  <td class="t-sm dim">3 days ago</td>
+                  <td class="cell-tight"><button class="btn btn--sm btn--danger">Revoke</button></td>
+                </tr>
+                <tr>
+                  <td><span class="t-sm strong">Old webhook relay</span>
+                    <div class="t-xs dim" style="color:var(--destructive)">unused for 62 days — consider revoking</div></td>
+                  <td class="mono t-sm dim">af_live_…4d77</td>
+                  <td><span class="badge badge--mono">workflows:execute</span></td>
+                  <td class="cell-num">0</td>
+                  <td class="t-sm dim">05 Jun</td>
+                  <td class="cell-tight"><button class="btn btn--sm btn--danger">Revoke</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card" data-component="Card">
+            <div class="card__head"><span class="card__title">Rate limits</span></div>
+            <div class="card__body" style="padding:0">
+              <table class="tbl">
+                <tbody>
+                  <tr><td class="t-sm">Requests per minute, per key</td><td class="cell-num mono">600</td></tr>
+                  <tr><td class="t-sm">Workflow triggers per minute, per key</td><td class="cell-num mono">120</td></tr>
+                  <tr><td class="t-sm">Burst allowance</td><td class="cell-num mono">2×, 10s window</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card__foot">
+              <span class="t-xs dim">
+                Responses carry <span class="mono">X-RateLimit-Remaining</span> and
+                <span class="mono">X-RateLimit-Reset</span>. A 429 includes
+                <span class="mono">Retry-After</span>.
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Created dialog: the only time the key is ever shown -->
+    <div class="scrim scrim--center" data-component="Dialog">
+      <div class="dialog">
+        <div class="dialog__head">
+          <div class="dialog__title">Copy your key now</div>
+          <p class="dialog__desc">
+            This is the only time the full key is shown. We store a hash — if you lose it, create a
+            new one.
+          </p>
+        </div>
+        <div class="dialog__body">
+          <div class="field">
+            <label class="field__label">Production backend</label>
+            <div class="rowx">
+              <input class="input input--mono grow" value="af_live_9dQ2sK4mNz7Rw1xE6vB0pT8c14" readonly>
+              <button class="btn" data-component="Button">Copy</button>
+            </div>
+          </div>
+          <div class="rowx wrap" style="gap:6px;margin-top:14px">
+            <span class="t-xs dim">Scopes:</span>
+            <span class="badge badge--mono">workflows:execute</span>
+            <span class="badge badge--mono">executions:read</span>
+          </div>
+          <div class="codeblock" style="margin-top:14px">curl -X POST https://api.autoflow.com/v1/workflows/wf_4a91/run \
+  -H <span class="j-str">"Authorization: Bearer af_live_…"</span> \
+  -H <span class="j-str">"Idempotency-Key: $(uuidgen)"</span> \
+  -d <span class="j-str">'{"input": {"invoiceId": "INV-2026-4471"}}'</span></div>
+        </div>
+        <div class="dialog__foot">
+          <button class="btn btn--primary" data-component="Button">I’ve saved it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../mockups.js"></script>
+</body>
+</html>
