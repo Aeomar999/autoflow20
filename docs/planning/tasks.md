@@ -561,6 +561,14 @@ Stage 0 done 2026-08-28: `postgres`, `smtp`, `airtable.apiKey`, `hubspot.apiKey`
 - [ ] Each documented in `docs/nodes/<name>.md` with config reference and an example.
 - [ ] Postgres node uses parameterized queries only — string-concatenated SQL is a rejection.
 
+**Status 2026-08-28 (stage 1):** all eight connector nodes exist; seven ship definition + execute + unit tests + palette metadata + `docs/nodes/<name>.md`. The **OpenAI-compatible HTTP** node (`OPENAI_COMPATIBLE_CHAT`, `src/nodes/ai/compatible/`, credential `openaiCompatible.apiKey`) and **Webhook-out** node (`WEBHOOK_OUT`) are complete. Slack send-message gained unit tests
+(`src/nodes/slack/send-message/definition.test.ts`, `execute.test.ts`) and `docs/nodes/slack-send-message.md`. Known gaps, not yet committed:
+- Slack node sends via **incoming webhook** (`webhookUrl`); the `slack.oauth2` credential type exists (stage 0) but the node does not use it — API/token path out of scope.
+- Slack `webhookUrl` does **not** compile `{{...}}` templates today (content does); URL templating is a follow-up.
+- Connector commit is held while the AF-M4-01 versioning WIP (version-history `graphSnapshot` type error) blocks `next build`.
+
+**Stage-1 commit:** OpenAI-Compatible connector; Slack tests + doc.
+
 ---
 
 ## M4 — Triggers, publish, versioning · 2 weeks

@@ -53,3 +53,11 @@ next-env.d.ts
 .tmp-*.log
 .tmp-*.mjs
 
+# local dev artifacts
+/dev.log
+/mprocs.log
+/screens/
+/apply_migration.js
+/check_migrations.js
+
+

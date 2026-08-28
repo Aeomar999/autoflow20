@@ -428,4 +428,137 @@ export const workflowsRouter = createTRPCRouter({
         hasPreviousPage,
       };
     }),
+
+  publish: protectedProcedure
+    .input(z.object({ id: z.string(), activate: z.boolean().default(true) }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, activate } = input;
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: { id, userId: ctx.auth.user.id },
+        select: {
+          id: true,
+          revision: true,
+          nodes: {
+            select: { id: true, type: true, position: true, data: true },
+          },
+          connections: {
+            select: {
+              id: true,
+              fromNodeId: true,
+              toNodeId: true,
+              fromOutput: true,
+              toInput: true,
+            },
+          },
+        },
+      });
+
+      // Find max version number
+      const maxVersion = await prisma.workflowVersion.findFirst({
+        where: { workflowId: id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      const nextVersionNumber = (maxVersion?.version || 0) + 1;
+
+      // Graph snapshot includes nodes and edges
+      const graphSnapshot = {
+        nodes: workflow.nodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          position: n.position,
+          data: n.data,
+        })),
+        edges: workflow.connections.map((c) => ({
+          id: c.id,
+          source: c.fromNodeId,
+          target: c.toNodeId,
+          sourceHandle: c.fromOutput,
+          targetHandle: c.toInput,
+        })),
+      };
+
+      return await prisma.$transaction(async (tx) => {
+        const newVersion = await tx.workflowVersion.create({
+          data: {
+            workflowId: id,
+            version: nextVersionNumber,
+            workflowRevision: workflow.revision,
+            graphSnapshot: graphSnapshot as Prisma.InputJsonValue,
+          },
+        });
+
+        if (activate) {
+          await tx.workflow.update({
+            where: { id },
+            data: { activeVersionId: newVersion.id },
+          });
+        }
+
+        return newVersion;
+      });
+    }),
+
+  activate: protectedProcedure
+    .input(z.object({ workflowId: z.string(), versionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Ensure the version exists and belongs to the user's workflow
+      const version = await prisma.workflowVersion.findFirstOrThrow({
+        where: {
+          id: input.versionId,
+          workflowId: input.workflowId,
+          workflow: { userId: ctx.auth.user.id },
+        },
+      });
+
+      await prisma.workflow.update({
+        where: { id: input.workflowId },
+        data: { activeVersionId: version.id },
+      });
+
+      return { success: true, activeVersionId: version.id };
+    }),
+
+  deactivate: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Ensure the workflow belongs to user
+      await prisma.workflow.findUniqueOrThrow({
+        where: { id: input.id, userId: ctx.auth.user.id },
+      });
+
+      await prisma.workflow.update({
+        where: { id: input.id },
+        data: { activeVersionId: null },
+      });
+
+      return { success: true, activeVersionId: null };
+    }),
+
+  getVersions: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: { id: input.id, userId: ctx.auth.user.id },
+        select: {
+          id: true,
+          activeVersionId: true,
+          versions: {
+            orderBy: { version: "desc" },
+            select: {
+              id: true,
+              version: true,
+              workflowRevision: true,
+              createdAt: true,
+              graphSnapshot: true,
+            },
+          },
+        },
+      });
+
+      return {
+        activeVersionId: workflow.activeVersionId,
+        versions: workflow.versions,
+      };
+    }),
 });

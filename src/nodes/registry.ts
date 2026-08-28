@@ -1,7 +1,9 @@
 import "server-only";
 import aiAnthropic from "./ai/anthropic";
+import aiCompatible from "./ai/compatible";
 import aiGemini from "./ai/gemini";
 import aiOpenai from "./ai/openai";
+import airtableCreateRecord from "./airtable/create-record";
 import coreCondition from "./core/condition";
 import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
@@ -9,11 +11,16 @@ import coreScheduleTrigger from "./core/schedule-trigger";
 import coreSet from "./core/set";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
+import emailSend from "./email/send";
 import formsGoogleForm from "./forms/google-form";
+import googleSheetsAppend from "./google-sheets/append";
 import httpHttpRequest from "./http/request";
+import hubspotCreateContact from "./hubspot/create-contact";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
+import postgresQuery from "./postgres/query";
 import slackSendMessage from "./slack/send-message";
 import type { NodeCategory, NodeRegistration } from "./types";
+import webhookOut from "./webhook/out";
 
 /**
  * Server-side node registry (AF-M1-01). Imports full registrations
@@ -156,13 +163,20 @@ export const nodeRegistry = createNodeRegistry(
     coreCondition,
     coreMerge,
     formsGoogleForm,
+    googleSheetsAppend,
+    airtableCreateRecord,
+    hubspotCreateContact,
     paymentsStripeTrigger,
+    postgresQuery,
     httpHttpRequest,
     aiAnthropic,
+    aiCompatible,
     aiGemini,
     aiOpenai,
     discordSendMessage,
     slackSendMessage,
+    emailSend,
+    webhookOut,
   ],
   { aliases: { INITIAL: "MANUAL_TRIGGER" } },
 );

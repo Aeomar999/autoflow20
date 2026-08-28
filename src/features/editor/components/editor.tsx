@@ -80,7 +80,13 @@ export const Editor = memo(function Editor({
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       setNodes((prev) => applyNodeChanges(changes, prev));
-      setSaveStatus("unsaved");
+
+      const hasMeaningfulChange = changes.some(
+        (c) => c.type !== "dimensions" && c.type !== "select",
+      );
+      if (hasMeaningfulChange) {
+        setSaveStatus("unsaved");
+      }
     },
     [setNodes, setSaveStatus],
   );
@@ -88,7 +94,11 @@ export const Editor = memo(function Editor({
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       setEdges((prev) => applyEdgeChanges(changes, prev));
-      setSaveStatus("unsaved");
+
+      const hasMeaningfulChange = changes.some((c) => c.type !== "select");
+      if (hasMeaningfulChange) {
+        setSaveStatus("unsaved");
+      }
     },
     [setEdges, setSaveStatus],
   );
@@ -130,15 +140,15 @@ export const Editor = memo(function Editor({
           <Panel position="top-right">
             <AddNodeButton />
           </Panel>
-          {hasManualTrigger && (
-            <Panel position="bottom-center">
-              <ExecuteWorkflowButton workflowId={workflowId} />
-            </Panel>
-          )}
           <Panel position="bottom-center">
-            <div className="flex items-center gap-2">
-              <TestWorkflowButton workflowId={workflowId} />
-              <TestSelectedNodeButton workflowId={workflowId} />
+            <div className="flex flex-col items-center gap-2 mb-4">
+              {hasManualTrigger && (
+                <ExecuteWorkflowButton workflowId={workflowId} />
+              )}
+              <div className="flex items-center gap-2">
+                <TestWorkflowButton workflowId={workflowId} />
+                <TestSelectedNodeButton workflowId={workflowId} />
+              </div>
             </div>
           </Panel>
         </ReactFlow>

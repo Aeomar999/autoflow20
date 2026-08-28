@@ -1,8 +1,15 @@
 "use client";
 
 import { createId } from "@paralleldrive/cuid2";
+import { useReactFlow } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { GlobeIcon, MousePointerIcon } from "lucide-react";
+import {
+  Bot,
+  Database,
+  GlobeIcon,
+  MousePointerIcon,
+  Webhook,
+} from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import {
@@ -65,6 +72,12 @@ const executionNodes: NodeTypeOption[] = [
     icon: "/logos/openai.svg",
   },
   {
+    type: "OPENAI_COMPATIBLE_CHAT",
+    label: "OpenAI-Compatible",
+    description: "Chat with any OpenAI-compatible endpoint",
+    icon: Bot,
+  },
+  {
     type: "ANTHROPIC",
     label: "Anthropic",
     description: "Uses Anthropic to generate text",
@@ -82,6 +95,42 @@ const executionNodes: NodeTypeOption[] = [
     description: "Send a message to Slack",
     icon: "/logos/slack.svg",
   },
+  {
+    type: "WEBHOOK_OUT",
+    label: "Webhook",
+    description: "Send a POST request to a webhook URL",
+    icon: Webhook,
+  },
+  {
+    type: "EMAIL_SEND",
+    label: "Send Email",
+    description: "Send an email through an SMTP relay",
+    icon: "/logos/Logos/Email.png",
+  },
+  {
+    type: "GOOGLE_SHEETS_APPEND",
+    label: "Google Sheets",
+    description: "Append rows to a Google Sheets spreadsheet",
+    icon: "/logos/Logos/Google sheet.png",
+  },
+  {
+    type: "AIRTABLE_CREATE_RECORD",
+    label: "Airtable",
+    description: "Create a record in an Airtable table",
+    icon: "/logos/Logos/Airtable.png",
+  },
+  {
+    type: "HUBSPOT_CREATE_CONTACT",
+    label: "HubSpot",
+    description: "Create a contact in HubSpot",
+    icon: "/logos/Logos/Hubspot.png",
+  },
+  {
+    type: "POSTGRES_QUERY",
+    label: "Postgres Query",
+    description: "Run a parameterized SQL query",
+    icon: Database,
+  },
 ];
 
 interface NodeSelectorProps {
@@ -98,6 +147,8 @@ export function NodeSelector({
   const nodes = useAtomValue(nodesAtom);
   const setNodes = useSetAtom(nodesAtom);
   const setSaveStatus = useSetAtom(saveStatusAtom);
+
+  const reactFlow = useReactFlow();
 
   const handleNodeSelect = useCallback(
     (selection: NodeTypeOption) => {
@@ -117,13 +168,18 @@ export function NodeSelector({
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
 
+      const position = reactFlow.screenToFlowPosition({
+        x: centerX,
+        y: centerY,
+      });
+
       const newNode = {
         id: createId(),
         type: selection.type,
         data: {},
         position: {
-          x: centerX + (Math.random() - 0.5) * 200,
-          y: centerY + (Math.random() - 0.5) * 200,
+          x: position.x + (Math.random() - 0.5) * 200,
+          y: position.y + (Math.random() - 0.5) * 200,
         },
       };
 
@@ -135,7 +191,7 @@ export function NodeSelector({
       setSaveStatus("unsaved");
       onOpenChange(false);
     },
-    [nodes, setNodes, setSaveStatus, onOpenChange],
+    [nodes, setNodes, setSaveStatus, onOpenChange, reactFlow],
   );
 
   return (

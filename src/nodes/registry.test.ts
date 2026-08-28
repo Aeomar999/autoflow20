@@ -128,10 +128,17 @@ describe("production node registry + manifest", () => {
       ["payments", "stripe-trigger"],
       ["http", "request"],
       ["ai", "anthropic"],
+      ["ai", "compatible"],
       ["ai", "gemini"],
       ["ai", "openai"],
       ["discord", "send-message"],
       ["slack", "send-message"],
+      ["email", "send"],
+      ["webhook", "out"],
+      ["postgres", "query"],
+      ["google-sheets", "append"],
+      ["airtable", "create-record"],
+      ["hubspot", "create-contact"],
     ];
     for (const [ns, node] of folders) {
       const source = readFileSync(

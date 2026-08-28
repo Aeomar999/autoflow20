@@ -1,11 +1,18 @@
 import type { NodeTypes } from "@xyflow/react";
 import { InitialNode } from "@/components/initial-node";
+import { AirtableCreateRecordNode } from "@/features/executions/components/airtable-create-record/node";
 import { AnthropicNode } from "@/features/executions/components/anthropic/node";
 import { DiscordNode } from "@/features/executions/components/discord/node";
+import { EmailSendNode } from "@/features/executions/components/email-send/node";
 import { GeminiNode } from "@/features/executions/components/gemini/node";
+import { GoogleSheetsAppendNode } from "@/features/executions/components/google-sheets-append/node";
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
+import { HubSpotCreateContactNode } from "@/features/executions/components/hubspot-create-contact/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
+import { OpenAiCompatibleChatNode } from "@/features/executions/components/openai-compatible-chat/node";
+import { PostgresQueryNode } from "@/features/executions/components/postgres-query/node";
 import { SlackNode } from "@/features/executions/components/slack/node";
+import { WebhookOutNode } from "@/features/executions/components/webhook-out/node";
 import { GoogleFormTrigger } from "@/features/triggers/components/google-form-trigger/node";
 import { ManualTriggerNode } from "@/features/triggers/components/manual-trigger/node";
 import { StripeTriggerNode } from "@/features/triggers/components/stripe-trigger/node";
@@ -18,9 +25,16 @@ export const nodeComponents = {
   STRIPE_TRIGGER: StripeTriggerNode,
   GEMINI: GeminiNode,
   OPENAI: OpenAiNode,
+  OPENAI_COMPATIBLE_CHAT: OpenAiCompatibleChatNode,
+  POSTGRES_QUERY: PostgresQueryNode,
+  GOOGLE_SHEETS_APPEND: GoogleSheetsAppendNode,
+  AIRTABLE_CREATE_RECORD: AirtableCreateRecordNode,
+  HUBSPOT_CREATE_CONTACT: HubSpotCreateContactNode,
   ANTHROPIC: AnthropicNode,
   DISCORD: DiscordNode,
   SLACK: SlackNode,
+  EMAIL_SEND: EmailSendNode,
+  WEBHOOK_OUT: WebhookOutNode,
 } as const satisfies NodeTypes;
 
 export type RegisteredNodeType = keyof typeof nodeComponents;
