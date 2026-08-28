@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  turbopack: {
+    root: __dirname,
+  },
   experimental: {
     optimizePackageImports: ["lucide-react", "@xyflow/react", "date-fns"],
   },
