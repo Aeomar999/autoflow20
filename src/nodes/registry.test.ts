@@ -137,6 +137,7 @@ describe("production node registry + manifest", () => {
       ["postgres", "query"],
       ["google-sheets", "append"],
       ["airtable", "create-record"],
+      ["hubspot", "create-contact"],
     ];
     for (const [ns, node] of folders) {
       const source = readFileSync(

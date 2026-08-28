@@ -14,6 +14,7 @@ import emailSend from "./email/send";
 import formsGoogleForm from "./forms/google-form";
 import googleSheetsAppend from "./google-sheets/append";
 import httpHttpRequest from "./http/request";
+import hubspotCreateContact from "./hubspot/create-contact";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
 import postgresQuery from "./postgres/query";
 import slackSendMessage from "./slack/send-message";
@@ -163,6 +164,7 @@ export const nodeRegistry = createNodeRegistry(
     formsGoogleForm,
     googleSheetsAppend,
     airtableCreateRecord,
+    hubspotCreateContact,
     paymentsStripeTrigger,
     postgresQuery,
     httpHttpRequest,

@@ -3,6 +3,7 @@
 import { createId } from "@paralleldrive/cuid2";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
+  Contact,
   Database,
   GlobeIcon,
   Mail,
@@ -113,6 +114,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Airtable",
     description: "Create a record in an Airtable table",
     icon: Table,
+  },
+  {
+    type: "HUBSPOT_CREATE_CONTACT",
+    label: "HubSpot",
+    description: "Create a contact in HubSpot",
+    icon: Contact,
   },
   {
     type: "POSTGRES_QUERY",

@@ -13,6 +13,7 @@ import { definition as emailSend } from "./email/send/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
+import { definition as hubspotCreateContact } from "./hubspot/create-contact/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
 import { definition as postgresQuery } from "./postgres/query/definition";
 import { definition as slackSendMessage } from "./slack/send-message/definition";
@@ -38,6 +39,7 @@ export const nodeManifest: NodeDefinition[] = [
   formsGoogleForm,
   googleSheetsAppend,
   airtableCreateRecord,
+  hubspotCreateContact,
   paymentsStripeTrigger,
   postgresQuery,
   httpHttpRequest,

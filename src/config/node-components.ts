@@ -7,6 +7,7 @@ import { EmailSendNode } from "@/features/executions/components/email-send/node"
 import { GeminiNode } from "@/features/executions/components/gemini/node";
 import { GoogleSheetsAppendNode } from "@/features/executions/components/google-sheets-append/node";
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
+import { HubSpotCreateContactNode } from "@/features/executions/components/hubspot-create-contact/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
 import { PostgresQueryNode } from "@/features/executions/components/postgres-query/node";
 import { SlackNode } from "@/features/executions/components/slack/node";
@@ -26,6 +27,7 @@ export const nodeComponents = {
   POSTGRES_QUERY: PostgresQueryNode,
   GOOGLE_SHEETS_APPEND: GoogleSheetsAppendNode,
   AIRTABLE_CREATE_RECORD: AirtableCreateRecordNode,
+  HUBSPOT_CREATE_CONTACT: HubSpotCreateContactNode,
   ANTHROPIC: AnthropicNode,
   DISCORD: DiscordNode,
   SLACK: SlackNode,

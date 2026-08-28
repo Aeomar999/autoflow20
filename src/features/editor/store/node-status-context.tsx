@@ -17,6 +17,7 @@ import { fetchEmailSendRealtimeToken } from "@/features/executions/components/em
 import { fetchGeminiRealtimeToken } from "@/features/executions/components/gemini/actions";
 import { fetchGoogleSheetsAppendRealtimeToken } from "@/features/executions/components/google-sheets-append/actions";
 import { fetchHttpRequestRealtimeToken } from "@/features/executions/components/http-request/actions";
+import { fetchHubSpotCreateContactRealtimeToken } from "@/features/executions/components/hubspot-create-contact/actions";
 import { fetchOpenAiRealtimeToken } from "@/features/executions/components/openai/actions";
 import { fetchPostgresQueryRealtimeToken } from "@/features/executions/components/postgres-query/actions";
 import { fetchSlackRealtimeToken } from "@/features/executions/components/slack/actions";
@@ -53,6 +54,10 @@ import {
   HTTP_REQUEST_CHANNEL_NAME,
   httpRequestChannel,
 } from "@/inngest/channels/http-request";
+import {
+  HUBSPOT_CREATE_CONTACT_CHANNEL_NAME,
+  hubspotCreateContactChannel,
+} from "@/inngest/channels/hubspot-create-contact";
 import {
   MANUAL_TRIGGER_CHANNEL_NAME,
   manualTriggerChannel,
@@ -116,6 +121,11 @@ const CHANNEL_SUBSCRIPTIONS = [
     channelName: AIRTABLE_CREATE_RECORD_CHANNEL_NAME,
     channel: airtableCreateRecordChannel,
     refreshToken: fetchAirtableCreateRecordRealtimeToken,
+  },
+  {
+    channelName: HUBSPOT_CREATE_CONTACT_CHANNEL_NAME,
+    channel: hubspotCreateContactChannel,
+    refreshToken: fetchHubSpotCreateContactRealtimeToken,
   },
   {
     channelName: DISCORD_CHANNEL_NAME,
