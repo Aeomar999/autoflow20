@@ -16,6 +16,7 @@ import { fetchGeminiRealtimeToken } from "@/features/executions/components/gemin
 import { fetchHttpRequestRealtimeToken } from "@/features/executions/components/http-request/actions";
 import { fetchOpenAiRealtimeToken } from "@/features/executions/components/openai/actions";
 import { fetchSlackRealtimeToken } from "@/features/executions/components/slack/actions";
+import { fetchWebhookOutRealtimeToken } from "@/features/executions/components/webhook-out/actions";
 import { fetchGoogleFormTriggerRealtimeToken } from "@/features/triggers/components/google-form-trigger/actions";
 import { fetchManualTriggerRealtimeToken } from "@/features/triggers/components/manual-trigger/actions";
 import { fetchStripeTriggerRealtimeToken } from "@/features/triggers/components/stripe-trigger/actions";
@@ -46,6 +47,10 @@ import {
   STRIPE_TRIGGER_CHANNEL_NAME,
   stripeTriggerChannel,
 } from "@/inngest/channels/stripe-trigger";
+import {
+  WEBHOOK_OUT_CHANNEL_NAME,
+  webhookOutChannel,
+} from "@/inngest/channels/webhook-out";
 
 type NodeStatusMap = Map<string, NodeStatus>;
 
@@ -101,6 +106,11 @@ const CHANNEL_SUBSCRIPTIONS = [
     channelName: STRIPE_TRIGGER_CHANNEL_NAME,
     channel: stripeTriggerChannel,
     refreshToken: fetchStripeTriggerRealtimeToken,
+  },
+  {
+    channelName: WEBHOOK_OUT_CHANNEL_NAME,
+    channel: webhookOutChannel,
+    refreshToken: fetchWebhookOutRealtimeToken,
   },
 ] as const;
 

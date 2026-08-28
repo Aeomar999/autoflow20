@@ -2,7 +2,7 @@
 
 import { createId } from "@paralleldrive/cuid2";
 import { useAtomValue, useSetAtom } from "jotai";
-import { GlobeIcon, MousePointerIcon } from "lucide-react";
+import { GlobeIcon, MousePointerIcon, Webhook } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import {
@@ -81,6 +81,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Slack",
     description: "Send a message to Slack",
     icon: "/logos/slack.svg",
+  },
+  {
+    type: "WEBHOOK_OUT",
+    label: "Webhook",
+    description: "Send a POST request to a webhook URL",
+    icon: Webhook,
   },
 ];
 

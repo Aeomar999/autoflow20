@@ -14,6 +14,7 @@ import httpHttpRequest from "./http/request";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
 import slackSendMessage from "./slack/send-message";
 import type { NodeCategory, NodeRegistration } from "./types";
+import webhookOut from "./webhook/out";
 
 /**
  * Server-side node registry (AF-M1-01). Imports full registrations
@@ -163,6 +164,7 @@ export const nodeRegistry = createNodeRegistry(
     aiOpenai,
     discordSendMessage,
     slackSendMessage,
+    webhookOut,
   ],
   { aliases: { INITIAL: "MANUAL_TRIGGER" } },
 );

@@ -13,6 +13,7 @@ import { definition as httpHttpRequest } from "./http/request/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
 import { definition as slackSendMessage } from "./slack/send-message/definition";
 import type { NodeDefinition } from "./types";
+import { definition as webhookOut } from "./webhook/out/definition";
 
 /**
  * Client-safe view of the node catalogue (AF-M1-01).
@@ -38,6 +39,7 @@ export const nodeManifest: NodeDefinition[] = [
   aiOpenai,
   discordSendMessage,
   slackSendMessage,
+  webhookOut,
 ];
 
 export const findManifestEntry = (type: string): NodeDefinition | undefined =>
