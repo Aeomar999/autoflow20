@@ -6,6 +6,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -19,6 +20,7 @@ import { fetchGoogleSheetsAppendRealtimeToken } from "@/features/executions/comp
 import { fetchHttpRequestRealtimeToken } from "@/features/executions/components/http-request/actions";
 import { fetchHubSpotCreateContactRealtimeToken } from "@/features/executions/components/hubspot-create-contact/actions";
 import { fetchOpenAiRealtimeToken } from "@/features/executions/components/openai/actions";
+import { fetchOpenAiCompatibleChatRealtimeToken } from "@/features/executions/components/openai-compatible-chat/actions";
 import { fetchPostgresQueryRealtimeToken } from "@/features/executions/components/postgres-query/actions";
 import { fetchSlackRealtimeToken } from "@/features/executions/components/slack/actions";
 import { fetchWebhookOutRealtimeToken } from "@/features/executions/components/webhook-out/actions";
@@ -64,6 +66,10 @@ import {
 } from "@/inngest/channels/manual-trigger";
 import { OPENAI_CHANNEL_NAME, openAiChannel } from "@/inngest/channels/openai";
 import {
+  OPENAI_COMPATIBLE_CHAT_CHANNEL_NAME,
+  openAiCompatibleChatChannel,
+} from "@/inngest/channels/openai-compatible-chat";
+import {
   POSTGRES_QUERY_CHANNEL_NAME,
   postgresQueryChannel,
 } from "@/inngest/channels/postgres-query";
@@ -91,6 +97,11 @@ const CHANNEL_SUBSCRIPTIONS = [
     channelName: OPENAI_CHANNEL_NAME,
     channel: openAiChannel,
     refreshToken: fetchOpenAiRealtimeToken,
+  },
+  {
+    channelName: OPENAI_COMPATIBLE_CHAT_CHANNEL_NAME,
+    channel: openAiCompatibleChatChannel,
+    refreshToken: fetchOpenAiCompatibleChatRealtimeToken,
   },
   {
     channelName: POSTGRES_QUERY_CHANNEL_NAME,
@@ -185,24 +196,26 @@ function ChannelSubscriptionInner({
 
   const prevLenRef = useRef(0);
 
-  if (data.length > prevLenRef.current) {
-    const newMessages = data.slice(prevLenRef.current);
-    prevLenRef.current = data.length;
-    for (const msg of newMessages) {
-      if (
-        msg.kind === "data" &&
-        msg.channel === channelName &&
-        msg.topic === "status"
-      ) {
-        onNewMessage(
-          channelName,
-          msg.data.nodeId,
-          msg.data.status,
-          new Date(msg.createdAt),
-        );
+  useEffect(() => {
+    if (data.length > prevLenRef.current) {
+      const newMessages = data.slice(prevLenRef.current);
+      prevLenRef.current = data.length;
+      for (const msg of newMessages) {
+        if (
+          msg.kind === "data" &&
+          msg.channel === channelName &&
+          msg.topic === "status"
+        ) {
+          onNewMessage(
+            channelName,
+            msg.data.nodeId,
+            msg.data.status,
+            new Date(msg.createdAt),
+          );
+        }
       }
     }
-  }
+  }, [data, channelName, onNewMessage]);
 
   return null;
 }

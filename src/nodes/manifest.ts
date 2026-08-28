@@ -1,4 +1,5 @@
 import { definition as aiAnthropic } from "./ai/anthropic/definition";
+import { definition as aiCompatible } from "./ai/compatible/definition";
 import { definition as aiGemini } from "./ai/gemini/definition";
 import { definition as aiOpenai } from "./ai/openai/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
@@ -44,6 +45,7 @@ export const nodeManifest: NodeDefinition[] = [
   postgresQuery,
   httpHttpRequest,
   aiAnthropic,
+  aiCompatible,
   aiGemini,
   aiOpenai,
   discordSendMessage,

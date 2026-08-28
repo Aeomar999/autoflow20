@@ -128,6 +128,7 @@ describe("production node registry + manifest", () => {
       ["payments", "stripe-trigger"],
       ["http", "request"],
       ["ai", "anthropic"],
+      ["ai", "compatible"],
       ["ai", "gemini"],
       ["ai", "openai"],
       ["discord", "send-message"],

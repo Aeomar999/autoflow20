@@ -1,5 +1,6 @@
 import "server-only";
 import aiAnthropic from "./ai/anthropic";
+import aiCompatible from "./ai/compatible";
 import aiGemini from "./ai/gemini";
 import aiOpenai from "./ai/openai";
 import airtableCreateRecord from "./airtable/create-record";
@@ -169,6 +170,7 @@ export const nodeRegistry = createNodeRegistry(
     postgresQuery,
     httpHttpRequest,
     aiAnthropic,
+    aiCompatible,
     aiGemini,
     aiOpenai,
     discordSendMessage,

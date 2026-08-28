@@ -9,6 +9,7 @@ import { GoogleSheetsAppendNode } from "@/features/executions/components/google-
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
 import { HubSpotCreateContactNode } from "@/features/executions/components/hubspot-create-contact/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
+import { OpenAiCompatibleChatNode } from "@/features/executions/components/openai-compatible-chat/node";
 import { PostgresQueryNode } from "@/features/executions/components/postgres-query/node";
 import { SlackNode } from "@/features/executions/components/slack/node";
 import { WebhookOutNode } from "@/features/executions/components/webhook-out/node";
@@ -24,6 +25,7 @@ export const nodeComponents = {
   STRIPE_TRIGGER: StripeTriggerNode,
   GEMINI: GeminiNode,
   OPENAI: OpenAiNode,
+  OPENAI_COMPATIBLE_CHAT: OpenAiCompatibleChatNode,
   POSTGRES_QUERY: PostgresQueryNode,
   GOOGLE_SHEETS_APPEND: GoogleSheetsAppendNode,
   AIRTABLE_CREATE_RECORD: AirtableCreateRecordNode,
