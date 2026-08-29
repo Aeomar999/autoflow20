@@ -10,13 +10,6 @@ export type EditorNode = Node & {
   disabled?: boolean;
 };
 
-export type EditorNode = Node & {
-  /** Display name; falls back to the node type when empty. */
-  name?: string;
-  notes?: string;
-  disabled?: boolean;
-};
-
 export const editorAtom = atom<ReactFlowInstance | null>(null);
 
 /** Server-fetched nodes — set once on workflow load, updated after each save. */

@@ -1,7 +1,7 @@
-import { inngest } from "./client";
+import { CronExpressionParser } from "cron-parser";
 import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { CronExpressionParser } from "cron-parser";
+import { inngest } from "./client";
 import { sendWorkflowExecution } from "./utils";
 
 /**
@@ -14,24 +14,33 @@ export const evaluateSchedules = inngest.createFunction(
   { cron: "* * * * *" }, // Run every minute
   async ({ step }) => {
     // 1. Fetch all active workflows (must have activeVersionId)
-    const activeWorkflows = await step.run("fetch-active-workflows", async () => {
-      return prisma.workflow.findMany({
-        where: { activeVersionId: { not: null } },
-        select: {
-          id: true,
-          activeVersion: {
-            select: {
-              id: true,
-              graphSnapshot: true,
+    const activeWorkflows = await step.run(
+      "fetch-active-workflows",
+      async () => {
+        return prisma.workflow.findMany({
+          where: { activeVersionId: { not: null } },
+          select: {
+            id: true,
+            activeVersion: {
+              select: {
+                id: true,
+                graphSnapshot: true,
+              },
             },
           },
-        },
-      });
-    });
+        });
+      },
+    );
 
     const now = new Date();
     // Normalize to start of current minute for accurate matching
-    const currentMinute = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
+    const currentMinute = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+    );
 
     const triggeredWorkflows: string[] = [];
 
@@ -40,12 +49,13 @@ export const evaluateSchedules = inngest.createFunction(
         if (!workflow.activeVersion?.graphSnapshot) continue;
 
         try {
-          const snapshot = typeof workflow.activeVersion.graphSnapshot === "string" 
-            ? JSON.parse(workflow.activeVersion.graphSnapshot)
-            : workflow.activeVersion.graphSnapshot;
-            
+          const snapshot =
+            typeof workflow.activeVersion.graphSnapshot === "string"
+              ? JSON.parse(workflow.activeVersion.graphSnapshot)
+              : workflow.activeVersion.graphSnapshot;
+
           const nodes = snapshot.nodes || [];
-          
+
           for (const node of nodes) {
             if (node.type === "SCHEDULE_TRIGGER") {
               const cronStr = node.data?.cron || "0 * * * *";
@@ -62,8 +72,11 @@ export const evaluateSchedules = inngest.createFunction(
                 const nextRun = interval.next();
                 if (nextRun.getTime() === currentMinute.getTime()) {
                   // MATCH! Trigger it.
-                  logger.info(`Schedule trigger matched for workflow ${workflow.id}`, { cronStr, tz });
-                  
+                  logger.info(
+                    `Schedule trigger matched for workflow ${workflow.id}`,
+                    { cronStr, tz },
+                  );
+
                   await sendWorkflowExecution({
                     workflowId: workflow.id,
                     initialData: {
@@ -71,24 +84,33 @@ export const evaluateSchedules = inngest.createFunction(
                         timestamp: currentMinute.toISOString(),
                         cron: cronStr,
                         timezone: tz,
-                      }
-                    }
+                      },
+                    },
                   });
                   triggeredWorkflows.push(workflow.id);
                   // Break outer node loop, only trigger once per workflow even if multiple triggers exist
                   break;
                 }
               } catch (e) {
-                logger.warn(`Invalid cron expression in workflow ${workflow.id}: ${cronStr}`, { error: e });
+                logger.warn(
+                  `Invalid cron expression in workflow ${workflow.id}: ${cronStr}`,
+                  { error: e },
+                );
               }
             }
           }
         } catch (e) {
-          logger.error(`Failed to parse graphSnapshot for workflow ${workflow.id}`, { error: e });
+          logger.error(
+            `Failed to parse graphSnapshot for workflow ${workflow.id}`,
+            { error: e },
+          );
         }
       }
     });
 
-    return { triggered: triggeredWorkflows.length, workflows: triggeredWorkflows };
-  }
+    return {
+      triggered: triggeredWorkflows.length,
+      workflows: triggeredWorkflows,
+    };
+  },
 );
