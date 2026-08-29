@@ -592,7 +592,8 @@ Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hub
 - [x] **AF-M4-02** Version history UI with diff summary and one-click rollback · 2d — **done `56cbb86`**: `VersionHistorySheet` (diff summary, Deactivate, one-click rollback) wired into the editor header (`editor-header.tsx`).
 - [x] **AF-M4-03** `POST /api/webhooks/:workflowId/:path` — secret/signature verification, raw capture, `202` fast path, optional sync-respond with hard timeout, rate limited · 3d
 - [x] **AF-M4-04** Schedule trigger via Inngest cron with timezone support and next-run preview · 2d
-- ⬜ **AF-M4-05** Manual trigger payload editor · 1d
+- [x] **AF-M4-05:** Manual trigger payload editor
+  - *Spec:* Add a JSON editor to the MANUAL_TRIGGER config panel. This JSON becomes the `trigger` data available to the expression engine (e.g., `{{trigger.email}}`).
 - ⬜ **AF-M4-06** Per-workflow/tenant execution concurrency limits · 1d
 
 ---

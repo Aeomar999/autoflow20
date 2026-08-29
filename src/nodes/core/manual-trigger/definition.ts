@@ -1,11 +1,15 @@
 import type { NodeDefinition } from "@/nodes/types";
 import { triggerDataSchema } from "../../shared/config-fields";
 
+import { z } from "zod";
+
 /**
  * Transitional type id: the raw Prisma enum value. M1-02 migrates persisted
  * ids to "core.manual-trigger" (and folds the legacy INITIAL alias away).
  */
-export const configSchema = triggerDataSchema;
+export const configSchema = z.object({
+  payload: z.string().optional().describe("JSON payload exposed as {{trigger}} (e.g. {\"email\": \"...\"})"),
+});
 
 export const definition: NodeDefinition = {
   type: "MANUAL_TRIGGER",
