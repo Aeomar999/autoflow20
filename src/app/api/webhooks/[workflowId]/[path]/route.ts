@@ -8,7 +8,10 @@ const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 60; // 60 req/min per endpoint
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(key: string): { allowed: boolean; retryAfter?: number } {
+function checkRateLimit(key: string): {
+  allowed: boolean;
+  retryAfter?: number;
+} {
   const now = Date.now();
   const record = rateLimits.get(key);
 
@@ -28,14 +31,16 @@ function checkRateLimit(key: string): { allowed: boolean; retryAfter?: number } 
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string; path: string }> }
+  { params }: { params: Promise<{ workflowId: string; path: string }> },
 ) {
   try {
     const { workflowId, path } = await params;
     const url = new URL(request.url);
 
     // Rate Limit check
-    const { allowed, retryAfter } = checkRateLimit(`webhook:${workflowId}:${path}`);
+    const { allowed, retryAfter } = checkRateLimit(
+      `webhook:${workflowId}:${path}`,
+    );
     if (!allowed) {
       return new NextResponse(JSON.stringify({ error: "Too many requests" }), {
         status: 429,
@@ -66,19 +71,26 @@ export async function POST(
     const secretFromHeader = request.headers.get("x-webhook-secret");
     const authHeader = request.headers.get("authorization");
     let secretFromBearer = null;
-    if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+    if (authHeader?.toLowerCase().startsWith("bearer ")) {
       secretFromBearer = authHeader.substring(7);
     }
 
-    const providedSecret = secretFromQuery || secretFromHeader || secretFromBearer;
-    if (!providedSecret || !secureCompare(providedSecret, workflow.webhookSecret)) {
-      logger.warn("Webhook rejected: missing or bad secret", { workflowId, path });
+    const providedSecret =
+      secretFromQuery || secretFromHeader || secretFromBearer;
+    if (
+      !providedSecret ||
+      !secureCompare(providedSecret, workflow.webhookSecret)
+    ) {
+      logger.warn("Webhook rejected: missing or bad secret", {
+        workflowId,
+        path,
+      });
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     // Raw payload capture
     const rawBody = await request.text();
-    let parsedBody: any = null;
+    let parsedBody: unknown = null;
     try {
       parsedBody = JSON.parse(rawBody);
     } catch {
@@ -110,7 +122,7 @@ export async function POST(
       // Sync-respond with hard timeout (20s)
       const timeoutMs = 20000;
       const start = Date.now();
-      
+
       while (Date.now() - start < timeoutMs) {
         const exec = await prisma.execution.findUnique({
           where: { id: executionId },
@@ -119,12 +131,12 @@ export async function POST(
 
         if (exec && (exec.status === "SUCCESS" || exec.status === "FAILED")) {
           return NextResponse.json(
-            { 
-              success: exec.status === "SUCCESS", 
+            {
+              success: exec.status === "SUCCESS",
               executionId,
-              error: exec.error 
+              error: exec.error,
             },
-            { status: exec.status === "SUCCESS" ? 200 : 500 }
+            { status: exec.status === "SUCCESS" ? 200 : 500 },
           );
         }
 
@@ -139,7 +151,9 @@ export async function POST(
     return NextResponse.json({ success: true, executionId }, { status: 202 });
   } catch (error) {
     logger.error("Webhook processing error", { error });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
-

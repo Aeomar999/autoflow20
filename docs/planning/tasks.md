@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-28 (AF-M3-06 ✅ all 8 connectors; AF-M4-01/02 ✅ versioning; AF-M1-06 🟡 partial — schema-driven config panel landed, field-level validation remains; AF-M1-05 🟡 partial — fuzzy search, drag-onto-canvas, manifest-driven rendering remain)
+**Last updated:** 2026-08-29 (AF-M1-05 ✅ manifest-driven node palette, fuzzy search, drag-and-drop & click-to-append; AF-M1-06 ✅ schema-driven config panel; AF-M1-07 ✅ canvas validation and linting; AF-M3-06 ✅ all 8 connectors; AF-M4-01..05 ✅ triggers & versioning)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -323,15 +323,15 @@ Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSn
 
 ---
 
-### 🟡 AF-M1-05 · Node palette · 2d
+### ✅ AF-M1-05 · Node palette · 2d
 **Acceptance**
-- [ ] Palette lists all manifest nodes grouped by category with icon, label, description.
-- [ ] Fuzzy search over label, description, and keywords.
-- [ ] Add by drag-onto-canvas and by click-to-append from a node's `+` handle.
-- [ ] Trigger nodes only insertable when the workflow has no trigger; the constraint is explained in the UI, not silently enforced.
-- [ ] Adding a node is a `src/nodes/` change only — no palette edits required.
+- [x] Palette lists all manifest nodes grouped by category with icon, label, description.
+- [x] Fuzzy search over label, description, and keywords.
+- [x] Add by drag-onto-canvas and by click-to-append from a node's `+` handle.
+- [x] Trigger nodes only insertable when the workflow has no trigger; the constraint is explained in the UI, not silently enforced.
+- [x] Adding a node is a `src/nodes/` change only — no palette edits required.
 
-**Status 2026-08-28 — partial, do not close:** `src/components/node-selector.tsx` ships a static grouped palette (Trigger/Execution sections) with real connector + AI logos, label + description, and click-to-append that inserts near the canvas center with jitter; the single-manual-trigger guard explains itself via toast ("Only one manual trigger is allowed per workflow"); landed together with save-status polish in `4e8b364`. Remaining AC: fuzzy search, drag-onto-canvas, and manifest-driven rendering — the node list is hardcoded, so a `src/nodes/` change still requires a palette edit (the schema-driven config panel is AF-M1-06).
+**Status 2026-08-29 — done:** `src/components/node-selector.tsx` is completely manifest-driven (`nodeManifest`), rendering all categories with counts and icons (`node-icon.tsx`); multi-token search covers label, description, keywords, category, and type; HTML5 drag-and-drop onto the React Flow canvas (`onDragOver`/`onDrop` in `editor.tsx`) calculates flow position and adds the node; click-to-append `+` handle on `BaseExecutionNode` and `BaseTriggerNode` auto-places and connects new nodes; single-trigger constraint is enforced with an explanatory warning banner and toast; `GenericNode` fallback in `node-components.ts` ensures any node added to `src/nodes/` renders immediately on canvas without manual palette edits. Tested with 6 DOM tests in `node-selector.dom.test.tsx` (all 44 test files / 394 tests green).
 
 ---
 
