@@ -20,19 +20,24 @@ import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { ErrorView, LoadingView } from "@/components/entity-components";
 import { nodeComponents } from "@/config/node-components";
 import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
+import { findManifestEntry } from "@/nodes/manifest";
 import {
+  type EditorNode,
   edgesAtom,
   editorAtom,
   nodesAtom,
   saveStatusAtom,
+  selectedNodeIdAtom,
 } from "../store/atoms";
 import { NodeStatusProvider } from "../store/node-status-context";
 import { AddNodeButton } from "./add-node-button";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
+import { NodeConfigPanel } from "./node-config-panel";
 import {
   TestSelectedNodeButton,
   TestWorkflowButton,
 } from "./test-workflow-button";
+import { ValidationPanel } from "./validation-panel";
 
 import "@xyflow/react/dist/style.css";
 
@@ -58,6 +63,8 @@ export const Editor = memo(function Editor({
 
   const nodes = useAtomValue(nodesAtom);
   const edges = useAtomValue(edgesAtom);
+  const selectedNodeId = useAtomValue(selectedNodeIdAtom);
+  const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
 
   // Snapshot of the last server-known state. Used to compute isDirty.
   const serverSnapshotRef = useRef<{
@@ -111,13 +118,48 @@ export const Editor = memo(function Editor({
     [setEdges, setSaveStatus],
   );
 
+  const onSelectionChange = useCallback(
+    ({ nodes: selected }: { nodes: Node[] }) => {
+      setSelectedNodeId(selected.length === 1 ? selected[0].id : null);
+    },
+    [setSelectedNodeId],
+  );
+
+  const selectedNode = useMemo(
+    () => nodes.find((node) => node.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId],
+  );
+
+  const selectedDefinition = useMemo(() => {
+    if (!selectedNode || !selectedNode.type) return undefined;
+    const manifestEntry = findManifestEntry(selectedNode.type);
+    if (manifestEntry) return manifestEntry;
+    // "INITIAL" is a persisted alias of the manual trigger until M1-02 migrates rows.
+    return selectedNode.type === "INITIAL"
+      ? findManifestEntry("MANUAL_TRIGGER")
+      : undefined;
+  }, [selectedNode]);
+
+  const patchSelectedNode = useCallback(
+    (patch: Partial<EditorNode>) => {
+      if (!selectedNodeId) return;
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === selectedNodeId ? { ...node, ...patch } : node,
+        ),
+      );
+      setSaveStatus("unsaved");
+    },
+    [selectedNodeId, setNodes, setSaveStatus],
+  );
+
   const hasManualTrigger = useMemo(
     () => nodes.some((node) => node.type === "MANUAL_TRIGGER"),
     [nodes],
   );
 
   return (
-    <div className="size-full">
+    <div className="relative size-full">
       <NodeStatusProvider>
         <ReactFlow
           nodes={nodes}
@@ -125,6 +167,7 @@ export const Editor = memo(function Editor({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onSelectionChange={onSelectionChange}
           nodeTypes={nodeComponents}
           onInit={setEditor}
           fitView
@@ -151,8 +194,16 @@ export const Editor = memo(function Editor({
               </div>
             </div>
           </Panel>
+          <ValidationPanel />
         </ReactFlow>
       </NodeStatusProvider>
+      {selectedNode && selectedDefinition ? (
+        <NodeConfigPanel
+          node={selectedNode}
+          definition={selectedDefinition}
+          onNodeChange={patchSelectedNode}
+        />
+      ) : null}
     </div>
   );
 });
