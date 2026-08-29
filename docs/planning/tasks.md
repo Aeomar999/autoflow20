@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-29 (AF-M1-05 ✅ manifest-driven node palette, fuzzy search, drag-and-drop & click-to-append; AF-M1-06 ✅ schema-driven config panel; AF-M1-07 ✅ canvas validation and linting; AF-M3-06 ✅ all 8 connectors; AF-M4-01..05 ✅ triggers & versioning)
+**Last updated:** 2026-08-29 (AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ all 6 tasks complete — versioning, webhooks, cron schedule trigger, manual payload, and concurrency limits)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -582,8 +582,8 @@ Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hub
 - [x] **AF-M4-02** Version history UI with diff summary and one-click rollback · 2d — **done `56cbb86`**: `VersionHistorySheet` (diff summary, Deactivate, one-click rollback) wired into the editor header (`editor-header.tsx`).
 - [x] **AF-M4-03** `POST /api/webhooks/:workflowId/:path` — secret/signature verification, raw capture, `202` fast path, optional sync-respond with hard timeout, rate limited · 3d
 - [x] **AF-M4-04** Schedule trigger via Inngest cron with timezone support and next-run preview · 2d
-- ⬜ **AF-M4-05** Manual trigger payload editor · 1d
-- ⬜ **AF-M4-06** Per-workflow/tenant execution concurrency limits · 1d
+- [x] **AF-M4-05** Manual trigger payload editor · 1d — **done**: `MANUAL_TRIGGER` definition + executor support mock JSON payload in config, injected into trigger context (`trigger`), unit-tested.
+- [x] **AF-M4-06** Per-workflow/tenant execution concurrency limits · 1d — **done**: Inngest concurrency keys configured for `event.data.workflowId` (limit 1) and `event.data.organizationId || event.data.userId || event.data.workflowId` (limit 10) on `executeWorkflow`, and limit 1 on `evaluateSchedules` cron and OAuth token refresh.
 
 ---
 

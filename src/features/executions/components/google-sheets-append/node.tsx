@@ -61,7 +61,6 @@ export const GoogleSheetsAppendNode = memo(
         />
         <BaseExecutionNode
           {...props}
-          id={props.id}
           icon={Table2}
           name="Google Sheets Append"
           status={nodeStatus}

@@ -57,7 +57,6 @@ export const PostgresQueryNode = memo(
         />
         <BaseExecutionNode
           {...props}
-          id={props.id}
           icon={Database}
           name="Postgres Query"
           status={nodeStatus}

@@ -105,6 +105,7 @@ export async function POST(
     // Pass the payload to the execution engine
     await sendWorkflowExecution({
       workflowId,
+      userId: workflow.userId,
       executionId,
       initialData: {
         webhook: {

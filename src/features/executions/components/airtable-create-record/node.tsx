@@ -61,7 +61,6 @@ export const AirtableCreateRecordNode = memo(
         />
         <BaseExecutionNode
           {...props}
-          id={props.id}
           icon={Table}
           name="Airtable Create Record"
           status={nodeStatus}

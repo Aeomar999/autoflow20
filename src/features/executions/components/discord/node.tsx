@@ -53,7 +53,6 @@ export const DiscordNode = memo((props: NodeProps<DiscordNodeType>) => {
       />
       <BaseExecutionNode
         {...props}
-        id={props.id}
         icon="/logos/discord.svg"
         name="Discord"
         status={nodeStatus}

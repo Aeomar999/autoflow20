@@ -10,7 +10,10 @@ import { sendWorkflowExecution } from "./utils";
  * need to be executed at this minute.
  */
 export const evaluateSchedules = inngest.createFunction(
-  { id: "evaluate-schedules" },
+  {
+    id: "evaluate-schedules",
+    concurrency: [{ limit: 1 }],
+  },
   { cron: "* * * * *" }, // Run every minute
   async ({ step }) => {
     // 1. Fetch all active workflows (must have activeVersionId)

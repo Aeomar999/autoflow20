@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { configSchema, definition } from "./definition";
 
 describe("MANUAL_TRIGGER definition", () => {
@@ -20,13 +20,17 @@ describe("MANUAL_TRIGGER definition", () => {
     expect(definition.outputs[0].id).toBe("main");
   });
 
-  it("accepts empty or absent config", () => {
-    expect(configSchema.safeParse({}).success).toBe(true);
-    expect(configSchema.safeParse(undefined).success).toBe(true);
+  it("accepts valid payload string", () => {
+    const result = configSchema.safeParse({
+      payload: '{"key": "value"}',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.payload).toBe('{"key": "value"}');
+    }
   });
 
-  it("rejects non-object configs", () => {
-    expect(configSchema.safeParse("invalid").success).toBe(false);
-    expect(configSchema.safeParse(123).success).toBe(false);
+  it("rejects non-string payload", () => {
+    expect(configSchema.safeParse({ payload: 12345 }).success).toBe(false);
   });
 });

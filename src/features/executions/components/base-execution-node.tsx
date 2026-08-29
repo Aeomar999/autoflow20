@@ -1,5 +1,6 @@
 "use client";
 
+import { type NodeProps, Position, useReactFlow } from "@xyflow/react";
 import { useSetAtom } from "jotai";
 import { type LucideIcon, PlusIcon } from "lucide-react";
 import Image from "next/image";

@@ -62,7 +62,6 @@ export const OpenAiCompatibleChatNode = memo(
         />
         <BaseExecutionNode
           {...props}
-          id={props.id}
           icon={Bot}
           name="OpenAI-Compatible"
           status={nodeStatus}

@@ -80,7 +80,10 @@ describe("AIRTABLE_CREATE_RECORD execute", () => {
     const result = await execute(makeParams());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    const [url, options] = fetchMock.mock.calls[0] as unknown as [
+      URL,
+      RequestInit,
+    ];
 
     expect(url.pathname).toBe("/v0/appTESTBASE/tblLeads");
     expect(options.method).toBe("POST");
@@ -136,7 +139,7 @@ describe("AIRTABLE_CREATE_RECORD execute", () => {
       }),
     );
 
-    const [url] = fetchMock.mock.calls[0] as [URL];
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
     expect(url.pathname).toBe("/v0/appTMPl/Leads%20All");
   });
 
