@@ -177,6 +177,7 @@ export function NodeSelector({
         id: createId(),
         type: selection.type,
         data: {},
+        name: selection.label,
         position: {
           x: position.x + (Math.random() - 0.5) * 200,
           y: position.y + (Math.random() - 0.5) * 200,

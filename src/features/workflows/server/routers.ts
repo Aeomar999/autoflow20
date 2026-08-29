@@ -1,6 +1,6 @@
 import { createId } from "@paralleldrive/cuid2";
 import { TRPCError } from "@trpc/server";
-import type { Edge, Node } from "@xyflow/react";
+import type { Edge } from "@xyflow/react";
 import { generateSlug } from "random-word-slugs";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
@@ -207,7 +207,7 @@ export const workflowsRouter = createTRPCRouter({
         {
           nodes: nodes.map((n) => ({
             id: n.id,
-            name: n.type,
+            name: n.name ?? n.type,
             type: n.type,
             data: n.data as Record<string, unknown>,
           })),
@@ -238,10 +238,12 @@ export const workflowsRouter = createTRPCRouter({
             data: nodes.map((node) => ({
               id: node.id,
               workflowId: id,
-              name: node.type,
+              name: node.name ?? node.type,
               type: node.type,
               position: node.position,
               data: node.data || {},
+              notes: node.notes ?? null,
+              disabled: node.disabled ?? false,
             })),
           });
         }
@@ -273,7 +275,15 @@ export const workflowsRouter = createTRPCRouter({
             name: true,
             revision: true,
             nodes: {
-              select: { id: true, type: true, position: true, data: true },
+              select: {
+                id: true,
+                type: true,
+                position: true,
+                data: true,
+                name: true,
+                notes: true,
+                disabled: true,
+              },
             },
             connections: {
               select: {
@@ -296,6 +306,9 @@ export const workflowsRouter = createTRPCRouter({
             type: n.type,
             position: n.position as { x: number; y: number },
             data: (n.data as Record<string, unknown>) || {},
+            name: n.name ?? n.type,
+            notes: n.notes ?? undefined,
+            disabled: n.disabled ?? false,
           })),
           edges: updated.connections.map((c) => ({
             id: c.id,
@@ -326,7 +339,15 @@ export const workflowsRouter = createTRPCRouter({
           webhookSecret: true,
           revision: true,
           nodes: {
-            select: { id: true, type: true, position: true, data: true },
+            select: {
+              id: true,
+              type: true,
+              position: true,
+              data: true,
+              name: true,
+              notes: true,
+              disabled: true,
+            },
           },
           connections: {
             select: {
@@ -341,11 +362,14 @@ export const workflowsRouter = createTRPCRouter({
       });
 
       // Transform server nodes to react-flow compatible nodes
-      const nodes: Node[] = workflow.nodes.map((node) => ({
+      const nodes = workflow.nodes.map((node) => ({
         id: node.id,
         type: node.type,
         position: node.position as { x: number; y: number },
         data: (node.data as Record<string, unknown>) || {},
+        name: node.name ?? node.type,
+        notes: node.notes ?? undefined,
+        disabled: node.disabled ?? false,
       }));
 
       // Transform server connections to react-flow compatible edges
@@ -439,7 +463,15 @@ export const workflowsRouter = createTRPCRouter({
           id: true,
           revision: true,
           nodes: {
-            select: { id: true, type: true, position: true, data: true },
+            select: {
+              id: true,
+              type: true,
+              position: true,
+              data: true,
+              name: true,
+              notes: true,
+              disabled: true,
+            },
           },
           connections: {
             select: {
@@ -468,6 +500,9 @@ export const workflowsRouter = createTRPCRouter({
           type: n.type,
           position: n.position,
           data: n.data,
+          name: n.name ?? n.type,
+          notes: n.notes ?? undefined,
+          disabled: n.disabled ?? false,
         })),
         edges: workflow.connections.map((c) => ({
           id: c.id,
