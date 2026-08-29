@@ -47,7 +47,6 @@ export const GenericNode = memo((props: NodeProps) => {
   return (
     <BaseExecutionNode
       {...props}
-      id={props.id}
       icon={icon}
       name={name}
       description={description}

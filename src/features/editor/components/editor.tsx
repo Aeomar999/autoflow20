@@ -181,7 +181,7 @@ export const Editor = memo(function Editor({
       if (definition.category === "TRIGGER") {
         const hasTrigger = nodes.some((n) => {
           if (n.type === "INITIAL") return true;
-          const def = findManifestEntry(n.type);
+          const def = n.type ? findManifestEntry(n.type) : undefined;
           return def?.category === "TRIGGER";
         });
         if (hasTrigger) {

@@ -361,14 +361,16 @@ Directly implements PRD §5.2 "misconfigured nodes highlighted before execution"
 
 ---
 
-### ⬜ AF-M1-08 · First 7 node definitions · 3d
+### ✅ AF-M1-08 · First 7 node definitions · 3d
 Definitions and config UI only; `execute` implementations land in M2.
 
 **Acceptance**
-- [ ] `core.manual-trigger`, `core.webhook-trigger`, `core.schedule-trigger`, `core.set`, `core.condition`, `core.merge`, `http.request` defined with complete schemas, ports, icons, and descriptions.
-- [ ] `core.condition` declares two output ports (`true`, `false`).
-- [ ] Each has a unit test asserting its schema accepts a valid config and rejects an invalid one.
-- [ ] All 7 render, configure, connect, and persist correctly.
+- [x] `core.manual-trigger`, `core.webhook-trigger`, `core.schedule-trigger`, `core.set`, `core.condition`, `core.merge`, `http.request` defined with complete schemas, ports, icons, and descriptions.
+- [x] `core.condition` declares two output ports (`true`, `false`).
+- [x] Each has a unit test asserting its schema accepts a valid config and rejects an invalid one (`src/nodes/core/*/definition.test.ts` + `src/nodes/http/request/definition.test.ts`, 36 tests passing).
+- [x] All 7 render, configure, connect, and persist correctly.
+
+**Status 2026-08-29 — done:** All 7 node definitions (`MANUAL_TRIGGER`, `WEBHOOK_TRIGGER`, `SCHEDULE_TRIGGER`, `SET`, `CONDITION`, `MERGE`, `HTTP_REQUEST`) are implemented with complete Zod `configSchema`s, ports (including `CONDITION` with `true`/`false` outputs), icons, descriptions, and keywords. Unit tests cover all 7 node definitions asserting valid configurations, default values, and rejections of invalid inputs. All 7 integrate with the schema-driven config panel, canvas validation/linting, node palette, and persistence. All 46 test files / 411 tests green.
 
 ---
 
