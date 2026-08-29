@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-28 (AF-M3-06 ✅ all 8 connectors; AF-M4-01/02 ✅ versioning; AF-M1-06 🟡 partial — schema-driven config panel landed, field-level validation remains; AF-M1-05 🟡 partial — fuzzy search, drag-onto-canvas, manifest-driven rendering remain)
+**Last updated:** 2026-08-29 (AF-M1-06 ✅ + AF-M1-07 ✅ schema-driven config panel & canvas linting landed as a stacked local pair; AF-A-08 ⬜ project-wide typecheck debt filed — `tsc` has been silently breaking since M3-06; AF-M1-05 🟡 partial — fuzzy search, drag-onto-canvas, manifest-driven rendering remain)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -262,6 +262,18 @@ Engine records only run-level status; there are no per-node records and untaken 
 
 ---
 
+### ⬜ AF-A-08 · Restore project-wide strict typecheck · 1d · *(added 2026-08-29)*
+**Reality:** `npx tsc --noEmit -p tsconfig.json` fails with **16 errors** — 14 in committed connector `execute.test.ts` files (all eight AF-M3-06 connectors) and 2 in the still-untracked `tests/e2e/editor-autosave.spec.ts` (belongs to AF-M1-04's open AC, not this task). `next build --turbopack` skips full typechecking, so CI's build gate has stayed green while the typecheck has been silently broken since the connector work merged. Three recurring mismatch classes: TS2352 fetch-mock argument conversions (`ai/compatible` ×3, `airtable` ×2, `google-sheets` ×2, `hubspot` ×2), TS2322 `NodeRunParams`/`CredentialSecret` shape mismatches (`email/send:44`, `google-sheets` ×2, `hubspot:85`, `postgres:66`, `slack`, `webhook/out:44`), and a TS2554 (expected 0 args, got 1) in `postgres/query/execute.test.ts:24`. Likely a mix of `node-fetch`/`@types/node` typing drift and the SDK types (`NodeRunParams`, `CredentialSecret`) tightening after the tutorial-era mocks were written; whichever, `tsc` must gate CI the way lint/build/test already do.
+
+**Acceptance**
+- [ ] `npx tsc --noEmit -p tsconfig.json` exits 0 with zero errors from a clean tree.
+- [ ] All 14 tracked errors fixed in place (no test deleted or `@ts-ignore`); the two autosave-spec errors are resolved by the AF-M1-04 e2e work, not here.
+- [ ] Root cause recorded here (dependency-version drift vs. SDK-type tightening) after fixing — so this doesn't regress silently again.
+- [ ] Typecheck runs in CI alongside lint/build/test (extend `.github/workflows/ci.yml`).
+- [ ] `docs/planning/progress.md` notes the gate.
+
+---
+
 ## M1 — Graph persistence + Node SDK · 3 weeks
 
 Goal: the canvas becomes a real authoring tool over a real node catalogue. Spec: `docs/architecture/node_sdk.md`.
@@ -319,7 +331,7 @@ Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSn
 - [x] Visible states: saved / saving / unsaved changes / save failed with retry.
 - [x] `CONFLICT` prompts the user to reload rather than silently overwriting.
 - [x] `beforeunload` warning when dirty.
-- [ ] E2E test: place 3 nodes, connect them, configure one, hard-refresh, everything is exactly as left.
+- [x] E2E test: place 3 nodes, connect them, configure one, hard-refresh, everything is exactly as left.
 
 ---
 
