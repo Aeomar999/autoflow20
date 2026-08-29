@@ -11,6 +11,7 @@ import {
   NodeStatusIndicator,
 } from "@/components/react-flow/node-status-indicator";
 import { WorkflowNode } from "@/components/workflow-node";
+import { NodeValidationBadge } from "@/features/editor/components/node-validation-badge";
 
 interface BaseExecutionNodeProps extends NodeProps {
   icon: LucideIcon | string;
@@ -75,6 +76,7 @@ export const BaseExecutionNode = memo(
                 position={Position.Right}
               />
             </BaseNodeContent>
+            <NodeValidationBadge nodeId={id} />
           </BaseNode>
         </NodeStatusIndicator>
       </WorkflowNode>

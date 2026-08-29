@@ -248,7 +248,7 @@ export function EntityList<T>({
 
 interface EntityItemProps {
   href: string;
-  title: string;
+  title: React.ReactNode;
   subtitle?: React.ReactNode;
   image?: React.ReactNode;
   actions?: React.ReactNode;
