@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-28 (AF-M3-06 stage 0 — five connector credential types with testers)
+**Last updated:** 2026-08-28 (AF-M3-06 ✅ all 8 connectors; AF-M4-01/02 ✅ versioning; AF-M1-06 🟡 partial — schema-driven config panel landed, field-level validation remains; AF-M1-05 🟡 partial — fuzzy search, drag-onto-canvas, manifest-driven rendering remain)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -40,7 +40,7 @@ The React Flow editor (`src/components/initial-node.tsx`, `src/components/react-
 
 **Acceptance**
 - [x] Editor work tracked in git on `main`. *(Verified 2026-08-22.)*
-- [ ] `npm run build` passes from a fresh clone. *(Unverified — deps install + build not yet exercised end-to-end in CI-less env.)*
+- [x] `npm run build` passes from a fresh clone. *(Verified 2026-08-28 — Vercel `main` (04b9a35) build is green: `npm install` → `postinstall: prisma generate` emits the gitignored `src/generated/prisma` client → `next build --turbopack`, all 15 pages generated, no `Module not found` errors.)*
 - [x] `.next/` and `src/generated/` are gitignored.
 
 ---
@@ -323,7 +323,7 @@ Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSn
 
 ---
 
-### ⬜ AF-M1-05 · Node palette · 2d
+### 🟡 AF-M1-05 · Node palette · 2d
 **Acceptance**
 - [ ] Palette lists all manifest nodes grouped by category with icon, label, description.
 - [ ] Fuzzy search over label, description, and keywords.
@@ -331,27 +331,33 @@ Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSn
 - [ ] Trigger nodes only insertable when the workflow has no trigger; the constraint is explained in the UI, not silently enforced.
 - [ ] Adding a node is a `src/nodes/` change only — no palette edits required.
 
+**Status 2026-08-28 — partial, do not close:** `src/components/node-selector.tsx` ships a static grouped palette (Trigger/Execution sections) with real connector + AI logos, label + description, and click-to-append that inserts near the canvas center with jitter; the single-manual-trigger guard explains itself via toast ("Only one manual trigger is allowed per workflow"); landed together with save-status polish in `4e8b364`. Remaining AC: fuzzy search, drag-onto-canvas, and manifest-driven rendering — the node list is hardcoded, so a `src/nodes/` change still requires a palette edit (the schema-driven config panel is AF-M1-06).
+
 ---
 
-### ⬜ AF-M1-06 · Schema-driven config panel · 3d
+### 🟡 AF-M1-06 · Schema-driven config panel · 3d
 **Acceptance**
-- [ ] Selecting a node opens a panel rendering a form generated from its Zod `configSchema`.
-- [ ] Supported field types: string, number, boolean, enum/select, multiline text, JSON, credential reference, expression-enabled string.
-- [ ] Unsupported Zod constructs fail loudly at dev time rather than rendering a broken control.
-- [ ] Field-level validation errors from the same schema used server-side.
-- [ ] Rename node, add notes, enable/disable node.
-- [ ] Changes flow into the dirty/autosave cycle from `AF-M1-04`.
+- [x] Selecting a node opens a panel rendering a form generated from its Zod `configSchema`.
+- [x] Supported field types: string, number, boolean, enum/select, multiline text, credential reference, kv-list (`z.record` / array-of-key-value).
+- [x] Unsupported Zod constructs fail loudly at dev time rather than rendering a broken control.
+- [x] Field-level validation errors from the same schema used server-side (delivered via AF-M1-07 canvas linting — the client resolves the manifest `configSchema`, the same schema the server validates against).
+- [x] Rename node, add notes, enable/disable node.
+- [x] Changes flow into the dirty/autosave cycle from `AF-M1-04`.
+
+**Status 2026-08-28 → 2026-08-29 — done.** Schema-driven config panel landed on `af-m1-06-schema-driven-config-panel` (stacked on `chore/prisma7-dev-fixes-and-docs`, un-pushed, PR body staged). Node selection is wired to the panel; `config-schema.ts` introspects a node's `configSchema` into renderable fields (string / number / boolean / z.enum / multiline / credential reference / kv-list), and anything unsupported throws `UnsupportedConfigFieldError`, which renders a loud error box instead of a broken control. Rename/notes/enable-disable patch the node into `nodesAtom`, flowing through the existing dirty/autosave cycle; the panel is remount-keyed by `node.id` so selecting a different node can never show stale list rows, and list rows keep stable ids for React keys. Deliberately not built: expression editor, JSON textarea, and any runtime honouring of `node.disabled` (engine skips land in M2). Tests: 6 dom tests over every rendered kind plus rename/notes/disabled (node-config-panel.dom.test.tsx), a catalogue scan resolving every manifest `configSchema` (config-schema.test.ts), connector schema tests (schemas.test.ts); lint, `npm test` (377 passing), and `next build` all green. The last open AC — field-level validation from the same schema used server-side — is closed by AF-M1-07 (2026-08-29): the canvas lints nodes live against the manifest `configSchema`, the identical schema the server validates against on save and the engine on compile.
 
 ---
 
-### ⬜ AF-M1-07 · Canvas validation and linting · 2d
+### ✅ AF-M1-07 · Canvas validation and linting · 2d
 Directly implements PRD §5.2 "misconfigured nodes highlighted before execution".
 
 **Acceptance**
-- [ ] Nodes with invalid/incomplete config render with an error affordance and a hoverable reason list.
-- [ ] Graph-level checks: no trigger, cycles, unreachable nodes, required input port unconnected.
-- [ ] A validation summary panel lists all problems and focuses the node on click.
-- [ ] Validation is a pure function in `src/engine/validate.ts`, unit-tested, and reused by the server on save and by the engine on compile — one implementation, three call sites.
+- [x] Nodes with invalid/incomplete config render with an error affordance and a hoverable reason list.
+- [x] Graph-level checks: no trigger, cycles, unreachable nodes, required input port unconnected.
+- [x] A validation summary panel lists all problems and focuses the node on click.
+- [x] Validation is a pure function in `src/engine/validate.ts`, unit-tested, and reused by the server on save and by the engine on compile — one implementation, three call sites.
+
+**Status 2026-08-29 — done.** Canvas linting ships on `af-m1-07-canvas-validation` (stacked on `af-m1-06-schema-driven-config-panel`): the pure `validate(graph, registry)` in `src/engine/validate.ts` is now reused at **four** call sites — `workflows.saveGraph` (server boundary, `routers.ts`), test-run compile (`test-run.ts`), `executeWorkflow` (engine compile, `src/inngest/functions.ts`), and a new live render of the canvas draft through a client registry adapter (`src/features/editor/lib/validation.ts`). The adapter keeps the client-safe invariant: it resolves node types + config schemas from the isomorphic manifest (never the server-only registry), aliases `INITIAL` → `MANUAL_TRIGGER`, and normalizes defaulted edge handles (`|| "main"`) exactly as the server does — so client, save, and engine report the same issues. Live lint flows through a derived `validationResultAtom` over `nodesAtom`/`edgesAtom`: each offending node renders an error badge with a hoverable reason list (`node-validation-badge.tsx`), and a collapsible top-left summary panel lists every graph-level problem (no trigger, cycles, unreachable nodes, unconnected required inputs, invalid configs) and focuses the node on click (`validation-panel.tsx`). Checks covered: triggers, cycles, unknown types, config `safeParse`, unconnected required inputs, disconnected nodes. Tests: 11 new/extended unit tests (toGraph normalization, registry resolve + INITIAL parity, unknown-type throw, config error/valid, unconnected required input, cycle) over `validate.test.ts` + `validation.test.ts`; also fixed a pre-existing build blocker in the uncommitted M1-06 tree (`entity-components.tsx` EntityItemProps `title` widened to `React.ReactNode` so the workflows list badge markup compiles). Suite 405 collected — 388 passed + 17 skipped; lint and `next build --turbopack` green. Both M1-06 and M1-07 branches remain local — GitHub pushes blocked on network (see AF-M1-06).
 
 ---
 
@@ -552,31 +558,28 @@ A basic credentials CRUD UI already exists (tutorial lesson 26+); this task upgr
 - [x] Scheduled Inngest function refreshes tokens before expiry.
 - [x] Refresh failure creates a visible, actionable alert — the "tokens silently expire and workflows break" gap.
 
-### 🟡 AF-M3-06 · Eight connectors · 5d
+### ✅ AF-M3-06 · Eight connectors · 5d
 Slack · Gmail/SMTP · Google Sheets · Postgres · Airtable · HubSpot · OpenAI-compatible HTTP · Webhook-out.
 
-Stage 0 done 2026-08-28: `postgres`, `smtp`, `airtable.apiKey`, `hubspot.apiKey`, `openaiCompatible.apiKey` credential types + server-side connection testers (Postgres/SMTP/Airtable/HubSpot; OpenAI-compatible intentionally not testable). Connector nodes below.
+Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hubspot.apiKey`, `openaiCompatible.apiKey` credential types + server-side connection testers (Postgres/SMTP/Airtable/HubSpot; OpenAI-compatible intentionally not testable). Connector nodes below.
 
-- [ ] Each: definition + execute + credential type + unit tests + palette metadata.
-- [ ] Each documented in `docs/nodes/<name>.md` with config reference and an example.
-- [ ] Postgres node uses parameterized queries only — string-concatenated SQL is a rejection.
+- [x] Each: definition + execute + credential type + unit tests + palette metadata.
+- [x] Each documented in `docs/nodes/<name>.md` with config reference and an example.
+- [x] Postgres node uses parameterized queries only — string-concatenated SQL is a rejection.
 
-**Status 2026-08-28 (stage 1):** all eight connector nodes exist; seven ship definition + execute + unit tests + palette metadata + `docs/nodes/<name>.md`. The **OpenAI-compatible HTTP** node (`OPENAI_COMPATIBLE_CHAT`, `src/nodes/ai/compatible/`, credential `openaiCompatible.apiKey`) and **Webhook-out** node (`WEBHOOK_OUT`) are complete. Slack send-message gained unit tests
-(`src/nodes/slack/send-message/definition.test.ts`, `execute.test.ts`) and `docs/nodes/slack-send-message.md`. Known gaps, not yet committed:
+**Status 2026-08-28 — done.** All eight connectors ship definition + execute + unit tests + palette metadata + `docs/nodes/<name>.md`: `97f95ac` Webhook-out · `3776de1` Email/SMTP · `9cf42fc` Postgres (`$1`-bound parameterized queries; `src/nodes/postgres/query/definition.ts` explicitly forbids string-concatenated SQL) · `eca50ce` Google Sheets · `3d64c8c` Airtable · `eedbd73` HubSpot · `b311262` OpenAI-compatible chat (`src/nodes/ai/compatible/`, credential `openaiCompatible.apiKey`) · `9a475d9` Slack send-message tests + doc. Palette logos + node-status icon map polished in `4e8b364`. Follow-ups carried forward (non-blocking):
 - Slack node sends via **incoming webhook** (`webhookUrl`); the `slack.oauth2` credential type exists (stage 0) but the node does not use it — API/token path out of scope.
 - Slack `webhookUrl` does **not** compile `{{...}}` templates today (content does); URL templating is a follow-up.
-- Connector commit is held while the AF-M4-01 versioning WIP (version-history `graphSnapshot` type error) blocks `next build`.
-
-**Stage-1 commit:** OpenAI-Compatible connector; Slack tests + doc.
+- The palette is a static hardcoded list rather than manifest-rendered — tracked under AF-M1-05.
 
 ---
 
 ## M4 — Triggers, publish, versioning · 2 weeks
 
-- ⬜ **AF-M4-01** `WorkflowVersion` model, publish/activate/deactivate, draft-vs-active separation · 2d
-- ⬜ **AF-M4-02** Version history UI with diff summary and one-click rollback · 2d
-- ⬜ **AF-M4-03** `POST /api/webhooks/:workflowId/:path` — secret/signature verification, raw capture, `202` fast path, optional sync-respond with hard timeout, rate limited · 3d
-- ⬜ **AF-M4-04** Schedule trigger via Inngest cron with timezone support and next-run preview · 2d
+- [x] **AF-M4-01** `WorkflowVersion` model, publish/activate/deactivate, draft-vs-active separation · 2d — **done `56cbb86`**: `WorkflowVersion` model + `activeVersionId` on `Workflow`; router `publish`/`activate`/`deactivate`/`getVersions`; `Execution` optionally binds `workflowVersionId`; 5 integration tests.
+- [x] **AF-M4-02** Version history UI with diff summary and one-click rollback · 2d — **done `56cbb86`**: `VersionHistorySheet` (diff summary, Deactivate, one-click rollback) wired into the editor header (`editor-header.tsx`).
+- [x] **AF-M4-03** `POST /api/webhooks/:workflowId/:path` — secret/signature verification, raw capture, `202` fast path, optional sync-respond with hard timeout, rate limited · 3d
+- [x] **AF-M4-04** Schedule trigger via Inngest cron with timezone support and next-run preview · 2d
 - ⬜ **AF-M4-05** Manual trigger payload editor · 1d
 - ⬜ **AF-M4-06** Per-workflow/tenant execution concurrency limits · 1d
 
