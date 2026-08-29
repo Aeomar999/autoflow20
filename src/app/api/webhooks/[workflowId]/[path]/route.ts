@@ -53,7 +53,12 @@ export async function POST(
 
     const workflow = await prisma.workflow.findUnique({
       where: { id: workflowId },
-      select: { id: true, webhookSecret: true, activeVersionId: true },
+      select: {
+        id: true,
+        userId: true,
+        webhookSecret: true,
+        activeVersionId: true,
+      },
     });
 
     if (!workflow) {
