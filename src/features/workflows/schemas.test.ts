@@ -185,3 +185,98 @@ describe("saveWorkflowInputSchema — revision field (AF-M1-03)", () => {
     ).toBe(true);
   });
 });
+
+describe("saveWorkflowInputSchema — connector nodes (AF-M1-06)", () => {
+  it.each([
+    [
+      "EMAIL_SEND",
+      {
+        to: "ops@example.com",
+        subject: "Deploy done",
+        body: "All green",
+        from: "ci@example.com",
+        fromName: "CI",
+      },
+    ],
+    [
+      "WEBHOOK_OUT",
+      {
+        url: "https://hooks.example.com/flow",
+        headers: { Authorization: "Bearer x" },
+        body: "{}",
+        timeoutMs: 500,
+        failOnNon2xx: true,
+      },
+    ],
+    [
+      "GOOGLE_SHEETS_APPEND",
+      { spreadsheetId: "1abc", sheetName: "Sheet1", values: '[[1, "a"]]' },
+    ],
+    [
+      "AIRTABLE_CREATE_RECORD",
+      { baseId: "app123", tableId: "tbl123", fields: '{"Name": "Ada"}' },
+    ],
+    ["HUBSPOT_CREATE_CONTACT", { properties: '{"email": "a@b.co"}' }],
+    [
+      "POSTGRES_QUERY",
+      { query: "SELECT * FROM users WHERE id = $1", params: "[42]" },
+    ],
+    [
+      "OPENAI_COMPATIBLE_CHAT",
+      {
+        baseUrl: "https://api.groq.com/openai/v1",
+        model: "llama-3.3-70b-versatile",
+        userPrompt: "Summarize",
+      },
+    ],
+  ])("accepts a %s node with representative data", (type, data) => {
+    const parsed = saveWorkflowInputSchema.safeParse({
+      ...validSave,
+      nodes: [{ id: "n2", type, position, data }],
+    });
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe("saveWorkflowInputSchema — node metadata (AF-M1-06)", () => {
+  it("round-trips name, notes, and disabled", () => {
+    const parsed = saveWorkflowInputSchema.parse({
+      ...validSave,
+      nodes: [
+        {
+          ...validSave.nodes[1],
+          name: "Fetch stats",
+          notes: "pager on failure",
+          disabled: true,
+        },
+      ],
+    });
+    expect(parsed.nodes[0]).toMatchObject({
+      name: "Fetch stats",
+      notes: "pager on failure",
+      disabled: true,
+    });
+  });
+
+  it("accepts nodes without any metadata", () => {
+    const parsed = saveWorkflowInputSchema.parse(validSave);
+    expect(parsed.nodes[0]).not.toHaveProperty("name");
+    expect(parsed.nodes[1]).not.toHaveProperty("notes");
+    expect(parsed.nodes[1]).not.toHaveProperty("disabled");
+  });
+
+  it("rejects a blank name and an oversized note", () => {
+    expect(
+      saveWorkflowInputSchema.safeParse({
+        ...validSave,
+        nodes: [{ ...validSave.nodes[1], name: "" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      saveWorkflowInputSchema.safeParse({
+        ...validSave,
+        nodes: [{ ...validSave.nodes[1], notes: "x".repeat(501) }],
+      }).success,
+    ).toBe(false);
+  });
+});

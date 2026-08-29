@@ -30,6 +30,9 @@ function makeNodeSchema(type: string, data: z.ZodTypeAny) {
     position: nodePositionSchema,
     type: z.literal(type),
     data,
+    name: z.string().min(1).max(50).optional(),
+    notes: z.string().max(500).optional(),
+    disabled: z.boolean().optional(),
   });
 }
 
@@ -51,6 +54,13 @@ export const updateNodeSchemas = [
   makeNodeSchema("OPENAI", configOf("OPENAI")),
   makeNodeSchema("DISCORD", configOf("DISCORD")),
   makeNodeSchema("SLACK", configOf("SLACK")),
+  makeNodeSchema("EMAIL_SEND", configOf("EMAIL_SEND")),
+  makeNodeSchema("WEBHOOK_OUT", configOf("WEBHOOK_OUT")),
+  makeNodeSchema("GOOGLE_SHEETS_APPEND", configOf("GOOGLE_SHEETS_APPEND")),
+  makeNodeSchema("AIRTABLE_CREATE_RECORD", configOf("AIRTABLE_CREATE_RECORD")),
+  makeNodeSchema("HUBSPOT_CREATE_CONTACT", configOf("HUBSPOT_CREATE_CONTACT")),
+  makeNodeSchema("POSTGRES_QUERY", configOf("POSTGRES_QUERY")),
+  makeNodeSchema("OPENAI_COMPATIBLE_CHAT", configOf("OPENAI_COMPATIBLE_CHAT")),
 ] as const;
 
 export const saveWorkflowInputSchema = z.object({

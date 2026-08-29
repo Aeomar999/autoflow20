@@ -162,6 +162,7 @@ export const WorkflowItem = memo(
       createdAt: Date;
       updatedAt: Date;
       revision: number;
+      activeVersion?: { version: number; workflowRevision: number } | null;
     };
   }) => {
     const removeWorkflow = useRemoveWorkflow();
@@ -173,7 +174,26 @@ export const WorkflowItem = memo(
     return (
       <EntityItem
         href={`/workflows/${data.id}`}
-        title={data.name}
+        title={
+          <div className="flex items-center gap-2">
+            <span>{data.name}</span>
+            {data.activeVersion ? (
+              data.activeVersion.workflowRevision === data.revision ? (
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded font-medium">
+                  Active (v{data.activeVersion.version})
+                </span>
+              ) : (
+                <span className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">
+                  Unpublished changes (v{data.activeVersion.version})
+                </span>
+              )
+            ) : (
+              <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">
+                Draft
+              </span>
+            )}
+          </div>
+        }
         subtitle={
           <>
             Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
