@@ -1,15 +1,36 @@
 import toposort from "toposort";
-import type { NodeRegistry } from "@/nodes/registry";
 
 /**
  * Shared graph validator (AF-M2-02). One implementation, three call sites:
- *   1. Canvas linting (AF-M1-07) — client-side, no registry
- *   2. Save boundary (routers.ts) — server-side with full registry
- *   3. Engine (functions.ts) — server-side with full registry, before run
+ *   1. Canvas linting (AF-M1-07) — client-side with the catalogue adapter
+ *      (`src/features/editor/lib/validation.ts`)
+ *   2. Save boundary (routers.ts) — server-side with the full registry
+ *   3. Engine (functions.ts) — server-side with the full registry, before run
  *
  * Isomorphic: no Prisma, no server-only imports. Deterministic output for
  * identical graphs (stable tie-breaking by node id).
  */
+
+/**
+ * Structural view of a node registry that `validate` needs. Kept deliberately
+ * minimal so it accepts both the server `NodeRegistry` (`src/nodes/registry.ts`)
+ * and the client-side catalogue adapter (`src/features/editor/lib/validation.ts`)
+ * without pulling Prisma or zod into the graph.
+ */
+export interface ValidationRegistry {
+  has(type: string): boolean;
+  resolve(type: string): {
+    configSchema: {
+      safeParse(data: unknown): {
+        success: boolean;
+        error?: {
+          issues: Array<{ path: unknown[]; message: string }>;
+        };
+      };
+    };
+    inputs: Array<{ id: string; required?: boolean }>;
+  };
+}
 
 export type ValidationError = {
   /** Node that caused the error (omitted for graph-level errors). */
@@ -54,13 +75,13 @@ export type ValidationResult = {
  * Validate a workflow graph and produce a deterministic execution order.
  *
  * @param graph - The workflow graph to validate.
- * @param registry - Server-side node registry for type/config checks.
- *                   Omit on the client to skip type and config validation
- *                   (the client relies on the Zod save boundary for those).
+ * @param registry - Registry of node definitions for type and config checks
+ *                   (server `NodeRegistry` or the client catalogue adapter).
+ *                   Omit to skip unknown-type and config-schema validation.
  */
 export function validate(
   graph: Graph,
-  registry?: NodeRegistry,
+  registry?: ValidationRegistry,
 ): ValidationResult {
   const errors: ValidationError[] = [];
   const { nodes, connections } = graph;
@@ -145,7 +166,7 @@ function checkCycles(
 
 function checkUnknownTypes(
   nodes: GraphNode[],
-  registry: NodeRegistry,
+  registry: ValidationRegistry,
   errors: ValidationError[],
 ): void {
   for (const node of nodes) {
@@ -161,7 +182,7 @@ function checkUnknownTypes(
 
 function checkConfigs(
   nodes: GraphNode[],
-  registry: NodeRegistry,
+  registry: ValidationRegistry,
   errors: ValidationError[],
 ): void {
   for (const node of nodes) {
@@ -169,7 +190,7 @@ function checkConfigs(
       const registration = registry.resolve(node.type);
       const result = registration.configSchema.safeParse(node.data);
       if (!result.success) {
-        for (const issue of result.error.issues) {
+        for (const issue of result.error?.issues ?? []) {
           errors.push({
             nodeId: node.id,
             path: issue.path.join("."),
@@ -187,7 +208,7 @@ function checkConfigs(
 function checkRequiredInputs(
   nodes: GraphNode[],
   connections: GraphConnection[],
-  registry: NodeRegistry | undefined,
+  registry: ValidationRegistry | undefined,
   errors: ValidationError[],
 ): void {
   // Build a set of (nodeId, inputPort) pairs that have incoming connections.

@@ -1,11 +1,10 @@
+import { z } from "zod";
 import type { NodeDefinition } from "@/nodes/types";
-import { triggerDataSchema } from "../../shared/config-fields";
 
-/**
- * Schedule trigger stub (pending M4). When invoked, passes through
- * the context unchanged. Full cron/schedule receiver lands with M4.
- */
-export const configSchema = triggerDataSchema;
+export const configSchema = z.object({
+  cron: z.string().default("0 * * * *"), // Hourly
+  timezone: z.string().default("UTC"),
+});
 
 export const definition: NodeDefinition = {
   type: "SCHEDULE_TRIGGER",
@@ -13,11 +12,14 @@ export const definition: NodeDefinition = {
   category: "TRIGGER",
   label: "Schedule Trigger",
   description:
-    "Start the workflow on a schedule (cron). (Stub — full implementation in M4.)",
+    "Start the workflow on a schedule (cron).",
   icon: "Clock",
   keywords: ["schedule", "cron", "timer", "trigger", "periodic"],
   configSchema,
-  defaults: {},
+  defaults: {
+    cron: "0 * * * *",
+    timezone: "UTC",
+  },
   inputs: [],
   outputs: [{ id: "main", label: "Out" }],
 };

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type Graph, validate } from "./validate";
+import { z } from "zod";
+import { type Graph, type ValidationRegistry, validate } from "./validate";
 
 /**
  * AF-M2-02 unit tests for the shared graph validator.
@@ -282,5 +283,96 @@ describe("validate — deterministic ordering", () => {
     };
     const result = validate(graph);
     expect(result.order).toEqual(["t1", "a1", "c2"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Registry-backed config + input validation (AF-M1-07)
+// ---------------------------------------------------------------------------
+
+describe("validate — config validation with a real registry", () => {
+  const registry: ValidationRegistry = {
+    has: (type) => type === "MANUAL_TRIGGER" || type === "HTTP_REQUEST",
+    resolve: (type) => {
+      if (type === "MANUAL_TRIGGER") {
+        return {
+          configSchema: z.object({}),
+          inputs: [],
+        };
+      }
+      if (type === "HTTP_REQUEST") {
+        return {
+          configSchema: z.object({ endpoint: z.url().optional() }),
+          inputs: [{ id: "main", required: true }],
+        };
+      }
+      throw new Error(`Unknown node type: "${type}".`);
+    },
+  };
+
+  it("flags an invalid config with a field path", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", { endpoint: 12345 }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const result = validate(graph, registry);
+    const configErrors = errorsOf(result).filter((e) =>
+      e.message.startsWith("Config error:"),
+    );
+    expect(configErrors).toHaveLength(1);
+    expect(configErrors[0].nodeId).toBe("n1");
+    expect(configErrors[0].path).toBe("endpoint");
+  });
+
+  it("accepts a valid config", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const result = validate(graph, registry);
+    expect(errorsOf(result)).toHaveLength(0);
+  });
+
+  it("flags an unconnected required input with a main-port path", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com",
+        }),
+      ],
+      connections: [],
+    };
+    const result = validate(graph, registry);
+    const inputErrors = errorsOf(result).filter((e) =>
+      e.message.includes("input"),
+    );
+    expect(inputErrors).toHaveLength(1);
+    expect(inputErrors[0].nodeId).toBe("n1");
+    expect(inputErrors[0].path).toBe("inputs.main");
+  });
+
+  it("clears the required-input error once connected", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const result = validate(graph, registry);
+    const inputErrors = errorsOf(result).filter((e) =>
+      e.message.includes("input"),
+    );
+    expect(inputErrors).toHaveLength(0);
   });
 });
