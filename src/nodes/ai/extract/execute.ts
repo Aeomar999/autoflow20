@@ -2,38 +2,12 @@ import "server-only";
 import { generateObject, jsonSchema } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
-import { createLanguageModel } from "@/lib/ai/provider";
-import {
-  AI_PROVIDERS,
-  type AiModelDef,
-  type AiProviderId,
-  aiModelId,
-  aiProviderById,
-  resolveAiModel,
-} from "@/lib/ai/registry";
+import { executeWithFallback, parseModelChain } from "@/lib/ai/fallback";
 import type { NodeRun } from "@/nodes/types";
 import type { ExtractData } from "./definition";
 
 const SYSTEM_PROMPT =
   "You are a precise data extraction assistant inside an AutoFlow workflow. Extract only the requested fields from the provided text and return exactly the JSON shape requested. Never invent values that are not present in the text.";
-
-/** Splits "provider:model" into its legs; a bare token is just a provider. */
-function splitModelId(raw: string | undefined): {
-  provider: string;
-  modelHint: string | undefined;
-} {
-  if (!raw || raw.length === 0) {
-    return { provider: "", modelHint: undefined };
-  }
-  const colon = raw.indexOf(":");
-  if (colon === -1) {
-    return { provider: raw.trim(), modelHint: undefined };
-  }
-  return {
-    provider: raw.slice(0, colon).trim(),
-    modelHint: raw.slice(colon + 1).trim() || undefined,
-  };
-}
 
 /**
  * Turns the schema-builder field list into a JSON object schema for the
@@ -125,39 +99,6 @@ export const execute: NodeRun<ExtractData> = async ({
     throw new NonRetriableError("AI Extract node: Source content is missing");
   }
 
-  const { provider, modelHint } = splitModelId(data.model);
-  const providerDef = aiProviderById.get(provider as AiProviderId);
-  if (providerDef === undefined) {
-    throw new NonRetriableError(
-      `AI Extract node: unknown provider "${provider || "<unset>"}". Configure a model like "openai:gpt-4o". Providers: ${AI_PROVIDERS.join(", ")}`,
-    );
-  }
-
-  // Exact `provider:model` wins, else the provider default (docs/architecture/overview.md §5.4).
-  let model: AiModelDef;
-  try {
-    model = resolveAiModel(providerDef.id, modelHint);
-  } catch (error) {
-    throw new NonRetriableError(
-      `AI Extract node: ${error instanceof Error ? error.message : "unknown model"}`,
-    );
-  }
-  const fullModelId = aiModelId(model.provider, model.model);
-
-  const secret =
-    model.adapter === "anthropic"
-      ? credentials?.anthropicCredentialId
-      : model.adapter === "google"
-        ? credentials?.geminiCredentialId
-        : credentials?.openaiCredentialId;
-  const apiKey = secret?.apiKey ?? secret?.accessToken;
-
-  if (providerDef.requiresKey && !apiKey) {
-    throw new NonRetriableError(
-      `AI Extract node: credential required for provider "${providerDef.id}" (${providerDef.credentialType ?? "api key"}), but none is configured on the node`,
-    );
-  }
-
   const resolvedContent = compileTemplate(data.content)(context).trim();
   if (!resolvedContent) {
     throw new NonRetriableError(
@@ -166,36 +107,38 @@ export const execute: NodeRun<ExtractData> = async ({
   }
 
   const outputSchema = buildOutputSchema(data);
+  const candidates = parseModelChain(data.model, data.fallbackModels);
 
-  const modelRef = createLanguageModel({
-    adapter: model.adapter,
-    modelId: model.model,
-    apiKey,
-    baseUrl: providerDef.baseUrl,
-  });
+  const { result: object } = await executeWithFallback(
+    candidates,
+    credentials,
+    "AI Extract node",
+    async (candidate) => {
+      const result = await step.ai.wrap(
+        `llm-extract:${candidate.fullModelId}`,
+        generateObject,
+        {
+          model: candidate.languageModel,
+          system: SYSTEM_PROMPT,
+          prompt: `Extract the fields described by the schema from the text below, and return only those fields.\n\nTEXT:\n"""${resolvedContent}"""`,
+          schema: jsonSchema(outputSchema),
+          experimental_telemetry: {
+            isEnabled: true,
+            recordInputs: true,
+            recordOutputs: true,
+          },
+        },
+      );
 
-  const result = await step.ai.wrap(
-    `llm-extract:${fullModelId}`,
-    generateObject,
-    {
-      model: modelRef,
-      system: SYSTEM_PROMPT,
-      prompt: `Extract the fields described by the schema from the text below, and return only those fields.\n\nTEXT:\n"""${resolvedContent}"""`,
-      schema: jsonSchema(outputSchema),
-      experimental_telemetry: {
-        isEnabled: true,
-        recordInputs: true,
-        recordOutputs: true,
-      },
+      const resObj = (result as { object?: unknown }).object;
+      if (resObj === undefined || resObj === null) {
+        throw new NonRetriableError(
+          "AI Extract node: model returned no structured output",
+        );
+      }
+      return resObj;
     },
   );
-
-  const object = (result as { object?: unknown }).object;
-  if (object === undefined || object === null) {
-    throw new NonRetriableError(
-      "AI Extract node: model returned no structured output",
-    );
-  }
 
   return {
     ...context,

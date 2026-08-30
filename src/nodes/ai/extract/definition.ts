@@ -32,6 +32,7 @@ const extractFieldSchema = z.object({
 export const configSchema = z.object({
   variableName: variableNameSchema.optional(),
   model: modelIdSchema.optional(),
+  fallbackModels: z.string().max(500).optional(),
   openaiCredentialId: credentialIdRef(),
   anthropicCredentialId: credentialIdRef(),
   geminiCredentialId: credentialIdRef(),

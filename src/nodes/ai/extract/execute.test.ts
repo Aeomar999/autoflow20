@@ -378,6 +378,57 @@ describe("AI_EXTRACT execute", () => {
       ),
     );
   });
+
+  it("falls back to secondary model when primary fails during extraction", async () => {
+    mockGenerateObject
+      .mockRejectedValueOnce(new Error("OpenAI 429 Too Many Requests"))
+      .mockResolvedValueOnce({
+        object: { amount: 250, vendor: "Fallback Supplier" },
+      });
+
+    const result = await execute(
+      makeParams({
+        data: {
+          model: "openai:gpt-4o",
+          fallbackModels: "anthropic:claude-3-5-sonnet",
+        },
+        credentials: {
+          openaiCredentialId: secret,
+          anthropicCredentialId: { apiKey: "ant-secret" },
+        },
+      }),
+    );
+
+    expect(mockGenerateObject).toHaveBeenCalledTimes(2);
+    const extracted = storedObject<{ amount: number; vendor: string }>(
+      result,
+      "extracted",
+    );
+    expect(extracted).toEqual({ amount: 250, vendor: "Fallback Supplier" });
+  });
+
+  it("throws detailed error when all extraction candidate models fail", async () => {
+    mockGenerateObject
+      .mockRejectedValueOnce(new Error("OpenAI Rate limited"))
+      .mockRejectedValueOnce(new Error("Anthropic Overloaded"));
+
+    await expect(
+      execute(
+        makeParams({
+          data: {
+            model: "openai:gpt-4o",
+            fallbackModels: "anthropic:claude-3-5-sonnet",
+          },
+          credentials: {
+            openaiCredentialId: secret,
+            anthropicCredentialId: { apiKey: "ant-secret" },
+          },
+        }),
+      ),
+    ).rejects.toThrow(
+      /AI Extract node: all candidate models in fallback chain failed: \[openai:gpt-4o\]: OpenAI Rate limited; \[anthropic:claude-3-5-sonnet\]: Anthropic Overloaded/,
+    );
+  });
 });
 
 describe("buildExtractionSchema", () => {

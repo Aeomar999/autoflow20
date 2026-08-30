@@ -340,4 +340,58 @@ describe("AI_LLM execute", () => {
       new NonRetriableError("AI Chat node: model returned an empty response"),
     );
   });
+
+  it("falls back to secondary model when primary fails and records the served model", async () => {
+    mockGenerateText
+      .mockRejectedValueOnce(new Error("OpenAI 429 Too Many Requests"))
+      .mockResolvedValueOnce({
+        steps: [{ content: [{ type: "text", text: "Claude response" }] }],
+      });
+
+    const result = await execute(
+      makeParams({
+        data: {
+          ...defaultData,
+          model: "openai:gpt-4o",
+          fallbackModels: "anthropic:claude-3-5-sonnet",
+        },
+        credentials: {
+          openaiCredentialId: secret,
+          anthropicCredentialId: { apiKey: "ant-secret" },
+        },
+      }),
+    );
+
+    expect(mockGenerateText).toHaveBeenCalledTimes(2);
+    const reply = storedReply<{ text: string; model: string }>(
+      result,
+      "chatReply",
+    );
+    expect(reply.text).toBe("Claude response");
+    expect(reply.model).toBe("anthropic:claude-3-5-sonnet");
+  });
+
+  it("throws detailed error when all candidates in fallback chain fail", async () => {
+    mockGenerateText
+      .mockRejectedValueOnce(new Error("OpenAI outage"))
+      .mockRejectedValueOnce(new Error("Anthropic 503 Overloaded"));
+
+    await expect(
+      execute(
+        makeParams({
+          data: {
+            ...defaultData,
+            model: "openai:gpt-4o",
+            fallbackModels: "anthropic:claude-3-5-sonnet",
+          },
+          credentials: {
+            openaiCredentialId: secret,
+            anthropicCredentialId: { apiKey: "ant-secret" },
+          },
+        }),
+      ),
+    ).rejects.toThrow(
+      /AI Chat node: all candidate models in fallback chain failed: \[openai:gpt-4o\]: OpenAI outage; \[anthropic:claude-3-5-sonnet\]: Anthropic 503 Overloaded/,
+    );
+  });
 });
