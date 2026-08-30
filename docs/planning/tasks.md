@@ -589,7 +589,7 @@ Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hub
 
 ## M5 — Multi-model AI + cost · 3 weeks
 
-- ⬜ **AF-M5-01** Provider registry with capabilities and per-1M pricing as data (OpenAI, Anthropic, Google, Groq, DeepSeek, Ollama) · 2d
+- [x] **AF-M5-01** Provider registry with capabilities and per-1M pricing as data (OpenAI, Anthropic, Google, Groq, DeepSeek, Ollama) · 2d — **done**: `src/lib/ai/registry.ts` — 6 provider defs + 12 model defs keyed `provider:model` with adapter, contextWindow, capabilities, per-1M input/output USD; `resolveAiModel` (exact → provider default → `UnknownAiModelError`; ADR-0009 documents the §5.4 deviation), `estimateRunCostUsd`, module-load `validateAiRegistry` (dup ids, provider/credential drift, unknown adapters/capabilities fail the build). `groq.apiKey` + `deepseek.apiKey` credential defs, write/update schema variants, and `/models` connection testers added in lockstep (ADR-0008 pattern); registry-parity tests auto-cover them. Full suite 478 total (461 passed, 17 skipped), tsc + lint clean. ADR-0009.
 - ⬜ **AF-M5-02** `ai.llm` node: model select, prompts with expressions, params, JSON mode with user schema · 3d
 - ⬜ **AF-M5-03** `ai.extract` node: structured extraction to a user-defined schema · 2d
 - ⬜ **AF-M5-04** Fallback chains; the trace records which model actually served the run · 2d

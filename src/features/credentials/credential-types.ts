@@ -290,6 +290,37 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
     ],
   },
   {
+    type: "groq.apiKey",
+    kind: "apiKey",
+    label: "Groq API key",
+    description:
+      "Low-latency inference on Groq LPU-accelerated hardware (OpenAI-compatible)",
+    testable: true,
+    fields: [
+      {
+        key: "apiKey",
+        label: "API key",
+        secret: true,
+        placeholder: "gsk_...",
+      },
+    ],
+  },
+  {
+    type: "deepseek.apiKey",
+    kind: "apiKey",
+    label: "DeepSeek API key",
+    description: "DeepSeek chat and reasoner models (OpenAI-compatible)",
+    testable: true,
+    fields: [
+      {
+        key: "apiKey",
+        label: "API key",
+        secret: true,
+        placeholder: "sk-...",
+      },
+    ],
+  },
+  {
     type: "openaiCompatible.apiKey",
     kind: "apiKey",
     label: "OpenAI-compatible API key",

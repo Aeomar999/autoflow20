@@ -48,6 +48,10 @@ export const credentialWriteVariants = [
   z
     .object({ type: z.literal("gemini.apiKey"), apiKey: requiredSecret })
     .strict(),
+  z.object({ type: z.literal("groq.apiKey"), apiKey: requiredSecret }).strict(),
+  z
+    .object({ type: z.literal("deepseek.apiKey"), apiKey: requiredSecret })
+    .strict(),
   z
     .object({
       type: z.literal("slack.oauth2"),
@@ -157,6 +161,10 @@ export const credentialUpdateVariants = [
     .strict(),
   z
     .object({ type: z.literal("gemini.apiKey"), apiKey: optionalSecret })
+    .strict(),
+  z.object({ type: z.literal("groq.apiKey"), apiKey: optionalSecret }).strict(),
+  z
+    .object({ type: z.literal("deepseek.apiKey"), apiKey: optionalSecret })
     .strict(),
   z
     .object({

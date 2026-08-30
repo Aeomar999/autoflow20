@@ -51,3 +51,6 @@ Each with the reason it lost.
 | [0004](0004-credential-envelope-encryption.md) | Envelope encryption for credentials | Accepted |
 | [0005](0005-tenancy-timing.md) | Introduce tenancy at M6, not later | Accepted |
 | [0006](0006-expressions-not-eval.md) | Expressions are parsed, not evaluated | Accepted |
+| [0007](0007-handlebars-runtime-compilation.md) | Handlebars runtime compilation kept, sandboxed | Accepted |
+| [0008](0008-credential-model-registry-and-api.md) | Credential model + registry + API (no plaintext read path) | Accepted |
+| [0009](0009-ai-provider-registry.md) | AI provider registry with capability + pricing data | Accepted |
