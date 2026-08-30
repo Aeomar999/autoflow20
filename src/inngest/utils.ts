@@ -4,6 +4,8 @@ import { inngest } from "./client";
 
 export const sendWorkflowExecution = async (data: {
   workflowId: string;
+  userId?: string;
+  organizationId?: string;
   initialData?: Record<string, unknown>;
   executionId?: string;
   skipNodes?: string[];
@@ -16,6 +18,8 @@ export const sendWorkflowExecution = async (data: {
     name: "workflows/execute.workflow",
     data: {
       workflowId: data.workflowId,
+      ...(data.userId ? { userId: data.userId } : {}),
+      ...(data.organizationId ? { organizationId: data.organizationId } : {}),
       ...(data.executionId ? { executionId: data.executionId } : {}),
       ...(data.skipNodes && data.skipNodes.length > 0
         ? { skipNodes: data.skipNodes }

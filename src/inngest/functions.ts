@@ -80,11 +80,11 @@ export const executeWorkflow = inngest.createFunction(
     retries: ENGINE_RETRIES,
     concurrency: [
       {
-        key: "workflowId",
+        key: "event.data.workflowId",
         limit: 1,
       },
       {
-        key: "organizationId",
+        key: "event.data.organizationId || event.data.userId || event.data.workflowId",
         limit: 10,
       },
     ],

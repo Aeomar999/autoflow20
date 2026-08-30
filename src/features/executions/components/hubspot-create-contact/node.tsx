@@ -59,7 +59,6 @@ export const HubSpotCreateContactNode = memo(
         />
         <BaseExecutionNode
           {...props}
-          id={props.id}
           icon={Contact}
           name="HubSpot Create Contact"
           status={nodeStatus}

@@ -61,7 +61,6 @@ export const EmailSendNode = memo((props: NodeProps<EmailSendNodeType>) => {
       />
       <BaseExecutionNode
         {...props}
-        id={props.id}
         icon={Mail}
         name="Send Email"
         status={nodeStatus}

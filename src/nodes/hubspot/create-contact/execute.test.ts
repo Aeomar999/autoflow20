@@ -82,7 +82,10 @@ describe("HUBSPOT_CREATE_CONTACT execute", () => {
     const result = await execute(makeParams());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    const [url, options] = fetchMock.mock.calls[0] as unknown as [
+      URL,
+      RequestInit,
+    ];
 
     expect(url.pathname).toBe("/crm/v3/objects/contacts");
     expect(options.method).toBe("POST");
@@ -132,7 +135,10 @@ describe("HUBSPOT_CREATE_CONTACT execute", () => {
       }),
     );
 
-    const [, options] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    const [, options] = fetchMock.mock.calls[0] as unknown as [
+      URL,
+      RequestInit,
+    ];
     const body = JSON.parse(String(options.body)) as {
       properties: { firstname: string };
     };

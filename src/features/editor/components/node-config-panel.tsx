@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useId, useMemo, useRef, useState, useEffect } from "react";
+import { CronExpressionParser } from "cron-parser";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type ResolvedConfigField,
   resolveConfigFields,
@@ -8,7 +16,6 @@ import {
 } from "@/features/editor/lib/config-schema";
 import type { EditorNode } from "@/features/editor/store/atoms";
 import type { NodeDefinition } from "@/nodes/types";
-import { CronExpressionParser } from "cron-parser";
 
 function CronPreview({ cronStr }: { cronStr: string }) {
   const [preview, setPreview] = useState<string[]>([]);
@@ -24,22 +31,24 @@ function CronPreview({ cronStr }: { cronStr: string }) {
       ];
       setPreview(nextRuns);
       setError(null);
-    } catch (err: any) {
+    } catch (err) {
       setPreview([]);
-      setError(err.message || "Invalid cron expression");
+      setError(err instanceof Error ? err.message : "Invalid cron expression");
     }
   }, [cronStr]);
 
   if (error) {
-    return <div className="text-[10px] text-destructive mt-1">Error: {error}</div>;
+    return (
+      <div className="text-[10px] text-destructive mt-1">Error: {error}</div>
+    );
   }
 
   return (
     <div className="mt-2 rounded bg-muted/50 p-2 text-xs text-muted-foreground border border-border">
       <p className="font-semibold text-foreground mb-1">Next runs (UTC)</p>
       <ul className="list-disc pl-4 space-y-0.5">
-        {preview.map((p, i) => (
-          <li key={i}>{new Date(p).toLocaleString()}</li>
+        {preview.map((p) => (
+          <li key={p}>{new Date(p).toLocaleString()}</li>
         ))}
       </ul>
     </div>

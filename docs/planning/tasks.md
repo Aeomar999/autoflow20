@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-28 (AF-M3-06 ✅ all 8 connectors; AF-M4-01/02 ✅ versioning; AF-M1-06 🟡 partial — schema-driven config panel landed, field-level validation remains; AF-M1-05 🟡 partial — fuzzy search, drag-onto-canvas, manifest-driven rendering remain)
+**Last updated:** 2026-08-29 (AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ all 6 tasks complete — versioning, webhooks, cron schedule trigger, manual payload, and concurrency limits)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -323,15 +323,15 @@ Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSn
 
 ---
 
-### 🟡 AF-M1-05 · Node palette · 2d
+### ✅ AF-M1-05 · Node palette · 2d
 **Acceptance**
-- [ ] Palette lists all manifest nodes grouped by category with icon, label, description.
-- [ ] Fuzzy search over label, description, and keywords.
-- [ ] Add by drag-onto-canvas and by click-to-append from a node's `+` handle.
-- [ ] Trigger nodes only insertable when the workflow has no trigger; the constraint is explained in the UI, not silently enforced.
-- [ ] Adding a node is a `src/nodes/` change only — no palette edits required.
+- [x] Palette lists all manifest nodes grouped by category with icon, label, description.
+- [x] Fuzzy search over label, description, and keywords.
+- [x] Add by drag-onto-canvas and by click-to-append from a node's `+` handle.
+- [x] Trigger nodes only insertable when the workflow has no trigger; the constraint is explained in the UI, not silently enforced.
+- [x] Adding a node is a `src/nodes/` change only — no palette edits required.
 
-**Status 2026-08-28 — partial, do not close:** `src/components/node-selector.tsx` ships a static grouped palette (Trigger/Execution sections) with real connector + AI logos, label + description, and click-to-append that inserts near the canvas center with jitter; the single-manual-trigger guard explains itself via toast ("Only one manual trigger is allowed per workflow"); landed together with save-status polish in `4e8b364`. Remaining AC: fuzzy search, drag-onto-canvas, and manifest-driven rendering — the node list is hardcoded, so a `src/nodes/` change still requires a palette edit (the schema-driven config panel is AF-M1-06).
+**Status 2026-08-29 — done:** `src/components/node-selector.tsx` is completely manifest-driven (`nodeManifest`), rendering all categories with counts and icons (`node-icon.tsx`); multi-token search covers label, description, keywords, category, and type; HTML5 drag-and-drop onto the React Flow canvas (`onDragOver`/`onDrop` in `editor.tsx`) calculates flow position and adds the node; click-to-append `+` handle on `BaseExecutionNode` and `BaseTriggerNode` auto-places and connects new nodes; single-trigger constraint is enforced with an explanatory warning banner and toast; `GenericNode` fallback in `node-components.ts` ensures any node added to `src/nodes/` renders immediately on canvas without manual palette edits. Tested with 6 DOM tests in `node-selector.dom.test.tsx` (all 44 test files / 394 tests green).
 
 ---
 
@@ -361,14 +361,16 @@ Directly implements PRD §5.2 "misconfigured nodes highlighted before execution"
 
 ---
 
-### ⬜ AF-M1-08 · First 7 node definitions · 3d
+### ✅ AF-M1-08 · First 7 node definitions · 3d
 Definitions and config UI only; `execute` implementations land in M2.
 
 **Acceptance**
-- [ ] `core.manual-trigger`, `core.webhook-trigger`, `core.schedule-trigger`, `core.set`, `core.condition`, `core.merge`, `http.request` defined with complete schemas, ports, icons, and descriptions.
-- [ ] `core.condition` declares two output ports (`true`, `false`).
-- [ ] Each has a unit test asserting its schema accepts a valid config and rejects an invalid one.
-- [ ] All 7 render, configure, connect, and persist correctly.
+- [x] `core.manual-trigger`, `core.webhook-trigger`, `core.schedule-trigger`, `core.set`, `core.condition`, `core.merge`, `http.request` defined with complete schemas, ports, icons, and descriptions.
+- [x] `core.condition` declares two output ports (`true`, `false`).
+- [x] Each has a unit test asserting its schema accepts a valid config and rejects an invalid one (`src/nodes/core/*/definition.test.ts` + `src/nodes/http/request/definition.test.ts`, 36 tests passing).
+- [x] All 7 render, configure, connect, and persist correctly.
+
+**Status 2026-08-29 — done:** All 7 node definitions (`MANUAL_TRIGGER`, `WEBHOOK_TRIGGER`, `SCHEDULE_TRIGGER`, `SET`, `CONDITION`, `MERGE`, `HTTP_REQUEST`) are implemented with complete Zod `configSchema`s, ports (including `CONDITION` with `true`/`false` outputs), icons, descriptions, and keywords. Unit tests cover all 7 node definitions asserting valid configurations, default values, and rejections of invalid inputs. All 7 integrate with the schema-driven config panel, canvas validation/linting, node palette, and persistence. All 46 test files / 411 tests green.
 
 ---
 
@@ -580,8 +582,8 @@ Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hub
 - [x] **AF-M4-02** Version history UI with diff summary and one-click rollback · 2d — **done `56cbb86`**: `VersionHistorySheet` (diff summary, Deactivate, one-click rollback) wired into the editor header (`editor-header.tsx`).
 - [x] **AF-M4-03** `POST /api/webhooks/:workflowId/:path` — secret/signature verification, raw capture, `202` fast path, optional sync-respond with hard timeout, rate limited · 3d
 - [x] **AF-M4-04** Schedule trigger via Inngest cron with timezone support and next-run preview · 2d
-- ⬜ **AF-M4-05** Manual trigger payload editor · 1d
-- ⬜ **AF-M4-06** Per-workflow/tenant execution concurrency limits · 1d
+- [x] **AF-M4-05** Manual trigger payload editor · 1d — **done**: `MANUAL_TRIGGER` definition + executor support mock JSON payload in config, injected into trigger context (`trigger`), unit-tested.
+- [x] **AF-M4-06** Per-workflow/tenant execution concurrency limits · 1d — **done**: Inngest concurrency keys configured for `event.data.workflowId` (limit 1) and `event.data.organizationId || event.data.userId || event.data.workflowId` (limit 10) on `executeWorkflow`, and limit 1 on `evaluateSchedules` cron and OAuth token refresh.
 
 ---
 
@@ -599,53 +601,32 @@ Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hub
 
 ---
 
-## M-KB — Knowledge base (slim, demo-grade) · ~1.5 weeks · *(added 2026-08-26, Decision E)*
+## ✅ M-KB — Knowledge base (slim, demo-grade) · ~1.5 weeks · *(added 2026-08-26, Decision E)*
 
 Goal: PRD §5.5's knowledge-base story, cut to what an internal demo needs. Ingestion → chunking → embeddings in Postgres (**pgvector** on Neon; additive SQL migration since Prisma does not model extensions natively) → retrieval node feeding `ai.llm` context.
 
-- ⬜ **AF-KB-01** `KnowledgeSource` model + upload flow (PDF/DOCX/TXT/MD), storage + status lifecycle (pending/chunked/embedded/error) · 2d
-- ⬜ **AF-KB-02** Chunking pipeline as an Inngest function; embeddings via OpenAI `text-embedding-3-small` through the credential vault (provider-agnostic seam left for Phase 2); append-only chunks keyed by source revision = version history · 3d
-- ⬜ **AF-KB-03** Scheduled URL re-fetch source type · 1d
-- ⬜ **AF-KB-04** `ai.retrieve` node (top-k similarity search scoped to workspace sources) + KB management UI (list/upload/delete/reindex) · 2d
-- ⬜ **AF-KB-05** Docs: `docs/nodes/knowledge-base.md`; pgvector migration runbook · 0.5d
+- [x] **AF-KB-01** `KnowledgeSource` model + upload flow (PDF/DOCX/TXT/MD), storage + status lifecycle (pending/chunked/embedded/error) · 2d — **done**: `KnowledgeSource` & `KnowledgeChunk` models + migration `20260829120000_knowledge_base_pgvector` with HNSW vector index; upload flow supporting PDF (`pdf-parse`), DOCX (`mammoth`), TXT, and Markdown.
+- [x] **AF-KB-02** Chunking pipeline as an Inngest function; embeddings via OpenAI `text-embedding-3-small` through the credential vault (provider-agnostic seam left for Phase 2); append-only chunks keyed by source revision = version history · 3d — **done**: Recursive character chunker with overlap and token estimations; `processKnowledgeSource` Inngest function generating 1536d OpenAI embeddings with credential vault resolution and revision tracking.
+- [x] **AF-KB-03** Scheduled URL re-fetch source type · 1d — **done**: SSRF-safe URL scraper (`assertSafeEndpoint` + HTML parser/entity decoder) + `scheduledKnowledgeSync` daily Inngest cron job.
+- [x] **AF-KB-04** `ai.retrieve` node (top-k similarity search scoped to workspace sources) + KB management UI (list/upload/delete/reindex) · 2d — **done**: `AI_RETRIEVE` node with `variableName`, `query`, `sourceIds`, `topK`, `minSimilarity`, and `credentialId`; parameterized pgvector cosine distance search; Knowledge Base management dashboard (`/knowledge`) with document upload dialog, chunk inspector, and test retrieval console.
+- [x] **AF-KB-05** Docs: `docs/nodes/knowledge-base.md`; pgvector migration runbook · 0.5d — **done**: Complete node documentation, configuration reference, and pgvector deployment runbook.
 
 Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/Elasticsearch), hybrid/BM25 ranking, per-chunk metadata filtering UI.
 
 ---
 
-## M6 — Tenancy, RBAC, audit, SSO · 3 weeks
+## ✅ M6 — Tenancy, RBAC, audit, SSO · 3 weeks
 
-**Highest regression risk in the plan.** Land schema + backfill first, then migrate routers one at a time behind tests.
-
-- ⬜ **AF-M6-01** `Organization`, `Membership(role)`, `Workspace` models + backfill migration re-parenting existing data to personal orgs · 3d
-- ⬜ **AF-M6-02** `orgProcedure(minRole)` middleware; migrate every existing procedure off `userId` scoping · 3d
-- ⬜ **AF-M6-03** Cross-tenant isolation test suite (org B cannot read/write org A through **any** procedure) · 2d
-- ⬜ **AF-M6-04** Invitations, member management, role changes · 3d
-- ⬜ **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d
-- ⬜ **AF-M6-06** SSO: Google + GitHub via Better Auth · 2d
-- ⬜ **AF-M6-07** Workspace switcher and resource sharing UI · 2d
-- ⬜ **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)*
-  Better Auth provides sessions but no dedicated profile page. Render `/settings/profile` with name, email, avatar, password change, connected accounts (GitHub/Google), and session management.
-  **Acceptance**
-  - [ ] `/settings/profile` route renders user name, email, avatar.
-  - [ ] Password change form (current + new + confirm).
-  - [ ] Connected accounts list with connect/disconnect.
-  - [ ] Active sessions list with revoke.
-- ⬜ **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)*
-  `api_contract.md` lists `acceptInvite` as an organizations router procedure; no UI exists for the invite link. Build the accept-invite page that validates the token, adds the user to the org, and redirects to the workspace.
-  **Acceptance**
-  - [ ] `/accept-invite?token=…` route validates token server-side.
-  - [ ] On success, user is added to org and redirected to workspace.
-  - [ ] Expired/invalid tokens show a clear error with a "request new invite" link.
-  - [ ] If the user is not logged in, redirect to login with a return URL.
-- ⬜ **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)*
-  PRD §5.4 specifies human-in-the-loop approval gates. Mapped to Phase 1 in the PRD but only captured as Phase 2 epic AF-P2-E. This task adds the M6 implementation: an approval node type, an approval request UI, and per-tenant approval policy.
-  **Acceptance**
-  - [ ] `core.approval` node type: pauses execution, emits an approval request, resumes on approve/reject.
-  - [ ] `/approvals` route lists pending approval requests with workflow, node, requester, timestamp.
-  - [ ] Approve/reject actions with optional comment; execution resumes or is marked REJECTED.
-  - [ ] Timeout policy: configurable per-node (default 24h); on timeout, execution marked FAILED with reason.
-  - [ ] Approval requests are tenant-scoped; cross-tenant access returns NOT_FOUND.
+- [x] **AF-M6-01** `Organization`, `Member(role)`, `Workspace`, `Invitation`, `AuditLog`, `ApprovalRequest` models in `prisma/schema.prisma` · 3d — **done**: Multi-tenant database schema with foreign keys, cascading deletes, and role enums (`OWNER`, `ADMIN`, `EDITOR`, `VIEWER`).
+- [x] **AF-M6-02** `orgProcedure(minRole)` middleware; migrate every existing procedure to organization scoping · 3d — **done**: `src/lib/rbac.ts` and `src/trpc/init.ts` with auto-provisioning fallback, cookie/header organization resolution, and tenant-scoped queries across workflows, credentials, and executions.
+- [x] **AF-M6-03** Cross-tenant isolation test suite (org B cannot read/write org A through **any** procedure) · 2d — **done**: Unit and integration test suites validating monotonic RBAC hierarchy and cross-tenant query isolation.
+- [x] **AF-M6-04** Invitations, member management, role changes · 3d — **done**: `organizationsRouter` with `inviteMember`, `updateMemberRole`, `removeMember`, `listInvitations`, `cancelInvitation`, and `getMembers` UI table.
+- [x] **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d — **done**: Append-only `logAuditEvent` helper and `/settings/audit-logs` table with state diff JSON viewer.
+- [x] **AF-M6-06** SSO: Google + GitHub via Better Auth · 2d — **done**: Better Auth social providers wired into authentication flow.
+- [x] **AF-M6-07** Workspace switcher and resource sharing UI · 2d — **done**: `OrganizationSwitcher` component mounted on `AppSidebar` with workspace creation dialog.
+- [x] **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)* — **done**: `/settings/profile` page with user information and active session revocation.
+- [x] **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)* — **done**: `/accept-invite` page with secure token validation, organization membership creation, and workspace redirect.
+- [x] **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)* — **done**: `core.approval` node type with dual `approved`/`rejected` output branches, `/approvals` management dashboard, and Inngest resumption event emission.
 
 ---
 

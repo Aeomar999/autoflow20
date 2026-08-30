@@ -56,7 +56,6 @@ export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
       />
       <BaseExecutionNode
         {...props}
-        id={props.id}
         icon={GlobeIcon}
         name="HTTP Request"
         status={nodeStatus}

@@ -3,6 +3,7 @@ import aiAnthropic from "./ai/anthropic";
 import aiCompatible from "./ai/compatible";
 import aiGemini from "./ai/gemini";
 import aiOpenai from "./ai/openai";
+import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
 import coreCondition from "./core/condition";
 import coreManualTrigger from "./core/manual-trigger";
@@ -173,6 +174,7 @@ export const nodeRegistry = createNodeRegistry(
     aiCompatible,
     aiGemini,
     aiOpenai,
+    aiRetrieve,
     discordSendMessage,
     slackSendMessage,
     emailSend,

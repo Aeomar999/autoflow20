@@ -1,5 +1,6 @@
 "use client";
 
+import { createId } from "@paralleldrive/cuid2";
 import {
   addEdge,
   applyEdgeChanges,
@@ -17,7 +18,9 @@ import {
 } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { ErrorView, LoadingView } from "@/components/entity-components";
+import { NodeSelector } from "@/components/node-selector";
 import { nodeComponents } from "@/config/node-components";
 import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
 import { findManifestEntry } from "@/nodes/manifest";
@@ -158,6 +161,62 @@ export const Editor = memo(function Editor({
     [nodes],
   );
 
+  const editorInstance = useAtomValue(editorAtom);
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer.getData("application/reactflow");
+      if (!type) return;
+
+      const definition = findManifestEntry(type);
+      if (!definition) return;
+
+      if (definition.category === "TRIGGER") {
+        const hasTrigger = nodes.some((n) => {
+          if (n.type === "INITIAL") return true;
+          const def = n.type ? findManifestEntry(n.type) : undefined;
+          return def?.category === "TRIGGER";
+        });
+        if (hasTrigger) {
+          toast.error(
+            "Workflows can only have one trigger. Remove the existing trigger to add a new one.",
+          );
+          return;
+        }
+      }
+
+      const flowPosition = editorInstance?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      }) ?? { x: 0, y: 0 };
+
+      const hasInitialTrigger = nodes.some((node) => node.type === "INITIAL");
+
+      const newNode: EditorNode = {
+        id: createId(),
+        type: definition.type,
+        data: {},
+        name: definition.label,
+        position: flowPosition,
+      };
+
+      if (hasInitialTrigger) {
+        setNodes([newNode]);
+      } else {
+        setNodes((prev) => [...prev, newNode]);
+      }
+      setSaveStatus("unsaved");
+    },
+    [editorInstance, nodes, setNodes, setSaveStatus],
+  );
+
   return (
     <div className="relative size-full">
       <NodeStatusProvider>
@@ -168,6 +227,8 @@ export const Editor = memo(function Editor({
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onSelectionChange={onSelectionChange}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
           nodeTypes={nodeComponents}
           onInit={setEditor}
           fitView
@@ -204,6 +265,7 @@ export const Editor = memo(function Editor({
           onNodeChange={patchSelectedNode}
         />
       ) : null}
+      <NodeSelector />
     </div>
   );
 });

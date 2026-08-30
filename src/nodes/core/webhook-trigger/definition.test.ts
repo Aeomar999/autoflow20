@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { definition } from "./definition";
+import { configSchema, definition } from "./definition";
 
 describe("WEBHOOK_TRIGGER definition", () => {
   it("exports a valid NodeDefinition", () => {
@@ -18,5 +18,14 @@ describe("WEBHOOK_TRIGGER definition", () => {
 
   it("has one output", () => {
     expect(definition.outputs).toHaveLength(1);
+  });
+
+  it("accepts empty or absent config", () => {
+    expect(configSchema.safeParse({}).success).toBe(true);
+    expect(configSchema.safeParse(undefined).success).toBe(true);
+  });
+
+  it("rejects non-object config", () => {
+    expect(configSchema.safeParse(12345).success).toBe(false);
   });
 });

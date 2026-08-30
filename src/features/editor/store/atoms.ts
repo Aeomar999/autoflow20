@@ -27,3 +27,7 @@ export const saveStatusAtom = atom<SaveStatus>("saved");
 export const validationResultAtom = atom((get) =>
   validate(toGraph(get(nodesAtom), get(edgesAtom)), clientNodeRegistry),
 );
+
+/** When set, selecting a node in the palette will append and connect it to this node (AF-M1-05). */
+export const appendSourceNodeIdAtom = atom<string | null>(null);
+export const nodeSelectorOpenAtom = atom<boolean>(false);

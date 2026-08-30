@@ -106,7 +106,7 @@ describe("OPENAI_COMPATIBLE_CHAT execute", () => {
 
     expect(mockKy).toHaveBeenCalledTimes(1);
     const [argUrl, options] = mockKy.mock.calls[0] as [
-      string,
+      URL,
       Record<string, unknown>,
     ];
 
@@ -164,7 +164,7 @@ describe("OPENAI_COMPATIBLE_CHAT execute", () => {
     );
 
     const [argUrl, options] = mockKy.mock.calls[0] as [
-      string,
+      URL,
       Record<string, unknown>,
     ];
     expect(new URL(String(argUrl)).href).toBe(
@@ -182,10 +182,7 @@ describe("OPENAI_COMPATIBLE_CHAT execute", () => {
   it("sends only the user message when no system prompt is configured", async () => {
     await execute(makeParams({ data: { ...baseData, systemPrompt: "" } }));
 
-    const [, options] = mockKy.mock.calls[0] as [
-      string,
-      Record<string, unknown>,
-    ];
+    const [, options] = mockKy.mock.calls[0] as [URL, Record<string, unknown>];
     const body = options.json as {
       messages: Array<{ role: string; content: string }>;
     };

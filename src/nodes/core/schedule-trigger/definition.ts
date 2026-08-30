@@ -11,8 +11,7 @@ export const definition: NodeDefinition = {
   version: 1,
   category: "TRIGGER",
   label: "Schedule Trigger",
-  description:
-    "Start the workflow on a schedule (cron).",
+  description: "Start the workflow on a schedule (cron).",
   icon: "Clock",
   keywords: ["schedule", "cron", "timer", "trigger", "periodic"],
   configSchema,

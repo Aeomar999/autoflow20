@@ -55,7 +55,6 @@ export const WebhookOutNode = memo((props: NodeProps<WebhookOutNodeType>) => {
       />
       <BaseExecutionNode
         {...props}
-        id={props.id}
         icon={Webhook}
         name="Webhook"
         status={nodeStatus}

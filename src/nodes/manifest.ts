@@ -2,6 +2,7 @@ import { definition as aiAnthropic } from "./ai/anthropic/definition";
 import { definition as aiCompatible } from "./ai/compatible/definition";
 import { definition as aiGemini } from "./ai/gemini/definition";
 import { definition as aiOpenai } from "./ai/openai/definition";
+import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
 import { definition as coreCondition } from "./core/condition/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
@@ -48,6 +49,7 @@ export const nodeManifest: NodeDefinition[] = [
   aiCompatible,
   aiGemini,
   aiOpenai,
+  aiRetrieve,
   discordSendMessage,
   slackSendMessage,
   emailSend,

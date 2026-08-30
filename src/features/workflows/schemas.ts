@@ -61,6 +61,7 @@ export const updateNodeSchemas = [
   makeNodeSchema("HUBSPOT_CREATE_CONTACT", configOf("HUBSPOT_CREATE_CONTACT")),
   makeNodeSchema("POSTGRES_QUERY", configOf("POSTGRES_QUERY")),
   makeNodeSchema("OPENAI_COMPATIBLE_CHAT", configOf("OPENAI_COMPATIBLE_CHAT")),
+  makeNodeSchema("AI_RETRIEVE", configOf("AI_RETRIEVE")),
 ] as const;
 
 export const saveWorkflowInputSchema = z.object({

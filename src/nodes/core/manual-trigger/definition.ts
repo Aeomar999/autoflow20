@@ -1,11 +1,13 @@
+import { z } from "zod";
 import type { NodeDefinition } from "@/nodes/types";
-import { triggerDataSchema } from "../../shared/config-fields";
 
 /**
- * Transitional type id: the raw Prisma enum value. M1-02 migrates persisted
- * ids to "core.manual-trigger" (and folds the legacy INITIAL alias away).
+ * Manual trigger configuration: supports an optional mock JSON payload
+ * for testing and manual execution (AF-M4-05).
  */
-export const configSchema = triggerDataSchema;
+export const configSchema = z.object({
+  payload: z.string().optional(),
+});
 
 export const definition: NodeDefinition = {
   type: "MANUAL_TRIGGER",
@@ -16,7 +18,6 @@ export const definition: NodeDefinition = {
   icon: "MousePointer",
   keywords: ["manual", "run", "start", "trigger"],
   configSchema,
-  // z.object({}).optional() parses {} to {}; the engine seeds context itself.
   defaults: {},
   inputs: [],
   outputs: [{ id: "main", label: "Out" }],

@@ -46,7 +46,12 @@ export const workflowsRouter = createTRPCRouter({
    * navigate to the detail page immediately.
    */
   run: protectedProcedure
-    .input(z.object({ id: z.string() }))
+    .input(
+      z.object({
+        id: z.string(),
+        initialData: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: {
@@ -69,7 +74,9 @@ export const workflowsRouter = createTRPCRouter({
 
       const { eventId } = await sendWorkflowExecution({
         workflowId: workflow.id,
+        userId: ctx.auth.user.id,
         executionId: execution.id,
+        initialData: input.initialData,
       });
 
       await prisma.execution.update({
@@ -144,6 +151,7 @@ export const workflowsRouter = createTRPCRouter({
 
       const { eventId } = await sendWorkflowExecution({
         workflowId: workflow.id,
+        userId: ctx.auth.user.id,
         executionId: execution.id,
         graphSnapshot: plan.graphSnapshot,
         skipNodes: plan.skipNodes,
