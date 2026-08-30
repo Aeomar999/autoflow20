@@ -59,5 +59,6 @@ next-env.d.ts
 /screens/
 /apply_migration.js
 /check_migrations.js
+/test-results/
 
 
