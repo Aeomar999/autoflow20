@@ -45,6 +45,11 @@ const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams => ({
   nodeId: "node_1",
   userId: "user_1",
   context: { data: { userId: "usr_123" } },
+  data: {
+    variableName: "delivery",
+    url: "https://example.com/hook",
+    body: '{"event": "created", "userId": "{{data.userId}}"}',
+  },
   step,
   publish,
   ...overrides,

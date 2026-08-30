@@ -9,7 +9,7 @@ const { mockClient, mockClientInstance } = vi.hoisted(() => {
     end: vi.fn(async () => {}),
   };
   return {
-    mockClient: vi.fn(() => mockClientInstance),
+    mockClient: vi.fn((_config: unknown) => mockClientInstance),
     mockClientInstance,
   };
 });
@@ -49,7 +49,7 @@ const postgresSecret = {
   database: "app",
   username: "app_user",
   password: "relay-pass",
-  ssl: undefined,
+  ssl: "no",
 };
 
 const baseData = {

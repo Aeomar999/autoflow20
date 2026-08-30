@@ -49,7 +49,6 @@ const publish = vi.fn(async () => {});
 
 const googleSecret = {
   accessToken: "ya29.token-value",
-  refreshToken: undefined,
   scopes: "https://www.googleapis.com/auth/spreadsheets",
 };
 
@@ -83,7 +82,10 @@ describe("GOOGLE_SHEETS_APPEND execute", () => {
     const result = await execute(makeParams());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    const [url, options] = fetchMock.mock.calls[0] as unknown as [
+      URL,
+      RequestInit,
+    ];
 
     expect(url.pathname).toBe(
       "/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/values/Sheet1:append",
@@ -135,7 +137,7 @@ describe("GOOGLE_SHEETS_APPEND execute", () => {
       }),
     );
 
-    const [url] = fetchMock.mock.calls[0] as [URL];
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
     expect(url.pathname).toContain("/values/Leads!A2:C:append");
   });
 
