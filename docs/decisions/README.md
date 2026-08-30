@@ -54,3 +54,4 @@ Each with the reason it lost.
 | [0007](0007-handlebars-runtime-compilation.md) | Handlebars runtime compilation kept, sandboxed | Accepted |
 | [0008](0008-credential-model-registry-and-api.md) | Credential model + registry + API (no plaintext read path) | Accepted |
 | [0009](0009-ai-provider-registry.md) | AI provider registry with capability + pricing data | Accepted |
+| [0010](0010-org-level-plan-as-quota-source.md) | Org-level `Organization.plan` is the quota source of truth | Accepted |
