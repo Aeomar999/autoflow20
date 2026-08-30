@@ -1,10 +1,10 @@
 import type { EditorNode } from "@/features/editor/store/atoms";
+import type { AiModelDef, AiProviderId } from "@/lib/ai/registry";
 import {
   aiModelId,
   aiProviderById,
-  defaultAiModelId,
   estimateRunCostUsd,
-  resolveAiModel,
+  findAiModel,
 } from "@/lib/ai/registry";
 
 export interface NodeCostEstimate {
@@ -64,6 +64,8 @@ const DEFAULT_EXTRACT_OUTPUT_TOKENS = 256;
 
 /**
  * Resolves a model ID string from node configuration or defaults for known AI node types.
+ * Non-throwing: unknown providers/models fall through to the raw string (the estimator
+ * then prices it at $0) rather than surfacing a registry resolution error on the canvas.
  */
 function resolveNodeModel(
   type: string,
@@ -73,28 +75,23 @@ function resolveNodeModel(
     const raw = data.model.trim();
     const colonIdx = raw.indexOf(":");
     if (colonIdx !== -1) {
-      const provider = raw.slice(0, colonIdx);
+      const provider = raw.slice(0, colonIdx) as AiProviderId;
       const modelHint = raw.slice(colonIdx + 1);
-      try {
-        const def = resolveAiModel(
-          provider as Parameters<typeof resolveAiModel>[0],
-          modelHint,
-        );
+      const def = resolveRegistered(provider, modelHint);
+      if (def) {
         return aiModelId(def.provider, def.model);
-      } catch {
-        return raw;
       }
+      return raw;
     }
-    // Bare provider or model name
-    try {
-      const providerDef = aiProviderById.get(
-        raw as Parameters<typeof defaultAiModelId>[0],
+    // Bare provider name
+    const providerDef = aiProviderById.get(raw as AiProviderId);
+    if (providerDef) {
+      const def = findAiModel(
+        aiModelId(providerDef.id, providerDef.defaultModel),
       );
-      if (providerDef) {
-        return defaultAiModelId(providerDef.id);
+      if (def) {
+        return aiModelId(def.provider, def.model);
       }
-    } catch {
-      // Fall through
     }
     return raw;
   }
@@ -107,6 +104,22 @@ function resolveNodeModel(
   if (type === "ai.extract") return "openai:gpt-4o";
 
   return undefined;
+}
+
+/** Exact model lookup, else the provider's registered default; undefined if either is unknown. */
+function resolveRegistered(
+  provider: AiProviderId,
+  modelHint: string,
+): AiModelDef | undefined {
+  const exact = findAiModel(aiModelId(provider, modelHint));
+  if (exact !== undefined) {
+    return exact;
+  }
+  const providerDef = aiProviderById.get(provider);
+  if (providerDef === undefined) {
+    return undefined;
+  }
+  return findAiModel(aiModelId(provider, providerDef.defaultModel));
 }
 
 /**
@@ -162,11 +175,12 @@ export function estimateNodeCost(node: EditorNode): NodeCostEstimate | null {
       ? Math.round(data.maxTokens)
       : defaultOutputTokens;
 
+  // Price only registered models; unknown provider:model pairs estimate at $0
+  // rather than surfacing a registry resolution error on the canvas.
   let costUsd = 0;
-  try {
+  const modelDef = findAiModel(modelId);
+  if (modelDef !== undefined) {
     costUsd = estimateRunCostUsd(modelId, { inputTokens, outputTokens });
-  } catch {
-    costUsd = 0;
   }
 
   return {
