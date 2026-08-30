@@ -1,40 +1,21 @@
-import { initTRPC, TRPCError } from "@trpc/server";
+import { TRPCError, initTRPC } from "@trpc/server";
 import { headers } from "next/headers";
 import { cache } from "react";
 import superjson from "superjson";
 import { auth } from "@/lib/auth";
 import { polarClient } from "@/lib/polar";
+
 export const createTRPCContext = cache(async () => {
-  /**
-   * Intentionally carries no identity. Authentication happens per-procedure:
-   * `protectedProcedure` resolves the Better Auth session below and exposes
-   * it as `ctx.auth`. Never fabricate or default a userId here - tenant
-   * data must only ever be reached through an authenticated session.
-   *
-   * @see: https://trpc.io/docs/server/context
-   */
   return {};
 });
-// Avoid exporting the entire t-object
-// since it's not very descriptive.
-// For instance, the use of a t variable
-// is common in i18n libraries.
+
 const t = initTRPC.create({
-  /**
-   * @see https://trpc.io/docs/server/data-transformers
-   */
   transformer: superjson,
 });
-// Base router and procedure helpers
+
 export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
 
-/**
- * UNAUTHENTICATED entry point: `ctx` carries no identity, so procedures
- * built on `baseProcedure` must never touch tenant data (workflows,
- * credentials, executions). Use `protectedProcedure` for anything
- * user-scoped - it resolves the Better Auth session into `ctx.auth`.
- */
 export const baseProcedure = t.procedure;
 export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
   const session = await auth.api.getSession({
@@ -50,6 +31,7 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
 
   return next({ ctx: { ...ctx, auth: session } });
 });
+
 export const premiumProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
     const customer = await polarClient.customers.getStateExternal({
