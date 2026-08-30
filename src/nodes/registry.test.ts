@@ -129,6 +129,7 @@ describe("production node registry + manifest", () => {
       ["http", "request"],
       ["ai", "anthropic"],
       ["ai", "compatible"],
+      ["ai", "extract"],
       ["ai", "gemini"],
       ["ai", "llm"],
       ["ai", "openai"],

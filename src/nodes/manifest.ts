@@ -1,5 +1,6 @@
 import { definition as aiAnthropic } from "./ai/anthropic/definition";
 import { definition as aiCompatible } from "./ai/compatible/definition";
+import { definition as aiExtract } from "./ai/extract/definition";
 import { definition as aiGemini } from "./ai/gemini/definition";
 import { definition as aiLlm } from "./ai/llm/definition";
 import { definition as aiOpenai } from "./ai/openai/definition";
@@ -48,6 +49,7 @@ export const nodeManifest: NodeDefinition[] = [
   httpHttpRequest,
   aiAnthropic,
   aiCompatible,
+  aiExtract,
   aiGemini,
   aiLlm,
   aiOpenai,
