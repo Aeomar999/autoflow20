@@ -34,6 +34,7 @@ import {
 } from "../store/atoms";
 import { NodeStatusProvider } from "../store/node-status-context";
 import { AddNodeButton } from "./add-node-button";
+import { CostEstimateBadge } from "./cost-estimate-badge";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
 import { NodeConfigPanel } from "./node-config-panel";
 import {
@@ -246,6 +247,7 @@ export const Editor = memo(function Editor({
           </Panel>
           <Panel position="bottom-center">
             <div className="flex flex-col items-center gap-2 mb-4">
+              <CostEstimateBadge />
               {hasManualTrigger && (
                 <ExecuteWorkflowButton workflowId={workflowId} />
               )}

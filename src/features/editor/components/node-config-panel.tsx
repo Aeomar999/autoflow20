@@ -1,6 +1,7 @@
 "use client";
 
 import { CronExpressionParser } from "cron-parser";
+import { SparklesIcon } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -15,6 +16,10 @@ import {
   resolveConfigFields,
   type UnsupportedConfigFieldError,
 } from "@/features/editor/lib/config-schema";
+import {
+  estimateNodeCost,
+  formatUsdCost,
+} from "@/features/editor/lib/cost-estimate";
 import type { EditorNode } from "@/features/editor/store/atoms";
 import type { NodeDefinition } from "@/nodes/types";
 
@@ -594,6 +599,7 @@ export function NodeConfigPanel({
 }) {
   const uid = useId();
   const enabled = !node.disabled;
+  const costEstimate = useMemo(() => estimateNodeCost(node), [node]);
 
   return (
     <aside
@@ -645,6 +651,23 @@ export function NodeConfigPanel({
           }
         />
       </div>
+
+      {costEstimate ? (
+        <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <SparklesIcon className="size-3.5 text-amber-500" />
+            <span>Est. run cost:</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono font-semibold text-foreground">
+              ~{formatUsdCost(costEstimate.costUsd)}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              (~{costEstimate.inputTokens + costEstimate.outputTokens} tok)
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       <div className="border-t border-border pt-3">
         <NodeConfigForm
