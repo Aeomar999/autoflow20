@@ -273,6 +273,26 @@ export const credentialTesters: Record<string, CredentialTester> = {
       Accept: "application/json",
     });
   },
+  "groq.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.groq.com/openai/v1/models", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "deepseek.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.deepseek.com/models", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
   postgres: async (secret) => {
     const host = secret.host;
     const database = secret.database;

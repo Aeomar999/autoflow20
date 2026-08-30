@@ -78,7 +78,7 @@ Rules:
 
 > **Implemented, AF-M3-02 (2026-08-27).** `Credential` stores the sealed
 > envelope (ADR-0004) with **no plaintext column**; `type` is the registry id
-> (8 kinds in `credential-types.ts`). Every credential-returning procedure is
+> (every type in `CREDENTIAL_TYPE_IDS` — now 17 defs, see ADR-0008). Every credential-returning procedure is
 > `.output(...)`-validated against a `.strict()` `CredentialPublic` schema — a
 > leaked secret field fails the schema, and `credentials-security.test.ts`
 > asserts schema, select, and serializer stay closed. `openSecret` validates

@@ -134,6 +134,8 @@ describe("credentialRegistry (built-in)", () => {
       "gemini.apiKey",
       "airtable.apiKey",
       "hubspot.apiKey",
+      "groq.apiKey",
+      "deepseek.apiKey",
       "postgres",
       "smtp",
     ]) {
@@ -192,6 +194,8 @@ describe("write-schema <-> registry parity (anti-drift)", () => {
       { type: "gemini.apiKey", payload: { apiKey: "ai-zyx" } },
       { type: "airtable.apiKey", payload: { apiKey: "pat-abc" } },
       { type: "hubspot.apiKey", payload: { apiKey: "pat-eu1-abc" } },
+      { type: "groq.apiKey", payload: { apiKey: "gsk_abc" } },
+      { type: "deepseek.apiKey", payload: { apiKey: "sk-deep" } },
       {
         type: "postgres",
         payload: {
