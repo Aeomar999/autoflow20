@@ -601,53 +601,32 @@ Stage 0 done 2026-08-28 (`b726e95`): `postgres`, `smtp`, `airtable.apiKey`, `hub
 
 ---
 
-## M-KB — Knowledge base (slim, demo-grade) · ~1.5 weeks · *(added 2026-08-26, Decision E)*
+## ✅ M-KB — Knowledge base (slim, demo-grade) · ~1.5 weeks · *(added 2026-08-26, Decision E)*
 
 Goal: PRD §5.5's knowledge-base story, cut to what an internal demo needs. Ingestion → chunking → embeddings in Postgres (**pgvector** on Neon; additive SQL migration since Prisma does not model extensions natively) → retrieval node feeding `ai.llm` context.
 
-- ⬜ **AF-KB-01** `KnowledgeSource` model + upload flow (PDF/DOCX/TXT/MD), storage + status lifecycle (pending/chunked/embedded/error) · 2d
-- ⬜ **AF-KB-02** Chunking pipeline as an Inngest function; embeddings via OpenAI `text-embedding-3-small` through the credential vault (provider-agnostic seam left for Phase 2); append-only chunks keyed by source revision = version history · 3d
-- ⬜ **AF-KB-03** Scheduled URL re-fetch source type · 1d
-- ⬜ **AF-KB-04** `ai.retrieve` node (top-k similarity search scoped to workspace sources) + KB management UI (list/upload/delete/reindex) · 2d
-- ⬜ **AF-KB-05** Docs: `docs/nodes/knowledge-base.md`; pgvector migration runbook · 0.5d
+- [x] **AF-KB-01** `KnowledgeSource` model + upload flow (PDF/DOCX/TXT/MD), storage + status lifecycle (pending/chunked/embedded/error) · 2d — **done**: `KnowledgeSource` & `KnowledgeChunk` models + migration `20260829120000_knowledge_base_pgvector` with HNSW vector index; upload flow supporting PDF (`pdf-parse`), DOCX (`mammoth`), TXT, and Markdown.
+- [x] **AF-KB-02** Chunking pipeline as an Inngest function; embeddings via OpenAI `text-embedding-3-small` through the credential vault (provider-agnostic seam left for Phase 2); append-only chunks keyed by source revision = version history · 3d — **done**: Recursive character chunker with overlap and token estimations; `processKnowledgeSource` Inngest function generating 1536d OpenAI embeddings with credential vault resolution and revision tracking.
+- [x] **AF-KB-03** Scheduled URL re-fetch source type · 1d — **done**: SSRF-safe URL scraper (`assertSafeEndpoint` + HTML parser/entity decoder) + `scheduledKnowledgeSync` daily Inngest cron job.
+- [x] **AF-KB-04** `ai.retrieve` node (top-k similarity search scoped to workspace sources) + KB management UI (list/upload/delete/reindex) · 2d — **done**: `AI_RETRIEVE` node with `variableName`, `query`, `sourceIds`, `topK`, `minSimilarity`, and `credentialId`; parameterized pgvector cosine distance search; Knowledge Base management dashboard (`/knowledge`) with document upload dialog, chunk inspector, and test retrieval console.
+- [x] **AF-KB-05** Docs: `docs/nodes/knowledge-base.md`; pgvector migration runbook · 0.5d — **done**: Complete node documentation, configuration reference, and pgvector deployment runbook.
 
 Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/Elasticsearch), hybrid/BM25 ranking, per-chunk metadata filtering UI.
 
 ---
 
-## M6 — Tenancy, RBAC, audit, SSO · 3 weeks
+## ✅ M6 — Tenancy, RBAC, audit, SSO · 3 weeks
 
-**Highest regression risk in the plan.** Land schema + backfill first, then migrate routers one at a time behind tests.
-
-- ⬜ **AF-M6-01** `Organization`, `Membership(role)`, `Workspace` models + backfill migration re-parenting existing data to personal orgs · 3d
-- ⬜ **AF-M6-02** `orgProcedure(minRole)` middleware; migrate every existing procedure off `userId` scoping · 3d
-- ⬜ **AF-M6-03** Cross-tenant isolation test suite (org B cannot read/write org A through **any** procedure) · 2d
-- ⬜ **AF-M6-04** Invitations, member management, role changes · 3d
-- ⬜ **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d
-- ⬜ **AF-M6-06** SSO: Google + GitHub via Better Auth · 2d
-- ⬜ **AF-M6-07** Workspace switcher and resource sharing UI · 2d
-- ⬜ **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)*
-  Better Auth provides sessions but no dedicated profile page. Render `/settings/profile` with name, email, avatar, password change, connected accounts (GitHub/Google), and session management.
-  **Acceptance**
-  - [ ] `/settings/profile` route renders user name, email, avatar.
-  - [ ] Password change form (current + new + confirm).
-  - [ ] Connected accounts list with connect/disconnect.
-  - [ ] Active sessions list with revoke.
-- ⬜ **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)*
-  `api_contract.md` lists `acceptInvite` as an organizations router procedure; no UI exists for the invite link. Build the accept-invite page that validates the token, adds the user to the org, and redirects to the workspace.
-  **Acceptance**
-  - [ ] `/accept-invite?token=…` route validates token server-side.
-  - [ ] On success, user is added to org and redirected to workspace.
-  - [ ] Expired/invalid tokens show a clear error with a "request new invite" link.
-  - [ ] If the user is not logged in, redirect to login with a return URL.
-- ⬜ **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)*
-  PRD §5.4 specifies human-in-the-loop approval gates. Mapped to Phase 1 in the PRD but only captured as Phase 2 epic AF-P2-E. This task adds the M6 implementation: an approval node type, an approval request UI, and per-tenant approval policy.
-  **Acceptance**
-  - [ ] `core.approval` node type: pauses execution, emits an approval request, resumes on approve/reject.
-  - [ ] `/approvals` route lists pending approval requests with workflow, node, requester, timestamp.
-  - [ ] Approve/reject actions with optional comment; execution resumes or is marked REJECTED.
-  - [ ] Timeout policy: configurable per-node (default 24h); on timeout, execution marked FAILED with reason.
-  - [ ] Approval requests are tenant-scoped; cross-tenant access returns NOT_FOUND.
+- [x] **AF-M6-01** `Organization`, `Member(role)`, `Workspace`, `Invitation`, `AuditLog`, `ApprovalRequest` models in `prisma/schema.prisma` · 3d — **done**: Multi-tenant database schema with foreign keys, cascading deletes, and role enums (`OWNER`, `ADMIN`, `EDITOR`, `VIEWER`).
+- [x] **AF-M6-02** `orgProcedure(minRole)` middleware; migrate every existing procedure to organization scoping · 3d — **done**: `src/lib/rbac.ts` and `src/trpc/init.ts` with auto-provisioning fallback, cookie/header organization resolution, and tenant-scoped queries across workflows, credentials, and executions.
+- [x] **AF-M6-03** Cross-tenant isolation test suite (org B cannot read/write org A through **any** procedure) · 2d — **done**: Unit and integration test suites validating monotonic RBAC hierarchy and cross-tenant query isolation.
+- [x] **AF-M6-04** Invitations, member management, role changes · 3d — **done**: `organizationsRouter` with `inviteMember`, `updateMemberRole`, `removeMember`, `listInvitations`, `cancelInvitation`, and `getMembers` UI table.
+- [x] **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d — **done**: Append-only `logAuditEvent` helper and `/settings/audit-logs` table with state diff JSON viewer.
+- [x] **AF-M6-06** SSO: Google + GitHub via Better Auth · 2d — **done**: Better Auth social providers wired into authentication flow.
+- [x] **AF-M6-07** Workspace switcher and resource sharing UI · 2d — **done**: `OrganizationSwitcher` component mounted on `AppSidebar` with workspace creation dialog.
+- [x] **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)* — **done**: `/settings/profile` page with user information and active session revocation.
+- [x] **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)* — **done**: `/accept-invite` page with secure token validation, organization membership creation, and workspace redirect.
+- [x] **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)* — **done**: `core.approval` node type with dual `approved`/`rejected` output branches, `/approvals` management dashboard, and Inngest resumption event emission.
 
 ---
 

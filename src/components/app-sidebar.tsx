@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BookOpenIcon,
   CreditCardIcon,
   FolderOpenIcon,
   HistoryIcon,
@@ -45,6 +46,11 @@ const menuItems = [
         title: "Executions",
         icon: HistoryIcon,
         url: "/executions",
+      },
+      {
+        title: "Knowledge Base",
+        icon: BookOpenIcon,
+        url: "/knowledge",
       },
     ],
   },
@@ -107,7 +113,7 @@ export const AppSidebar = () => {
           {!hasActiveSubscription && !isLoading && (
             <SidebarMenuItem>
               <SidebarMenuButton
-                tooltip="Upgade to Pro"
+                tooltip="Upgrade to Pro"
                 className="gap-x-4 h-10 px-4"
                 onClick={() => authClient.checkout({ slug: polarProductSlug })}
               >

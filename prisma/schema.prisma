@@ -1,11 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-// Prisma 7: the `prisma-client` generator emits plain TypeScript into `output`.
-// Connection URL lives in prisma.config.ts, not here (P1012 otherwise).
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -15,6 +10,20 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
 }
 
 model User {
@@ -29,6 +38,10 @@ model User {
   accounts      Account[]
   workflows     Workflow[]
   credentials   Credential[]
+  members       Member[]
+  auditLogs     AuditLog[]
+  approvedRequests ApprovalRequest[]
+  knowledgeSources KnowledgeSource[]
 
   @@unique([email])
   @@map("user")
@@ -79,14 +92,125 @@ model Verification {
   @@map("verification")
 }
 
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  plan        Plan     @default(FREE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members          Member[]
+  invitations      Invitation[]
+  workspaces       Workspace[]
+  workflows        Workflow[]
+  credentials      Credential[]
+  executions       Execution[]
+  auditLogs        AuditLog[]
+  approvalRequests ApprovalRequest[]
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role         @default(EDITOR)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           Role         @default(EDITOR)
+  token          String       @unique @default(cuid())
+  expiresAt      DateTime
+  invitedById    String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@map("invitation")
+}
+
+model Workspace {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, slug])
+  @@map("workspace")
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorType      String       @default("USER")
+  action         String
+  resourceType   String
+  resourceId     String
+  before         Json?
+  after          Json?
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([resourceType, resourceId])
+  @@map("audit_log")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  TIMED_OUT
+}
+
+model ApprovalRequest {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflowId     String
+  workflow       Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  executionId    String
+  execution      Execution      @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId         String
+  nodeName       String
+  status         ApprovalStatus @default(PENDING)
+  prompt         String?
+  comment        String?
+  timeoutAt      DateTime
+  respondedById  String?
+  respondedBy    User?          @relation(fields: [respondedById], references: [id], onDelete: SetNull)
+  respondedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId, status])
+  @@map("approval_request")
+}
+
 model Credential {
   id String @id @default(cuid())
   name String
   type String
 
-  /// Envelope encryption (AF-M3-01/02): per-record AES-256-GCM ciphertext
-  /// (Bytes), DEK wrapped by the KEK from CREDENTIAL_MASTER_KEY. No plaintext
-  /// column and no read path — only `preview` (write-time fragment) is stored.
   ciphertext Bytes
   iv Bytes
   authTag Bytes
@@ -102,9 +226,13 @@ model Credential {
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   Node Node[]
 
   @@index([userId])
+  @@index([organizationId])
   @@index([type])
   @@index([oauthExpiresAt])
 }
@@ -115,13 +243,9 @@ model Workflow {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// Secret token embedded in trigger webhook URLs to prove ownership (AF-A-01)
   webhookSecret String @unique @default(cuid())
-
-  /// Optimistic concurrency counter — incremented on every saveGraph (AF-M1-03)
   revision Int @default(0)
 
-  /// The currently active published version
   activeVersionId String?
   activeVersion WorkflowVersion? @relation("ActiveVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
 
@@ -129,11 +253,16 @@ model Workflow {
   connections Connection[]
   executions Execution[]
   versions WorkflowVersion[] @relation("WorkflowVersions")
+  approvalRequests ApprovalRequest[]
 
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@index([userId])
+  @@index([organizationId])
 }
 
 model Node {
@@ -195,14 +324,10 @@ model Execution {
   status ExecutionStatus @default(RUNNING)
 
   trigger String @default("MANUAL")
-  /// PRODUCTION or TEST (in-editor test runs)
   mode String @default("PRODUCTION")
-  /// Snapshot of the graph at run start — makes history immutable (P3)
   graphSnapshot Json @default("{}")
-  /// Trigger input payload
   input Json?
   
-  /// The specific published version that was run, if applicable
   workflowVersionId String?
   workflowVersion WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: SetNull)
 
@@ -213,7 +338,6 @@ model Execution {
   completedAt DateTime?
   durationMs Int?
 
-  /// Aggregate counts rolled up from NodeExecution rows at finalize
   nodeCount Int @default(0)
   tokensIn Int @default(0)
   tokensOut Int @default(0)
@@ -224,8 +348,13 @@ model Execution {
   output Json?
 
   nodeExecutions NodeExecution[]
+  approvalRequests ApprovalRequest[]
+
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([workflowId, startedAt(sort: Desc)])
+  @@index([organizationId])
   @@index([status])
 }
 
@@ -236,8 +365,6 @@ enum NodeExecutionStatus {
   SKIPPED
 }
 
-/// Per-node execution trace (AF-A-05). One row per node attempt within an
-/// Execution; unreached nodes get SKIPPED rows so the full plan is visible.
 model NodeExecution {
   id String @id @default(cuid())
 
@@ -250,25 +377,19 @@ model NodeExecution {
   typeVersion Int @default(1)
 
   status NodeExecutionStatus @default(RUNNING)
-  /// Zero-based Inngest function attempt that produced this row.
   attempt Int @default(0)
-  /// Position of the node in the topological order, for stable rendering.
   order Int
 
-  /// Node input — truncated above the IO cap (128 KB) with a marker
   input Json?
-  /// Node output — truncated above the IO cap (128 KB) with a marker
   output Json?
 
   error String? @db.Text
-  /// Why the node was skipped (branch not taken, upstream failed, cancelled)
   skipReason String?
 
   startedAt DateTime @default(now())
   finishedAt DateTime?
   durationMs Int?
 
-  /// Per-node token and cost tracking (rolled up to Execution at finalize)
   tokensIn Int @default(0)
   tokensOut Int @default(0)
   costUsd Float @default(0)
@@ -284,21 +405,54 @@ model WorkflowVersion {
   workflowId String
   workflow Workflow @relation("WorkflowVersions", fields: [workflowId], references: [id], onDelete: Cascade)
 
-  /// The sequential version number for this workflow (e.g. 1, 2, 3)
   version Int
-  /// The revision of the draft Workflow at the time of publish
   workflowRevision Int
 
-  /// Snapshot of nodes and edges at publish time
   graphSnapshot Json
 
   createdAt DateTime @default(now())
   
-  /// Workflows that have this version as their currently active version
   activeFor Workflow[] @relation("ActiveVersion")
-  /// Executions that ran this specific version
   executions Execution[]
 
   @@unique([workflowId, version])
   @@index([workflowId])
+}
+
+model KnowledgeSource {
+  id           String           @id @default(cuid())
+  name         String
+  type         String           @default("FILE") // FILE | URL | TEXT
+  mimeType     String?
+  sizeBytes    Int?
+  url          String?
+  status       String           @default("PENDING") // PENDING | PROCESSING | EMBEDDED | ERROR
+  errorMessage String?          @db.Text
+  revision     Int              @default(0)
+  chunkCount   Int              @default(0)
+  tokenCount   Int              @default(0)
+  credentialId String?
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks       KnowledgeChunk[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model KnowledgeChunk {
+  id         String                                  @id @default(cuid())
+  sourceId   String
+  source     KnowledgeSource                         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  content    String                                  @db.Text
+  tokens     Int                                     @default(0)
+  revision   Int                                     @default(0)
+  embedding  Unsupported("vector(1536)")?
+  createdAt  DateTime                                @default(now())
+  updatedAt  DateTime                                @updatedAt
+
+  @@index([sourceId, chunkIndex])
 }
