@@ -2,6 +2,7 @@ import "server-only";
 import aiAnthropic from "./ai/anthropic";
 import aiCompatible from "./ai/compatible";
 import aiGemini from "./ai/gemini";
+import aiLlm from "./ai/llm";
 import aiOpenai from "./ai/openai";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
@@ -173,6 +174,7 @@ export const nodeRegistry = createNodeRegistry(
     aiAnthropic,
     aiCompatible,
     aiGemini,
+    aiLlm,
     aiOpenai,
     aiRetrieve,
     discordSendMessage,

@@ -130,6 +130,7 @@ describe("production node registry + manifest", () => {
       ["ai", "anthropic"],
       ["ai", "compatible"],
       ["ai", "gemini"],
+      ["ai", "llm"],
       ["ai", "openai"],
       ["discord", "send-message"],
       ["slack", "send-message"],
