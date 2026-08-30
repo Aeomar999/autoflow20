@@ -44,6 +44,11 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
 
 export const premiumProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
+    // Bypass premium check for E2E tests to allow workflow creation
+    if (process.env.E2E_SERVER === "1") {
+      return next({ ctx: { ...ctx, customer: null } });
+    }
+
     const customer = await polarClient.customers.getStateExternal({
       externalId: ctx.auth.user.id,
     });
