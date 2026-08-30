@@ -715,3 +715,44 @@ Marketplace with third-party sandboxing · advanced analytics and optimization r
 - [ ] <test that must exist and pass>
 - [ ] progress.md updated
 ```
+
+---
+
+## M7 addenda (2026-08-30) — org-scope retrofit + quota design decisions
+
+These tasks are appended in clean UTF-8; the surrounding M7 block predates this and carries its own encoding artifacts.
+
+### ⬜ AF-M7-pre-1 · Org-scope the workflow/execution/credential data layer · 2d
+
+**Why:** AF-M6-02 shipped the org-facing layer but the workflow/execution/credential **read/write path is still `userId`-scoped** (`workflows/routers.ts:170,201,421`; `executions/routers.ts:52,118,159,194,254`) and `workflow.organizationId` is never populated (nullable, stays null). Every M7 per-workspace dashboard query and every per-org quota needs `organizationId` populated plus an org-scoped read path. This is the de-facto gate for AF-M7-03 and AF-M7-04.
+
+**Depends on:** AF-M6-02 (domino from the deferred retrofit)
+**Acceptance**
+- [ ] `workflow.create` writes `organizationId` from the resolved org (via `orgProcedure`), non-null for org workflows.
+- [ ] `workflow.getMany` / `workflow.saveGraph` filter by `ctx.org.id` (not `userId`).
+- [ ] `executions.list` / `getOne` and the run counts filter by `ctx.org.id`.
+- [ ] `sendWorkflowExecution` on the `run` path passes `organizationId` (the event schema already accepts it — `src/inngest/utils.ts:22`).
+- [ ] Integration tests prove org B cannot see/run org A workflows or executions.
+- [ ] progress.md + tasks.md updated; docs corrected where they claimed this was M6.
+
+### ⬜ AF-M7-04 · Quotas: per-plan execution + AI-spend limits, enforced in the runner, wired to Polar · 3d
+
+**Why:** Today `execute` / `run` / `testRun` are ungated `protectedProcedure`s — any free user runs unlimited workflows, unmetered, with no org context (`workflows/routers.ts:27,48,95`). Per-run enforcement belongs at the top of `executeWorkflow` (`src/inngest/functions.ts:125`), the single choke point for manual, webhook, cron, and API triggers.
+
+**Depends on:** AF-M7-pre-1 (org context), AF-M5-02 (cost capture wiring, for AI-spend), ADR-0010 (plan source of truth)
+**Acceptance**
+- [ ] Plan source of truth is org-level `Organization.plan` (`FREE/STARTER/PRO/ENTERPRISE`), resolved on `ctx.org`, per ADR-0010.
+- [ ] Execution-count quota: a pure resolver (`src/lib/quotas.ts`) maps plan → limits and checks the org's current-month execution count; `QUOTA_EXCEEDED` is a distinguishable outcome.
+- [ ] Runner enforces the run gate at the top of `executeWorkflow`; over-limit runs fail with `QUOTA_EXCEEDED` status (not silent drop) for **all** trigger paths (manual/webhook/cron/API).
+- [ ] Metering source is Postgres `Execution` rows (transactional, enforcement) with Polar customer meter for billing visibility.
+- [ ] AI-spend quota deferred to a follow-up that reads `Execution.costUsd` once AF-M5-02 lands (documented as a sub-item, not the first PR).
+- [ ] `E2E_SERVER === "1"` bypasses the run gate under an explicit env flag, never in production.
+- [ ] Unit tests: limit resolution, over/under boundary, `QUOTA_EXCEEDED` semantics, tenant isolation.
+- [ ] progress.md + tasks.md updated.
+
+**Design decisions (recorded 2026-08-30, all four accepted):**
+1. Quota failure = **hard-fail** the run with `QUOTA_EXCEEDED`.
+2. Metering = **Postgres** for enforcement, **Polar** for billing visibility.
+3. Plan source of truth = **org-level `Organization.plan`** (ADR-0010).
+4. First quota PR = **execution-count only**; AI-spend deferred after AF-M5-02.
+
