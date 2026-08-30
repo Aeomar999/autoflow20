@@ -27,6 +27,7 @@ import {
   buildGraphMaps,
   computeDurationMs,
   computeSkippableNodes,
+  extractStepUsage,
   type GraphEdge,
   type GraphNodeExecution,
   markTakenEdges,
@@ -91,17 +92,34 @@ export const executeWorkflow = inngest.createFunction(
     onFailure: async ({ event }) => {
       const failedExecution = await prisma.execution.findUnique({
         where: { inngestEventId: event.data.event.id },
-        select: { startedAt: true },
+        select: { id: true, startedAt: true },
       });
       const durationMs = failedExecution
         ? computeDurationMs(failedExecution.startedAt.getTime(), Date.now())
         : null;
+
+      let tokensIn = 0;
+      let tokensOut = 0;
+      let costUsd = 0;
+      if (failedExecution) {
+        const aggregates = await prisma.nodeExecution.aggregate({
+          where: { executionId: failedExecution.id },
+          _sum: { tokensIn: true, tokensOut: true, costUsd: true },
+        });
+        tokensIn = aggregates._sum.tokensIn ?? 0;
+        tokensOut = aggregates._sum.tokensOut ?? 0;
+        costUsd = aggregates._sum.costUsd ?? 0;
+      }
+
       return prisma.execution.update({
         where: { inngestEventId: event.data.event.id },
         data: {
           status: ExecutionStatus.FAILED,
           completedAt: new Date(),
           durationMs,
+          tokensIn,
+          tokensOut,
+          costUsd: Math.round(costUsd * 1e6) / 1e6,
           error: event.data.error.message,
           errorStack: truncateStack(event.data.error.stack),
         },
@@ -459,6 +477,7 @@ export const executeWorkflow = inngest.createFunction(
           takenEdges,
         );
 
+        const usage = extractStepUsage(result);
         await step.run(`trace-end:${node.id}`, async () => {
           const finishedAtMs = Date.now();
           return prisma.nodeExecution.updateMany({
@@ -470,6 +489,9 @@ export const executeWorkflow = inngest.createFunction(
               status: NodeExecutionStatus.SUCCESS,
               finishedAt: new Date(finishedAtMs),
               durationMs: computeDurationMs(startedAtMs, finishedAtMs),
+              tokensIn: usage.tokensIn,
+              tokensOut: usage.tokensOut,
+              costUsd: usage.costUsd,
             },
           });
         });
@@ -568,6 +590,14 @@ export const executeWorkflow = inngest.createFunction(
       const nodeCount = await prisma.nodeExecution.count({
         where: { executionId: execution.id },
       });
+      const aggregates = await prisma.nodeExecution.aggregate({
+        where: { executionId: execution.id },
+        _sum: { tokensIn: true, tokensOut: true, costUsd: true },
+      });
+      const tokensIn = aggregates._sum.tokensIn ?? 0;
+      const tokensOut = aggregates._sum.tokensOut ?? 0;
+      const costUsd = aggregates._sum.costUsd ?? 0;
+
       return prisma.execution.update({
         where: { inngestEventId, workflowId },
         data: {
@@ -575,6 +605,9 @@ export const executeWorkflow = inngest.createFunction(
           completedAt: finishedAt,
           durationMs,
           nodeCount,
+          tokensIn,
+          tokensOut,
+          costUsd: Math.round(costUsd * 1e6) / 1e6,
           output: context,
         },
       });

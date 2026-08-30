@@ -156,4 +156,23 @@ describe("executeWithFallback", () => {
       /AI Test Node: all candidate models in fallback chain failed: \[openai:gpt-4o\]: Outage on openai:gpt-4o; \[anthropic:claude-3-5-sonnet\]: Outage on anthropic:claude-3-5-sonnet/,
     );
   });
+
+  it("calculates tokens and cost for the served model", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      { openaiCredentialId: { apiKey: "key" } },
+      "AI Test Node",
+      async () => ({
+        value: "response text",
+        usage: { promptTokens: 1000, completionTokens: 500 },
+      }),
+    );
+
+    expect(res.usage).toEqual({
+      tokensIn: 1000,
+      tokensOut: 500,
+      costUsd: 0.0075,
+      model: "openai:gpt-4o",
+    });
+  });
 });

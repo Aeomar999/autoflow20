@@ -2,6 +2,7 @@ import "server-only";
 import { generateObject, generateText, jsonSchema } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
+import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
 import { executeWithFallback, parseModelChain } from "@/lib/ai/fallback";
 import type { NodeRun } from "@/nodes/types";
 import type { LlmData } from "./definition";
@@ -57,7 +58,11 @@ export const execute: NodeRun<LlmData> = async ({
 
   const candidates = parseModelChain(data.model, data.fallbackModels);
 
-  const { result: text, servedModel } = await executeWithFallback(
+  const {
+    result: text,
+    servedModel,
+    usage,
+  } = await executeWithFallback(
     candidates,
     credentials,
     "AI Chat node",
@@ -75,7 +80,11 @@ export const execute: NodeRun<LlmData> = async ({
           },
         );
         const object = (result as { object?: unknown }).object ?? null;
-        return JSON.stringify(object, null, 2);
+        const resUsage = (result as { usage?: Record<string, number> }).usage;
+        return {
+          value: JSON.stringify(object, null, 2),
+          usage: resUsage,
+        };
       }
 
       const result = await step.ai.wrap(
@@ -102,7 +111,11 @@ export const execute: NodeRun<LlmData> = async ({
           "AI Chat node: model returned an empty response",
         );
       }
-      return resText;
+      const resUsage = (result as { usage?: Record<string, number> }).usage;
+      return {
+        value: resText,
+        usage: resUsage,
+      };
     },
   );
 
@@ -112,5 +125,6 @@ export const execute: NodeRun<LlmData> = async ({
       text,
       model: servedModel,
     },
+    [WORKFLOW_USAGE_KEY]: usage,
   };
 };

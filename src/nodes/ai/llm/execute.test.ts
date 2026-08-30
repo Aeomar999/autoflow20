@@ -15,12 +15,28 @@ const {
   mockCreateAnthropic,
   mockCreateGoogle,
 } = vi.hoisted(() => ({
-  mockGenerateText: vi.fn(async (_options: Record<string, unknown>) => ({
-    steps: [{ content: [{ type: "text", text: "42" }] }],
-  })),
-  mockGenerateObject: vi.fn(async (_options: Record<string, unknown>) => ({
-    object: { answer: 42 },
-  })),
+  mockGenerateText: vi.fn(
+    async (
+      _options: Record<string, unknown>,
+    ): Promise<{
+      steps?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+      usage?: Record<string, number>;
+    }> => ({
+      steps: [{ content: [{ type: "text", text: "42" }] }],
+      usage: { promptTokens: 10, completionTokens: 5 },
+    }),
+  ),
+  mockGenerateObject: vi.fn(
+    async (
+      _options: Record<string, unknown>,
+    ): Promise<{
+      object?: unknown;
+      usage?: Record<string, number>;
+    }> => ({
+      object: { answer: 42 },
+      usage: { promptTokens: 12, completionTokens: 6 },
+    }),
+  ),
   mockJsonSchema: vi.fn((schema: unknown) => schema),
   mockCreateOpenAI: vi.fn(),
   mockCreateAnthropic: vi.fn(),
@@ -97,8 +113,12 @@ beforeEach(() => {
   mockJsonSchema.mockClear();
   mockGenerateText.mockResolvedValue({
     steps: [{ content: [{ type: "text", text: "42" }] }],
+    usage: { promptTokens: 10, completionTokens: 5 },
   });
-  mockGenerateObject.mockResolvedValue({ object: { answer: 42 } });
+  mockGenerateObject.mockResolvedValue({
+    object: { answer: 42 },
+    usage: { promptTokens: 12, completionTokens: 6 },
+  });
   mockCreateOpenAI
     .mockClear()
     .mockReturnValue((modelId: string) => ({ providerId: "openai", modelId }));
@@ -393,5 +413,34 @@ describe("AI_LLM execute", () => {
     ).rejects.toThrow(
       /AI Chat node: all candidate models in fallback chain failed: \[openai:gpt-4o\]: OpenAI outage; \[anthropic:claude-3-5-sonnet\]: Anthropic 503 Overloaded/,
     );
+  });
+
+  it("captures token usage and calculates cost under __usage", async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      steps: [{ content: [{ type: "text", text: "Answer text" }] }],
+      usage: { promptTokens: 1000, completionTokens: 500 },
+    });
+
+    const result = await execute(
+      makeParams({
+        data: {
+          ...defaultData,
+          model: "openai:gpt-4o",
+        },
+      }),
+    );
+
+    const usage = result.__usage as {
+      tokensIn: number;
+      tokensOut: number;
+      costUsd: number;
+      model: string;
+    };
+    expect(usage).toBeDefined();
+    expect(usage.tokensIn).toBe(1000);
+    expect(usage.tokensOut).toBe(500);
+    expect(usage.model).toBe("openai:gpt-4o");
+    // gpt-4o pricing: $2.50 / 1M in, $10.00 / 1M out -> (1000*2.5 + 500*10)/1e6 = 0.0075
+    expect(usage.costUsd).toBe(0.0075);
   });
 });

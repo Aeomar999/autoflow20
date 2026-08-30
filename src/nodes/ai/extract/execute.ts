@@ -2,6 +2,7 @@ import "server-only";
 import { generateObject, jsonSchema } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
+import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
 import { executeWithFallback, parseModelChain } from "@/lib/ai/fallback";
 import type { NodeRun } from "@/nodes/types";
 import type { ExtractData } from "./definition";
@@ -109,7 +110,7 @@ export const execute: NodeRun<ExtractData> = async ({
   const outputSchema = buildOutputSchema(data);
   const candidates = parseModelChain(data.model, data.fallbackModels);
 
-  const { result: object } = await executeWithFallback(
+  const { result: object, usage } = await executeWithFallback(
     candidates,
     credentials,
     "AI Extract node",
@@ -136,12 +137,17 @@ export const execute: NodeRun<ExtractData> = async ({
           "AI Extract node: model returned no structured output",
         );
       }
-      return resObj;
+      const resUsage = (result as { usage?: Record<string, number> }).usage;
+      return {
+        value: resObj,
+        usage: resUsage,
+      };
     },
   );
 
   return {
     ...context,
     [data.variableName as string]: object,
+    [WORKFLOW_USAGE_KEY]: usage,
   };
 };

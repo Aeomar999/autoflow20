@@ -20,9 +20,17 @@ const {
   mockCreateAnthropic,
   mockCreateGoogle,
 } = vi.hoisted(() => ({
-  mockGenerateObject: vi.fn(async (_options: Record<string, unknown>) => ({
-    object: null as unknown,
-  })),
+  mockGenerateObject: vi.fn(
+    async (
+      _options: Record<string, unknown>,
+    ): Promise<{
+      object?: unknown;
+      usage?: Record<string, number>;
+    }> => ({
+      object: null,
+      usage: undefined,
+    }),
+  ),
   mockJsonSchema: vi.fn((schema: unknown) => schema),
   mockCreateOpenAI: vi.fn(),
   mockCreateAnthropic: vi.fn(),
@@ -97,6 +105,7 @@ beforeEach(() => {
   mockJsonSchema.mockClear();
   mockGenerateObject.mockResolvedValue({
     object: { amount: 120, vendor: "ACME Corp" },
+    usage: { promptTokens: 500, completionTokens: 100 },
   });
   mockCreateOpenAI
     .mockClear()
@@ -428,6 +437,34 @@ describe("AI_EXTRACT execute", () => {
     ).rejects.toThrow(
       /AI Extract node: all candidate models in fallback chain failed: \[openai:gpt-4o\]: OpenAI Rate limited; \[anthropic:claude-3-5-sonnet\]: Anthropic Overloaded/,
     );
+  });
+
+  it("captures token usage and calculates cost under __usage", async () => {
+    mockGenerateObject.mockResolvedValueOnce({
+      object: { amount: 120, vendor: "ACME Corp" },
+      usage: { promptTokens: 2000, completionTokens: 400 },
+    });
+
+    const result = await execute(
+      makeParams({
+        data: {
+          model: "openai:gpt-4o",
+        },
+      }),
+    );
+
+    const usage = result.__usage as {
+      tokensIn: number;
+      tokensOut: number;
+      costUsd: number;
+      model: string;
+    };
+    expect(usage).toBeDefined();
+    expect(usage.tokensIn).toBe(2000);
+    expect(usage.tokensOut).toBe(400);
+    expect(usage.model).toBe("openai:gpt-4o");
+    // gpt-4o: $2.50 / 1M in, $10.00 / 1M out -> (2000*2.5 + 400*10)/1e6 = 0.009
+    expect(usage.costUsd).toBe(0.009);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   type AiProviderId,
   aiModelId,
   aiProviderById,
+  estimateRunCostUsd,
   resolveAiModel,
 } from "./registry";
 
@@ -69,6 +70,16 @@ export interface CandidateContext {
   languageModel: LanguageModel;
 }
 
+export interface FallbackRunResult<T> {
+  value: T;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    promptTokens?: number;
+    completionTokens?: number;
+  };
+}
+
 export interface FallbackAttempt {
   model: string;
   error: string;
@@ -78,6 +89,12 @@ export interface FallbackExecutionResult<T> {
   result: T;
   servedModel: string;
   attempts: FallbackAttempt[];
+  usage: {
+    tokensIn: number;
+    tokensOut: number;
+    costUsd: number;
+    model: string;
+  };
 }
 
 /**
@@ -144,7 +161,7 @@ export async function executeWithFallback<T>(
   candidates: string[],
   credentials: Record<string, CredentialSecret | undefined> | undefined,
   nodeName: string,
-  runFn: (candidate: CandidateContext) => Promise<T>,
+  runFn: (candidate: CandidateContext) => Promise<T | FallbackRunResult<T>>,
 ): Promise<FallbackExecutionResult<T>> {
   const attempts: FallbackAttempt[] = [];
 
@@ -162,11 +179,44 @@ export async function executeWithFallback<T>(
     }
 
     try {
-      const result = await runFn(resolved);
+      const rawResult = await runFn(resolved);
+      const isRunResultObj = (val: unknown): val is FallbackRunResult<T> =>
+        typeof val === "object" && val !== null && "value" in val;
+
+      const finalValue = isRunResultObj(rawResult)
+        ? rawResult.value
+        : (rawResult as T);
+      const rawUsage = isRunResultObj(rawResult) ? rawResult.usage : undefined;
+
+      const tokensIn = Math.max(
+        0,
+        Math.round(rawUsage?.inputTokens ?? rawUsage?.promptTokens ?? 0),
+      );
+      const tokensOut = Math.max(
+        0,
+        Math.round(rawUsage?.outputTokens ?? rawUsage?.completionTokens ?? 0),
+      );
+
+      let costUsd = 0;
+      try {
+        costUsd = estimateRunCostUsd(resolved.fullModelId, {
+          inputTokens: tokensIn,
+          outputTokens: tokensOut,
+        });
+      } catch {
+        costUsd = 0;
+      }
+
       return {
-        result,
+        result: finalValue,
         servedModel: resolved.fullModelId,
         attempts,
+        usage: {
+          tokensIn,
+          tokensOut,
+          costUsd,
+          model: resolved.fullModelId,
+        },
       };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);

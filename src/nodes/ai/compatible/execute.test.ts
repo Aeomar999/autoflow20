@@ -139,6 +139,12 @@ describe("OPENAI_COMPATIBLE_CHAT execute", () => {
     expect(stored.model).toBe("llama-3.3-70b-versatile");
     expect(stored.text).toBe("42");
     expect(stored.usage).toEqual({ promptTokens: 11, completionTokens: 2 });
+    expect(result.__usage).toEqual({
+      tokensIn: 11,
+      tokensOut: 2,
+      costUsd: 0,
+      model: "llama-3.3-70b-versatile",
+    });
 
     // The API key must never leak into the run context.
     expect(JSON.stringify(result)).not.toContain("gsk_secret-token");
