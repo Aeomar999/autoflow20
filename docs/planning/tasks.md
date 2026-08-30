@@ -631,11 +631,42 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 
 ## M7 — Templates, dashboard, quotas · 3 weeks
 
-- ⬜ **AF-M7-01** `Template` model + gallery + one-click instantiate with credential placeholders · 3d
-- ⬜ **AF-M7-02** Author 20 templates across marketing, support, ops, data · 5d
-- ⬜ **AF-M7-03** Monitoring dashboard: executions over time, success rate, p50/p95 duration, error breakdown, cost trend, top failing workflows · 4d
+- ⬜ **AF-M7-01** `Template` model + gallery + one-click instantiate with credential placeholders · 3d *(deep-planned 2026-08-30)*
+  Additive `Template` model (tenant-agnostic gallery per `docs/architecture/data_model.md` §2.7) + gallery UI (per `screens/templates.html`, `screens/template-detail.html`) + tenant-scoped instantiate. Spec: `docs/architecture/api_contract.md` (templates: list/getOne/instantiate).
+  **Acceptance**
+  - [ ] Migration: `Template` table — `slug` unique, `name`, `description`, `category` + `tags` as open-set strings (no enum), `graph` JSON matching the workflow-graph shape, `featured`, `isActive`, timestamps.
+  - [ ] `templates.list` / `getOne` are org-viewer reads (public gallery rows, no tenant data); `templates.instantiate` is an org-editor procedure.
+  - [ ] Instantiate rewrites every node id to a fresh cuid (no cross-template id collision), nulls every `credentialIdRef` config value, validates the graph through the existing `config-schema.ts` path, and creates the workflow with `organizationId = ctx.org.id`.
+  - [ ] Instantiate returns `pendingCredentials: [{ nodeId, nodeName, credentialType, credentialKey, optional }]` derived from each node's manifest `credentials: CredentialRequirement[]`.
+  - [ ] Gallery UI: card grid + category filter + "Use template" → creates workflow → navigates to editor → credential-placeholder dialog wired to the existing credential picker.
+  - [ ] A run before placeholders are connected fails with the existing `MissingRequiredCredentialError` (visible, not silent).
+  - [ ] Tests: node-id rewrite, credential strip, org-scoped workflow creation, invalid graph rejection, cross-template isolation.
+  - [ ] progress.md + tasks.md updated.
+- ⬜ **AF-M7-02** Author 20 templates across marketing, support, ops, data · 5d *(depth decision 2026-08-30: ship all 20; authoring-harness makes a 2-template/day cadence)*
+  Author all 20 (4/domain: marketing, support, ops, data) over the 24 registered node types (`src/nodes/manifest.ts`), each a real graph that runs. Spec: `docs/architecture/api_contract.md` (templates) + `docs/architecture/node_sdk.md` (node contract).
+  **Acceptance**
+  - [ ] Half-day 1: template-spec format + validate-template harness — validates each graph via `config-schema.ts`, smoke-runs each template through the existing testRun path under `E2E_SERVER=1`, and asserts no author credential id / uuid leaks into `node.data`.
+  - [ ] 20 templates: ≥4 per domain (marketing/support/ops/data); every graph uses only registered node types; zero free-plan-busting mandatory credentials; `{{variable}}` config values and (where applicable) `$node`/`$execution` context refs behave.
+  - [ ] Every template records its required-credential annotation (per-node `credentials` requirements) so instantiate surfaces the correct placeholders.
+  - [ ] All 20 pass the harness clean (validate + smoke-run) — a template that fails its smoke run is not shipped.
+  - [ ] progress.md + tasks.md updated.
+- ⬜ **AF-M7-03** Monitoring dashboard: executions over time, success rate, p50/p95 duration, error breakdown, cost trend, top failing workflows · 4d *(deep-planned 2026-08-30)*
+  `/monitoring` (per `screens/analytics.html`) + `analytics` router per `docs/architecture/api_contract.md` (overview · executionsOverTime · costByModel · topFailingWorkflows · usage). All queries org-scoped (gate: AF-M7-pre-1).
+  **Acceptance**
+  - [ ] Metrics, each org-scoped against `ctx.org.id`: executions over time by status; success rate; p50/p95 duration (raw SQL `PERCENTILE_CONT` over `NodeExecution.durationMs`); error breakdown by `nodeType`; cost trend over `Execution.costUsd`; top failing workflows by failure count.
+  - [ ] Cost panels render honestly: display zero until AF-M5-02 cost capture lands (labeled "cost capture pending"), never fabricated.
+  - [ ] Date-range filter + empty state; charts are hand-rolled SVG (no new chart dependency, per engineering rule 12).
+  - [ ] `analytics.usage` surfaces current-month executions vs plan limit from the quota resolver (`src/lib/quotas.ts`).
+  - [ ] Tests: each aggregate query is org-isolated (org B sees no org A rows).
+  - [ ] progress.md + tasks.md updated.
 - ⬜ **AF-M7-04** Quotas: per-plan execution + AI-spend limits enforced in the runner, surfaced before the limit, wired to Polar · 3d
-- ⬜ **AF-M7-05** Onboarding: first-run checklist, sample workflow, empty states · 2d
+- ⬜ **AF-M7-05** Onboarding: first-run checklist, sample workflow, empty states · 2d *(deep-planned 2026-08-30)*
+  First-run experience per `screens/onboarding.html`. New-org detection (org has no workflows) drives a checklist card + empty states on `/workflows`, `/executions`, `/credentials` (per `screens/executions-list-empty`, `credentials-empty`).
+  **Acceptance**
+  - [ ] First-run checklist ("create a workflow / connect a credential / run a workflow") shows only for orgs with no workflows; completion persists in `localStorage` (v1, no schema change).
+  - [ ] "Create a sample workflow" instantiates a zero-credential Getting Started template through AF-M7-01's instantiate path and lands in the editor.
+  - [ ] Empty states rendered on workflows/executions/credentials pages matching the design artifacts.
+  - [ ] progress.md + tasks.md updated.
 - ⬜ **AF-M7-06** ~~Landing page at `/`~~ *pulled forward to the M0 leftovers section (2026-08-26)*
 - ⬜ **AF-M7-07** Command palette (`command-palette`) · 1d · *(added 2026-08-26)*
   Global Cmd+K / Ctrl+K palette for quick navigation and actions. Not referenced in any prior task; design artifact from `screens/`.
@@ -645,6 +676,7 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
   - [ ] Keyboard navigation: arrow keys to select, Enter to activate, Escape to close.
   - [ ] Fuzzy search over all result types.
   - [ ] Results are tenant-scoped (no cross-org leakage).
+  **Design decisions (locked 2026-08-30):** dedicated tenant-scoped `search` server router (UNION over workflows / executions / credentials + settings nav + actions, `WHERE organizationId = ctx.org.id`, `LIMIT`ed) — the palette consumes it and does ranking only. Not a client-side preloaded index.
 - ⬜ **AF-M7-08** Notifications center (`notifications`) · 1.5d · *(added 2026-08-26)*
   In-app notification system for execution completions, approval requests, credential expiry warnings, and system alerts. Not referenced in any prior task; design artifact from `screens/`.
   **Acceptance**
@@ -653,6 +685,7 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
   - [ ] Notifications are created by: execution failure/success (configurable), approval request received, credential expiry warning, system maintenance notices.
   - [ ] Mark as read (single + mark-all-read).
   - [ ] Notifications are tenant-scoped; the `Notification` model is tenant-scoped.
+  **Design decisions (locked 2026-08-30):** execution notifications are per-workflow — two bool columns on `Workflow` (`notifyOnFailure` default ON, `notifyOnSuccess` default OFF), toggles placed beside the editor run controls; the runner tail writes the `Notification` rows. Credential-expiry warnings run on a scheduled Inngest cron (reusing the `scheduledKnowledgeSync` pattern) over `oauthExpiresAt`/`refreshError` with a +7d window. In-app only in v1 (no push/email).
 
 ---
 
@@ -731,6 +764,7 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 - [ ] `workflow.getMany` / `workflow.saveGraph` filter by `ctx.org.id` (not `userId`).
 - [ ] `executions.list` / `getOne` and the run counts filter by `ctx.org.id`.
 - [ ] `sendWorkflowExecution` on the `run` path passes `organizationId` (the event schema already accepts it — `src/inngest/utils.ts:22`).
+- [ ] Runner credential resolution is org-scoped: `executeWorkflow` loads credentials by `{ id, organizationId: workflow.organizationId }` instead of `userId` (`src/inngest/functions.ts:407-410`) — org runs referencing a teammate's credential must resolve. *(added 2026-08-30; not in the original acceptance — required by AF-M7-01 credential placeholders and org-shared credentials.)*
 - [ ] Integration tests prove org B cannot see/run org A workflows or executions.
 - [ ] progress.md + tasks.md updated; docs corrected where they claimed this was M6.
 
