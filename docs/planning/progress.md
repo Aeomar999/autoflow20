@@ -37,7 +37,7 @@ AutoFlow is a multi-tenant workflow-automation platform: React Flow canvas **tha
 | 5.6 | Multi-agent orchestration | ⚫ | 0% | Nothing. |
 | 5.7 | Analytics, ROI, marketplace | ⚫ | 0% | `recharts` installed; no dashboards, templates, or marketplace. |
 | 5.8 | Developer platform | ⚫ | 0% | tRPC internal-only; no public API/SDK/CLI/Git sync. |
-| 6 | Non-functional | 🟢 | ~90% | 628 tests passing across 68 files (38 skipped — the integration suites, which skip visibly without `TEST_DATABASE_URL`); Biome lint clean (0 errors); Next.js 15 production build clean. |
+| 6 | Non-functional | 🟢 | ~90% | 666 tests passing across 73 files, 0 skipped (the integration suites run against the local `TEST_DATABASE_URL` created by `npm run test:db:up`, and skip visibly when absent); Biome lint clean (0 errors); Next.js 15 production build clean. |
 
 🟢 done · 🟠 partial · 🔴 minimal · ⚫ absent
 
@@ -146,7 +146,7 @@ Resolved by audit (were previously mis-tracked): D1 save no-op (**never existed*
 | tRPC routers | 3 (`workflows`, `executions`, `credentials`) | `src/trpc/routers/_app.ts` |
 | Executable node types | 23 | `src/nodes/manifest.ts` |
 | Inngest functions | 1 (`execute-workflow`) + 9 realtime channels | `src/inngest/functions.ts` |
-| Tests | **628 passed + 38 skipped across 68 files** (skips are the integration suites, DB-gated without `TEST_DATABASE_URL`); with the DB up, `npx vitest run --project integration` runs green (5 files, 38 tests) | `npm test` / `npx vitest run --project integration` |
+| Tests | **666 passed, 0 skipped across 73 files** (integration suites in `tests/integration/` run against the local `TEST_DATABASE_URL` — `npm run test:db:up`; they skip visibly when the DB is absent) | `npm test` / `npm run test:integration` |
 | CI pipelines | 1 (`.github/workflows/ci.yml`: lint + tsc + test + build on postgres:16) **+ Vercel production build green** — `postinstall: prisma generate` emits the gitignored client before `next build` (`04b9a35`, 2026-08-28) | repo root |
 | Type check | ✅ clean after `npx prisma generate` | `tsc --noEmit` exit 0 |
 | Lint | ✅ clean (`biome check` exits 0; vendored-UI overrides documented) | `biome check` |
