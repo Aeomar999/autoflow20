@@ -60,6 +60,7 @@ describe.runIf(hasDb)("Org isolation", () => {
   let orgBId: string;
   let wfAId: string;
   let wfBId: string;
+  let wfBVersionId: string;
   let wfBRevision: number;
   let exAId: string;
   let exBId: string;
@@ -126,6 +127,17 @@ describe.runIf(hasDb)("Org isolation", () => {
     wfAId = wfA.id;
     wfBId = wfB.id;
     wfBRevision = wfB.revision;
+
+    const wfBVersion = await prisma.workflowVersion.create({
+      data: {
+        workflow: { connect: { id: wfB.id } },
+        version: 1,
+        workflowRevision: wfB.revision,
+        graphSnapshot: {},
+      },
+      select: { id: true },
+    });
+    wfBVersionId = wfBVersion.id;
 
     const exA = await prisma.execution.create({
       data: {
@@ -206,7 +218,9 @@ describe.runIf(hasDb)("Org isolation", () => {
       workflows.updateName({ id: wfBId, name: "hacked" }),
     ).rejects.toThrow();
     await expect(workflows.publish({ id: wfBId })).rejects.toThrow();
-    await expect(workflows.activate({ id: wfBId })).rejects.toThrow();
+    await expect(
+      workflows.activate({ workflowId: wfBId, versionId: wfBVersionId }),
+    ).rejects.toThrow();
     await expect(workflows.deactivate({ id: wfBId })).rejects.toThrow();
     await expect(workflows.run({ id: wfBId })).rejects.toThrow();
     await expect(workflows.remove({ id: wfBId })).rejects.toThrow();
@@ -260,7 +274,7 @@ describe.runIf(hasDb)("Org isolation", () => {
 
   it("assigns workflow and credential creates to the active org, even when another org's header is spoofed", async () => {
     asUser(h.users.userA, orgBId);
-    const wf = await workflows.create({ name: "brand-new" });
+    const wf = await workflows.create();
     const wfRow = await prisma.workflow.findUnique({
       where: { id: wf.id },
       select: { organizationId: true },
