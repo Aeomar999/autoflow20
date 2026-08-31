@@ -173,6 +173,30 @@ that leaves the catalogue, so a retired template's install count and links
 survive. Every spec passes `catalog/harness.ts` before it can be seeded — the
 seeder re-runs it and refuses to write on any issue.
 
+### `onboarding` — **[M7]** (shipped AF-M7-05)
+
+`status`. One `orgViewerProcedure` query, no input, defined in
+`src/features/onboarding/server/routers.ts`.
+
+| Procedure | Permission rung | Output |
+|---|---|---|
+| `status` | `orgViewerProcedure` | `{ organizationId, workflowCount, credentialCount, executionCount }` |
+
+Counts, not rows: the first-run checklist only needs to know whether the
+workspace has *any* of each, and a brand-new workspace should not pay to load
+lists it is about to be told are empty. All three are scoped through
+`ctx.org.id` in the `where` clause; `Execution` reaches the org through its
+workflow, since it carries no `organizationId` of its own.
+
+`organizationId` is returned so the client can key its dismissal preference per
+workspace — hiding the checklist in one must not hide it in another. It is the
+caller's own active organization, which they are already a member of.
+
+**No onboarding state is stored server-side.** Step completion is derived from
+these counts on every read, so a tick can never claim something that has since
+been deleted. Only the user's "hide this" preference is persisted, in
+`localStorage` under `autoflow.onboarding.v1`.
+
 ---
 
 ## 4. Webhook ingress — M4
