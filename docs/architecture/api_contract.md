@@ -11,7 +11,7 @@
 |---|---|---|---|
 | tRPC | Our own web app only | Internal — change freely with the client | **[BUILT]** (1 router) |
 | Webhook ingress | External systems triggering workflows | Public — versioned by endpoint | **[PLANNED M4]** |
-| REST v1 | External API clients | Public — semver, deprecation policy | **[PLANNED M8]** |
+| REST v1 | External API clients | Public — semver, deprecation policy | **[BUILT M8 — see §5]** |
 | Inngest events | Internal async | Internal | **[PARTIAL]** |
 | GraphQL | External | — | Phase 3 |
 
@@ -290,9 +290,9 @@ The raw payload is stored with the execution for replay, subject to retention po
 
 ---
 
-## 5. REST v1 — M8
+## 5. REST v1 — [BUILT M8] 
 
-Base: `/api/v1`. Auth: `Authorization: Bearer <api_key>`, keys hashed at rest with scopes.
+Base: `/api/v1`. Auth: `Authorization: Bearer <api_key>` (`af_` + 40 base62 chars), keys stored hashed at rest (SHA-256, 8-char prefix lookup) and scoped (ADR `0012-public-api-and-api-keys.md`). The key is the tenant boundary — cross-tenant reads return `404 NOT_FOUND`, never existence disclosure.
 
 | Method | Path | Scope |
 |---|---|---|
@@ -304,11 +304,13 @@ Base: `/api/v1`. Auth: `Authorization: Bearer <api_key>`, keys hashed at rest wi
 | POST | `/executions/:id/cancel` | `executions:write` |
 
 Conventions:
-- JSON only; `snake_case` field names (public API convention, distinct from internal camelCase — mapped explicitly at the boundary, never leaked through).
-- Cursor pagination: `?limit=&cursor=` → `{ data, next_cursor }`.
-- Errors: `{ error: { code, message, details? } }` with conventional HTTP statuses.
-- Rate limit headers: `X-RateLimit-Limit`, `-Remaining`, `-Reset`.
-- Idempotency: `Idempotency-Key` honored on `POST /run`.
+- JSON only; `snake_case` field names (public API convention, distinct from internal camelCase — mapped explicitly in `src/features/api-keys/server/serialize.ts`, never leaked through).
+- Cursor pagination: `?limit=&cursor=` → `{ data, next_cursor }` (base64url `[sortValue,id]`, default 20 / max 100).
+- Errors: `{ error: { code, message, details? } }` with conventional HTTP statuses; the wire codes are `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `BAD_REQUEST`, `CONFLICT`, `TOO_MANY_REQUESTS`, `INTERNAL_SERVER_ERROR` (generic to the client, full detail to logs).
+- Rate limiting: per-key token bucket resolved from plan (FREE 60/1s … ENTERPRISE 60000/1000s), enforced before any data is touched; `429` carries `Retry-After`, every response carries `X-RateLimit-Limit`/`-Remaining`/`-Reset`. In-memory store — the shared-store follow-up is AF-M8-02.
+- Idempotency: `Idempotency-Key` honored on `POST /run`, deduped by the `(workflowId, idempotencyKey)` unique index so concurrent retries still yield one run.
+- Auth failure semantics: unknown/revoked/expired key → `401 UNAUTHENTICATED`; valid key missing the scope → `403 FORBIDDEN`.
+- Management (create/list/revoke keys, org-admin only, audited) is a tRPC router `apiKeys` — the web UI is the only consumer; the management UI stays internal (deferred).
 - Versioning: additive changes only within v1. Breaking changes → v2, with a 6-month deprecation window announced via `Sunset` headers and changelog.
 
 ---

@@ -99,7 +99,10 @@ export const executionsRouter = createTRPCRouter({
 
       const totalPages = Math.ceil(totalCount / pageSize);
       return {
-        items,
+        items: items.map((item) => ({
+          ...item,
+          costUsd: Number(item.costUsd),
+        })),
         page,
         pageSize,
         totalCount,
@@ -115,8 +118,8 @@ export const executionsRouter = createTRPCRouter({
    */
   getOne: orgViewerProcedure
     .input(z.object({ id: z.string() }))
-    .query(({ ctx, input }) => {
-      return prisma.execution.findUniqueOrThrow({
+    .query(async ({ ctx, input }) => {
+      const row = await prisma.execution.findUniqueOrThrow({
         where: {
           id: input.id,
           workflow: { organizationId: ctx.org.id },
@@ -148,6 +151,14 @@ export const executionsRouter = createTRPCRouter({
           },
         },
       });
+      return {
+        ...row,
+        costUsd: Number(row.costUsd),
+        nodeExecutions: row.nodeExecutions.map((ne) => ({
+          ...ne,
+          costUsd: Number(ne.costUsd),
+        })),
+      };
     }),
 
   /**

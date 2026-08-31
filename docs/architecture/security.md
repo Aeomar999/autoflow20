@@ -18,7 +18,7 @@ An automation platform holds the keys to every system its customers connect. The
 | Credential storage | ✅ Envelope encryption (AES-256-GCM, per-record DEK, AF-M3-01/02); engine-level injection via single decrypt site (AF-M3-04); no plaintext read path. |
 | Secrets in logs | ✅ Redacting logger (`src/lib/logger.ts`) + Sentry `beforeSend` scrubbing (AF-M0-07); credentials never in `NodeExecution` IO (AF-M3-04 leak guard tests). |
 | Audit trail | 🔴 None. |
-| Rate limiting | 🔴 None on any route, including auth. |
+| Rate limiting | 🟠 Public API: per-key token bucket (plan-based, FREE 60/1s … ENTERPRISE 60000/1000s, 429 + `Retry-After`, AF-M8-01); webhook ingress: simple in-memory (M4). auth/tRPC surfaces still piecemeal (AF-M8-02). |
 | SSRF protection | ✅ `egress-guard.ts` — scheme/host allowlist, private-IP blocks, DNS resolve check (AF-A-02). |
 | Webhook authentication | ✅ Per-workflow secret + Stripe signature verification (AF-A-01). |
 | Input validation | 🟠 Zod on tRPC inputs + per-node-type config schemas at save boundary (AF-A-04); nothing on other surfaces. |
@@ -163,7 +163,7 @@ Two distinct problems; do not conflate them.
 | Login / signup | 5 attempts / 15 min | IP + email |
 | Password reset | 3 / hour | email |
 | Webhook ingress | plan-dependent | endpoint + org |
-| Public API | plan-dependent | API key |
+| Public API | plan-dependent | API key · **built (AF-M8-01)** |
 | tRPC mutations | burst cap | user |
 | Workflow executions | plan quota | organization |
 

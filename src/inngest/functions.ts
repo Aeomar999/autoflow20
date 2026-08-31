@@ -115,7 +115,8 @@ export const executeWorkflow = inngest.createFunction(
         });
         tokensIn = aggregates._sum.tokensIn ?? 0;
         tokensOut = aggregates._sum.tokensOut ?? 0;
-        costUsd = aggregates._sum.costUsd ?? 0;
+        costUsd =
+          aggregates._sum.costUsd != null ? Number(aggregates._sum.costUsd) : 0;
       }
 
       const updated = await prisma.execution.update({
@@ -723,7 +724,8 @@ export const executeWorkflow = inngest.createFunction(
       });
       const tokensIn = aggregates._sum.tokensIn ?? 0;
       const tokensOut = aggregates._sum.tokensOut ?? 0;
-      const costUsd = aggregates._sum.costUsd ?? 0;
+      const costUsd =
+        aggregates._sum.costUsd != null ? Number(aggregates._sum.costUsd) : 0;
 
       return prisma.execution.update({
         where: { inngestEventId, workflowId },

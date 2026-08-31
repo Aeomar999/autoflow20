@@ -252,7 +252,7 @@ model NodeExecution {
 ```
 
 Notes:
-- `costUsd` is `Decimal(12,6)`, never a float. Money in floats produces reconciliation bugs that are painful to unwind later. **As built it is `Float`** — the M2 migration shipped `Float` and `AF-M5-05` built cost capture on it; every read rounds to micro-dollars to contain the drift. Converting to `Decimal` is tracked as `AF-M8-11`.
+- `costUsd` is `Decimal(12,6)`, never a float. Money in floats produces reconciliation bugs that are painful to unwind later. *(Shipped as `Float` from M2 through AF-M5-08; converted to `Decimal(12,6)` in `AF-M8-11` — migration `20260831140000_cost_usd_float_to_decimal`.)*
 - `model` is the model the fallback chain actually served with, not the one configured — per-model cost reporting (`AF-M5-08`) would otherwise attribute spend to a model that never ran.
 - `cacheHit` is deliberately three-valued: `null` means the node had no response cache configured, so it belongs in neither half of a hit rate; `false` is a real miss. See `AiResponseCache` below.
 - `nodeName`/`nodeType` are **denormalized** onto `NodeExecution` so a trace remains readable after the node is deleted from the workflow.

@@ -43,10 +43,34 @@ import {
 import { useSuspenseExecution } from "@/features/executions/hooks/use-executions";
 import {
   ExecutionStatus,
-  type NodeExecution,
   NodeExecutionStatus,
 } from "@/generated/prisma/browser";
 import { useTRPC } from "@/trpc/client";
+
+/** Compatible with the router's output (costUsd is number, not Prisma Decimal). */
+type TraceRow = {
+  id: string;
+  executionId: string;
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  typeVersion: number;
+  status: NodeExecutionStatus;
+  attempt: number;
+  order: number;
+  input: React.ReactNode;
+  output: React.ReactNode;
+  error: string | null;
+  skipReason: string | null;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  durationMs: number | null;
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number;
+  model: string | null;
+  cacheHit: boolean | null;
+};
 
 const TRIGGER_ICONS: Record<string, React.ReactNode> = {
   MANUAL: <KeyboardIcon className="size-4" />,
@@ -217,7 +241,7 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
   // AF-M5-07: hit rate for this run. Nodes with no cache configured record a
   // null cacheHit and are excluded from both halves, so the ratio describes
   // only the nodes that actually asked the cache.
-  const cacheableTraces = (execution.nodeExecutions as NodeExecution[]).filter(
+  const cacheableTraces = (execution.nodeExecutions as TraceRow[]).filter(
     (trace) => trace.cacheHit !== null,
   );
   const cachedTraceCount = cacheableTraces.filter(
@@ -418,7 +442,7 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
               Node traces ({execution.nodeExecutions.length})
             </p>
             <div className="rounded-md border divide-y">
-              {(execution.nodeExecutions as NodeExecution[]).map((trace) => (
+              {(execution.nodeExecutions as TraceRow[]).map((trace) => (
                 <NodeTraceRow
                   key={trace.id}
                   trace={trace}
@@ -439,7 +463,7 @@ const NodeTraceRow = ({
   executionId,
   isRetryable,
 }: {
-  trace: NodeExecution;
+  trace: TraceRow;
   executionId: string;
   isRetryable: boolean;
 }) => {
