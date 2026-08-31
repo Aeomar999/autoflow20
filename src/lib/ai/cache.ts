@@ -148,7 +148,7 @@ export async function readAiCache(
       model: row.model,
       tokensIn: row.tokensIn,
       tokensOut: row.tokensOut,
-      costUsd: row.costUsd,
+      costUsd: Number(row.costUsd),
     };
   } catch (error) {
     // Ignorable by design: a cache outage degrades to a provider call, which

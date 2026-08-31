@@ -118,7 +118,7 @@ export const costsRouter = createTRPCRouter({
         periodDays: input.days,
         since,
         totals: {
-          costUsd: roundUsd(totals._sum.costUsd ?? 0),
+          costUsd: roundUsd(Number(totals._sum.costUsd ?? 0)),
           tokensIn: totals._sum.tokensIn ?? 0,
           tokensOut: totals._sum.tokensOut ?? 0,
           runs: totals._count._all,
@@ -139,7 +139,7 @@ export const costsRouter = createTRPCRouter({
           // A workflow deleted between the two queries loses its name but not
           // its spend; showing the id beats dropping the row.
           name: workflowNames.get(group.workflowId) ?? group.workflowId,
-          costUsd: roundUsd(group._sum.costUsd ?? 0),
+          costUsd: roundUsd(Number(group._sum.costUsd ?? 0)),
           runs: group._count._all,
           tokensIn: group._sum.tokensIn ?? 0,
           tokensOut: group._sum.tokensOut ?? 0,
@@ -150,7 +150,7 @@ export const costsRouter = createTRPCRouter({
           )
           .map((group) => ({
             model: group.model,
-            costUsd: roundUsd(group._sum.costUsd ?? 0),
+            costUsd: roundUsd(Number(group._sum.costUsd ?? 0)),
             nodeRuns: group._count._all,
             tokensIn: group._sum.tokensIn ?? 0,
             tokensOut: group._sum.tokensOut ?? 0,
@@ -161,7 +161,7 @@ export const costsRouter = createTRPCRouter({
           workflowName: run.workflow.name,
           status: run.status,
           startedAt: run.startedAt,
-          costUsd: roundUsd(run.costUsd),
+          costUsd: roundUsd(Number(run.costUsd)),
           tokensIn: run.tokensIn,
           tokensOut: run.tokensOut,
         })),

@@ -343,7 +343,7 @@ model Execution {
   nodeCount Int @default(0)
   tokensIn Int @default(0)
   tokensOut Int @default(0)
-  costUsd Float @default(0)
+  costUsd Decimal @default(0) @db.Decimal(12, 6)
 
   inngestEventId String @unique
 
@@ -394,7 +394,7 @@ model NodeExecution {
 
   tokensIn Int @default(0)
   tokensOut Int @default(0)
-  costUsd Float @default(0)
+  costUsd Decimal @default(0) @db.Decimal(12, 6)
 
   /// `provider:model` that served this node, when it made an AI call. NULL for
   /// every non-AI node. Cost-per-model reporting groups on this (AF-M5-08).
@@ -496,7 +496,7 @@ model AiResponseCache {
 
   tokensIn Int @default(0)
   tokensOut Int @default(0)
-  costUsd Float @default(0)
+  costUsd Decimal @default(0) @db.Decimal(12, 6)
 
   hitCount Int @default(0)
   createdAt DateTime @default(now())
