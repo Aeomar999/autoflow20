@@ -1,11 +1,24 @@
 import { checkout, polar, portal } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { resolveTrustedOrigins } from "@/lib/auth-origins";
 import prisma from "@/lib/db";
 import { polarProductId, polarProductSlug } from "@/lib/env";
 import { polarClient } from "./polar";
 
 export const auth = betterAuth({
+  // Explicit rather than inferred: Better Auth matches the request `Origin`
+  // against this, and an inferred value silently becomes localhost in a
+  // deployed environment — which is the "Invalid origin" sign-up failure.
+  baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: resolveTrustedOrigins({
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NGROK_URL: process.env.NGROK_URL,
+    // Injected per deployment by Vercel; the only way preview URLs, which
+    // differ per branch, can be trusted without hardcoding them.
+    VERCEL_URL: process.env.VERCEL_URL,
+  }),
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
