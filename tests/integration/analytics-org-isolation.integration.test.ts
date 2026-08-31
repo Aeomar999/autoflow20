@@ -1,15 +1,7 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { analyticsRouter } from "@/features/analytics/server/routers";
-import type { createTRPCContext } from "@/trpc/init";
 import prisma from "@/lib/db";
+import type { createTRPCContext } from "@/trpc/init";
 
 /**
  * Analytics router org isolation (AF-M7-03): proves overview metrics,

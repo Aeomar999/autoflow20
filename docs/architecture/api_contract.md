@@ -160,7 +160,18 @@ button calls `instantiate`, toasts "Installed as a draft", invalidates the
 button is omitted; the deep-planned post-install credential dialog is replaced by
 a pre-install "Before you install" checklist that explains which credentials are
 required; installs always land as an unsaved draft rather than a deployed
-workflow. The 20 authored gallery templates are AF-M7-02 (backlog).
+workflow.
+
+**Gallery content (AF-M7-02, shipped 2026-08-31).** The 20 authored templates
+live in `src/features/templates/catalog/` and are the source of truth; `Template`
+rows are a projection written only by `npm run seed:templates`. `nodeCount` and
+`credentialCount` on every row are **derived from the graph** via
+`collectPendingCredentials`, never authored, so the `fewestCredentials` sort is a
+promise the data cannot break. Seeding is keyed on `slug`, leaves `installs`
+untouched, and **deactivates** (`isActive: false`) rather than deletes a slug
+that leaves the catalogue, so a retired template's install count and links
+survive. Every spec passes `catalog/harness.ts` before it can be seeded — the
+seeder re-runs it and refuses to write on any issue.
 
 ---
 
