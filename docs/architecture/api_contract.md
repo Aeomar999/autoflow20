@@ -197,6 +197,38 @@ these counts on every read, so a tick can never claim something that has since
 been deleted. Only the user's "hide this" preference is persisted, in
 `localStorage` under `autoflow.onboarding.v1`.
 
+### `search` — **[M7]** (shipped AF-M7-07)
+
+`query`. One `orgViewerProcedure` query backing the Cmd+K command palette,
+defined in `src/features/search/server/routers.ts`.
+
+| Procedure | Permission rung | Input | Output |
+|---|---|---|---|
+| `query` | `orgViewerProcedure` | `{ q?: string (≤200), limit?: 1..20 (default 5, per kind) }` | `{ workflows, executions, credentials }`, each `SearchResult[]` |
+
+`SearchResult` = `{ kind, id, title, subtitle?, href? }`.
+
+Matching: workflows by name; executions by **id prefix**, by `ExecutionStatus`
+(so "fail" finds FAILED runs), or by parent workflow name; credentials by name.
+All `contains` matches are case-insensitive.
+
+**Tenancy.** Every query filters on `ctx.org.id` in the `where` clause and is
+`take`-limited per kind. `Execution` reaches the org through its workflow. The
+empty-query case returns the most recent rows per kind, where org scope is the
+*only* filter — covered explicitly by
+`tests/integration/search-org-isolation.integration.test.ts`, in which both
+orgs own rows with the identical name.
+
+**Credential results carry `type` only** — never `preview`, never an envelope
+column. There is no read path for credential secrets, and a global search box
+is where an accidental one would surface; the integration suite asserts it.
+
+Navigation destinations and actions are **not** returned here. They carry no
+tenant data, are identical for every workspace, and live client-side in
+`src/features/search/lib/static-commands.ts`. Ranking across all five kinds
+happens on the client (`lib/fuzzy.ts`); the server decides only what this
+tenant may see.
+
 ---
 
 ## 4. Webhook ingress — M4

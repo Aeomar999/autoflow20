@@ -7,6 +7,7 @@ import { executionsRouter } from "@/features/executions/server/routers";
 import { knowledgeRouter } from "@/features/knowledge/server/routers";
 import { onboardingRouter } from "@/features/onboarding/server/routers";
 import { organizationsRouter } from "@/features/organizations/server/routers";
+import { searchRouter } from "@/features/search/server/routers";
 import { templatesRouter } from "@/features/templates/server/routers";
 import { workflowsRouter } from "@/features/workflows/server/routers";
 import { createTRPCRouter } from "../init";
@@ -23,6 +24,7 @@ export const appRouter = createTRPCRouter({
   costs: costsRouter,
   templates: templatesRouter,
   onboarding: onboardingRouter,
+  search: searchRouter,
 });
 
 export type AppRouter = typeof appRouter;
