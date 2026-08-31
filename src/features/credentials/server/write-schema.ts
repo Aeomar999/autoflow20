@@ -116,9 +116,30 @@ export const credentialWriteBody = z.discriminatedUnion(
   credentialWriteVariants,
 );
 
-export const credentialWriteInput = z
-  .object({ name: z.string().min(1, "Name is required").max(120) })
-  .and(credentialWriteBody);
+const credentialName = z.string().min(1, "Name is required").max(120);
+
+/**
+ * Write input: every strict variant extended with the `name` metadata.
+ *
+ * Build it as a union of `variant.extend({ name })` rather than
+ * `z.object({ name }).and(body)` — a strict ZodObject rejects keys it does
+ * not declare, and that unknown-key check does NOT compose through `.and`,
+ * so the intersection form rejects `name` on every create. Extending the
+ * variant instead lets `name` coexist with the strict variant's fields while
+ * unknown keys are still rejected per variant (AGENTS §6).
+ *
+ * `z.union` is used rather than `z.discriminatedUnion`: `.map()` over the
+ * readonly `credentialWriteVariants` tuple widens to a `ZodObject[]` union
+ * array, which `z.discriminatedUnion` rejects (it requires a strict tuple of
+ * discriminable schemas). `z.union` accepts the widened array and still
+ * infers the precise per-variant output union, so `z.infer` stays exact for
+ * handlers. Each member keeps its own strict unknown-key check.
+ */
+export const credentialWriteInput = z.union(
+  credentialWriteVariants.map((variant) =>
+    variant.extend({ name: credentialName }),
+  ),
+);
 
 export type CredentialWriteInput = z.infer<typeof credentialWriteInput>;
 

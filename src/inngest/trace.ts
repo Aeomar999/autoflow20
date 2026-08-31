@@ -72,6 +72,77 @@ export type GraphEdge = {
  */
 export const OUTPUT_PORT_KEY = "_outputPort" as const;
 
+/**
+ * Convention for token & cost capture across nodes (AF-M5-05).
+ * Nodes performing AI calls or metering attach this to the returned context.
+ */
+export const WORKFLOW_USAGE_KEY = "__usage" as const;
+
+export interface StepUsage {
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number;
+  model?: string;
+  /**
+   * Response-cache outcome (AF-M5-07): true = served from cache, false = the
+   * node had a cache configured and missed, null = no cache configured, so
+   * the run belongs in neither half of a hit rate.
+   */
+  cacheHit: boolean | null;
+}
+
+/**
+ * Extracts and sanitizes token usage and cost metrics from a node's return context.
+ */
+export function extractStepUsage(result: unknown): StepUsage {
+  if (!result || typeof result !== "object") {
+    return { tokensIn: 0, tokensOut: 0, costUsd: 0, cacheHit: null };
+  }
+  const rec = result as Record<string, unknown>;
+  const rawUsage = (rec[WORKFLOW_USAGE_KEY] ?? rec._usage) as
+    | Record<string, unknown>
+    | undefined;
+  if (!rawUsage || typeof rawUsage !== "object") {
+    return { tokensIn: 0, tokensOut: 0, costUsd: 0, cacheHit: null };
+  }
+  const tokensIn =
+    typeof rawUsage.tokensIn === "number" && !Number.isNaN(rawUsage.tokensIn)
+      ? Math.max(0, Math.round(rawUsage.tokensIn))
+      : typeof rawUsage.inputTokens === "number" &&
+          !Number.isNaN(rawUsage.inputTokens)
+        ? Math.max(0, Math.round(rawUsage.inputTokens))
+        : typeof rawUsage.promptTokens === "number" &&
+            !Number.isNaN(rawUsage.promptTokens)
+          ? Math.max(0, Math.round(rawUsage.promptTokens))
+          : 0;
+
+  const tokensOut =
+    typeof rawUsage.tokensOut === "number" && !Number.isNaN(rawUsage.tokensOut)
+      ? Math.max(0, Math.round(rawUsage.tokensOut))
+      : typeof rawUsage.outputTokens === "number" &&
+          !Number.isNaN(rawUsage.outputTokens)
+        ? Math.max(0, Math.round(rawUsage.outputTokens))
+        : typeof rawUsage.completionTokens === "number" &&
+            !Number.isNaN(rawUsage.completionTokens)
+          ? Math.max(0, Math.round(rawUsage.completionTokens))
+          : 0;
+
+  const costUsd =
+    typeof rawUsage.costUsd === "number" && !Number.isNaN(rawUsage.costUsd)
+      ? Math.max(0, Math.round(rawUsage.costUsd * 1e6) / 1e6)
+      : 0;
+
+  const model = typeof rawUsage.model === "string" ? rawUsage.model : undefined;
+
+  return {
+    tokensIn,
+    tokensOut,
+    costUsd,
+    model,
+    cacheHit: typeof rawUsage.cacheHit === "boolean" ? rawUsage.cacheHit : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Skip-reachability (branch-taken semantics, AF-M2-04)
 // ---------------------------------------------------------------------------

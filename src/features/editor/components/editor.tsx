@@ -15,6 +15,7 @@ import {
   type NodeChange,
   Panel,
   ReactFlow,
+  ReactFlowProvider,
 } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
@@ -34,6 +35,7 @@ import {
 } from "../store/atoms";
 import { NodeStatusProvider } from "../store/node-status-context";
 import { AddNodeButton } from "./add-node-button";
+import { CostEstimateBadge } from "./cost-estimate-badge";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
 import { NodeConfigPanel } from "./node-config-panel";
 import {
@@ -219,53 +221,56 @@ export const Editor = memo(function Editor({
 
   return (
     <div className="relative size-full">
-      <NodeStatusProvider>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onSelectionChange={onSelectionChange}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
-          nodeTypes={nodeComponents}
-          onInit={setEditor}
-          fitView
-          snapGrid={[10, 10]}
-          snapToGrid
-          panOnScroll
-          panOnDrag={false}
-          selectionOnDrag
-        >
-          <Background />
-          <Controls />
-          <MiniMap />
-          <Panel position="top-right">
-            <AddNodeButton />
-          </Panel>
-          <Panel position="bottom-center">
-            <div className="flex flex-col items-center gap-2 mb-4">
-              {hasManualTrigger && (
-                <ExecuteWorkflowButton workflowId={workflowId} />
-              )}
-              <div className="flex items-center gap-2">
-                <TestWorkflowButton workflowId={workflowId} />
-                <TestSelectedNodeButton workflowId={workflowId} />
+      <ReactFlowProvider>
+        <NodeStatusProvider>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onSelectionChange={onSelectionChange}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            nodeTypes={nodeComponents}
+            onInit={setEditor}
+            fitView
+            snapGrid={[10, 10]}
+            snapToGrid
+            panOnScroll
+            panOnDrag={false}
+            selectionOnDrag
+          >
+            <Background />
+            <Controls />
+            <MiniMap />
+            <Panel position="top-right">
+              <AddNodeButton />
+            </Panel>
+            <Panel position="bottom-center">
+              <div className="flex flex-col items-center gap-2 mb-4">
+                <CostEstimateBadge />
+                {hasManualTrigger && (
+                  <ExecuteWorkflowButton workflowId={workflowId} />
+                )}
+                <div className="flex items-center gap-2">
+                  <TestWorkflowButton workflowId={workflowId} />
+                  <TestSelectedNodeButton workflowId={workflowId} />
+                </div>
               </div>
-            </div>
-          </Panel>
-          <ValidationPanel />
-        </ReactFlow>
-      </NodeStatusProvider>
-      {selectedNode && selectedDefinition ? (
-        <NodeConfigPanel
-          node={selectedNode}
-          definition={selectedDefinition}
-          onNodeChange={patchSelectedNode}
-        />
-      ) : null}
-      <NodeSelector />
+            </Panel>
+            <ValidationPanel />
+          </ReactFlow>
+        </NodeStatusProvider>
+        {selectedNode && selectedDefinition ? (
+          <NodeConfigPanel
+            node={selectedNode}
+            definition={selectedDefinition}
+            onNodeChange={patchSelectedNode}
+          />
+        ) : null}
+        <NodeSelector />
+      </ReactFlowProvider>
     </div>
   );
 });

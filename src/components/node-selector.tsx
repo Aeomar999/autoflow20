@@ -25,7 +25,7 @@ import {
   nodesAtom,
   saveStatusAtom,
 } from "@/features/editor/store/atoms";
-import { nodeManifest } from "@/nodes/manifest";
+import { nodeManifest, nodePalette } from "@/nodes/manifest";
 import type { NodeCategory, NodeDefinition } from "@/nodes/types";
 
 export type NodeTypeOption = {
@@ -128,11 +128,11 @@ export function NodeSelector({
   // Filter nodes by search query
   const filteredNodes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return nodeManifest;
+    if (!query) return nodePalette;
 
     const tokens = query.split(/\s+/).filter(Boolean);
 
-    return nodeManifest.filter((node) => {
+    return nodePalette.filter((node) => {
       const searchSpace = [
         node.label,
         node.description,

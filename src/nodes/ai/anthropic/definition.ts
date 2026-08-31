@@ -19,4 +19,10 @@ export const definition: NodeDefinition = {
   credentials: [
     { key: "credentialId", type: "anthropic.apiKey", required: true },
   ],
+  deprecated: {
+    since: "2026-08-31",
+    replacedBy: "AI_LLM",
+    reason:
+      "Superseded by AI Chat, which reaches every registered provider, supports fallback chains, JSON mode, and per-run cost capture. This node is pinned to claude-sonnet-4-5 and records no usage.",
+  },
 };

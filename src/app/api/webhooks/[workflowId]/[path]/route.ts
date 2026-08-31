@@ -56,6 +56,7 @@ export async function POST(
       select: {
         id: true,
         userId: true,
+        organizationId: true,
         webhookSecret: true,
         activeVersionId: true,
       },
@@ -106,11 +107,28 @@ export async function POST(
 
     const { createId } = await import("@paralleldrive/cuid2");
     const executionId = createId();
+    const placeholderEventId = createId();
+
+    // Pre-create the Execution row before emitting the event: the runner
+    // resolves a pre-created execution when executionId is present
+    // (AF-M2-06), and the workspace is needed for credential resolution.
+    await prisma.execution.create({
+      data: {
+        id: executionId,
+        workflowId,
+        trigger: "WEBHOOK",
+        mode: "PRODUCTION",
+        status: "RUNNING",
+        inngestEventId: placeholderEventId,
+        organizationId: workflow.organizationId,
+      },
+    });
 
     // Pass the payload to the execution engine
-    await sendWorkflowExecution({
+    const { eventId } = await sendWorkflowExecution({
       workflowId,
       userId: workflow.userId,
+      organizationId: workflow.organizationId ?? undefined,
       executionId,
       initialData: {
         webhook: {
@@ -121,6 +139,11 @@ export async function POST(
           body: parsedBody,
         },
       },
+    });
+
+    await prisma.execution.update({
+      where: { id: executionId },
+      data: { inngestEventId: eventId },
     });
 
     const isSync = url.searchParams.get("sync") === "true";

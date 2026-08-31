@@ -3,8 +3,9 @@ import { PAGINATION } from "@/config/constants";
 import prisma from "@/lib/db";
 import {
   createTRPCRouter,
-  premiumProcedure,
-  protectedProcedure,
+  orgEditorProcedure,
+  orgViewerProcedure,
+  premiumOrgProcedure,
 } from "@/trpc/init";
 import {
   computePreview,
@@ -29,7 +30,8 @@ import {
  * - No procedure returns decrypted material: `value` no longer exists on the
  *   model; secrets live only in the envelope columns and the write-time
  *   `preview` fragment. Asserted by credentials-security.test.ts.
- * - Every query is tenant-scoped in the `where` clause (`userId`).
+ * - Every query is tenant-scoped in the `where` clause (`organizationId`,
+ *   via the org procedures; AF-M7-pre-1).
  * - `type` is a credential-registry id (e.g. "openai.apiKey"); the write input
  *   schema is generated from the registry so secret shape can only diverge by
  *   adding a new type.
@@ -73,7 +75,7 @@ const upsertSecretColumns = (input: z.infer<typeof credentialWriteInput>) => {
 };
 
 export const credentialsRouter = createTRPCRouter({
-  create: premiumProcedure
+  create: premiumOrgProcedure
     .input(credentialWriteInput)
     .output(credentialPublicSchema)
     .mutation(async ({ ctx, input }) => {
@@ -81,6 +83,7 @@ export const credentialsRouter = createTRPCRouter({
         data: {
           name: input.name,
           userId: ctx.auth.user.id,
+          organizationId: ctx.org.id,
           type: input.type,
           ...upsertSecretColumns(input),
         },
@@ -93,7 +96,7 @@ export const credentialsRouter = createTRPCRouter({
    * the existing envelope is preserved (name-only rename). When any secret
    * field is provided, the entire envelope is re-encrypted.
    */
-  update: protectedProcedure
+  update: orgEditorProcedure
     .input(credentialUpdateInput)
     .output(credentialPublicSchema)
     .mutation(async ({ ctx, input }) => {
@@ -119,7 +122,7 @@ export const credentialsRouter = createTRPCRouter({
       }
 
       const credential = await prisma.credential.update({
-        where: { id, userId: ctx.auth.user.id },
+        where: { id, organizationId: ctx.org.id },
         data: { name, type, ...envelopeData },
         select: credentialPublicSelect,
       });
@@ -129,7 +132,7 @@ export const credentialsRouter = createTRPCRouter({
    * Returns workflows that reference a credential (via Node.credentialId).
    * Used by the UI's delete-confirmation dialog to warn the user.
    */
-  getUsage: protectedProcedure
+  getUsage: orgViewerProcedure
     .input(credentialIdInput)
     .output(
       z.object({
@@ -139,12 +142,15 @@ export const credentialsRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       // Verify ownership first
       await prisma.credential.findUniqueOrThrow({
-        where: { id: input.id, userId: ctx.auth.user.id },
+        where: { id: input.id, organizationId: ctx.org.id },
         select: { id: true },
       });
 
       const nodes = await prisma.node.findMany({
-        where: { credentialId: input.id },
+        where: {
+          credentialId: input.id,
+          workflow: { organizationId: ctx.org.id },
+        },
         select: {
           workflow: { select: { id: true, name: true } },
         },
@@ -158,27 +164,27 @@ export const credentialsRouter = createTRPCRouter({
         })),
       };
     }),
-  remove: protectedProcedure
+  remove: orgEditorProcedure
     .input(credentialIdInput)
     .output(credentialRemovedOutput)
     .mutation(async ({ ctx, input }) => {
       const credential = await prisma.credential.delete({
-        where: { id: input.id, userId: ctx.auth.user.id },
+        where: { id: input.id, organizationId: ctx.org.id },
         select: { id: true },
       });
       return credential;
     }),
-  getOne: protectedProcedure
+  getOne: orgViewerProcedure
     .input(credentialIdInput)
     .output(credentialPublicSchema)
     .query(async ({ ctx, input }) => {
       const credential = await prisma.credential.findUniqueOrThrow({
-        where: { id: input.id, userId: ctx.auth.user.id },
+        where: { id: input.id, organizationId: ctx.org.id },
         select: credentialPublicSelect,
       });
       return toPublicCredential(credential);
     }),
-  list: protectedProcedure
+  list: orgViewerProcedure
     .input(
       z
         .object({
@@ -202,7 +208,7 @@ export const credentialsRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { page, pageSize, search, type } = input;
       const where = {
-        userId: ctx.auth.user.id,
+        organizationId: ctx.org.id,
         type,
         name: {
           contains: search,
@@ -241,7 +247,7 @@ export const credentialsRouter = createTRPCRouter({
    * materializes the secret for the client. On success records `lastUsedAt`
    * for audits.
    */
-  test: protectedProcedure
+  test: orgEditorProcedure
     .input(
       z.object({
         id: z.string(),
@@ -250,7 +256,7 @@ export const credentialsRouter = createTRPCRouter({
     .output(credentialTestOutput)
     .mutation(async ({ ctx, input }) => {
       const credential = await prisma.credential.findUniqueOrThrow({
-        where: { id: input.id, userId: ctx.auth.user.id },
+        where: { id: input.id, organizationId: ctx.org.id },
       });
 
       const def = credentialRegistry.resolve(credential.type);
@@ -263,7 +269,7 @@ export const credentialsRouter = createTRPCRouter({
 
       if (result.ok) {
         await prisma.credential.update({
-          where: { id: credential.id },
+          where: { id: credential.id, organizationId: ctx.org.id },
           data: { lastUsedAt: new Date() },
         });
       }

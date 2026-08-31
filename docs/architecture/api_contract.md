@@ -100,8 +100,21 @@ schema (asserted by `credentials-security.test.ts`). Not-testable kinds
 ### `organizations` — **[M6]**
 `list` · `create` · `update` · `invite` · `acceptInvite` · `listMembers` · `updateRole` · `removeMember` · `listAuditLogs`.
 
+### `costs` — **[M5]** *(as built AF-M5-08)*
+| Procedure | Notes |
+|---|---|
+| `summary` | org:VIEWER; input `{ days: 1–90, default 30 }`. Returns `totals`, a zero-filled `daily` series (UTC days, `date_trunc` in parameterized raw SQL — Prisma cannot express it), `byWorkflow` / `byModel` / `topRuns` (top 10 each, by cost). Scoped through `Workflow.organizationId`, not the nullable `Execution.organizationId`. Includes test runs — a test run bills the provider like any other. |
+
+### `ai` — **[M5]** *(as built AF-M5-07)*
+| Procedure | Notes |
+|---|---|
+| `cacheStats` | org:VIEWER; input `{ days: 1–90, default 30 }`. Hits, misses, hit rate, `uncachedRuns`, live `entries`, and `savedUsd` (`costUsd × hitCount` over live entries). Cacheable node types come from `NodeDefinition.supportsResponseCache`, never a hard-coded list. |
+| `clearCache` | org:ADMIN; input `{ expiredOnly }`. Drops this workspace's entries — the escape hatch for an answer that went stale before its TTL. |
+
 ### `analytics` — **[M7]**
-`overview` · `executionsOverTime` · `costByModel` · `topFailingWorkflows` · `usage` (quota state).
+`overview` · `executionsOverTime` · `topFailingWorkflows` · `usage` (quota state).
+Cost surfaces (`costByModel` and the spend series) shipped early as the `costs`
+router above; M7 composes them rather than re-implementing them.
 
 ### `templates` — **[M7]**
 `list` · `getOne` · `instantiate`.

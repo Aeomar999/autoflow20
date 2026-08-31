@@ -42,32 +42,42 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, auth: session } });
 });
 
+/** Active Polar customer for a userId, or null when E2E bypass is set. */
+export async function resolvePremiumCustomer(
+  userId: string,
+): Promise<Awaited<
+  ReturnType<typeof polarClient.customers.getStateExternal>
+> | null> {
+  // Bypass premium check for E2E tests to allow workflow creation
+  if (process.env.E2E_SERVER === "1") {
+    return null;
+  }
+
+  const customer = await polarClient.customers.getStateExternal({
+    externalId: userId,
+  });
+
+  if (
+    !customer.activeSubscriptions ||
+    customer.activeSubscriptions.length === 0
+  ) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Active subscription required",
+    });
+  }
+
+  return customer;
+}
+
 export const premiumProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
-    // Bypass premium check for E2E tests to allow workflow creation
-    if (process.env.E2E_SERVER === "1") {
-      return next({ ctx: { ...ctx, customer: null } });
-    }
-
-    const customer = await polarClient.customers.getStateExternal({
-      externalId: ctx.auth.user.id,
-    });
-
-    if (
-      !customer.activeSubscriptions ||
-      customer.activeSubscriptions.length === 0
-    ) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "Active subscription required",
-      });
-    }
-
+    const customer = await resolvePremiumCustomer(ctx.auth.user.id);
     return next({ ctx: { ...ctx, customer } });
   },
 );
 
-async function resolveActiveOrg(
+export async function resolveActiveOrg(
   userId: string,
   userEmail: string,
   userName?: string,
@@ -184,3 +194,11 @@ export const orgViewerProcedure = orgProcedure("VIEWER");
 export const orgEditorProcedure = orgProcedure("EDITOR");
 export const orgAdminProcedure = orgProcedure("ADMIN");
 export const orgOwnerProcedure = orgProcedure("OWNER");
+
+/** Org-scoped premium gate: resolves the org, checks the role, then the subscription. */
+export const premiumOrgProcedure = orgEditorProcedure.use(
+  async ({ ctx, next }) => {
+    const customer = await resolvePremiumCustomer(ctx.auth.user.id);
+    return next({ ctx: { ...ctx, customer } });
+  },
+);

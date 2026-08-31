@@ -1,6 +1,8 @@
 import { definition as aiAnthropic } from "./ai/anthropic/definition";
 import { definition as aiCompatible } from "./ai/compatible/definition";
+import { definition as aiExtract } from "./ai/extract/definition";
 import { definition as aiGemini } from "./ai/gemini/definition";
+import { definition as aiLlm } from "./ai/llm/definition";
 import { definition as aiOpenai } from "./ai/openai/definition";
 import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
@@ -47,7 +49,9 @@ export const nodeManifest: NodeDefinition[] = [
   httpHttpRequest,
   aiAnthropic,
   aiCompatible,
+  aiExtract,
   aiGemini,
+  aiLlm,
   aiOpenai,
   aiRetrieve,
   discordSendMessage,
@@ -58,3 +62,13 @@ export const nodeManifest: NodeDefinition[] = [
 
 export const findManifestEntry = (type: string): NodeDefinition | undefined =>
   nodeManifest.find((node) => node.type === type);
+
+/**
+ * What the palette offers (AF-M5-09). Deprecated types stay in
+ * `nodeManifest` — an existing node of that type must still render, validate,
+ * and run — but are not offered for insertion, so their population can only
+ * shrink. Look types up through `findManifestEntry`, never through this list.
+ */
+export const nodePalette: NodeDefinition[] = nodeManifest.filter(
+  (node) => !node.deprecated,
+);

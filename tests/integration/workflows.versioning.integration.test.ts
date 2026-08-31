@@ -33,14 +33,27 @@ describe.runIf(hasDb)("Workflows Router Versioning", () => {
 
   beforeEach(async () => {
     await prisma.$executeRawUnsafe(
-      `TRUNCATE TABLE "WorkflowVersion","NodeExecution","Execution","Connection","Node","Workflow","Credential","user","session","account","verification" CASCADE`,
+      `TRUNCATE TABLE "organization","member","invitation","workspace","WorkflowVersion","NodeExecution","Execution","Connection","Node","Workflow","Credential","user","session","account","verification" CASCADE`,
     );
 
     await prisma.user.create({ data: user });
+    // Seed the personal org + OWNER membership so the org middleware
+    // resolves deterministically (the mocked session has no email/name to
+    // build a fallback org from).
+    const org = await prisma.organization.create({
+      data: {
+        name: "V1's Workspace",
+        slug: "versioning-integration",
+        members: {
+          create: { userId: user.id, role: "OWNER" },
+        },
+      },
+    });
     const wf = await prisma.workflow.create({
       data: {
         name: "Test WF",
         userId: user.id,
+        organizationId: org.id,
         nodes: {
           create: {
             type: "MANUAL_TRIGGER",

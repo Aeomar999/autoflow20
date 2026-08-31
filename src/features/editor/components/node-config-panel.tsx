@@ -1,6 +1,7 @@
 "use client";
 
 import { CronExpressionParser } from "cron-parser";
+import { SparklesIcon } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -10,11 +11,17 @@ import {
   useState,
 } from "react";
 import {
+  type ConfigListColumn,
   type ResolvedConfigField,
   resolveConfigFields,
   type UnsupportedConfigFieldError,
 } from "@/features/editor/lib/config-schema";
+import {
+  estimateNodeCost,
+  formatUsdCost,
+} from "@/features/editor/lib/cost-estimate";
 import type { EditorNode } from "@/features/editor/store/atoms";
+import { findManifestEntry } from "@/nodes/manifest";
 import type { NodeDefinition } from "@/nodes/types";
 
 function CronPreview({ cronStr }: { cronStr: string }) {
@@ -177,6 +184,15 @@ function FieldEditor({
           onValueChange={onValueChange}
         />
       );
+    case "fieldList":
+      return (
+        <FieldListEditor
+          field={field}
+          inputId={inputId}
+          value={value}
+          onValueChange={onValueChange}
+        />
+      );
   }
 }
 
@@ -298,6 +314,209 @@ function ListFieldEditor({
   );
 }
 
+type FieldRow = { id: number; cells: Record<string, FieldValue> };
+
+function toFieldRows(
+  columns: ConfigListColumn[],
+  value: FieldValue,
+  nextId: () => number,
+): FieldRow[] {
+  const empty = (): FieldRow => ({ id: nextId(), cells: {} });
+  if (!Array.isArray(value) || value.length === 0) {
+    return [empty()];
+  }
+  return value.map((item) => {
+    if (!item || typeof item !== "object") {
+      return empty();
+    }
+    const cells: Record<string, FieldValue> = {};
+    for (const column of columns) {
+      const cell = (item as Record<string, FieldValue>)[column.key];
+      if (cell !== undefined) cells[column.key] = cell;
+    }
+    return { id: nextId(), cells };
+  });
+}
+
+function fieldRowPresent(row: FieldRow, columns: ConfigListColumn[]): boolean {
+  return columns.some((column) => {
+    const cell = row.cells[column.key];
+    return typeof cell === "string"
+      ? cell.length > 0
+      : cell !== undefined && cell !== null;
+  });
+}
+
+function rowCellEditor({
+  column,
+  value,
+  ariaLabel,
+  onValueChange,
+}: {
+  column: ConfigListColumn;
+  value: FieldValue;
+  ariaLabel: string;
+  onValueChange: (next: FieldValue) => void;
+}) {
+  switch (column.kind) {
+    case "multiline":
+      return (
+        <textarea
+          rows={2}
+          className={baseFieldClass()}
+          aria-label={ariaLabel}
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onValueChange(e.target.value)}
+        />
+      );
+    case "number":
+      return (
+        <input
+          type="number"
+          className={baseFieldClass()}
+          aria-label={ariaLabel}
+          value={typeof value === "number" ? value : ""}
+          onChange={(e) =>
+            onValueChange(
+              Number.isNaN(e.target.valueAsNumber)
+                ? undefined
+                : e.target.valueAsNumber,
+            )
+          }
+        />
+      );
+    case "boolean":
+      return (
+        <input
+          type="checkbox"
+          className="size-4 rounded border-border"
+          aria-label={ariaLabel}
+          checked={Boolean(value)}
+          onChange={(e) => onValueChange(e.target.checked)}
+        />
+      );
+    case "enum": {
+      const enumValues = column.enumValues ?? [];
+      const hasValue = typeof value === "string" && enumValues.includes(value);
+      return (
+        <select
+          className={baseFieldClass()}
+          aria-label={ariaLabel}
+          value={hasValue ? value : ""}
+          onChange={(e) =>
+            onValueChange(e.target.value === "" ? undefined : e.target.value)
+          }
+        >
+          {!hasValue ? (
+            <option value="">Select {column.label.toLowerCase()}…</option>
+          ) : null}
+          {enumValues.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    default:
+      return (
+        <input
+          type="text"
+          className={baseFieldClass()}
+          aria-label={ariaLabel}
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onValueChange(e.target.value)}
+        />
+      );
+  }
+}
+
+function FieldListEditor({
+  field,
+  inputId,
+  value,
+  onValueChange,
+}: {
+  field: ResolvedConfigField;
+  inputId: string;
+  value: FieldValue;
+  onValueChange: (next: FieldValue) => void;
+}) {
+  const columns = field.columns ?? [];
+  const idCounter = useRef(0);
+  const [rows, setRows] = useState<FieldRow[]>(() =>
+    toFieldRows(columns, value, () => idCounter.current++),
+  );
+
+  const commit = useCallback(
+    (next: FieldRow[]) => {
+      setRows(next);
+      const present = next
+        .filter((row) => fieldRowPresent(row, columns))
+        .map((row) => ({ ...row.cells }));
+      onValueChange(present);
+    },
+    [columns, onValueChange],
+  );
+
+  return (
+    <fieldset className="flex flex-col gap-2" data-testid={inputId}>
+      <legend className="sr-only">{field.label}</legend>
+      {rows.map((row, index) => (
+        <div
+          key={row.id}
+          className="flex flex-col gap-1 rounded-md border border-border p-2"
+        >
+          <div
+            className="grid gap-1.5 items-start"
+            style={{
+              gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {columns.map((column) => (
+              <div key={column.key} className="flex flex-col gap-1">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {column.label}
+                </span>
+                {rowCellEditor({
+                  column,
+                  value: row.cells[column.key],
+                  ariaLabel: `${field.label} ${column.label} ${index + 1}`,
+                  onValueChange: (next) => {
+                    const changed = rows.map((r, i) =>
+                      i === index
+                        ? { ...r, cells: { ...r.cells, [column.key]: next } }
+                        : r,
+                    );
+                    commit(changed);
+                  },
+                })}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label={`Remove ${field.label} row ${index + 1}`}
+            className="w-fit rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted"
+            onClick={() => commit(rows.filter((_, i) => i !== index))}
+          >
+            Remove {field.label.toLowerCase()} row
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="w-fit rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
+        onClick={() =>
+          commit([...rows, { id: idCounter.current++, cells: {} }])
+        }
+      >
+        + Add {field.label.toLowerCase()} row
+      </button>
+    </fieldset>
+  );
+}
+
 export function NodeConfigForm({
   definition,
   data,
@@ -381,6 +600,7 @@ export function NodeConfigPanel({
 }) {
   const uid = useId();
   const enabled = !node.disabled;
+  const costEstimate = useMemo(() => estimateNodeCost(node), [node]);
 
   return (
     <aside
@@ -388,6 +608,26 @@ export function NodeConfigPanel({
       aria-label="Node configuration"
       className="absolute right-4 top-16 z-50 flex max-h-[calc(100%-5rem)] w-[360px] flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-xl"
     >
+      {definition.deprecated ? (
+        <output className="block rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+          <p className="font-medium text-foreground">
+            Deprecated since {definition.deprecated.since}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            {definition.deprecated.reason}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            This node still runs, but it can no longer be added to a workflow.
+            Replace it with{" "}
+            <span className="font-mono">
+              {findManifestEntry(definition.deprecated.replacedBy)?.label ??
+                definition.deprecated.replacedBy}
+            </span>
+            .
+          </p>
+        </output>
+      ) : null}
+
       <div className="flex flex-col gap-1.5">
         <label htmlFor={`${uid}-name`} className="text-xs font-medium">
           Name
@@ -432,6 +672,23 @@ export function NodeConfigPanel({
           }
         />
       </div>
+
+      {costEstimate ? (
+        <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <SparklesIcon className="size-3.5 text-amber-500" />
+            <span>Est. run cost:</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono font-semibold text-foreground">
+              ~{formatUsdCost(costEstimate.costUsd)}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              (~{costEstimate.inputTokens + costEstimate.outputTokens} tok)
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       <div className="border-t border-border pt-3">
         <NodeConfigForm

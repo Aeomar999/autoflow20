@@ -240,6 +240,8 @@ model NodeExecution {
   tokensIn    Int     @default(0)
   tokensOut   Int     @default(0)
   costUsd     Decimal @default(0) @db.Decimal(12, 6)
+  model       String?                          // provider:model that served it (M5-08)
+  cacheHit    Boolean?                         // null = no cache configured (M5-07)
 
   execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
 
@@ -250,7 +252,9 @@ model NodeExecution {
 ```
 
 Notes:
-- `costUsd` is `Decimal(12,6)`, never a float. Money in floats produces reconciliation bugs that are painful to unwind later.
+- `costUsd` is `Decimal(12,6)`, never a float. Money in floats produces reconciliation bugs that are painful to unwind later. **As built it is `Float`** — the M2 migration shipped `Float` and `AF-M5-05` built cost capture on it; every read rounds to micro-dollars to contain the drift. Converting to `Decimal` is tracked as `AF-M8-11`.
+- `model` is the model the fallback chain actually served with, not the one configured — per-model cost reporting (`AF-M5-08`) would otherwise attribute spend to a model that never ran.
+- `cacheHit` is deliberately three-valued: `null` means the node had no response cache configured, so it belongs in neither half of a hit rate; `false` is a real miss. See `AiResponseCache` below.
 - `nodeName`/`nodeType` are **denormalized** onto `NodeExecution` so a trace remains readable after the node is deleted from the workflow.
 - These are the highest-growth tables in the system. Retention and partitioning are `AF-M8-04`.
 
@@ -321,12 +325,54 @@ model AuditLog {
 
 Append-only. No update or delete path exists in application code; enforce with a DB-level revoke in production.
 
-### 2.7 Later
+### 2.7 AI response cache — M5
+
+```prisma
+model AiResponseCache {
+  id             String   @id @default(cuid())
+  organizationId String
+  cacheKey       String                        // sha256 of the canonical request envelope
+  nodeType       String
+  model          String                        // provider:model that produced it
+  response       Json                          // { value: <node result> }
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  costUsd        Float    @default(0)
+  hitCount       Int      @default(0)
+  createdAt      DateTime @default(now())
+  lastHitAt      DateTime?
+  expiresAt      DateTime
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, cacheKey])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([expiresAt])                          // daily sweep
+}
+```
+
+Notes:
+- **The workspace is part of the lookup, not just the hash.** `cacheKey` alone
+  is identical across tenants for an identical prompt; the unique constraint
+  and every query are on `(organizationId, cacheKey)`, so one tenant's entry is
+  unreachable from another's (engineering_rules §1.3).
+- `cacheKey` fingerprints everything that can change the answer — node type,
+  the ordered model chain, the compiled prompts, and the call parameters
+  (`src/lib/ai/cache.ts`). Editing a prompt or a temperature misses; it never
+  replays the previous answer under new config.
+- `response` wraps the result as `{ value }` so a non-object node result (the
+  AI Chat node returns a string) is still valid JSON.
+- Reads filter on `expiresAt`, so correctness never depends on the sweep
+  (`sweepAiResponseCache`, daily) — a missed sweep leaves dead rows, not stale
+  answers.
+- `hitCount × costUsd` is the provider spend the entry has avoided; that is
+  what `ai.cacheStats` reports as `savedUsd`.
+
+### 2.8 Later
 
 | Model | Milestone | Purpose |
 |---|---|---|
 | `WebhookEndpoint` | M4 | path, secret, method, response mode |
-| `AiResponseCache` | M5 | `hash → response`, TTL, workspace-scoped |
 | `Template` | M7 | gallery entries with graph + metadata |
 | `UsageCounter` | M7 | per-org period counters for quota enforcement |
 | `ApiKey` | M8 | hashed key, scopes, rate limit, `lastUsedAt` |
@@ -344,7 +390,7 @@ Append-only. No update or delete path exists in application code; enforce with a
 | 3 | `execution_history` — `Execution`, `NodeExecution`, enums, indices | M2 | low (additive) |
 | 4 | `credentials` | M3 | low (additive) |
 | 5 | `workflow_versions` + `webhook_endpoints` | M4 | low (additive) |
-| 6 | `ai_cache` | M5 | low (additive) |
+| 6 | `ai_cache` — shipped as `20260830140000_ai_response_cache` (`AF-M5-07`: `AiResponseCache` + nullable `NodeExecution.cacheHit`) and `20260830150000_node_execution_model` (`AF-M5-08`: `NodeExecution.model`) | M5 | low (additive) |
 | 7 | `tenancy` — `Organization`, `Membership`, `Workspace`, `organizationId` backfill on every tenant table | M6 | **high** — see §4 |
 | 8 | `audit_log` | M6 | low (additive) |
 | 9 | `templates` + `usage_counters` | M7 | low (additive) |

@@ -58,3 +58,12 @@ export const aiModelDataSchema = () =>
     systemPrompt: promptSchema(),
     userPrompt: promptSchema(),
   });
+
+/**
+ * Response-cache TTL in seconds for AI nodes (AF-M5-07). Absent or 0 means the
+ * node always calls the provider; the ceiling matches
+ * `AI_CACHE_MAX_TTL_SECONDS` (7 days) and is duplicated here because
+ * definitions are isomorphic and must not import the server-only cache module.
+ */
+export const cacheTtlSecondsSchema = () =>
+  z.number().int().min(0).max(604_800).optional();

@@ -4,6 +4,7 @@ import {
   buildSkippedTraces,
   computeDurationMs,
   computeSkippableNodes,
+  extractStepUsage,
   markTakenEdges,
 } from "./trace";
 
@@ -204,5 +205,63 @@ describe("markTakenEdges", () => {
     const taken = new Set<string>();
     markTakenEdges("leaf", undefined, new Map(), taken);
     expect(taken.size).toBe(0);
+  });
+});
+
+describe("extractStepUsage", () => {
+  it("returns zero metrics when result has no usage", () => {
+    expect(extractStepUsage(null)).toEqual({
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      model: undefined,
+      cacheHit: null,
+    });
+    expect(extractStepUsage({})).toEqual({
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      model: undefined,
+      cacheHit: null,
+    });
+  });
+
+  it("extracts tokens and cost from __usage", () => {
+    const usage = extractStepUsage({
+      data: { text: "hello" },
+      __usage: {
+        tokensIn: 150,
+        tokensOut: 45,
+        costUsd: 0.000125,
+        model: "openai:gpt-4o",
+      },
+    });
+
+    expect(usage).toEqual({
+      tokensIn: 150,
+      tokensOut: 45,
+      costUsd: 0.000125,
+      model: "openai:gpt-4o",
+      cacheHit: null,
+    });
+  });
+
+  it("normalizes prompt_tokens and completion_tokens from AI SDK shapes", () => {
+    const usage = extractStepUsage({
+      _usage: {
+        promptTokens: 200,
+        completionTokens: 80,
+        costUsd: 0.0015,
+        model: "anthropic:claude-3-5-sonnet",
+      },
+    });
+
+    expect(usage).toEqual({
+      tokensIn: 200,
+      tokensOut: 80,
+      costUsd: 0.0015,
+      model: "anthropic:claude-3-5-sonnet",
+      cacheHit: null,
+    });
   });
 });

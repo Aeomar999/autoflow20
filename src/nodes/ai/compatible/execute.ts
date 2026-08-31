@@ -8,6 +8,7 @@ import {
 } from "@/features/executions/components/http-request/egress-guard";
 import { compileTemplate } from "@/features/executions/template";
 import { openAiCompatibleChatChannel } from "@/inngest/channels/openai-compatible-chat";
+import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
 import type { NodeRun } from "@/nodes/types";
 
 type OpenAiCompatibleData = {
@@ -131,6 +132,15 @@ export const execute: NodeRun<OpenAiCompatibleData> = async ({
         return fail("response is missing a chat completion");
       }
 
+      const promptTokens =
+        typeof payload.usage?.prompt_tokens === "number"
+          ? payload.usage.prompt_tokens
+          : 0;
+      const completionTokens =
+        typeof payload.usage?.completion_tokens === "number"
+          ? payload.usage.completion_tokens
+          : 0;
+
       return {
         ...context,
         [data.variableName]: {
@@ -138,15 +148,15 @@ export const execute: NodeRun<OpenAiCompatibleData> = async ({
           model: typeof payload.model === "string" ? payload.model : undefined,
           text,
           usage: {
-            promptTokens:
-              typeof payload.usage?.prompt_tokens === "number"
-                ? payload.usage.prompt_tokens
-                : undefined,
-            completionTokens:
-              typeof payload.usage?.completion_tokens === "number"
-                ? payload.usage.completion_tokens
-                : undefined,
+            promptTokens: promptTokens || undefined,
+            completionTokens: completionTokens || undefined,
           },
+        },
+        [WORKFLOW_USAGE_KEY]: {
+          tokensIn: promptTokens,
+          tokensOut: completionTokens,
+          costUsd: 0,
+          model: typeof payload.model === "string" ? payload.model : data.model,
         },
       };
     });

@@ -1,6 +1,7 @@
 import type { Edge, Node, ReactFlowInstance } from "@xyflow/react";
 import { atom } from "jotai";
 import { validate } from "@/engine/validate";
+import { estimateWorkflowCost } from "../lib/cost-estimate";
 import { clientNodeRegistry, toGraph } from "../lib/validation";
 
 export type EditorNode = Node & {
@@ -26,6 +27,11 @@ export const saveStatusAtom = atom<SaveStatus>("saved");
 /** Live-recomputed lint result over the canvas draft (AF-M1-07). */
 export const validationResultAtom = atom((get) =>
   validate(toGraph(get(nodesAtom), get(edgesAtom)), clientNodeRegistry),
+);
+
+/** Live-recomputed pre-run cost estimation over the canvas draft (AF-M5-06). */
+export const workflowCostEstimateAtom = atom((get) =>
+  estimateWorkflowCost(get(nodesAtom)),
 );
 
 /** When set, selecting a node in the palette will append and connect it to this node (AF-M1-05). */

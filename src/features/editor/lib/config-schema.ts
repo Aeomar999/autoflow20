@@ -11,6 +11,8 @@ import type { CredentialRequirement } from "@/nodes/types";
  *   boolean  → "boolean"                 z.enum        → "enum"
  *   record<string,string>                → "kv-list"
  *   array<{key,value}>.max(50)           → "keyValueList"
+ *   array<{ ...scalar columns }>         → "fieldList" (rows of simple
+ *                                          fields, e.g. AI Extract's fields)
  *   field whose key matches a definition.credentials entry → "credential"
  *   optional / nullable / default wrappers → flagged `optional`
  *
@@ -37,7 +39,16 @@ export type ConfigFieldKind =
   | "enum"
   | "kv-list"
   | "keyValueList"
+  | "fieldList"
   | "credential";
+
+/** One editable column inside a `fieldList` config field. */
+export interface ConfigListColumn {
+  key: string;
+  kind: "string" | "multiline" | "number" | "boolean" | "enum";
+  label: string;
+  enumValues?: readonly string[];
+}
 
 export interface ResolvedConfigField {
   key: string;
@@ -46,6 +57,8 @@ export interface ResolvedConfigField {
   description?: string;
   optional: boolean;
   enumValues?: readonly string[];
+  /** Set only for `fieldList` fields. */
+  columns?: ConfigListColumn[];
   /** Set only for `credential` fields. */
   credential: CredentialRequirement | null;
 }
@@ -103,6 +116,45 @@ function toLabel(key: string): string {
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+/**
+ * Describes the editable columns of a `fieldList` field from the element
+ * object's Zod shape. Every property must be a scalar config kind (string,
+ * multiline, number, boolean, enum); nested lists and records are rejected
+ * because the row editor does not render them.
+ */
+function resolveListColumns(
+  fieldKey: string,
+  keys: string[],
+  shape: Record<string, ZodTypeAny>,
+): ConfigListColumn[] {
+  const columns: ConfigListColumn[] = [];
+  for (const key of keys) {
+    const columnSchema = shape[key];
+    if (!columnSchema) {
+      continue;
+    }
+    const base = unwrap(columnSchema).schema;
+    const kind = baseKind(key, base);
+    switch (kind.kind) {
+      case "kv-list":
+      case "keyValueList":
+      case "fieldList":
+        throw new UnsupportedConfigFieldError(
+          fieldKey,
+          `is a \`z.array\` whose element column "${key}" is itself a list config field; nested lists are not supported by the config form`,
+        );
+      default:
+        columns.push({
+          key,
+          kind: kind.kind as ConfigListColumn["kind"],
+          label: toLabel(key),
+          ...(kind.enumValues ? { enumValues: kind.enumValues } : {}),
+        });
+    }
+  }
+  return columns;
+}
+
 /** Resolves a single field's base kind, or throws UnsupportedConfigFieldError. */
 function baseKind(
   fieldKey: string,
@@ -110,6 +162,7 @@ function baseKind(
 ): {
   kind: Exclude<ConfigFieldKind, "credential">;
   enumValues?: readonly string[];
+  columns?: ConfigListColumn[];
 } {
   const def = defOf(schema);
   switch (def.type) {
@@ -153,15 +206,23 @@ function baseKind(
         const keys = Object.keys(shape);
         if (
           keys.length === 2 &&
+          keys.includes("key") &&
+          keys.includes("value") &&
           defOf(shape.key).type === "string" &&
           defOf(shape.value).type === "string"
         ) {
           return { kind: "keyValueList" };
         }
+        if (keys.length > 0) {
+          return {
+            kind: "fieldList",
+            columns: resolveListColumns(fieldKey, keys, shape),
+          };
+        }
       }
       throw new UnsupportedConfigFieldError(
         fieldKey,
-        "is a `z.array` whose element is not `z.object({ key: z.string(), value: z.string() })`; that shape is the only supported array config field",
+        "is a `z.array` whose element is neither `z.object({ key: z.string(), value: z.string() })` nor a row of scalar config columns; only those two array shapes are supported by the config form",
       );
     }
     default:

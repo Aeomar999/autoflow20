@@ -4,7 +4,11 @@ import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import {
+  createTRPCRouter,
+  orgEditorProcedure,
+  orgViewerProcedure,
+} from "@/trpc/init";
 import { computeSkipNodes } from "./executions-router-helpers";
 
 const executionStatusSchema = z.enum([
@@ -20,7 +24,7 @@ export const executionsRouter = createTRPCRouter({
    * List executions with filters. Does NOT select large IO columns
    * (input, output, graphSnapshot, errorStack) to keep payload small.
    */
-  list: protectedProcedure
+  list: orgViewerProcedure
     .input(
       z.object({
         workflowId: z.string().optional(),
@@ -49,7 +53,7 @@ export const executionsRouter = createTRPCRouter({
 
       const where = {
         workflow: {
-          userId: ctx.auth.user.id,
+          organizationId: ctx.org.id,
           ...(workflowId ? { id: workflowId } : {}),
         },
         // Test runs (AF-M2-08) are filtered out unless explicitly queried.
@@ -106,16 +110,16 @@ export const executionsRouter = createTRPCRouter({
     }),
 
   /**
-   * Get a single execution by ID, scoped to the current user.
+   * Get a single execution by ID, scoped to the current org.
    * Returns the full run plus ordered node traces.
    */
-  getOne: protectedProcedure
+  getOne: orgViewerProcedure
     .input(z.object({ id: z.string() }))
     .query(({ ctx, input }) => {
       return prisma.execution.findUniqueOrThrow({
         where: {
           id: input.id,
-          workflow: { userId: ctx.auth.user.id },
+          workflow: { organizationId: ctx.org.id },
         },
         select: {
           id: true,
@@ -150,13 +154,13 @@ export const executionsRouter = createTRPCRouter({
    * Cancel a running execution. Only RUNNING executions can be cancelled.
    * Cross-tenant access returns NOT_FOUND.
    */
-  cancel: protectedProcedure
+  cancel: orgEditorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const execution = await prisma.execution.findUnique({
         where: {
           id: input.id,
-          workflow: { userId: ctx.auth.user.id },
+          workflow: { organizationId: ctx.org.id },
         },
         select: { id: true, status: true },
       });
@@ -185,19 +189,20 @@ export const executionsRouter = createTRPCRouter({
    * Retry a failed/timed-out execution. Creates a new execution record
    * for the same workflow and re-emits the inngest event.
    */
-  retry: protectedProcedure
+  retry: orgEditorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const execution = await prisma.execution.findUnique({
         where: {
           id: input.id,
-          workflow: { userId: ctx.auth.user.id },
+          workflow: { organizationId: ctx.org.id },
         },
         select: {
           id: true,
           status: true,
           workflowId: true,
           mode: true,
+          organizationId: true,
         },
       });
 
@@ -224,12 +229,14 @@ export const executionsRouter = createTRPCRouter({
           mode: execution.mode,
           status: "RUNNING",
           inngestEventId: placeholderEventId,
+          organizationId: execution.organizationId ?? undefined,
         },
       });
 
       const { eventId } = await sendWorkflowExecution({
         workflowId: execution.workflowId,
         executionId: newExecution.id,
+        organizationId: execution.organizationId ?? undefined,
       });
 
       await prisma.execution.update({
@@ -245,13 +252,13 @@ export const executionsRouter = createTRPCRouter({
    * Creates a new execution record and emits the inngest event with
    * skipNodes so the engine skips nodes before the given node.
    */
-  retryFromNode: protectedProcedure
+  retryFromNode: orgEditorProcedure
     .input(z.object({ id: z.string(), nodeId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const execution = await prisma.execution.findUnique({
         where: {
           id: input.id,
-          workflow: { userId: ctx.auth.user.id },
+          workflow: { organizationId: ctx.org.id },
         },
         select: {
           id: true,
@@ -259,6 +266,7 @@ export const executionsRouter = createTRPCRouter({
           workflowId: true,
           mode: true,
           graphSnapshot: true,
+          organizationId: true,
         },
       });
 
@@ -292,6 +300,7 @@ export const executionsRouter = createTRPCRouter({
           mode: execution.mode,
           status: "RUNNING",
           inngestEventId: placeholderEventId,
+          organizationId: execution.organizationId ?? undefined,
         },
       });
 
@@ -299,6 +308,7 @@ export const executionsRouter = createTRPCRouter({
         workflowId: execution.workflowId,
         executionId: newExecution.id,
         skipNodes,
+        organizationId: execution.organizationId ?? undefined,
       });
 
       await prisma.execution.update({

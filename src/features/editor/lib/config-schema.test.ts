@@ -86,6 +86,75 @@ describe("resolveConfigFields — field kinds (AF-M1-06)", () => {
     expect(fields[0].kind).toBe("keyValueList");
   });
 
+  it("classifies a row of scalar columns as fieldList with column descriptors", () => {
+    const fields = resolveConfigFields(
+      z.object({
+        extractionFields: z.array(
+          z.object({
+            name: z
+              .string()
+              .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+              .max(64),
+            type: z.enum(["string", "number", "boolean", "object"]),
+            description: z.string().max(2000).optional(),
+          }),
+        ),
+      }),
+    );
+    expect(fields[0].kind).toBe("fieldList");
+    expect(fields[0].columns?.map((c) => [c.key, c.kind, c.label])).toEqual([
+      ["name", "string", "Name"],
+      ["type", "enum", "Type"],
+      ["description", "multiline", "Description"],
+    ]);
+    expect(fields[0].columns?.[1].enumValues).toEqual([
+      "string",
+      "number",
+      "boolean",
+      "object",
+    ]);
+  });
+
+  it("does not misclassify a two-column row with a typed column as keyValueList", () => {
+    const fields = resolveConfigFields(
+      z.object({
+        options: z.array(
+          z.object({ label: z.string(), kind: z.enum(["a", "b"]) }),
+        ),
+      }),
+    );
+    expect(fields[0].kind).toBe("fieldList");
+  });
+
+  it("throws a keyed error when an array element column is unsupported", () => {
+    expect(() =>
+      resolveConfigFields(
+        z.object({ rows: z.array(z.object({ at: z.date() })) }),
+      ),
+    ).toThrow(UnsupportedConfigFieldError);
+  });
+
+  it("throws a keyed error when an array element is a nested list column", () => {
+    expect(() =>
+      resolveConfigFields(
+        z.object({
+          rows: z.array(
+            z.object({
+              name: z.string(),
+              tags: z.array(z.object({ key: z.string(), value: z.string() })),
+            }),
+          ),
+        }),
+      ),
+    ).toThrow(UnsupportedConfigFieldError);
+  });
+
+  it("throws a keyed error when an array element is not an object row", () => {
+    expect(() =>
+      resolveConfigFields(z.object({ tags: z.array(z.string()) })),
+    ).toThrow(UnsupportedConfigFieldError);
+  });
+
   it("marks optional and default fields as optional", () => {
     const fields = resolveConfigFields(
       z.object({
@@ -177,5 +246,24 @@ describe("resolveConfigFields — real catalogue (AF-M1-06)", () => {
     expect(byKey.get("timeoutMs")?.kind).toBe("number");
     expect(byKey.get("failOnNon2xx")?.kind).toBe("boolean");
     expect(byKey.get("body")?.kind).toBe("multiline");
+  });
+
+  it("resolves AI_EXTRACT's field list and JSON schema escape hatch", () => {
+    const definition = findManifestEntry("AI_EXTRACT");
+    expect(definition).toBeDefined();
+    if (!definition) throw new Error("AI_EXTRACT missing from manifest");
+    const fields = resolveConfigFields(
+      definition.configSchema,
+      definition.credentials,
+    );
+    const byKey = new Map(fields.map((f) => [f.key, f]));
+    expect(byKey.get("jsonSchema")?.kind).toBe("multiline");
+    expect(byKey.get("fields")?.kind).toBe("fieldList");
+    expect(byKey.get("fields")?.columns?.map((c) => c.key)).toEqual([
+      "name",
+      "type",
+      "description",
+    ]);
+    expect(byKey.get("fields")?.optional).toBe(true);
   });
 });

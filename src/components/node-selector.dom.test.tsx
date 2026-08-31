@@ -10,7 +10,7 @@ import {
   nodesAtom,
   saveStatusAtom,
 } from "@/features/editor/store/atoms";
-import { nodeManifest } from "@/nodes/manifest";
+import { nodeManifest, nodePalette } from "@/nodes/manifest";
 
 vi.mock("@xyflow/react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@xyflow/react")>();
@@ -46,15 +46,15 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
     store.set(nodeSelectorOpenAtom, false);
   });
 
-  it("renders all manifest nodes grouped by category with label and description", () => {
+  it("renders every offerable node grouped by category with label and description", () => {
     render(
       <Provider store={store}>
         <NodeSelector open={true} onOpenChange={() => undefined} />
       </Provider>,
     );
 
-    // Verify all manifest nodes are rendered
-    for (const node of nodeManifest) {
+    // Verify every offerable node is rendered
+    for (const node of nodePalette) {
       expect(screen.getByText(node.label)).toBeTruthy();
       expect(screen.getByText(node.description)).toBeTruthy();
     }
@@ -63,6 +63,21 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
     expect(screen.getByText("Triggers")).toBeTruthy();
     expect(screen.getByText("AI Models")).toBeTruthy();
     expect(screen.getByText("Actions & Integrations")).toBeTruthy();
+  });
+
+  it("never offers a deprecated node type (AF-M5-09)", () => {
+    const retired = nodeManifest.filter((node) => node.deprecated);
+    expect(retired.length).toBeGreaterThan(0);
+
+    render(
+      <Provider store={store}>
+        <NodeSelector open={true} onOpenChange={() => undefined} />
+      </Provider>,
+    );
+
+    for (const node of retired) {
+      expect(screen.queryByText(node.label)).toBeNull();
+    }
   });
 
   it("filters nodes dynamically using fuzzy/keyword search", () => {

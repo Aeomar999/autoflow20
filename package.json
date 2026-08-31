@@ -1,10 +1,10 @@
 {
-  "name": "nodebase",
+  "name": "autoflow",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "biome check",
@@ -12,10 +12,11 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:integration": "vitest run --project integration",
-    "test:db:up": "docker run -d --name autoflow-test-db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=autoflow_test -p 5433:5432 postgres:16",
+    "test:db:up": "docker run -d --name autoflow-test-db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=autoflow_test -p 5433:5432 pgvector/pgvector:pg16",
     "test:db:down": "docker rm -f autoflow-test-db",
     "ngrok:dev": "node scripts/ngrok-dev.mjs",
     "migrate:credentials": "tsx scripts/migrate-credentials.ts",
+    "migrate:legacy-ai-nodes": "tsx scripts/migrate-legacy-ai-nodes.ts",
     "format": "biome format --write",
     "inngest:dev": "inngest-cli dev",
     "dev:all": "dotenv -- mprocs"

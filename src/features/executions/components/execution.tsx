@@ -212,6 +212,15 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
       : null;
 
   const cost = formatCost(execution.costUsd);
+  // AF-M5-07: hit rate for this run. Nodes with no cache configured record a
+  // null cacheHit and are excluded from both halves, so the ratio describes
+  // only the nodes that actually asked the cache.
+  const cacheableTraces = (execution.nodeExecutions as NodeExecution[]).filter(
+    (trace) => trace.cacheHit !== null,
+  );
+  const cachedTraceCount = cacheableTraces.filter(
+    (trace) => trace.cacheHit === true,
+  ).length;
   const isRunning = execution.status === ExecutionStatus.RUNNING;
   const isRetryable = ["FAILED", "TIMED_OUT", "CANCELLED"].includes(
     execution.status,
@@ -341,6 +350,16 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
                 </p>
               </div>
             )}
+          {cacheableTraces.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Cache</p>
+              <p className="text-sm">
+                {cachedTraceCount} of {cacheableTraces.length} AI{" "}
+                {cacheableTraces.length === 1 ? "node" : "nodes"} served from
+                cache
+              </p>
+            </div>
+          )}
           <div>
             <p className="text-sm font-medium text-muted-foreground">
               Event ID
@@ -464,6 +483,16 @@ const NodeTraceRow = ({
         {cost && (
           <span className="text-xs text-muted-foreground font-mono shrink-0">
             {cost}
+          </span>
+        )}
+        {/* AF-M5-07: a cached node bought nothing, so it shows no cost at all.
+            The badge is what tells the two zero-cost cases apart. */}
+        {trace.cacheHit === true && (
+          <span
+            className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 shrink-0"
+            title="Served from the workspace response cache — no provider call, no spend"
+          >
+            Cached
           </span>
         )}
         <span className="text-xs text-muted-foreground shrink-0">

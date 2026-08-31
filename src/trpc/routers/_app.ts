@@ -1,4 +1,6 @@
+import { aiRouter } from "@/features/ai/server/routers";
 import { approvalsRouter } from "@/features/approvals/server/routers";
+import { costsRouter } from "@/features/costs/server/routers";
 import { credentialsRouter } from "@/features/credentials/server/routers";
 import { executionsRouter } from "@/features/executions/server/routers";
 import { knowledgeRouter } from "@/features/knowledge/server/routers";
@@ -13,6 +15,8 @@ export const appRouter = createTRPCRouter({
   organizations: organizationsRouter,
   approvals: approvalsRouter,
   knowledge: knowledgeRouter,
+  ai: aiRouter,
+  costs: costsRouter,
 });
 
 export type AppRouter = typeof appRouter;

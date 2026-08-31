@@ -1,0 +1,307 @@
+import { NonRetriableError } from "inngest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const readAiCache = vi.fn();
+const writeAiCache = vi.fn();
+
+vi.mock("./cache", () => ({
+  readAiCache: (...args: unknown[]) => readAiCache(...args),
+  writeAiCache: (...args: unknown[]) => writeAiCache(...args),
+}));
+
+import {
+  type CandidateContext,
+  executeWithFallback,
+  parseModelChain,
+  resolveCandidate,
+  splitModelId,
+} from "./fallback";
+
+describe("splitModelId", () => {
+  it("splits provider:model correctly", () => {
+    expect(splitModelId("openai:gpt-4o")).toEqual({
+      provider: "openai",
+      modelHint: "gpt-4o",
+    });
+    expect(splitModelId("anthropic:claude-3-5-sonnet")).toEqual({
+      provider: "anthropic",
+      modelHint: "claude-3-5-sonnet",
+    });
+  });
+
+  it("handles bare provider and undefined/empty", () => {
+    expect(splitModelId("openai")).toEqual({
+      provider: "openai",
+      modelHint: undefined,
+    });
+    expect(splitModelId("")).toEqual({
+      provider: "",
+      modelHint: undefined,
+    });
+    expect(splitModelId(undefined)).toEqual({
+      provider: "",
+      modelHint: undefined,
+    });
+  });
+});
+
+describe("parseModelChain", () => {
+  it("defaults to openai when no models provided", () => {
+    expect(parseModelChain(undefined, undefined)).toEqual(["openai"]);
+    expect(parseModelChain("", "")).toEqual(["openai"]);
+  });
+
+  it("parses primary model alone", () => {
+    expect(parseModelChain("openai:gpt-4o", undefined)).toEqual([
+      "openai:gpt-4o",
+    ]);
+  });
+
+  it("parses comma-, semicolon-, and newline-separated fallback models with deduplication", () => {
+    expect(
+      parseModelChain(
+        "openai:gpt-4o",
+        "anthropic:claude-3-5-sonnet, google:gemini-1.5-flash; openai:gpt-4o\nollama:mistral",
+      ),
+    ).toEqual([
+      "openai:gpt-4o",
+      "anthropic:claude-3-5-sonnet",
+      "google:gemini-1.5-flash",
+      "ollama:mistral",
+    ]);
+  });
+});
+
+describe("resolveCandidate", () => {
+  it("resolves valid candidate with required credential", () => {
+    const candidate = resolveCandidate("openai:gpt-4o", {
+      openaiCredentialId: { apiKey: "test-key" },
+    });
+    expect(candidate.fullModelId).toBe("openai:gpt-4o");
+    expect(candidate.apiKey).toBe("test-key");
+    expect(candidate.provider).toBe("openai");
+  });
+
+  it("throws NonRetriableError for unknown provider", () => {
+    expect(() => resolveCandidate("unknownprov:model", {})).toThrow(
+      NonRetriableError,
+    );
+  });
+
+  it("throws NonRetriableError when credential is required but missing", () => {
+    expect(() => resolveCandidate("openai:gpt-4o", {})).toThrow(
+      /credential required for provider "openai"/,
+    );
+  });
+
+  it("resolves keyless provider (ollama) without credential", () => {
+    const candidate = resolveCandidate("ollama:mistral", {});
+    expect(candidate.fullModelId).toBe("ollama:mistral");
+    expect(candidate.provider).toBe("ollama");
+  });
+});
+
+describe("executeWithFallback", () => {
+  it("succeeds on first candidate", async () => {
+    const runFn = vi.fn(
+      async (ctx: CandidateContext) => `result-${ctx.fullModelId}`,
+    );
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      { openaiCredentialId: { apiKey: "key" } },
+      "AI Test Node",
+      runFn,
+    );
+    expect(res.servedModel).toBe("openai:gpt-4o");
+    expect(res.result).toBe("result-openai:gpt-4o");
+    expect(res.attempts).toEqual([]);
+    expect(runFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to second candidate when primary fails", async () => {
+    let callCount = 0;
+    const runFn = vi.fn(async (ctx: CandidateContext) => {
+      callCount++;
+      if (callCount === 1) {
+        throw new Error("Rate limit exceeded 429");
+      }
+      return `success-${ctx.fullModelId}`;
+    });
+
+    const res = await executeWithFallback(
+      ["openai:gpt-4o", "anthropic:claude-3-5-sonnet"],
+      {
+        openaiCredentialId: { apiKey: "open-key" },
+        anthropicCredentialId: { apiKey: "ant-key" },
+      },
+      "AI Test Node",
+      runFn,
+    );
+
+    expect(res.servedModel).toBe("anthropic:claude-3-5-sonnet");
+    expect(res.result).toBe("success-anthropic:claude-3-5-sonnet");
+    expect(res.attempts).toEqual([
+      { model: "openai:gpt-4o", error: "Rate limit exceeded 429" },
+    ]);
+    expect(runFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws detailed error when all candidates in chain fail", async () => {
+    const runFn = vi.fn(async (ctx: CandidateContext) => {
+      throw new Error(`Outage on ${ctx.fullModelId}`);
+    });
+
+    await expect(
+      executeWithFallback(
+        ["openai:gpt-4o", "anthropic:claude-3-5-sonnet"],
+        {
+          openaiCredentialId: { apiKey: "open-key" },
+          anthropicCredentialId: { apiKey: "ant-key" },
+        },
+        "AI Test Node",
+        runFn,
+      ),
+    ).rejects.toThrow(
+      /AI Test Node: all candidate models in fallback chain failed: \[openai:gpt-4o\]: Outage on openai:gpt-4o; \[anthropic:claude-3-5-sonnet\]: Outage on anthropic:claude-3-5-sonnet/,
+    );
+  });
+
+  it("calculates tokens and cost for the served model", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      { openaiCredentialId: { apiKey: "key" } },
+      "AI Test Node",
+      async () => ({
+        value: "response text",
+        usage: { promptTokens: 1000, completionTokens: 500 },
+      }),
+    );
+
+    expect(res.usage).toEqual({
+      tokensIn: 1000,
+      tokensOut: 500,
+      costUsd: 0.0075,
+      model: "openai:gpt-4o",
+      cacheHit: null,
+    });
+  });
+});
+
+describe("executeWithFallback response cache (AF-M5-07)", () => {
+  const credentials = { openaiCredentialId: { apiKey: "key" } };
+  const cacheOptions = {
+    organizationId: "org_1",
+    nodeType: "AI_LLM",
+    cacheKey: "key_1",
+    ttlSeconds: 600,
+  };
+
+  beforeEach(() => {
+    readAiCache.mockReset();
+    writeAiCache.mockReset();
+    readAiCache.mockResolvedValue(null);
+    writeAiCache.mockResolvedValue(undefined);
+  });
+
+  it("serves a hit without calling any provider and reports no spend", async () => {
+    readAiCache.mockResolvedValue({
+      value: "cached answer",
+      model: "openai:gpt-4o",
+      tokensIn: 900,
+      tokensOut: 300,
+      costUsd: 0.0075,
+    });
+    const runFn = vi.fn();
+
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      runFn,
+      cacheOptions,
+    );
+
+    expect(runFn).not.toHaveBeenCalled();
+    expect(res.result).toBe("cached answer");
+    expect(res.servedModel).toBe("openai:gpt-4o");
+    expect(res.usage).toEqual({
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      model: "openai:gpt-4o",
+      cacheHit: true,
+    });
+  });
+
+  it("stores the response after a miss and marks the run a miss", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      async () => ({
+        value: "fresh answer",
+        usage: { promptTokens: 1000, completionTokens: 500 },
+      }),
+      cacheOptions,
+    );
+
+    expect(res.usage.cacheHit).toBe(false);
+    expect(writeAiCache).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org_1",
+        cacheKey: "key_1",
+        nodeType: "AI_LLM",
+        model: "openai:gpt-4o",
+        value: "fresh answer",
+        tokensIn: 1000,
+        tokensOut: 500,
+        costUsd: 0.0075,
+        ttlSeconds: 600,
+      }),
+    );
+  });
+
+  it("does not touch the cache when the node configured no TTL", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      async () => ({ value: "fresh answer" }),
+      { ...cacheOptions, ttlSeconds: 0 },
+    );
+
+    expect(readAiCache).not.toHaveBeenCalled();
+    expect(writeAiCache).not.toHaveBeenCalled();
+    expect(res.usage.cacheHit).toBeNull();
+  });
+
+  it("does not touch the cache when the run has no workspace context", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      async () => ({ value: "fresh answer" }),
+      { ...cacheOptions, organizationId: undefined },
+    );
+
+    expect(readAiCache).not.toHaveBeenCalled();
+    expect(writeAiCache).not.toHaveBeenCalled();
+    expect(res.usage.cacheHit).toBeNull();
+  });
+
+  it("never writes a failed run to the cache", async () => {
+    await expect(
+      executeWithFallback(
+        ["openai:gpt-4o"],
+        credentials,
+        "AI Test Node",
+        async () => {
+          throw new Error("provider outage");
+        },
+        cacheOptions,
+      ),
+    ).rejects.toThrow(/provider outage/);
+
+    expect(writeAiCache).not.toHaveBeenCalled();
+  });
+});
