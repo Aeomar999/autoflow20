@@ -42,4 +42,11 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Build
+        # `next build` OOM'd on 1893abf at Node's ~2 GB default heap and then
+        # passed on a straight re-run — it sits right at the ceiling since the
+        # /costs page and recharts landed. Raising the heap removes the
+        # coin-flip; it does not hide a regression, because a real memory leak
+        # would still exhaust 4 GB.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npm run build
