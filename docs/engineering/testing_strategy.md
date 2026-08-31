@@ -107,14 +107,14 @@ project (`tests/integration/**`) runs against a real Postgres.
 |---|---|
 | `TEST_DATABASE_URL` | Set it and the integration suites run; leave it unset and they **skip visibly** (`describe.skipIf`). Never fake green. |
 | Safety | `vitest.integration.setup.ts` force-overwrites `DATABASE_URL` with `TEST_DATABASE_URL` **before any module imports**, so the Prisma client can never bind to your dev/prod database from `.env`. |
-| Migrations | Applied once per suite in `beforeAll` via `npx prisma migrate deploy` (child env points at the test DB; dotenv does not override an explicitly passed var). |
+| Migrations | Applied once per run in `vitest.integration.global-setup.ts` (`npx prisma migrate deploy` against the test DB — child env points `DATABASE_URL` at `TEST_DATABASE_URL`; dotenv does not override an explicitly passed var). This runs before any worker, so parallel suites never race a missing schema. |
 | Truncation | `beforeEach` truncates all tables. Physical names follow schema `@@map`: `user`, `session`, `account`, `verification` are lowercase; `Workflow`, `Node`, `Connection`, `Execution`, `NodeExecution`, `Credential` are PascalCase. Quoted SQL identifiers are case-sensitive — this bit us once (D15-style lesson). |
 | External boundaries | Inngest dispatch is mocked per-file (`vi.mock("@/inngest/utils")`) and asserted by call, not performed. |
 
 ### 6.2 Local recipe
 
 ```powershell
-npm run test:db:up    # docker: postgres:16 → localhost:5433 (container autoflow-test-db)
+npm run test:db:up    # docker: pgvector/pgvector:pg16 → localhost:5433 (container autoflow-test-db; the KB schema needs the vector extension)
 $env:TEST_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5433/autoflow_test"
 npm run test:integration   # or: npx vitest run --project integration
 npm run test:db:down

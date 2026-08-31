@@ -81,16 +81,31 @@ describe.skipIf(!hasDb)("trigger webhook authz (AF-A-01)", () => {
     // Physical table names per schema @@map: User/Session/Account/Verification
     // are lowercased; every other model keeps its PascalCase name.
     await prisma.$executeRawUnsafe(
-      `TRUNCATE TABLE "NodeExecution","Execution","Connection","Node","Workflow","Credential","user","session","account","verification" CASCADE`,
+      `TRUNCATE TABLE "organization","member","invitation","workspace","NodeExecution","Execution","Connection","Node","Workflow","Credential","user","session","account","verification" CASCADE`,
     );
+
+    await prisma.organization.createMany({
+      data: [
+        { name: "Org A", slug: "webhook-org-a" },
+        { name: "Org B", slug: "webhook-org-b" },
+      ],
+    });
+    const orgA = await prisma.organization.findUniqueOrThrow({
+      where: { slug: "webhook-org-a" },
+      select: { id: true },
+    });
+    const orgB = await prisma.organization.findUniqueOrThrow({
+      where: { slug: "webhook-org-b" },
+      select: { id: true },
+    });
 
     await prisma.user.createMany({ data: [ownerA, ownerB] });
     workflowOfA = await prisma.workflow.create({
-      data: { name: "wf-a", userId: ownerA.id },
+      data: { name: "wf-a", userId: ownerA.id, organizationId: orgA.id },
       select: { id: true, webhookSecret: true },
     });
     workflowOfB = await prisma.workflow.create({
-      data: { name: "wf-b", userId: ownerB.id },
+      data: { name: "wf-b", userId: ownerB.id, organizationId: orgB.id },
       select: { id: true, webhookSecret: true },
     });
   });

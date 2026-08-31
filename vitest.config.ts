@@ -41,9 +41,16 @@ export default defineConfig({
           include: ["tests/integration/**/*.test.ts"],
           environment: "node",
           setupFiles: ["./vitest.integration.setup.ts"],
+          // Migrations are deployed once before any worker starts, so suites
+          // parallel workers no longer race a schema that does not exist yet.
+          globalSetup: ["./vitest.integration.global-setup.ts"],
           // Real Postgres work; keep unit runs fast and DB-independent.
           testTimeout: 30_000,
           hookTimeout: 60_000,
+          // One shared Postgres, and every suite TRUNCATEs the whole schema
+          // in beforeEach. Parallel files would deadlock and clobber each
+          // other's fixtures, so integration files run strictly serially.
+          fileParallelism: false,
         },
       },
     ],

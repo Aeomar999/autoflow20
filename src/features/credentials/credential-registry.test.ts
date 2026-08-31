@@ -15,7 +15,10 @@ import {
   maskSecretValue,
   secretFromInput,
 } from "./credential-types";
-import { credentialWriteVariants } from "./server/write-schema";
+import {
+  credentialWriteInput,
+  credentialWriteVariants,
+} from "./server/write-schema";
 
 const validDef: CredentialTypeDef = {
   type: "test.apiKey",
@@ -231,13 +234,73 @@ describe("write-schema <-> registry parity (anti-drift)", () => {
     expect(() => body.parse({ type: "basic", username: "u" })).toThrow();
   });
 
-  it("rejects a payload leaking an unknown field", () => {
-    const input = z
-      .object({ name: z.string() })
-      .and(z.discriminatedUnion("type", credentialWriteVariants));
+  it("accepts a named payload through the real write input for each kind", () => {
+    const inputTypes = credentialWriteInput.options.map(
+      (variant) => variant.shape.type.value,
+    );
+    expect(inputTypes.sort()).toEqual([...CREDENTIAL_TYPE_IDS].sort());
+    const samples: Array<{ type: string; payload: Record<string, unknown> }> = [
+      { type: "apiKey", payload: { apiKey: "sk-abc" } },
+      { type: "bearer", payload: { token: "tkn-123" } },
+      { type: "basic", payload: { username: "u", password: "p" } },
+      { type: "header", payload: { name: "X-Key", value: "v" } },
+      { type: "oauth2", payload: { accessToken: "at", scopes: "read write" } },
+      { type: "openai.apiKey", payload: { apiKey: "sk-xyz" } },
+      { type: "anthropic.apiKey", payload: { apiKey: "sk-ant-xyz" } },
+      { type: "gemini.apiKey", payload: { apiKey: "ai-zyx" } },
+      { type: "slack.oauth2", payload: { accessToken: "at" } },
+      { type: "google.oauth2", payload: { accessToken: "at" } },
+      { type: "airtable.apiKey", payload: { apiKey: "pat-abc" } },
+      { type: "hubspot.apiKey", payload: { apiKey: "pat-eu1-abc" } },
+      { type: "groq.apiKey", payload: { apiKey: "gsk_abc" } },
+      { type: "deepseek.apiKey", payload: { apiKey: "sk-deep" } },
+      {
+        type: "postgres",
+        payload: {
+          host: "db.local",
+          port: "5432",
+          database: "apps",
+          username: "admin",
+          password: "pw",
+        },
+      },
+      {
+        type: "smtp",
+        payload: {
+          host: "smtp.local",
+          port: "587",
+          username: "sender",
+          password: "pw",
+          tls: "starttls",
+        },
+      },
+      { type: "openaiCompatible.apiKey", payload: { apiKey: "sk-abc" } },
+    ];
+    for (const { type, payload } of samples) {
+      const parsed = credentialWriteInput.parse({
+        name: "x",
+        type,
+        ...payload,
+      });
+      // The `header` variant declares its own `name` field (the HTTP header
+      // key); for every other kind the parse must keep the display name.
+      const expectedName = type === "header" ? "X-Key" : "x";
+      expect(parsed).toMatchObject({ name: expectedName, type });
+    }
+  });
+
+  it("rejects a payload leaking an unknown field through the real write input", () => {
     expect(() =>
-      input.parse({ name: "x", type: "apiKey", apiKey: "k", value: "leak" }),
+      credentialWriteInput.parse({
+        name: "x",
+        type: "apiKey",
+        apiKey: "k",
+        value: "leak",
+      }),
     ).toThrow(/Unrecognized key/);
+    expect(() =>
+      credentialWriteInput.parse({ name: "x", type: "apiKey", apiKey: "k" }),
+    ).not.toThrow();
   });
 });
 

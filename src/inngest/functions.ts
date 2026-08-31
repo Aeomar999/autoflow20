@@ -166,6 +166,7 @@ export const executeWorkflow = inngest.createFunction(
           inngestEventId,
           trigger: (event.data.trigger as string) || "MANUAL",
           mode: (event.data.mode as string) || "PRODUCTION",
+          organizationId: workflow.organizationId,
           graphSnapshot: {
             nodes: workflow.nodes,
             connections: workflow.connections,
@@ -263,16 +264,20 @@ export const executeWorkflow = inngest.createFunction(
       },
     );
 
-    const userId = await step.run("find-user-id", async () => {
-      const workflow = await prisma.workflow.findUniqueOrThrow({
-        where: { id: workflowId },
-        select: {
-          userId: true,
-        },
-      });
+    const { userId, organizationId } = await step.run(
+      "find-workflow-context",
+      async () => {
+        const workflow = await prisma.workflow.findUniqueOrThrow({
+          where: { id: workflowId },
+          select: {
+            userId: true,
+            organizationId: true,
+          },
+        });
 
-      return workflow.userId;
-    });
+        return workflow;
+      },
+    );
 
     // Build execution plan with per-node config overrides (AF-M2-04).
     const plan = buildExecutionPlan(sortedNodes);
@@ -406,7 +411,7 @@ export const executeWorkflow = inngest.createFunction(
               userId,
               loadCredentialRow: async (credentialId) =>
                 prisma.credential.findUnique({
-                  where: { id: credentialId, userId },
+                  where: { id: credentialId, organizationId },
                 }),
             }),
         );
