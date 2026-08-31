@@ -151,8 +151,12 @@ describe.runIf(hasDb)("API key management router (AF-M8-01)", () => {
       const { items } = await caller.list();
       expect(items.length).toBe(2);
       for (const item of items) {
+        // Both via toHaveProperty: `secret` is absent from the return type, so
+        // `item.secret` does not compile. Asserting on the runtime shape keeps
+        // the guarantee that matters — the field is not on the wire — and
+        // still fails if someone widens the selection later.
         expect(item).not.toHaveProperty("hash");
-        expect(item.secret).toBeUndefined();
+        expect(item).not.toHaveProperty("secret");
       }
     });
   });

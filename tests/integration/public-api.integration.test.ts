@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   generateApiKey,
@@ -88,6 +89,12 @@ describe.runIf(hasDb)("Public REST API v1 (AF-M8-01)", () => {
     return material.secret;
   }
 
+  /**
+   * Build the request the route handlers actually receive. `NextRequest`, not
+   * a bare `Request`: every handler is typed `(req: NextRequest)`, so passing
+   * a plain `Request` only compiled behind an `as never` — which silenced the
+   * type system on the one boundary these tests exist to exercise.
+   */
   function api(
     path: string,
     opts: {
@@ -96,15 +103,15 @@ describe.runIf(hasDb)("Public REST API v1 (AF-M8-01)", () => {
       body?: unknown;
       headers?: Record<string, string>;
     } = {},
-  ): Request {
-    return new Request(`http://localhost${path}`, {
+  ): NextRequest {
+    return new NextRequest(`http://localhost${path}`, {
       method: opts.method ?? "GET",
       ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
       headers: {
         ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
         ...(opts.headers ?? {}),
       },
-    }) as never;
+    });
   }
 
   beforeEach(async () => {
