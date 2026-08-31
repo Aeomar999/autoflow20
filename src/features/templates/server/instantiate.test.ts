@@ -113,7 +113,15 @@ describe("prepareTemplateGraph", () => {
     expect(String(cells.wrapped)).toBe(
       `prefix-$node.${prepared.idMap.get("a")}.main.value-suffix`,
     );
-    expect(JSON.stringify(prepared.nodes[1].data)).not.toContain("$node.a");
+    // Rewritten ids are random cuids, so a bare `not.toContain("$node.a")`
+    // would flake whenever a fresh cuid happens to start with "a" (the
+    // rewritten `$node.ax...` contains the substring `$node.a`). Assert on the
+    // exact reference token instead: the mapped reference is present, and the
+    // old id's token is gone. A cuid is alphanumeric, so it can never collide
+    // with the literal `.main.value` suffix, making this deterministic.
+    const serialized = JSON.stringify(prepared.nodes[1].data);
+    expect(serialized).toContain(`$node.${prepared.idMap.get("a")}.main.value`);
+    expect(serialized).not.toContain("$node.a.main.value");
   });
 
   it("strips credential-bound fields and preserves the rest of the config", () => {
