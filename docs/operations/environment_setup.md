@@ -372,6 +372,11 @@ some provider verifications need a one-time browser pass through it.
 Target: **Vercel** (Next.js-native) + managed **Postgres** + **Inngest Cloud**
 + Polar production. No Dockerfile exists; Vercel builds from the repo.
 
+> Two failures cost an evening on 2026-08-31 and are worth reading before you
+> deploy, not after: Vercel refuses to deploy on a vulnerable dependency even
+> though the build succeeds (§10.2), and `BETTER_AUTH_URL` left at localhost
+> makes every sign-up fail with "Invalid origin" (§10.1).
+
 ### 8.1 Provision production Postgres
 
 1. Create a Neon/Supabase/RDS instance; enable backups.
@@ -484,6 +489,55 @@ Postgres service container.
 | Playwright form never hydrates | cross-origin host block in dev | use `http://localhost:3000`, never `127.0.0.1`, as baseURL |
 | E2E signup HTTP 500 | signup creates a real Polar customer | valid sandbox token + deliverable-looking email domain |
 | Empty list where data should be | prefetch/query failed | server log; rerun with `LOG_LEVEL=debug` |
+| **"Invalid origin" on sign-up/sign-in** | Better Auth matches the request `Origin` against `baseURL`; a deployed app whose `BETTER_AUTH_URL` still says localhost rejects every request | set `BETTER_AUTH_URL` to the real deployment URL — see §10.1 |
+| **Vercel deploy fails but the build succeeded** | Vercel blocks deploys on vulnerable dependencies, and names only one at a time | read the **last line** of the build log — see §10.2 |
+
+### 10.1 "Invalid origin" on sign-up
+
+Better Auth rejects any request whose `Origin` header does not match its
+`baseURL`. `src/lib/auth.ts` passes `baseURL` explicitly from
+`BETTER_AUTH_URL` and builds `trustedOrigins` via `resolveTrustedOrigins`
+(`src/lib/auth-origins.ts`), which already covers:
+
+- `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL`
+- `NGROK_URL` — the webhook-testing tunnel, scheme added automatically
+- `VERCEL_URL` — injected per deployment, the only way to trust **preview**
+  URLs, which get a unique hostname per branch
+- `localhost:3000` **and** `127.0.0.1:3000` — different origins to the check,
+  same machine
+
+So the code side is handled. What is **not** handled by code: the deployed
+`BETTER_AUTH_URL` itself. It must be the real deployment URL in the hosting
+provider's environment settings. Left at `http://localhost:3000` it also
+breaks OAuth callbacks (§10 row above) and post-login redirects.
+
+### 10.2 Vercel deploy fails after a successful build
+
+The build log ends like this — note that it *completed*:
+
+```
+Build Completed in /vercel/output [3m]
+Deploying outputs...
+Vulnerable version of <package> detected (x.y.z). Please update to version a.b.c or later.
+```
+
+Vercel refuses to deploy a project with a known-vulnerable dependency, and
+**reports only one package at a time**. Fixing the named one reveals the next,
+so a still-red deploy after an upgrade does **not** mean the upgrade failed —
+re-read the last log line before concluding anything. Two were stacked on
+2026-08-31: `next@15.5.4` (critical RCE) and then `inngest@3.44.1` (high).
+
+Diagnosing this from the GitHub checks alone is misleading: Vercel posts its
+result as a **commit status**, not a check run, so `gh api …/check-runs` does
+not show it. Use:
+
+```bash
+gh api "repos/<owner>/<repo>/commits/<sha>/status" \
+  --jq '.statuses[] | "\(.context): \(.state) — \(.description)"'
+```
+
+`npm audit` confirms the same advisories locally and is the faster check
+before pushing.
 
 ---
 
