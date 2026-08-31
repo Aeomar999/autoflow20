@@ -10,7 +10,9 @@ import {
 import { credentialsRouter } from "@/features/credentials/server/routers";
 import { executionsRouter } from "@/features/executions/server/routers";
 import { workflowsRouter } from "@/features/workflows/server/routers";
+import type { ExecutionStatus } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { COUNTABLE_EXECUTION_STATUSES } from "@/lib/quotas";
 import type { createTRPCContext } from "@/trpc/init";
 
 /**
@@ -298,5 +300,72 @@ describe.runIf(hasDb)("Org isolation", () => {
     await workflows.updateName({ id: wfBId, name: "renamed-by-owner" });
     const wf = await workflows.getOne({ id: wfBId });
     expect(wf.name).toBe("renamed-by-owner");
+  });
+
+  // AF-M7-04: the run-gate count kernel, exercised against the same seeded
+  // rows above, must be tenant-scoped exactly like the router queries. This is
+  // the same where-shape the runner uses (COUNTABLE_EXECUTION_STATUSES +
+  // start-of-month window on organizationId).
+  const countableIn = [...COUNTABLE_EXECUTION_STATUSES] as ExecutionStatus[];
+  const monthStart = () => {
+    const d = new Date();
+    d.setUTCDate(1);
+    d.setUTCHours(0, 0, 0, 0);
+    return d;
+  };
+  const gateCount = (organizationId: string) =>
+    prisma.execution.count({
+      where: {
+        organizationId,
+        status: { in: countableIn },
+        startedAt: { gte: monthStart() },
+      },
+    });
+
+  it("counts each org's countable executions independently", async () => {
+    // The seeded rows give orgA and orgB exactly one countable execution each.
+    expect(await gateCount(orgAId)).toBe(1);
+    expect(await gateCount(orgBId)).toBe(1);
+  });
+
+  it("never lets a QUOTA_EXCEEDED refusal or TEST run inflate the count", async () => {
+    await prisma.execution.create({
+      data: {
+        workflowId: wfAId,
+        trigger: "MANUAL",
+        mode: "PRODUCTION",
+        status: "QUOTA_EXCEEDED",
+        inngestEventId: "evt_gate_a_refused",
+        organizationId: orgAId,
+      },
+    });
+    await prisma.execution.create({
+      data: {
+        workflowId: wfAId,
+        trigger: "TEST",
+        mode: "TEST",
+        status: "RUNNING",
+        inngestEventId: "evt_gate_a_test",
+        organizationId: orgAId,
+      },
+    });
+    expect(await gateCount(orgAId)).toBe(1);
+  });
+
+  it("only counts executions from the current calendar month", async () => {
+    const lastMonth = monthStart();
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+    await prisma.execution.create({
+      data: {
+        workflowId: wfAId,
+        trigger: "MANUAL",
+        mode: "PRODUCTION",
+        status: "SUCCESS",
+        startedAt: lastMonth,
+        inngestEventId: "evt_gate_a_old_month",
+        organizationId: orgAId,
+      },
+    });
+    expect(await gateCount(orgAId)).toBe(1);
   });
 });

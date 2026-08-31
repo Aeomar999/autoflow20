@@ -24,10 +24,20 @@
 export type Plan = "FREE" | "STARTER" | "PRO" | "ENTERPRISE";
 
 /** Execution row status used to record a quota-breach run. Kept as a string
- * union so this module stays isomorphic; must match the Prisma
- * `ExecutionStatus` value "QUOTA_EXCEEDED" once the schema adds it, or the
- * runner maps it to `CANCELLED` until then (see `PRODUCTION_STATUS_MAP`). */
+ * so this module stays isomorphic; matches the Prisma `ExecutionStatus` value
+ * "QUOTA_EXCEEDED" (added in AF-M7-04). */
 export const QUOTA_EXCEEDED_STATUS = "QUOTA_EXCEEDED" as const;
+
+/** Terminal statuses that consume the monthly execution quota. `RUNNING`
+ * (in-flight, excluded) and the `QUOTA_EXCEEDED` refusals themselves (which
+ * must not tax the quota they were refused for) are intentionally absent.
+ * Mirrors Prisma `ExecutionStatus`; the runner casts to the generated enum. */
+export const COUNTABLE_EXECUTION_STATUSES = [
+  "SUCCESS",
+  "FAILED",
+  "CANCELLED",
+  "TIMED_OUT",
+] as const;
 
 /** A monthly execution-count limit per plan. `Infinity` = unlimited. */
 export interface PlanExecutionLimit {
@@ -114,4 +124,34 @@ export function evaluateExecutionQuota(params: {
     suggestedStatus: QUOTA_EXCEEDED_STATUS,
     remaining: limit === Infinity ? Infinity : limit - count,
   };
+}
+
+/**
+ * Whether a run should consume the monthly execution quota.
+ *
+ * TEST-mode runs (canvas test runs, AF-M2-08) and runs admitted under the
+ * explicit `E2E_SERVER === "1"` bypass never meter; everything else (default
+ * PRODUCTION, channel/trigger runs) is metered. Mirrors the `E2E_SERVER`
+ * guard on `src/trpc/init.ts:52` so the run gate can never be bypassed in
+ * production by accident.
+ */
+export function isMeteredRun(params: {
+  mode: string | null | undefined;
+  e2eServer: boolean;
+}): boolean {
+  return params.mode !== "TEST" && !params.e2eServer;
+}
+
+/** Human-readable message recorded on a `QUOTA_EXCEEDED` run. `limit` is
+ * always finite for an exceeded run — the evaluator never blocks an unlimited
+ * plan — so the "allows N runs" wording is safe to branch on `limit === 1`. */
+export function quotaBreachMessage(
+  plan: Plan | string | null | undefined,
+  limit: number,
+): string {
+  const label = plan && plan in PLAN_QUOTA_LIMITS ? (plan as Plan) : "FREE";
+  const limitLabel = limit === Infinity ? "an unlimited" : `${limit}`;
+  const noun =
+    limit === 1 ? "1 production run" : `${limitLabel} production runs`;
+  return `Monthly execution quota exceeded: the ${label} plan allows ${noun} per calendar month. Upgrade your plan or wait for the next month to run this workflow again.`;
 }

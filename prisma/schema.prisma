@@ -312,6 +312,7 @@ enum ExecutionStatus {
   RUNNING
   SUCCESS
   FAILED
+  QUOTA_EXCEEDED
   CANCELLED
   TIMED_OUT
 }
