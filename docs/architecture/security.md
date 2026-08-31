@@ -18,7 +18,7 @@ An automation platform holds the keys to every system its customers connect. The
 | Credential storage | ✅ Envelope encryption (AES-256-GCM, per-record DEK, AF-M3-01/02); engine-level injection via single decrypt site (AF-M3-04); no plaintext read path. |
 | Secrets in logs | ✅ Redacting logger (`src/lib/logger.ts`) + Sentry `beforeSend` scrubbing (AF-M0-07); credentials never in `NodeExecution` IO (AF-M3-04 leak guard tests). |
 | Audit trail | 🔴 None. |
-| Rate limiting | 🟠 Public API: per-key token bucket (plan-based, FREE 60/1s … ENTERPRISE 60000/1000s, 429 + `Retry-After`, AF-M8-01); webhook ingress: simple in-memory (M4). auth/tRPC surfaces still piecemeal (AF-M8-02). |
+| Rate limiting | 🟠 Unified on a shared `RateLimitStore` (AF-M8-01 + AF-M8-02): public API per-key token bucket (plan), webhook plan-aware token bucket, auth sign-in/up 5/15min + reset 3/hr, tRPC per-user mutation burst cap — all `429` + `Retry-After`. Store is in-memory by default; a distributed store behind the interface is the documented follow-up (ADR-0013). |
 | SSRF protection | ✅ `egress-guard.ts` — scheme/host allowlist, private-IP blocks, DNS resolve check (AF-A-02). |
 | Webhook authentication | ✅ Per-workflow secret + Stripe signature verification (AF-A-01). |
 | Input validation | 🟠 Zod on tRPC inputs + per-node-type config schemas at save boundary (AF-A-04); nothing on other surfaces. |
@@ -156,15 +156,17 @@ Two distinct problems; do not conflate them.
 
 ---
 
-## 8. Rate limiting (M8, partial in M4)
+## 8. Rate limiting (built across surfaces; distributed store is follow-up)
+
+All surfaces share the injectable `RateLimitStore` (`src/lib/rate-limit/`, ADR-0013) — a token-bucket common to webhooks, the public API, auth, and tRPC mutations. The default `MemoryRateLimitStore` is per-process; a Redis/Postgres-backed store behind the same interface is the explicitly documented multi-instance follow-up.
 
 | Surface | Limit | Key |
 |---|---|---|
-| Login / signup | 5 attempts / 15 min | IP + email |
-| Password reset | 3 / hour | email |
-| Webhook ingress | plan-dependent | endpoint + org |
-| Public API | plan-dependent | API key · **built (AF-M8-01)** |
-| tRPC mutations | burst cap | user |
+| Login / signup | 5 attempts / 15 min | IP + email · **built (AF-M8-02)** |
+| Password reset | 3 / hour | email · **built (AF-M8-02)** |
+| Webhook ingress | plan-dependent | endpoint + org · **built (AF-M8-02)** |
+| Public API | plan-dependent | API key · **built (AF-M8-01/02)** |
+| tRPC mutations | burst cap (60, 1/s) | user · **built (AF-M8-02)** |
 | Workflow executions | plan quota | organization |
 
 Rate-limit responses use `429` with `Retry-After`. They are audit-logged when they indicate an attack pattern.

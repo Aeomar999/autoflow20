@@ -307,7 +307,7 @@ Conventions:
 - JSON only; `snake_case` field names (public API convention, distinct from internal camelCase — mapped explicitly in `src/features/api-keys/server/serialize.ts`, never leaked through).
 - Cursor pagination: `?limit=&cursor=` → `{ data, next_cursor }` (base64url `[sortValue,id]`, default 20 / max 100).
 - Errors: `{ error: { code, message, details? } }` with conventional HTTP statuses; the wire codes are `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `BAD_REQUEST`, `CONFLICT`, `TOO_MANY_REQUESTS`, `INTERNAL_SERVER_ERROR` (generic to the client, full detail to logs).
-- Rate limiting: per-key token bucket resolved from plan (FREE 60/1s … ENTERPRISE 60000/1000s), enforced before any data is touched; `429` carries `Retry-After`, every response carries `X-RateLimit-Limit`/`-Remaining`/`-Reset`. In-memory store — the shared-store follow-up is AF-M8-02.
+- Rate limiting: per-key token bucket resolved from plan (FREE 60/1s … ENTERPRISE 60000/1000s), enforced before any data is touched; `429` carries `Retry-After`, every response carries `X-RateLimit-Limit`/`-Remaining`/`-Reset`. Runs on the shared `RateLimitStore` (`src/lib/rate-limit/`, AF-M8-02, ADR-0013); the store is in-memory by default with a distributed store behind the interface as the documented follow-up.
 - Idempotency: `Idempotency-Key` honored on `POST /run`, deduped by the `(workflowId, idempotencyKey)` unique index so concurrent retries still yield one run.
 - Auth failure semantics: unknown/revoked/expired key → `401 UNAUTHENTICATED`; valid key missing the scope → `403 FORBIDDEN`.
 - Management (create/list/revoke keys, org-admin only, audited) is a tRPC router `apiKeys` — the web UI is the only consumer; the management UI stays internal (deferred).

@@ -56,3 +56,5 @@ Each with the reason it lost.
 | [0009](0009-ai-provider-registry.md) | AI provider registry with capability + pricing data | Accepted |
 | [0010](0010-org-level-plan-as-quota-source.md) | Org-level `Organization.plan` is the quota source of truth | Accepted |
 | [0011](0011-node-type-deprecation-lifecycle.md) | Node types are retired by deprecation, never by deletion | Accepted |
+| [0012](0012-public-api-and-api-keys.md) | Public REST API with scoped, hashed API keys | Accepted |
+| [0013](0013-rate-limit-store.md) | Shared injectable rate-limit store (in-memory default, no new dependency) | Accepted |
