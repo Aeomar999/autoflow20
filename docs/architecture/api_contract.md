@@ -160,7 +160,113 @@ button calls `instantiate`, toasts "Installed as a draft", invalidates the
 button is omitted; the deep-planned post-install credential dialog is replaced by
 a pre-install "Before you install" checklist that explains which credentials are
 required; installs always land as an unsaved draft rather than a deployed
-workflow. The 20 authored gallery templates are AF-M7-02 (backlog).
+workflow.
+
+**Gallery content (AF-M7-02, shipped 2026-08-31).** The 20 authored templates
+live in `src/features/templates/catalog/` and are the source of truth; `Template`
+rows are a projection written only by `npm run seed:templates`. `nodeCount` and
+`credentialCount` on every row are **derived from the graph** via
+`collectPendingCredentials`, never authored, so the `fewestCredentials` sort is a
+promise the data cannot break. Seeding is keyed on `slug`, leaves `installs`
+untouched, and **deactivates** (`isActive: false`) rather than deletes a slug
+that leaves the catalogue, so a retired template's install count and links
+survive. Every spec passes `catalog/harness.ts` before it can be seeded — the
+seeder re-runs it and refuses to write on any issue.
+
+### `onboarding` — **[M7]** (shipped AF-M7-05)
+
+`status`. One `orgViewerProcedure` query, no input, defined in
+`src/features/onboarding/server/routers.ts`.
+
+| Procedure | Permission rung | Output |
+|---|---|---|
+| `status` | `orgViewerProcedure` | `{ organizationId, workflowCount, credentialCount, executionCount }` |
+
+Counts, not rows: the first-run checklist only needs to know whether the
+workspace has *any* of each, and a brand-new workspace should not pay to load
+lists it is about to be told are empty. All three are scoped through
+`ctx.org.id` in the `where` clause; `Execution` reaches the org through its
+workflow, since it carries no `organizationId` of its own.
+
+`organizationId` is returned so the client can key its dismissal preference per
+workspace — hiding the checklist in one must not hide it in another. It is the
+caller's own active organization, which they are already a member of.
+
+**No onboarding state is stored server-side.** Step completion is derived from
+these counts on every read, so a tick can never claim something that has since
+been deleted. Only the user's "hide this" preference is persisted, in
+`localStorage` under `autoflow.onboarding.v1`.
+
+### `search` — **[M7]** (shipped AF-M7-07)
+
+`query`. One `orgViewerProcedure` query backing the Cmd+K command palette,
+defined in `src/features/search/server/routers.ts`.
+
+| Procedure | Permission rung | Input | Output |
+|---|---|---|---|
+| `query` | `orgViewerProcedure` | `{ q?: string (≤200), limit?: 1..20 (default 5, per kind) }` | `{ workflows, executions, credentials }`, each `SearchResult[]` |
+
+`SearchResult` = `{ kind, id, title, subtitle?, href? }`.
+
+Matching: workflows by name; executions by **id prefix**, by `ExecutionStatus`
+(so "fail" finds FAILED runs), or by parent workflow name; credentials by name.
+All `contains` matches are case-insensitive.
+
+**Tenancy.** Every query filters on `ctx.org.id` in the `where` clause and is
+`take`-limited per kind. `Execution` reaches the org through its workflow. The
+empty-query case returns the most recent rows per kind, where org scope is the
+*only* filter — covered explicitly by
+`tests/integration/search-org-isolation.integration.test.ts`, in which both
+orgs own rows with the identical name.
+
+**Credential results carry `type` only** — never `preview`, never an envelope
+column. There is no read path for credential secrets, and a global search box
+is where an accidental one would surface; the integration suite asserts it.
+
+Navigation destinations and actions are **not** returned here. They carry no
+tenant data, are identical for every workspace, and live client-side in
+`src/features/search/lib/static-commands.ts`. Ranking across all five kinds
+happens on the client (`lib/fuzzy.ts`); the server decides only what this
+tenant may see.
+
+### `notifications` — **[M7]** (shipped AF-M7-08)
+
+`list` · `unreadCount` · `markRead` · `markAllRead`, in
+`src/features/notifications/server/routers.ts`.
+
+| Procedure | Permission rung | Input | Output |
+|---|---|---|---|
+| `list` | `orgViewerProcedure` | `{ filter?: "all" \| "unread", page?, pageSize?: 1..100 }` | `{ items, page, pageSize, totalCount, totalPages, hasNextPage, hasPreviousPage }` |
+| `unreadCount` | `orgViewerProcedure` | — | `{ count }` |
+| `markRead` | `orgViewerProcedure` | `{ id }` | `{ updated: 0 \| 1 }` |
+| `markAllRead` | `orgViewerProcedure` | — | `{ updated: number }` |
+
+Both mutations are `updateMany`, not `update`: the org scope lives in the same
+statement as the write, so a cross-tenant id matches zero rows and changes
+nothing — no read-then-check, which is the shape cross-tenant writes hide in.
+`markRead` returning `{ updated: 0 }` is therefore the normal response to
+another workspace's id, and reveals nothing about whether it exists.
+
+Notifications are **workspace-level, not per-user**: read state is shared. See
+`docs/architecture/data_model.md` §2.9.
+
+**Writers** all go through `writeNotifications` (`server/notify.ts`), the single
+write path, which uses `skipDuplicates` on `dedupeKey` so a replayed step is a
+no-op, and which logs-and-swallows its own failures — a notification is a
+courtesy, and failing a user's run because we could not announce it would be
+absurd. Producers today:
+
+| Type | Producer | Status |
+|---|---|---|
+| `EXECUTION_FAILED` | runner `onFailure` | live, gated on `Workflow.notifyOnFailure` (default ON) |
+| `EXECUTION_SUCCEEDED` | runner success tail | live, gated on `Workflow.notifyOnSuccess` (default OFF) |
+| `CREDENTIAL_EXPIRING` | `notifyExpiringCredentials` cron (daily 03:00) | live, +7d window with a 14d grace floor |
+| `APPROVAL_REQUESTED` | — | **builder ready, no producer**: nothing in the app creates `ApprovalRequest` rows yet (no approval node ships), so the approvals table has no writer either. Wiring is a one-line call from wherever that node lands. |
+| `SYSTEM` | — | **no producer**: maintenance notices are an operator action with no UI or script yet. |
+
+`Workflow.notifyOnFailure` / `notifyOnSuccess` are read by `workflows.getOne`
+and written by `workflows.updateNotificationPrefs` (`orgEditorProcedure` — this
+changes what the whole workspace gets told about).
 
 ---
 

@@ -408,7 +408,55 @@ Shipped `20260831000000_template_model` (AF-M7-01). Notes:
   derived at read time — it feeds the gallery filters and cards without a per-row
   node scan.
 
-### 2.9 Later
+### 2.9 Notifications — M7
+
+Migration `20260831180000_notification_model` (AF-M7-08). Additive: a
+`NotificationType` enum, the `Notification` table, and two boolean columns on
+`Workflow`.
+
+```prisma
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String                                  // tenant scope
+  type           NotificationType
+  title          String
+  message        String           @db.Text
+  href           String?                                 // where it opens
+  readAt         DateTime?                               // null = unread
+  dedupeKey      String           @unique                // replay guard
+  workflowId     String?                                 // FK, cascade
+  executionId    String?                                 // plain column
+  credentialId   String?                                 // plain column
+  createdAt      DateTime         @default(now())
+}
+```
+
+- **Tenant-scoped, not per-user.** A notification belongs to the workspace, and
+  everyone who can see the workspace sees it — matching how executions and
+  approvals already behave. The consequence is that **read state is shared**:
+  one member marking something read marks it read for the team. Per-user
+  read state would need a join table and is deliberately not in v1.
+- **`dedupeKey` is the replay guard**, and the reason writes go through
+  `writeNotifications` with `skipDuplicates`. Inngest can re-run a step whose
+  memo it lost, `onFailure` can fire alongside a partial tail, and a cron runs
+  again on every redeploy. Keys are composed from the **logical event** —
+  `execution:<id>:<type>`, `credential:<id>:expiring:<expiry ISO>`,
+  `approval:<id>` — never from a timestamp, so a replay collides with the row
+  it already wrote instead of announcing the same thing twice.
+- **`workflowId` is a real FK with cascade**; `executionId` and `credentialId`
+  are deliberately plain columns. They exist to build `href` and to let a caller
+  correlate, and keeping them FK-free means a pruned execution or a deleted
+  credential leaves the notification history intact rather than erasing what was
+  announced. The trade-off is a link that can 404, which is preferable to
+  history that silently disappears.
+- **`Workflow.notifyOnFailure` defaults `true`, `notifyOnSuccess` defaults
+  `false`.** A run that broke is the thing people need told about; a workflow on
+  a five-minute cron with success notifications on would write 288 rows a day
+  and make the centre worthless. Existing workflows adopt both defaults.
+- Indexes serve the only two reads: `(organizationId, createdAt DESC)` for the
+  list and `(organizationId, readAt)` for the bell's unread count.
+
+### 2.10 Later
 
 | Model | Milestone | Purpose |
 |---|---|---|

@@ -6,6 +6,7 @@ import {
 } from "@/engine/validate";
 import { resolveNodeCredentials } from "@/features/executions/server/credential-resolver";
 import { buildTemplateContext } from "@/features/executions/template";
+import { notifyExecutionFinished } from "@/features/notifications/server/execution-notifier";
 import {
   ExecutionStatus,
   NodeExecutionStatus,
@@ -118,7 +119,7 @@ export const executeWorkflow = inngest.createFunction(
           aggregates._sum.costUsd != null ? Number(aggregates._sum.costUsd) : 0;
       }
 
-      return prisma.execution.update({
+      const updated = await prisma.execution.update({
         where: { inngestEventId: event.data.event.id },
         data: {
           status: ExecutionStatus.FAILED,
@@ -131,6 +132,18 @@ export const executeWorkflow = inngest.createFunction(
           errorStack: truncateStack(event.data.error.stack),
         },
       });
+
+      // AF-M7-08. After the status write, so a notification can never claim a
+      // failure the Execution row does not record. `writeNotifications`
+      // swallows its own errors, and the dedupe key makes a replayed
+      // `onFailure` a no-op rather than a second announcement.
+      await notifyExecutionFinished({
+        executionId: updated.id,
+        succeeded: false,
+        error: event.data.error.message,
+      });
+
+      return updated;
     },
   },
   {
@@ -728,6 +741,16 @@ export const executeWorkflow = inngest.createFunction(
         },
       });
     });
+
+    // AF-M7-08. Its own step so Inngest memoizes it: a retry of anything after
+    // this point replays the memo instead of re-announcing. Respects the
+    // workflow's `notifyOnSuccess`, which defaults OFF.
+    await step.run("notify-execution-succeeded", async () =>
+      notifyExecutionFinished({
+        executionId: execution.id,
+        succeeded: true,
+      }),
+    );
 
     return {
       workflowId,

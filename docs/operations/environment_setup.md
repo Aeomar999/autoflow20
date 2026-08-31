@@ -103,8 +103,16 @@ npx prisma generate           # client -> src/generated/prisma
 # (AF-M5-09): move them onto AI_LLM. Safe to run any time AFTER the schema is
 # up to date; no-ops when none remain. Dry-runs by default; add -- --yes.
 npm run migrate:legacy-ai-nodes
+# Populate the template gallery (AF-M7-02). Idempotent, keyed on slug, and
+# safe to re-run after every pull — that is how catalogue edits reach the DB.
+# Dry-runs by default; add -- --yes to write.
+npm run seed:templates -- --yes
 npm run dev:all               # mprocs: next + inngest (+ ngrok if configured)
 ```
+
+Without the seed step `/templates` renders its empty state: the gallery reads
+`Template` rows, and the authored catalogue in
+`src/features/templates/catalog/` is not compiled into the app.
 
 - App: http://localhost:3000
 - Inngest dev UI: http://localhost:8288

@@ -1,6 +1,8 @@
 import type { SearchParams } from "nuqs/server";
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
+import { FirstRunChecklist } from "@/features/onboarding/components/first-run-checklist";
+import { prefetchOnboardingStatus } from "@/features/onboarding/server/prefetch";
 import {
   WorkflowsContainer,
   WorkflowsError,
@@ -20,11 +22,12 @@ const Page = async ({ searchParams }: Props) => {
   await requireAuth();
 
   const params = await workflowsParamsLoader(searchParams);
-  await prefetchWorkflows(params);
+  await Promise.all([prefetchWorkflows(params), prefetchOnboardingStatus()]);
 
   return (
     <HydrateClient>
       <WorkflowsContainer>
+        <FirstRunChecklist />
         <ErrorBoundary fallback={<WorkflowsError />}>
           <Suspense fallback={<WorkflowsLoading />}>
             <WorkflowsList />

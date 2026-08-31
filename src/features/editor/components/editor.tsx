@@ -38,6 +38,7 @@ import { AddNodeButton } from "./add-node-button";
 import { CostEstimateBadge } from "./cost-estimate-badge";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
 import { NodeConfigPanel } from "./node-config-panel";
+import { NotificationPrefsToggle } from "./notification-prefs-toggle";
 import {
   TestSelectedNodeButton,
   TestWorkflowButton,
@@ -256,6 +257,7 @@ export const Editor = memo(function Editor({
                 <div className="flex items-center gap-2">
                   <TestWorkflowButton workflowId={workflowId} />
                   <TestSelectedNodeButton workflowId={workflowId} />
+                  <NotificationPrefsToggle workflowId={workflowId} />
                 </div>
               </div>
             </Panel>

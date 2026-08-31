@@ -14,6 +14,7 @@ import {
   WebhookIcon,
   XCircleIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { memo } from "react";
 import {
   EmptyView,
@@ -166,8 +167,20 @@ export const ExecutionsError = () => {
 };
 
 export const ExecutionsEmpty = () => {
+  const router = useRouter();
+
   return (
-    <EmptyView message="You haven't created any executions yet. Get started by running your first workflow" />
+    <EmptyView
+      icon={PlayIcon}
+      title="No runs yet"
+      message="Runs appear here the moment a workflow is triggered — by a webhook, a schedule, the API, or you pressing Run."
+      onNew={() => router.push("/workflows")}
+      actionLabel="Go to workflows"
+      secondaryAction={{
+        label: "Start from a template",
+        onClick: () => router.push("/templates"),
+      }}
+    />
   );
 };
 

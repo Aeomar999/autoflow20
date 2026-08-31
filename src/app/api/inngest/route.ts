@@ -7,6 +7,7 @@ import {
   processKnowledgeSource,
   scheduledKnowledgeSync,
 } from "@/inngest/knowledge";
+import { notifyExpiringCredentials } from "@/inngest/notifications";
 import { refreshOAuthTokens } from "@/inngest/oauth-refresh";
 
 // Create an API that serves functions
@@ -19,5 +20,6 @@ export const { GET, POST, PUT } = serve({
     processKnowledgeSource,
     scheduledKnowledgeSync,
     sweepAiResponseCache,
+    notifyExpiringCredentials,
   ],
 });

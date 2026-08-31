@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
+import { KeyRoundIcon } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { memo, useState } from "react";
@@ -115,8 +116,15 @@ export const CredentialsEmpty = () => {
 
   return (
     <EmptyView
+      icon={KeyRoundIcon}
+      title="Connect your first service"
+      message="Credentials let nodes authenticate to Slack, your database, or a model provider. They're encrypted with a per-credential key and decrypted only inside a running node — never returned to the browser, not even to you."
       onNew={handleCreate}
-      message="You haven't created any credentials yet. Get started by creating your first credential"
+      actionLabel="Add a credential"
+      secondaryAction={{
+        label: "Start from a template",
+        onClick: () => router.push("/templates"),
+      }}
     />
   );
 };

@@ -2,9 +2,9 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-  runtime  = "nodejs"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
   moduleFormat = "esm"
 }
 
@@ -27,19 +27,19 @@ enum Plan {
 }
 
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @default(now()) @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  workflows     Workflow[]
-  credentials   Credential[]
-  members       Member[]
-  auditLogs     AuditLog[]
+  id               String            @id
+  name             String
+  email            String
+  emailVerified    Boolean           @default(false)
+  image            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now()) @updatedAt
+  sessions         Session[]
+  accounts         Account[]
+  workflows        Workflow[]
+  credentials      Credential[]
+  members          Member[]
+  auditLogs        AuditLog[]
   approvedRequests ApprovalRequest[]
   knowledgeSources KnowledgeSource[]
   apiKeys       ApiKey[]
@@ -94,12 +94,12 @@ model Verification {
 }
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  plan        Plan     @default(FREE)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   members          Member[]
   invitations      Invitation[]
@@ -110,6 +110,7 @@ model Organization {
   auditLogs        AuditLog[]
   approvalRequests ApprovalRequest[]
   aiResponseCache  AiResponseCache[]
+  notifications    Notification[]
   apiKeys          ApiKey[]
 
   @@map("organization")
@@ -210,27 +211,27 @@ model ApprovalRequest {
 }
 
 model Credential {
-  id String @id @default(cuid())
+  id   String @id @default(cuid())
   name String
   type String
 
-  ciphertext Bytes
-  iv Bytes
-  authTag Bytes
-  wrappedDek Bytes
-  keyVersion Int @default(1)
-  preview String?
+  ciphertext     Bytes
+  iv             Bytes
+  authTag        Bytes
+  wrappedDek     Bytes
+  keyVersion     Int       @default(1)
+  preview        String?
   oauthExpiresAt DateTime?
-  refreshError String?
-  lastUsedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  refreshError   String?
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   organizationId String?
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   Node Node[]
 
@@ -265,68 +266,78 @@ model ApiKey {
 }
 
 model Workflow {
-  id String @id @default(cuid())
-  name String
+  id        String   @id @default(cuid())
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   webhookSecret String @unique @default(cuid())
-  revision Int @default(0)
+  revision      Int    @default(0)
 
   activeVersionId String?
-  activeVersion WorkflowVersion? @relation("ActiveVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+  activeVersion   WorkflowVersion? @relation("ActiveVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
 
-  nodes Node[]
-  connections Connection[]
-  executions Execution[]
-  versions WorkflowVersion[] @relation("WorkflowVersions")
+  /**
+   * AF-M7-08 per-workflow notification preferences. Failure defaults ON
+   * because a run that broke is the thing people need told about; success
+   * defaults OFF because a workflow on a five-minute cron would otherwise
+   * generate 288 notifications a day and the centre would be worthless.
+   */
+  notifyOnFailure Boolean @default(true)
+  notifyOnSuccess Boolean @default(false)
+
+  nodes            Node[]
+  connections      Connection[]
+  executions       Execution[]
+  versions         WorkflowVersion[] @relation("WorkflowVersions")
   approvalRequests ApprovalRequest[]
+  notifications    Notification[]
 
   userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([organizationId])
 }
 
 model Node {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   workflowId String
-  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  name String
-  type String
-  typeVersion Int @default(1)
-  disabled Boolean @default(false)
-  notes String?
-  position Json
-  data Json @default("{}")
+  name        String
+  type        String
+  typeVersion Int     @default(1)
+  disabled    Boolean @default(false)
+  notes       String?
+  position    Json
+  data        Json    @default("{}")
 
   credentialId String?
-  credential Credential? @relation(fields: [credentialId], references: [id])
+  credential   Credential? @relation(fields: [credentialId], references: [id])
 
   outputConnections Connection[] @relation("FromNode")
-  inputConnections Connection[] @relation("ToNode")
+  inputConnections  Connection[] @relation("ToNode")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Connection {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   workflowId String
-  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   fromNodeId String
-  fromNode Node @relation("FromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
-  toNodeId String
-  toNode Node @relation("ToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+  fromNode   Node   @relation("FromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNodeId   String
+  toNode     Node   @relation("ToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
 
   fromOutput String @default("main")
-  toInput String @default("main")
+  toInput    String @default("main")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -347,39 +358,39 @@ model Execution {
   id String @id @default(cuid())
 
   workflowId String
-  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   status ExecutionStatus @default(RUNNING)
 
-  trigger String @default("MANUAL")
-  mode String @default("PRODUCTION")
-  graphSnapshot Json @default("{}")
-  input Json?
-  
-  workflowVersionId String?
-  workflowVersion WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: SetNull)
+  trigger       String @default("MANUAL")
+  mode          String @default("PRODUCTION")
+  graphSnapshot Json   @default("{}")
+  input         Json?
 
-  error String? @db.Text
+  workflowVersionId String?
+  workflowVersion   WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: SetNull)
+
+  error      String? @db.Text
   errorStack String? @db.Text
 
-  startedAt DateTime @default(now())
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
-  durationMs Int?
+  durationMs  Int?
 
-  nodeCount Int @default(0)
-  tokensIn Int @default(0)
-  tokensOut Int @default(0)
-  costUsd Decimal @default(0) @db.Decimal(12, 6)
+  nodeCount Int     @default(0)
+  tokensIn  Int     @default(0)
+  tokensOut Int     @default(0)
+  costUsd   Decimal @default(0) @db.Decimal(12, 6)
 
   inngestEventId String @unique
 
   output Json?
 
-  nodeExecutions NodeExecution[]
+  nodeExecutions   NodeExecution[]
   approvalRequests ApprovalRequest[]
 
   organizationId String?
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([workflowId, startedAt(sort: Desc)])
   @@index([organizationId])
@@ -403,30 +414,30 @@ model NodeExecution {
   id String @id @default(cuid())
 
   executionId String
-  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  execution   Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
 
-  nodeId String
-  nodeName String
-  nodeType String
-  typeVersion Int @default(1)
+  nodeId      String
+  nodeName    String
+  nodeType    String
+  typeVersion Int    @default(1)
 
-  status NodeExecutionStatus @default(RUNNING)
-  attempt Int @default(0)
-  order Int
+  status  NodeExecutionStatus @default(RUNNING)
+  attempt Int                 @default(0)
+  order   Int
 
-  input Json?
+  input  Json?
   output Json?
 
-  error String? @db.Text
+  error      String? @db.Text
   skipReason String?
 
-  startedAt DateTime @default(now())
+  startedAt  DateTime  @default(now())
   finishedAt DateTime?
   durationMs Int?
 
-  tokensIn Int @default(0)
-  tokensOut Int @default(0)
-  costUsd Decimal @default(0) @db.Decimal(12, 6)
+  tokensIn  Int     @default(0)
+  tokensOut Int     @default(0)
+  costUsd   Decimal @default(0) @db.Decimal(12, 6)
 
   /// `provider:model` that served this node, when it made an AI call. NULL for
   /// every non-AI node. Cost-per-model reporting groups on this (AF-M5-08).
@@ -448,16 +459,16 @@ model WorkflowVersion {
   id String @id @default(cuid())
 
   workflowId String
-  workflow Workflow @relation("WorkflowVersions", fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation("WorkflowVersions", fields: [workflowId], references: [id], onDelete: Cascade)
 
-  version Int
+  version          Int
   workflowRevision Int
 
   graphSnapshot Json
 
   createdAt DateTime @default(now())
-  
-  activeFor Workflow[] @relation("ActiveVersion")
+
+  activeFor  Workflow[]  @relation("ActiveVersion")
   executions Execution[]
 
   @@unique([workflowId, version])
@@ -488,16 +499,16 @@ model KnowledgeSource {
 }
 
 model KnowledgeChunk {
-  id         String                                  @id @default(cuid())
+  id         String                       @id @default(cuid())
   sourceId   String
-  source     KnowledgeSource                         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source     KnowledgeSource              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   chunkIndex Int
-  content    String                                  @db.Text
-  tokens     Int                                     @default(0)
-  revision   Int                                     @default(0)
+  content    String                       @db.Text
+  tokens     Int                          @default(0)
+  revision   Int                          @default(0)
   embedding  Unsupported("vector(1536)")?
-  createdAt  DateTime                                @default(now())
-  updatedAt  DateTime                                @updatedAt
+  createdAt  DateTime                     @default(now())
+  updatedAt  DateTime                     @updatedAt
 
   @@index([sourceId, chunkIndex])
 }
@@ -516,22 +527,22 @@ model AiResponseCache {
   id String @id @default(cuid())
 
   organizationId String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   cacheKey String
   nodeType String
   /// `provider:model` that produced the cached response.
-  model String
+  model    String
 
   /// `{ value: <node result> }` — wrapped so non-object results stay valid JSON.
   response Json
 
-  tokensIn Int @default(0)
-  tokensOut Int @default(0)
-  costUsd Decimal @default(0) @db.Decimal(12, 6)
+  tokensIn  Int     @default(0)
+  tokensOut Int     @default(0)
+  costUsd   Decimal @default(0) @db.Decimal(12, 6)
 
-  hitCount Int @default(0)
-  createdAt DateTime @default(now())
+  hitCount  Int       @default(0)
+  createdAt DateTime  @default(now())
   lastHitAt DateTime?
   expiresAt DateTime
 
@@ -567,4 +578,72 @@ model Template {
   updatedAt       DateTime @updatedAt
 
   @@index([category, isActive])
+}
+
+/**
+ * AF-M7-08 notification kinds. Open to extension, but each value must have a
+ * producer — a type nothing writes is a promise the UI cannot keep.
+ */
+enum NotificationType {
+  EXECUTION_FAILED
+  EXECUTION_SUCCEEDED
+  APPROVAL_REQUESTED
+  CREDENTIAL_EXPIRING
+  SYSTEM
+}
+
+/**
+ * In-app notification (AF-M7-08). Tenant-scoped: there is no per-user
+ * addressing in v1 — a notification belongs to the workspace and everyone who
+ * can see the workspace sees it, which matches how executions and approvals
+ * already work.
+ */
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           NotificationType
+  title          String
+  message        String           @db.Text
+
+  /**
+   * Where clicking it goes. Nullable for notices with no destination.
+   */
+  href String?
+
+  /**
+   * Null until read. A timestamp rather than a bool: when is worth keeping.
+   */
+  readAt DateTime?
+
+  /**
+   * Idempotency key, unique across the table. The runner tail can be replayed
+   * by Inngest and a cron can fire twice on a redeploy; writing through
+   * `skipDuplicates` on this key makes a retry a no-op instead of a duplicate
+   * row. Composed from the logical event, never from a timestamp.
+   */
+  dedupeKey String @unique
+
+  workflowId String?
+  workflow   Workflow? @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  /**
+   * Plain columns, not relations: they exist to build `href` and to let a
+   * caller correlate. Keeping them FK-free means a pruned execution or a
+   * deleted credential leaves the notification history intact rather than
+   * silently erasing what was announced.
+   */
+  executionId  String?
+  credentialId String?
+
+  createdAt DateTime @default(now())
+
+  /**
+   * The centre's only read path: this org's rows, newest first.
+   */
+  @@index([organizationId, createdAt(sort: Desc)])
+  /**
+   * The bell's unread count.
+   */
+  @@index([organizationId, readAt])
 }
