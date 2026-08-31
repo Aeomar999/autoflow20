@@ -27,6 +27,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { authClient } from "@/lib/auth-client";
 import { polarProductSlug } from "@/lib/env";
@@ -83,19 +84,27 @@ export const AppSidebar = () => {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild className="gap-x-4 h-10 px-4">
-            <Link href="/" prefetch>
-              <Image
-                src="/logos/autoflow-327.svg"
-                alt="Autoflow"
-                width={30}
-                height={30}
-              />
-              <span className="font-semibold text-sm">Autoflow</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+        <div className="flex items-center gap-1">
+          <SidebarMenuItem className="min-w-0 flex-1">
+            <SidebarMenuButton asChild className="gap-x-4 h-10 px-4">
+              <Link href="/" prefetch>
+                <Image
+                  src="/logos/autoflow-327.svg"
+                  alt="Autoflow"
+                  width={30}
+                  height={30}
+                />
+                <span className="font-semibold text-sm">Autoflow</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {/* AF-M7-08. This layout has no top header bar; the sidebar header
+              is its equivalent region. Hidden when the rail is collapsed to
+              icons, where there is no room for the badge to read. */}
+          <div className="group-data-[collapsible=icon]:hidden">
+            <NotificationBell />
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {menuItems.map((group) => (

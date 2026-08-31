@@ -5,6 +5,7 @@ import { costsRouter } from "@/features/costs/server/routers";
 import { credentialsRouter } from "@/features/credentials/server/routers";
 import { executionsRouter } from "@/features/executions/server/routers";
 import { knowledgeRouter } from "@/features/knowledge/server/routers";
+import { notificationsRouter } from "@/features/notifications/server/routers";
 import { onboardingRouter } from "@/features/onboarding/server/routers";
 import { organizationsRouter } from "@/features/organizations/server/routers";
 import { searchRouter } from "@/features/search/server/routers";
@@ -25,6 +26,7 @@ export const appRouter = createTRPCRouter({
   templates: templatesRouter,
   onboarding: onboardingRouter,
   search: searchRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;
