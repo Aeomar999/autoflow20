@@ -1,6 +1,7 @@
 export const TEMPLATE_CATEGORIES = [
   "All",
   "Support",
+  "Ops",
   "Finance",
   "Revenue",
   "Data",
