@@ -27,7 +27,7 @@ The product vision in `../Documents/ProjectDocuments/` describes a finished plat
 | Credentials store | `<p>Credentials Page</p>` — no model, no encryption, no OAuth. |
 | Multi-model AI | 5 SDK packages installed; one demo Inngest function calls Groq for a lasagna recipe. |
 | RBAC / workspaces / audit | None. Authorization is a single `userId` ownership check. |
-| Agents, RAG, templates, marketplace, public API, SDK | None. |
+| Agents, RAG, templates, marketplace, public API, SDK | Agents, RAG, marketplace, public API, SDK: none. **Templates: the gallery system ships** (AF-M7-01) — `Template` model + `templates.list`/`getOne`/`instantiate` with credential placeholders and `/templates` + `/templates/[slug]` UI; 20 authored templates are AF-M7-02 backlog. |
 | Tests, CI | **Zero.** `npm test` does not exist yet. |
 | A landing page | There is no `src/app/page.tsx`. `/` 404s. |
 

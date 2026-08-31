@@ -368,12 +368,51 @@ Notes:
 - `hitCount × costUsd` is the provider spend the entry has avoided; that is
   what `ai.cacheStats` reports as `savedUsd`.
 
-### 2.8 Later
+### 2.8 Template — M7
+
+```prisma
+model Template {
+  id              String   @id @default(cuid())
+  slug            String   @unique            // stable URL + getOne key
+  name            String
+  description     String   @db.Text
+  category        String                       // open set, never an enum
+  tags            String[]                     // open set
+  graph           Json                         // workflow-graph shape (nodes + edges)
+  featured        Boolean  @default(false)
+  isActive        Boolean  @default(true)      // drives gallery visibility
+  nodeCount       Int      @default(0)         // denormalized gallery metadata
+  credentialCount Int      @default(0)
+  author          String   @default("AutoFlow")
+  version         String   @default("1")
+  installs        Int      @default(0)         // "mostInstalled" sort
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category, isActive])
+}
+```
+
+Shipped `20260831000000_template_model` (AF-M7-01). Notes:
+- **Tenant-agnostic by design** (engineering_rules §1.3): the gallery is public product
+  content, so there is **no** `organizationId` column. `list`/`getOne` are org-viewer
+  reads that touch only `Template`; `instantiate` is the only procedure that crosses
+  into tenant data, and it does so by creating a workflow scoped to `ctx.org.id`.
+- `graph` is the same shape `save-graph` accepts (nodes with `id/name/type/position`
+  and a `data` object holding *unbound* config values — credential-bound fields carry
+  `null`/absent `credentialIdRef`, never a real credential id). `instantiate` rewrites
+  every node id to a fresh cuid, so two installs of the same template can never
+  collide, and validates the copied graph through the engine's `validate()` before
+  persisting.
+- Metadata (`nodeCount`, `credentialCount`, `tags`, `featured`) is authored, not
+  derived at read time — it feeds the gallery filters and cards without a per-row
+  node scan.
+
+### 2.9 Later
 
 | Model | Milestone | Purpose |
 |---|---|---|
 | `WebhookEndpoint` | M4 | path, secret, method, response mode |
-| `Template` | M7 | gallery entries with graph + metadata |
 | `UsageCounter` | M7 | per-org period counters for quota enforcement |
 | `ApiKey` | M8 | hashed key, scopes, rate limit, `lastUsedAt` |
 | `Document`, `Chunk`, `Embedding` | Phase 2 | RAG (pgvector) |
@@ -393,7 +432,7 @@ Notes:
 | 6 | `ai_cache` — shipped as `20260830140000_ai_response_cache` (`AF-M5-07`: `AiResponseCache` + nullable `NodeExecution.cacheHit`) and `20260830150000_node_execution_model` (`AF-M5-08`: `NodeExecution.model`) | M5 | low (additive) |
 | 7 | `tenancy` — `Organization`, `Membership`, `Workspace`, `organizationId` backfill on every tenant table | M6 | **high** — see §4 |
 | 8 | `audit_log` | M6 | low (additive) |
-| 9 | `templates` + `usage_counters` | M7 | low (additive) |
+| 9 | `templates` + `usage_counters` | M7 | low (additive) — `Template` shipped as `20260831000000_template_model` (AF-M7-01); `UsageCounter` not yet built |
 | 10 | `api_keys` + execution partitioning | M8 | medium |
 
 ---

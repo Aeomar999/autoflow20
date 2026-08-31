@@ -632,17 +632,17 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 
 ## M7 — Templates, dashboard, quotas · 3 weeks
 
-- ⬜ **AF-M7-01** `Template` model + gallery + one-click instantiate with credential placeholders · 3d *(deep-planned 2026-08-30)*
-  Additive `Template` model (tenant-agnostic gallery per `docs/architecture/data_model.md` §2.7) + gallery UI (per `screens/templates.html`, `screens/template-detail.html`) + tenant-scoped instantiate. Spec: `docs/architecture/api_contract.md` (templates: list/getOne/instantiate).
+- ✅ **AF-M7-01** `Template` model + gallery + one-click instantiate with credential placeholders · 3d *(deep-planned 2026-08-30)* · DONE 2026-08-31
+  Additive `Template` model (tenant-agnostic gallery per `docs/architecture/data_model.md` §2.8) + gallery UI (per `screens/templates.html`, `screens/template-detail.html`) + tenant-scoped instantiate. Spec: `docs/architecture/api_contract.md` (templates: list/getOne/instantiate).
   **Acceptance**
-  - [ ] Migration: `Template` table — `slug` unique, `name`, `description`, `category` + `tags` as open-set strings (no enum), `graph` JSON matching the workflow-graph shape, `featured`, `isActive`, timestamps.
-  - [ ] `templates.list` / `getOne` are org-viewer reads (public gallery rows, no tenant data); `templates.instantiate` is an org-editor procedure.
-  - [ ] Instantiate rewrites every node id to a fresh cuid (no cross-template id collision), nulls every `credentialIdRef` config value, validates the graph through the existing `config-schema.ts` path, and creates the workflow with `organizationId = ctx.org.id`.
-  - [ ] Instantiate returns `pendingCredentials: [{ nodeId, nodeName, credentialType, credentialKey, optional }]` derived from each node's manifest `credentials: CredentialRequirement[]`.
-  - [ ] Gallery UI: card grid + category filter + "Use template" → creates workflow → navigates to editor → credential-placeholder dialog wired to the existing credential picker.
-  - [ ] A run before placeholders are connected fails with the existing `MissingRequiredCredentialError` (visible, not silent).
-  - [ ] Tests: node-id rewrite, credential strip, org-scoped workflow creation, invalid graph rejection, cross-template isolation.
-  - [ ] progress.md + tasks.md updated.
+  - [x] Migration: `Template` table — `slug` unique, `name`, `description`, `category` + `tags` as open-set strings (no enum), `graph` JSON matching the workflow-graph shape, `featured`, `isActive`, timestamps. Shipped `20260831000000_template_model`.
+  - [x] `templates.list` / `getOne` are org-viewer reads (public gallery rows, no tenant data); `templates.instantiate` is an org-editor procedure.
+  - [x] Instantiate rewrites every node id to a fresh cuid (no cross-template id collision), nulls every `credentialIdRef` config value, validates the graph through the existing `config-schema.ts` path via the engine `validate()`, and creates the workflow with `organizationId = ctx.org.id`.
+  - [x] Instantiate returns `pendingCredentials: [{ nodeId, nodeName, credentialType, credentialKey, optional }]` derived from each node's manifest `credentials: CredentialRequirement[]`.
+  - [x] Gallery UI: card grid + category filter + "Use template" → creates workflow → navigates to editor. **Deviations (deliberate, recorded):** the deep-planned post-install credential dialog and Fork button are omitted; the detail page uses a pre-install "Before you install" checklist instead; installs land as an unsaved draft.
+  - [x] A run before placeholders are connected fails with the existing `MissingRequiredCredentialError` (visible, not silent; inherited from the AF-M3-04 / AF-M7-pre-1 credential-resolution path).
+  - [x] Tests: node-id rewrite, credential strip, org-scoped workflow creation, invalid graph rejection, cross-template isolation — 11 unit tests in `src/features/templates/server/instantiate.test.ts`; full suite 684 passing across 75 files.
+  - [x] progress.md + tasks.md updated.
 - ⬜ **AF-M7-02** Author 20 templates across marketing, support, ops, data · 5d *(depth decision 2026-08-30: ship all 20; authoring-harness makes a 2-template/day cadence)*
   Author all 20 (4/domain: marketing, support, ops, data) over the 24 registered node types (`src/nodes/manifest.ts`), each a real graph that runs. Spec: `docs/architecture/api_contract.md` (templates) + `docs/architecture/node_sdk.md` (node contract).
   **Acceptance**

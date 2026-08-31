@@ -506,3 +506,32 @@ model AiResponseCache {
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([expiresAt])
 }
+
+/// Tenant-agnostic workflow templates (AF-M7-01).
+///
+/// Templates are product content, not workspace data: no foreign key to a
+/// workspace, and no user/org scoping on reads — every authenticated user
+/// sees the same gallery. `graph` stores the React Flow graph ({ nodes, edges })
+/// a workspace gets a fresh copy of when it installs; the installer rewrites
+/// every node id to a fresh cuid and strips credential-bound data fields so an
+/// install starts from unbound placeholders the user fills in Credentials.
+model Template {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  name            String
+  description     String   @db.Text
+  category        String
+  tags            String[]
+  graph           Json
+  featured        Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  nodeCount       Int      @default(0)
+  credentialCount Int      @default(0)
+  author          String   @default("AutoFlow")
+  version         String   @default("1")
+  installs        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category, isActive])
+}
