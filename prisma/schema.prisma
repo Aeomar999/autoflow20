@@ -42,6 +42,7 @@ model User {
   auditLogs     AuditLog[]
   approvedRequests ApprovalRequest[]
   knowledgeSources KnowledgeSource[]
+  apiKeys       ApiKey[]
 
   @@unique([email])
   @@map("user")
@@ -109,6 +110,7 @@ model Organization {
   auditLogs        AuditLog[]
   approvalRequests ApprovalRequest[]
   aiResponseCache  AiResponseCache[]
+  apiKeys          ApiKey[]
 
   @@map("organization")
 }
@@ -238,6 +240,30 @@ model Credential {
   @@index([oauthExpiresAt])
 }
 
+// AF-M8-01: Public REST API keys. Only the hash and an 8-char lookup prefix
+// are stored - the full `af_...` secret is shown once at creation and never
+// persisted. `scopes` is a comma-joined string set (open set - never an enum).
+model ApiKey {
+  id             String   @id @default(cuid())
+  name           String
+  prefix         String   @unique
+  hash           String   @unique
+  scopes         String   @default("")
+  createdAt      DateTime @default(now())
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdById    String?
+  createdBy      User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("api_key")
+}
+
 model Workflow {
   id String @id @default(cuid())
   name String
@@ -358,6 +384,12 @@ model Execution {
   @@index([workflowId, startedAt(sort: Desc)])
   @@index([organizationId])
   @@index([status])
+  /// AF-M8-01: caller-supplied idempotency key deduping POST /run retries.
+  /// Postgres treats NULLs as distinct in unique indexes, so rows created
+  /// without an idempotency key are unaffected; rows sharing (workflowId,
+  /// idempotencyKey) collide as intended.
+  idempotencyKey String?
+  @@unique([workflowId, idempotencyKey])
 }
 
 enum NodeExecutionStatus {
