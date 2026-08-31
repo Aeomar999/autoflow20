@@ -145,8 +145,15 @@ export const WorkflowsEmpty = () => {
     <>
       {modal}
       <EmptyView
+        icon={WorkflowIcon}
+        title="No workflows yet"
+        message="A workflow is a trigger plus the nodes that run after it. Start from a template to see a working one, or build on an empty canvas."
         onNew={handleCreate}
-        message="You haven't created any workflows yet. Get started by creating your first workflow"
+        actionLabel="Create workflow"
+        secondaryAction={{
+          label: "Start from a template",
+          onClick: () => router.push("/templates"),
+        }}
       />
     </>
   );

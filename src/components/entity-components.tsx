@@ -191,21 +191,47 @@ export const ErrorView = ({ message }: StateViewProps) => {
 
 interface EmptyViewProps extends StateViewProps {
   onNew?: () => void;
+  /**
+   * AF-M7-05: the optional props below let a page say what is actually empty
+   * and what to do about it. All are optional and the defaults reproduce the
+   * previous generic card exactly, so existing callers are untouched.
+   */
+  title?: string;
+  /** Defaults to the generic open-package glyph. */
+  icon?: React.ComponentType<{ className?: string }>;
+  /** Label for the `onNew` button. */
+  actionLabel?: string;
+  /** Rendered beside the primary action — "or start from a template". */
+  secondaryAction?: { label: string; onClick: () => void };
 }
 
-export const EmptyView = ({ message, onNew }: EmptyViewProps) => {
+export const EmptyView = ({
+  message,
+  onNew,
+  title = "No items",
+  icon: Icon = PackageOpenIcon,
+  actionLabel = "Add item",
+  secondaryAction,
+}: EmptyViewProps) => {
   return (
     <Empty className="border border-dashed bg-white">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <PackageOpenIcon />
+          <Icon />
         </EmptyMedia>
       </EmptyHeader>
-      <EmptyTitle>No items</EmptyTitle>
+      <EmptyTitle>{title}</EmptyTitle>
       {!!message && <EmptyDescription>{message}</EmptyDescription>}
-      {!!onNew && (
+      {(!!onNew || !!secondaryAction) && (
         <EmptyContent>
-          <Button onClick={onNew}>Add item</Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {!!onNew && <Button onClick={onNew}>{actionLabel}</Button>}
+            {!!secondaryAction && (
+              <Button variant="outline" onClick={secondaryAction.onClick}>
+                {secondaryAction.label}
+              </Button>
+            )}
+          </div>
         </EmptyContent>
       )}
     </Empty>
