@@ -8,6 +8,7 @@ import {
   HistoryIcon,
   KeyIcon,
   LayoutTemplateIcon,
+  LineChartIcon,
   LogOutIcon,
   StarIcon,
 } from "lucide-react";
@@ -63,6 +64,11 @@ const menuItems = [
         title: "Costs",
         icon: CoinsIcon,
         url: "/costs",
+      },
+      {
+        title: "Monitoring",
+        icon: LineChartIcon,
+        url: "/monitoring",
       },
     ],
   },

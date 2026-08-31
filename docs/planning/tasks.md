@@ -651,15 +651,15 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
   - [ ] Every template records its required-credential annotation (per-node `credentials` requirements) so instantiate surfaces the correct placeholders.
   - [ ] All 20 pass the harness clean (validate + smoke-run) — a template that fails its smoke run is not shipped.
   - [ ] progress.md + tasks.md updated.
-- ⬜ **AF-M7-03** Monitoring dashboard: executions over time, success rate, p50/p95 duration, error breakdown, cost trend, top failing workflows · 4d *(deep-planned 2026-08-30)*
+- ✅ **AF-M7-03** Monitoring dashboard: executions over time, success rate, p50/p95 duration, error breakdown, cost trend, top failing workflows · 4d *(deep-planned 2026-08-30)*
   `/monitoring` (per `screens/analytics.html`) + `analytics` router per `docs/architecture/api_contract.md` (overview · executionsOverTime · costByModel · topFailingWorkflows · usage). All queries org-scoped (gate: AF-M7-pre-1).
   **Acceptance**
-  - [ ] Metrics, each org-scoped against `ctx.org.id`: executions over time by status; success rate; p50/p95 duration (raw SQL `PERCENTILE_CONT` over `NodeExecution.durationMs`); error breakdown by `nodeType`; cost trend over `Execution.costUsd`; top failing workflows by failure count.
-  - [ ] Cost panels render honestly: display zero until AF-M5-02 cost capture lands (labeled "cost capture pending"), never fabricated.
-  - [ ] Date-range filter + empty state; charts are hand-rolled SVG (no new chart dependency, per engineering rule 12).
-  - [ ] `analytics.usage` surfaces current-month executions vs plan limit from the quota resolver (`src/lib/quotas.ts`).
-  - [ ] Tests: each aggregate query is org-isolated (org B sees no org A rows).
-  - [ ] progress.md + tasks.md updated.
+  - [x] Metrics, each org-scoped against `ctx.org.id`: executions over time by status; success rate; p50/p95 duration (raw SQL `PERCENTILE_CONT` over `NodeExecution.durationMs`); error breakdown by `nodeType`; cost trend over `Execution.costUsd`; top failing workflows by failure count.
+  - [x] Cost panels render honestly: display zero until AF-M5-02 cost capture lands (labeled "cost capture pending"), never fabricated.
+  - [x] Date-range filter + empty state; charts are hand-rolled SVG (no new chart dependency, per engineering rule 12).
+  - [x] `analytics.usage` surfaces current-month executions vs plan limit from the quota resolver (`src/lib/quotas.ts`).
+  - [x] Tests: each aggregate query is org-isolated (org B sees no org A rows).
+  - [x] progress.md + tasks.md updated.
 - ✅ **AF-M7-04** Quotas: per-plan execution + AI-spend limits enforced in the runner, surfaced before the limit, wired to Polar · 3d · DONE 2026-08-31 — execution-count gate landed; AI-spend + Polar meter deferred as documented sub-items (details in the M7 addenda).
 - ⬜ **AF-M7-05** Onboarding: first-run checklist, sample workflow, empty states · 2d *(deep-planned 2026-08-30)*
   First-run experience per `screens/onboarding.html`. New-org detection (org has no workflows) drives a checklist card + empty states on `/workflows`, `/executions`, `/credentials` (per `screens/executions-list-empty`, `credentials-empty`).
