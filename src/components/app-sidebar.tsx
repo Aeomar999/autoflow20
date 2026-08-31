@@ -7,6 +7,7 @@ import {
   FolderOpenIcon,
   HistoryIcon,
   KeyIcon,
+  LayoutTemplateIcon,
   LogOutIcon,
   StarIcon,
 } from "lucide-react";
@@ -37,6 +38,11 @@ const menuItems = [
         title: "Workflows",
         icon: FolderOpenIcon,
         url: "/workflows",
+      },
+      {
+        title: "Templates",
+        icon: LayoutTemplateIcon,
+        url: "/templates",
       },
       {
         title: "Credentials",

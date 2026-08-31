@@ -1,0 +1,199 @@
+import { createId } from "@paralleldrive/cuid2";
+
+import { nodeRegistry } from "@/nodes/registry";
+
+/**
+ * Template graph shapes (AF-M7-01).
+ *
+ * These deliberately mirror the shapes `saveGraph` persists (React Flow nodes +
+ * edges) so a template's `graph` field can be authored directly from a saved
+ * workflow. `TemplateNode.data` carries the per-node config WITHOUT credential
+ * values — see `prepareTemplateGraph`.
+ */
+export interface TemplateNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data?: Record<string, unknown>;
+  name?: string;
+  notes?: string | null;
+  disabled?: boolean;
+}
+
+export interface TemplateEdge {
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}
+
+export interface TemplateGraph {
+  nodes: TemplateNode[];
+  edges: TemplateEdge[];
+}
+
+/** A node field the user must bind to a real credential before running. */
+export interface PendingCredential {
+  nodeId: string;
+  nodeName: string;
+  credentialType: string;
+  credentialKey: string;
+  optional: boolean;
+}
+
+/** Output of `prepareTemplateGraph`: a graph rotated to fresh ids. */
+export interface PreparedTemplate {
+  nodes: TemplateNode[];
+  edges: TemplateEdge[];
+  idMap: ReadonlyMap<string, string>;
+  pendingCredentials: PendingCredential[];
+}
+
+const NODE_REF_PREFIX = "$node.";
+
+/**
+ * Rewrite every `$node.<oldId>` reference found anywhere inside a config value
+ * (JS template strings in `code`, `{{ }}` expression payloads, nested objects)
+ * to the id that `prepareTemplateGraph` assigned to that node.
+ */
+function rewriteNodeRefs(
+  value: unknown,
+  idMap: ReadonlyMap<string, string>,
+): unknown {
+  if (typeof value === "string") {
+    let out = value;
+    for (const [oldId, newId] of idMap) {
+      out = out
+        .split(`${NODE_REF_PREFIX}${oldId}`)
+        .join(`${NODE_REF_PREFIX}${newId}`);
+    }
+    return out;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => rewriteNodeRefs(entry, idMap));
+  }
+
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(record)) {
+      out[key] = rewriteNodeRefs(entry, idMap);
+    }
+    return out;
+  }
+
+  return value;
+}
+
+/**
+ * Strip every credential-bound field from a node's config.
+ *
+ * Deleting (not nulling) is deliberate: node config schemas declare credential
+ * refs as `z.string().cuid().optional()`, and `null` fails `safeParse` while
+ * `undefined` passes — so a stripped install is valid at the save boundary and
+ * the config panel renders the empty credential picker for the user to bind.
+ */
+function stripCredentialFields(
+  data: Record<string, unknown>,
+  credentialKeys: string[],
+): void {
+  for (const key of credentialKeys) {
+    delete data[key];
+  }
+}
+
+/**
+ * Fresh instances of a template graph.
+ *
+ * Every node id is rotated to a new cuid (so two installs of the same template
+ * never collide in one workspace), edges are rewired to the new ids, in-data
+ * `$node.<oldId>` references are rewritten, and credential-bound data fields
+ * are stripped to placeholders. Requires `nodeRegistry` to resolve each node
+ * type — an unknown type throws `UnknownNodeTypeError`.
+ */
+export function prepareTemplateGraph(graph: TemplateGraph): PreparedTemplate {
+  if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+    throw new Error("Template graph must have `nodes` and `edges` arrays.");
+  }
+
+  const idMap = new Map<string, string>();
+  for (const node of graph.nodes) {
+    idMap.set(node.id, createId());
+  }
+
+  const nodes = graph.nodes.map((node) => {
+    const registration = nodeRegistry.resolve(node.type);
+    const data =
+      node.data !== undefined && node.data !== null
+        ? (rewriteNodeRefs(node.data, idMap) as Record<string, unknown>)
+        : {};
+
+    stripCredentialFields(
+      data,
+      (registration.credentials ?? []).map((c) => c.key),
+    );
+
+    return {
+      id: idMap.get(node.id) as string,
+      type: node.type,
+      position: node.position,
+      data,
+      name: node.name,
+      notes: node.notes ?? null,
+      disabled: node.disabled ?? false,
+    };
+  });
+
+  const edges = graph.edges.flatMap((edge) => {
+    const source = idMap.get(edge.source);
+    const target = idMap.get(edge.target);
+    if (!source || !target) {
+      // Stray edge (node removed from the authored graph): drop it rather
+      // than persist a broken connection.
+      return [];
+    }
+    return [
+      {
+        source,
+        target,
+        sourceHandle: edge.sourceHandle ?? null,
+        targetHandle: edge.targetHandle ?? null,
+      },
+    ];
+  });
+
+  return {
+    nodes,
+    edges,
+    idMap,
+    pendingCredentials: collectPendingCredentials(nodes),
+  };
+}
+
+/**
+ * The credential placeholders a graph leaves to be bound, in node order.
+ * `required === false` when the node's definition marks the credential
+ * optional. Node ids are the caller's ids (already rotated when called from
+ * `prepareTemplateGraph`).
+ */
+export function collectPendingCredentials(
+  nodes: TemplateNode[],
+): PendingCredential[] {
+  const pending: PendingCredential[] = [];
+
+  for (const node of nodes) {
+    const registration = nodeRegistry.resolve(node.type);
+    for (const requirement of registration.credentials ?? []) {
+      pending.push({
+        nodeId: node.id,
+        nodeName: node.name ?? node.type,
+        credentialType: requirement.type,
+        credentialKey: requirement.key,
+        optional: !requirement.required,
+      });
+    }
+  }
+
+  return pending;
+}

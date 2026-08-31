@@ -116,8 +116,51 @@ schema (asserted by `credentials-security.test.ts`). Not-testable kinds
 Cost surfaces (`costByModel` and the spend series) shipped early as the `costs`
 router above; M7 composes them rather than re-implementing them.
 
-### `templates` — **[M7]**
-`list` · `getOne` · `instantiate`.
+### `templates` — **[M7]** (shipped AF-M7-01)
+
+`list` · `getOne` · `instantiate`. All procedures carry `zod .input()` and are
+defined in `src/features/templates/server/routers.ts`.
+
+Templates are **tenant-agnostic gallery content** (no `organizationId` column —
+see `docs/architecture/data_model.md` §2.8), so:
+
+| Procedure | Permission rung | Input | Output key fields |
+|---|---|---|---|
+| `list` | `orgViewerProcedure` | `{ category?: "All" \| string, search?: string, sort?: "mostInstalled" \| "recent" \| "fewestCredentials", page?: number, pageSize?: 1..100 }` | `{ items, page, pageSize, totalCount, totalPages, hasNextPage, hasPreviousPage }` |
+| `getOne` | `orgViewerProcedure` | `{ slug: string }` | list fields + `nodeSummary: { nodeId, nodeName, nodeType }[]` + `pendingCredentials: PendingCredential[]` |
+| `instantiate` | `orgEditorProcedure` (target workspace editor) | `{ slug: string, workflowName?: string }` | `{ workflowId, nodeCount, pendingCredentials }` |
+
+`PendingCredential` = `{ nodeId, nodeName, credentialType, credentialKey, optional }`.
+
+`instantiate` semantics:
+- Loads the template's `graph`, then **rewrites every node id to a fresh cuid**
+  (an install can never collide with another install or the template source),
+  **nulls every `credentialIdRef`** so credential-bound data fields start as
+  unbound placeholders, and validates the copied graph through the engine's
+  `validate()` path before writing — an invalid graph rejects with `BAD_REQUEST`
+  and nothing is created.
+- Creates the workflow **scoped to `ctx.org.id`** as an **unsaved draft** `Promise.all([saveWorkflow.workflow.save(), saveWorkflow.node.connect()])`.
+- `pendingCredentials` is computed from the copied nodes' `data.credentialIdRef`
+  placeholders and returned so the editor can surface which credentials must be
+  connected before the workflow runs.
+- A run before those placeholders are connected fails with the existing
+  `MissingRequiredCredentialError` (visible, not silent; see
+  `docs/architecture/security.md`).
+- `installs` is incremented on success (`mostInstalled` sort is the gallery's
+  popularity signal).
+
+Verification: `npm run build`, `npm run lint` (Biome) and the full Vitest suite
+(`npx vitest run`) pass; the spread includes 11 `templates.instantiate` unit
+tests. UI (created with templates as "[PLANNED]" server features in mind):
+`/templates` gallery and `/templates/[slug]` detail; the detail page's install
+button calls `instantiate`, toasts "Installed as a draft", invalidates the
+`templates.list`/`getOne` caches, and navigates to `/workflows/[workflowId]`.
+
+**Shipped deviations from the deep-planned spec (recorded honestly):** the *Fork*
+button is omitted; the deep-planned post-install credential dialog is replaced by
+a pre-install "Before you install" checklist that explains which credentials are
+required; installs always land as an unsaved draft rather than a deployed
+workflow. The 20 authored gallery templates are AF-M7-02 (backlog).
 
 ---
 
