@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { NodeDefinition } from "@/nodes/types";
 import {
+  cacheTtlSecondsSchema,
   credentialIdRef,
   promptSchema,
   variableNameSchema,
@@ -30,6 +31,7 @@ export const configSchema = z.object({
   maxTokens: z.number().int().min(1).max(200_000).optional(),
   jsonMode: z.boolean().default(false),
   jsonSchema: z.string().max(100_000).optional(),
+  cacheTtlSeconds: cacheTtlSecondsSchema(),
 });
 
 export type LlmData = z.infer<typeof configSchema>;
@@ -60,6 +62,7 @@ export const definition: NodeDefinition = {
   defaults: {},
   inputs: [{ id: "main", label: "In" }],
   outputs: [{ id: "main", label: "Out" }],
+  supportsResponseCache: true,
   credentials: [
     { key: "openaiCredentialId", type: "openai.apiKey", required: false },
     { key: "anthropicCredentialId", type: "anthropic.apiKey", required: false },

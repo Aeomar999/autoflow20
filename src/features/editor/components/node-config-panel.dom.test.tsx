@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { EditorNode } from "@/features/editor/store/atoms";
 import { definition as aiExtractDefinition } from "@/nodes/ai/extract/definition";
+import { definition as openAiDefinition } from "@/nodes/ai/openai/definition";
 import { definition as httpHttpRequest } from "@/nodes/http/request/definition";
 import { NodeConfigForm, NodeConfigPanel } from "./node-config-panel";
 
@@ -17,6 +18,14 @@ const httpNode: EditorNode = {
     method: "GET",
     endpoint: "https://api.example.com/users",
   },
+};
+
+const openAiNode: EditorNode = {
+  id: "n2",
+  type: "OPENAI",
+  name: "Legacy OpenAI",
+  position: { x: 0, y: 0 },
+  data: { variableName: "reply", userPrompt: "Hi" },
 };
 
 describe("NodeConfigForm (AF-M1-06)", () => {
@@ -134,6 +143,33 @@ describe("NodeConfigPanel (AF-M1-06)", () => {
     const toggle = screen.getByLabelText(/enabled/i) as HTMLInputElement;
     fireEvent.click(toggle);
     expect(patch).toHaveBeenCalledWith({ disabled: true });
+  });
+
+  it("says nothing about deprecation for a current node type", () => {
+    render(
+      <NodeConfigPanel
+        node={httpNode}
+        definition={httpDefinition}
+        onNodeChange={patch}
+      />,
+    );
+
+    expect(screen.queryByText(/Deprecated since/i)).toBeNull();
+  });
+
+  it("tells the user what replaced a retired node type (AF-M5-09)", () => {
+    render(
+      <NodeConfigPanel
+        node={{ ...openAiNode }}
+        definition={openAiDefinition}
+        onNodeChange={patch}
+      />,
+    );
+
+    expect(screen.getByText(/Deprecated since 2026-08-31/)).toBeTruthy();
+    expect(screen.getByText(/no longer be added to a workflow/)).toBeTruthy();
+    // Names the replacement by its label, not its raw type id.
+    expect(screen.getByText("AI Chat")).toBeTruthy();
   });
 });
 

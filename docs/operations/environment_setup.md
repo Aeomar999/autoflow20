@@ -99,6 +99,10 @@ docker run --name autoflow-db -e POSTGRES_PASSWORD=postgres \
 npm run migrate:credentials
 npx prisma migrate deploy     # apply all migrations
 npx prisma generate           # client -> src/generated/prisma
+# ONLY on a database that still holds OPENAI / ANTHROPIC / GEMINI nodes
+# (AF-M5-09): move them onto AI_LLM. Safe to run any time AFTER the schema is
+# up to date; no-ops when none remain. Dry-runs by default; add -- --yes.
+npm run migrate:legacy-ai-nodes
 npm run dev:all               # mprocs: next + inngest (+ ngrok if configured)
 ```
 

@@ -215,12 +215,14 @@ describe("extractStepUsage", () => {
       tokensOut: 0,
       costUsd: 0,
       model: undefined,
+      cacheHit: null,
     });
     expect(extractStepUsage({})).toEqual({
       tokensIn: 0,
       tokensOut: 0,
       costUsd: 0,
       model: undefined,
+      cacheHit: null,
     });
   });
 
@@ -240,6 +242,7 @@ describe("extractStepUsage", () => {
       tokensOut: 45,
       costUsd: 0.000125,
       model: "openai:gpt-4o",
+      cacheHit: null,
     });
   });
 
@@ -258,6 +261,7 @@ describe("extractStepUsage", () => {
       tokensOut: 80,
       costUsd: 0.0015,
       model: "anthropic:claude-3-5-sonnet",
+      cacheHit: null,
     });
   });
 });

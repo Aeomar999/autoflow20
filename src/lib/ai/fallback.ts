@@ -2,6 +2,8 @@ import "server-only";
 import type { LanguageModel } from "ai";
 import { NonRetriableError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { logger } from "@/lib/logger";
+import { readAiCache, writeAiCache } from "./cache";
 import { createLanguageModel } from "./provider";
 import {
   AI_PROVIDERS,
@@ -94,7 +96,25 @@ export interface FallbackExecutionResult<T> {
     tokensOut: number;
     costUsd: number;
     model: string;
+    /**
+     * Response-cache outcome (AF-M5-07): true = served from cache, false =
+     * cache configured but missed, null = no cache configured on this call.
+     */
+    cacheHit: boolean | null;
   };
+}
+
+/**
+ * Opt-in response caching for this call (AF-M5-07). Absent, or a
+ * non-positive TTL, means every run goes to the provider.
+ */
+export interface FallbackCacheOptions {
+  /** Tenant that owns the entry. Absent when a run has no workspace context. */
+  organizationId?: string;
+  nodeType: string;
+  /** Fingerprint from `buildAiCacheKey` over the compiled request. */
+  cacheKey: string;
+  ttlSeconds: number;
 }
 
 /**
@@ -156,14 +176,43 @@ export function resolveCandidate(
 
 /**
  * Executes a function with fallback support across model candidates.
+ *
+ * With `cache` configured and a positive TTL, a live entry for this workspace
+ * short-circuits the whole chain: no provider is called, and the reported
+ * usage is zero tokens / zero dollars because nothing was purchased.
  */
 export async function executeWithFallback<T>(
   candidates: string[],
   credentials: Record<string, CredentialSecret | undefined> | undefined,
   nodeName: string,
   runFn: (candidate: CandidateContext) => Promise<T | FallbackRunResult<T>>,
+  cache?: FallbackCacheOptions,
 ): Promise<FallbackExecutionResult<T>> {
   const attempts: FallbackAttempt[] = [];
+  const cacheEnabled = Boolean(
+    cache && cache.ttlSeconds > 0 && cache.organizationId,
+  );
+
+  if (cache && cacheEnabled) {
+    const hit = await readAiCache({
+      organizationId: cache.organizationId as string,
+      cacheKey: cache.cacheKey,
+    });
+    if (hit) {
+      return {
+        result: hit.value as T,
+        servedModel: hit.model,
+        attempts,
+        usage: {
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          model: hit.model,
+          cacheHit: true,
+        },
+      };
+    }
+  }
 
   for (const candidate of candidates) {
     let resolved: CandidateContext;
@@ -203,8 +252,30 @@ export async function executeWithFallback<T>(
           inputTokens: tokensIn,
           outputTokens: tokensOut,
         });
-      } catch {
+      } catch (error) {
+        // Ignorable: an unpriced model still ran and produced an answer. Cost
+        // is reported as 0 rather than blocking the result, but the gap is
+        // logged so a missing registry price is visible instead of silent.
+        logger.warn("no registry price for model; reporting zero cost", {
+          error,
+          model: resolved.fullModelId,
+          node: nodeName,
+        });
         costUsd = 0;
+      }
+
+      if (cache && cacheEnabled) {
+        await writeAiCache({
+          organizationId: cache.organizationId as string,
+          cacheKey: cache.cacheKey,
+          nodeType: cache.nodeType,
+          model: resolved.fullModelId,
+          value: finalValue,
+          tokensIn,
+          tokensOut,
+          costUsd,
+          ttlSeconds: cache.ttlSeconds,
+        });
       }
 
       return {
@@ -216,6 +287,7 @@ export async function executeWithFallback<T>(
           tokensOut,
           costUsd,
           model: resolved.fullModelId,
+          cacheHit: cacheEnabled ? false : null,
         },
       };
     } catch (err) {

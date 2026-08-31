@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { nodeManifest } from "./manifest";
+import { nodeManifest, nodePalette } from "./manifest";
 import { createNodeRegistry, nodeRegistry } from "./registry";
 import type { NodeRegistration } from "./types";
 
@@ -89,6 +89,42 @@ describe("production node registry + manifest", () => {
 
   it("keeps the legacy INITIAL alias resolvable until M1-02 migrates rows", () => {
     expect(nodeRegistry.resolve("INITIAL").type).toBe("MANUAL_TRIGGER");
+  });
+
+  it("keeps deprecated types registered and executable (AF-M5-09)", () => {
+    const retired = nodeManifest.filter((definition) => definition.deprecated);
+    expect(retired.map((definition) => definition.type)).toEqual([
+      "ANTHROPIC",
+      "GEMINI",
+      "OPENAI",
+    ]);
+
+    for (const definition of retired) {
+      // A saved workflow still holding one of these must keep running.
+      expect(nodeRegistry.has(definition.type)).toBe(true);
+      expect(typeof nodeRegistry.resolve(definition.type).execute).toBe(
+        "function",
+      );
+    }
+  });
+
+  it("offers every non-deprecated type in the palette and no deprecated one", () => {
+    const paletteTypes = new Set(nodePalette.map((entry) => entry.type));
+
+    for (const definition of nodeManifest) {
+      expect(paletteTypes.has(definition.type)).toBe(!definition.deprecated);
+    }
+  });
+
+  it("points every deprecation at a replacement that is still offered", () => {
+    for (const definition of nodeManifest) {
+      if (!definition.deprecated) continue;
+      const replacement = nodeManifest.find(
+        (entry) => entry.type === definition.deprecated?.replacedBy,
+      );
+      expect(replacement).toBeDefined();
+      expect(replacement?.deprecated).toBeUndefined();
+    }
   });
 
   it("has definitions whose defaults satisfy their own config schema", () => {

@@ -432,6 +432,7 @@ export const executeWorkflow = inngest.createFunction(
                   data: nodeExec.data,
                   nodeId: node.id,
                   userId,
+                  organizationId,
                   context: enrichedContext,
                   step,
                   publish,
@@ -497,6 +498,8 @@ export const executeWorkflow = inngest.createFunction(
               tokensIn: usage.tokensIn,
               tokensOut: usage.tokensOut,
               costUsd: usage.costUsd,
+              cacheHit: usage.cacheHit,
+              model: usage.model ?? null,
             },
           });
         });

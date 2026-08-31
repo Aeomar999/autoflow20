@@ -108,6 +108,7 @@ model Organization {
   executions       Execution[]
   auditLogs        AuditLog[]
   approvalRequests ApprovalRequest[]
+  aiResponseCache  AiResponseCache[]
 
   @@map("organization")
 }
@@ -394,9 +395,20 @@ model NodeExecution {
   tokensOut Int @default(0)
   costUsd Float @default(0)
 
+  /// `provider:model` that served this node, when it made an AI call. NULL for
+  /// every non-AI node. Cost-per-model reporting groups on this (AF-M5-08).
+  model String?
+
+  /// Response-cache outcome (AF-M5-07). NULL means the node had no cache
+  /// configured, so it belongs in neither half of the hit rate; false is a
+  /// real miss, true a real hit. A hit records zero tokens and zero cost —
+  /// nothing was purchased.
+  cacheHit Boolean?
+
   @@index([executionId, order])
   @@index([executionId, startedAt(sort: Desc)])
   @@index([status])
+  @@index([model, startedAt(sort: Desc)])
 }
 
 model WorkflowVersion {
@@ -455,4 +467,42 @@ model KnowledgeChunk {
   updatedAt  DateTime                                @updatedAt
 
   @@index([sourceId, chunkIndex])
+}
+
+/// Workspace-scoped AI response cache (AF-M5-07).
+///
+/// One row per (organization, request fingerprint). `cacheKey` is a sha256 of
+/// the canonical request envelope — node type, model chain, prompts, and the
+/// call parameters that change an answer — so two different workspaces never
+/// share an entry even when their prompts are identical.
+///
+/// Entries are read only while `expiresAt` is in the future; the daily sweep
+/// (`sweepAiResponseCache`) deletes the expired ones. `hitCount` × `costUsd`
+/// is the spend the cache avoided, which is what the hit-rate report shows.
+model AiResponseCache {
+  id String @id @default(cuid())
+
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  cacheKey String
+  nodeType String
+  /// `provider:model` that produced the cached response.
+  model String
+
+  /// `{ value: <node result> }` — wrapped so non-object results stay valid JSON.
+  response Json
+
+  tokensIn Int @default(0)
+  tokensOut Int @default(0)
+  costUsd Float @default(0)
+
+  hitCount Int @default(0)
+  createdAt DateTime @default(now())
+  lastHitAt DateTime?
+  expiresAt DateTime
+
+  @@unique([organizationId, cacheKey])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([expiresAt])
 }

@@ -1,4 +1,5 @@
 import { serve } from "inngest/next";
+import { sweepAiResponseCache } from "@/inngest/ai-cache";
 import { inngest } from "@/inngest/client";
 import { evaluateSchedules } from "@/inngest/cron";
 import { executeWorkflow } from "@/inngest/functions";
@@ -17,5 +18,6 @@ export const { GET, POST, PUT } = serve({
     evaluateSchedules,
     processKnowledgeSource,
     scheduledKnowledgeSync,
+    sweepAiResponseCache,
   ],
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { NodeDefinition } from "@/nodes/types";
 import {
+  cacheTtlSecondsSchema,
   credentialIdRef,
   promptSchema,
   variableNameSchema,
@@ -46,6 +47,7 @@ export const configSchema = z.object({
     .array(extractFieldSchema)
     .min(1, "At least one extraction field is required")
     .optional(),
+  cacheTtlSeconds: cacheTtlSecondsSchema(),
 });
 
 export type ExtractData = z.infer<typeof configSchema>;
@@ -77,6 +79,7 @@ export const definition: NodeDefinition = {
   defaults: {},
   inputs: [{ id: "main", label: "In" }],
   outputs: [{ id: "main", label: "Out" }],
+  supportsResponseCache: true,
   credentials: [
     { key: "openaiCredentialId", type: "openai.apiKey", required: false },
     { key: "anthropicCredentialId", type: "anthropic.apiKey", required: false },

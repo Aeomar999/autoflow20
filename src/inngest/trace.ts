@@ -83,6 +83,12 @@ export interface StepUsage {
   tokensOut: number;
   costUsd: number;
   model?: string;
+  /**
+   * Response-cache outcome (AF-M5-07): true = served from cache, false = the
+   * node had a cache configured and missed, null = no cache configured, so
+   * the run belongs in neither half of a hit rate.
+   */
+  cacheHit: boolean | null;
 }
 
 /**
@@ -90,14 +96,14 @@ export interface StepUsage {
  */
 export function extractStepUsage(result: unknown): StepUsage {
   if (!result || typeof result !== "object") {
-    return { tokensIn: 0, tokensOut: 0, costUsd: 0 };
+    return { tokensIn: 0, tokensOut: 0, costUsd: 0, cacheHit: null };
   }
   const rec = result as Record<string, unknown>;
   const rawUsage = (rec[WORKFLOW_USAGE_KEY] ?? rec._usage) as
     | Record<string, unknown>
     | undefined;
   if (!rawUsage || typeof rawUsage !== "object") {
-    return { tokensIn: 0, tokensOut: 0, costUsd: 0 };
+    return { tokensIn: 0, tokensOut: 0, costUsd: 0, cacheHit: null };
   }
   const tokensIn =
     typeof rawUsage.tokensIn === "number" && !Number.isNaN(rawUsage.tokensIn)
@@ -133,6 +139,7 @@ export function extractStepUsage(result: unknown): StepUsage {
     tokensOut,
     costUsd,
     model,
+    cacheHit: typeof rawUsage.cacheHit === "boolean" ? rawUsage.cacheHit : null,
   };
 }
 

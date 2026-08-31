@@ -3,9 +3,10 @@ import { generateObject, jsonSchema } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
 import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
+import { buildAiCacheKey, normalizeCacheTtlSeconds } from "@/lib/ai/cache";
 import { executeWithFallback, parseModelChain } from "@/lib/ai/fallback";
 import type { NodeRun } from "@/nodes/types";
-import type { ExtractData } from "./definition";
+import { definition, type ExtractData } from "./definition";
 
 const SYSTEM_PROMPT =
   "You are a precise data extraction assistant inside an AutoFlow workflow. Extract only the requested fields from the provided text and return exactly the JSON shape requested. Never invent values that are not present in the text.";
@@ -90,6 +91,7 @@ export function buildOutputSchema(data: ExtractData): Record<string, unknown> {
 export const execute: NodeRun<ExtractData> = async ({
   data,
   context,
+  organizationId,
   step,
   credentials,
 }) => {
@@ -109,6 +111,17 @@ export const execute: NodeRun<ExtractData> = async ({
 
   const outputSchema = buildOutputSchema(data);
   const candidates = parseModelChain(data.model, data.fallbackModels);
+
+  // AF-M5-07: the output schema is part of the fingerprint — extracting a new
+  // field must re-ask the model rather than replay the narrower answer.
+  const cacheTtlSeconds = normalizeCacheTtlSeconds(data.cacheTtlSeconds);
+  const cacheKey = buildAiCacheKey({
+    nodeType: definition.type,
+    candidates,
+    system: SYSTEM_PROMPT,
+    prompt: resolvedContent,
+    params: { outputSchema },
+  });
 
   const { result: object, usage } = await executeWithFallback(
     candidates,
@@ -142,6 +155,12 @@ export const execute: NodeRun<ExtractData> = async ({
         value: resObj,
         usage: resUsage,
       };
+    },
+    {
+      organizationId,
+      nodeType: definition.type,
+      cacheKey,
+      ttlSeconds: cacheTtlSeconds,
     },
   );
 

@@ -81,6 +81,8 @@ export interface NodeDefinition<TConfig = unknown> {
   inputs: PortDef[];        // [] for triggers
   outputs: PortDef[];
   credentials?: CredentialRequirement[];
+  /** Honours a `cacheTtlSeconds` field against the workspace AI response cache (M5-07) */
+  supportsResponseCache?: boolean;
   defaultRetry?: RetryPolicy;
   /** Wall-clock cap for one attempt */
   timeoutMs?: number;
@@ -88,6 +90,8 @@ export interface NodeDefinition<TConfig = unknown> {
   migrate?: (config: unknown, fromVersion: number) => TConfig;
   /** Docs link rendered in the config panel */
   docsUrl?: string;
+  /** Retirement marker — see §6.1. Still registered, no longer offered. */
+  deprecated?: { since: string; replacedBy: string; reason: string };
 }
 
 /** The uniform data unit passed between nodes. */
@@ -338,6 +342,31 @@ migrate(config: unknown, fromVersion: number): HttpRequestConfig {
 Migration runs on load (editor) and on compile (engine), never as a bulk DB rewrite — a workflow untouched for a year must still run.
 
 **Additive changes** (a new optional field with a default) do not require a version bump.
+
+### 6.1 Retiring a type
+
+`migrate` handles versions *within* a type. It cannot express one type being
+replaced by another — the credential keys and the config shape usually differ.
+Retirement is a three-step lifecycle instead (**ADR-0011**):
+
+1. **Deprecate.** Set `deprecated: { since, replacedBy, reason }`. The type
+   stays in `nodeManifest` and in the registry with its `execute` intact, so
+   saved workflows, published versions, and historical traces keep resolving
+   and running. `nodeManifest` also exports `nodePalette` — the same list minus
+   deprecated entries — and the node selector reads that, so the population can
+   only shrink. The config panel renders the notice and names the replacement.
+2. **Migrate.** Write a pure mapper beside the retired node that rewrites its
+   config onto the replacement and validates against the replacement's own
+   `configSchema`, then an idempotent, dry-run-by-default script that applies it
+   to live `Node` rows. `AF-M5-09` is the worked example:
+   `src/nodes/ai/legacy-migration.ts` + `npm run migrate:legacy-ai-nodes`.
+   Graph snapshots are **not** rewritten — they are history.
+3. **Remove.** Delete the folder only once no persisted `Node` row of that type
+   remains anywhere. A separate task, never bundled with step 1.
+
+**Never delete a registration outright.** `nodeRegistry.resolve()` throws on an
+unknown type, which fails graph validation — a workflow that ran yesterday stops
+running, and it surfaces at execution time on a customer's workflow.
 
 ---
 

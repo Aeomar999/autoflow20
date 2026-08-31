@@ -2,6 +2,7 @@
 
 import {
   BookOpenIcon,
+  CoinsIcon,
   CreditCardIcon,
   FolderOpenIcon,
   HistoryIcon,
@@ -51,6 +52,11 @@ const menuItems = [
         title: "Knowledge Base",
         icon: BookOpenIcon,
         url: "/knowledge",
+      },
+      {
+        title: "Costs",
+        icon: CoinsIcon,
+        url: "/costs",
       },
     ],
   },

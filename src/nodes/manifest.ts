@@ -62,3 +62,13 @@ export const nodeManifest: NodeDefinition[] = [
 
 export const findManifestEntry = (type: string): NodeDefinition | undefined =>
   nodeManifest.find((node) => node.type === type);
+
+/**
+ * What the palette offers (AF-M5-09). Deprecated types stay in
+ * `nodeManifest` — an existing node of that type must still render, validate,
+ * and run — but are not offered for insertion, so their population can only
+ * shrink. Look types up through `findManifestEntry`, never through this list.
+ */
+export const nodePalette: NodeDefinition[] = nodeManifest.filter(
+  (node) => !node.deprecated,
+);

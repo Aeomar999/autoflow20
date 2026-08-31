@@ -21,6 +21,7 @@ import {
   formatUsdCost,
 } from "@/features/editor/lib/cost-estimate";
 import type { EditorNode } from "@/features/editor/store/atoms";
+import { findManifestEntry } from "@/nodes/manifest";
 import type { NodeDefinition } from "@/nodes/types";
 
 function CronPreview({ cronStr }: { cronStr: string }) {
@@ -607,6 +608,26 @@ export function NodeConfigPanel({
       aria-label="Node configuration"
       className="absolute right-4 top-16 z-50 flex max-h-[calc(100%-5rem)] w-[360px] flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-xl"
     >
+      {definition.deprecated ? (
+        <output className="block rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+          <p className="font-medium text-foreground">
+            Deprecated since {definition.deprecated.since}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            {definition.deprecated.reason}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            This node still runs, but it can no longer be added to a workflow.
+            Replace it with{" "}
+            <span className="font-mono">
+              {findManifestEntry(definition.deprecated.replacedBy)?.label ??
+                definition.deprecated.replacedBy}
+            </span>
+            .
+          </p>
+        </output>
+      ) : null}
+
       <div className="flex flex-col gap-1.5">
         <label htmlFor={`${uid}-name`} className="text-xs font-medium">
           Name

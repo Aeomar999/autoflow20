@@ -3,9 +3,10 @@ import { generateObject, generateText, jsonSchema } from "ai";
 import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
 import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
+import { buildAiCacheKey, normalizeCacheTtlSeconds } from "@/lib/ai/cache";
 import { executeWithFallback, parseModelChain } from "@/lib/ai/fallback";
 import type { NodeRun } from "@/nodes/types";
-import type { LlmData } from "./definition";
+import { definition, type LlmData } from "./definition";
 
 const DEFAULT_SYSTEM_PROMPT =
   "You are a helpful automation assistant operating inside an AutoFlow workflow.";
@@ -13,6 +14,7 @@ const DEFAULT_SYSTEM_PROMPT =
 export const execute: NodeRun<LlmData> = async ({
   data,
   context,
+  organizationId,
   step,
   credentials,
 }) => {
@@ -57,6 +59,22 @@ export const execute: NodeRun<LlmData> = async ({
   };
 
   const candidates = parseModelChain(data.model, data.fallbackModels);
+
+  // AF-M5-07: the fingerprint covers everything that can change the answer —
+  // a temperature or schema edit misses rather than replaying the old reply.
+  const cacheTtlSeconds = normalizeCacheTtlSeconds(data.cacheTtlSeconds);
+  const cacheKey = buildAiCacheKey({
+    nodeType: definition.type,
+    candidates,
+    system: resolvedSystem,
+    prompt: resolvedPrompt,
+    params: {
+      temperature: callSettings.temperature,
+      maxTokens: data.maxTokens,
+      jsonMode: data.jsonMode === true,
+      jsonSchema: data.jsonMode ? (parsedSchema ?? null) : null,
+    },
+  });
 
   const {
     result: text,
@@ -116,6 +134,12 @@ export const execute: NodeRun<LlmData> = async ({
         value: resText,
         usage: resUsage,
       };
+    },
+    {
+      organizationId,
+      nodeType: definition.type,
+      cacheKey,
+      ttlSeconds: cacheTtlSeconds,
     },
   );
 

@@ -1,5 +1,14 @@
 import { NonRetriableError } from "inngest";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const readAiCache = vi.fn();
+const writeAiCache = vi.fn();
+
+vi.mock("./cache", () => ({
+  readAiCache: (...args: unknown[]) => readAiCache(...args),
+  writeAiCache: (...args: unknown[]) => writeAiCache(...args),
+}));
+
 import {
   type CandidateContext,
   executeWithFallback,
@@ -173,6 +182,126 @@ describe("executeWithFallback", () => {
       tokensOut: 500,
       costUsd: 0.0075,
       model: "openai:gpt-4o",
+      cacheHit: null,
     });
+  });
+});
+
+describe("executeWithFallback response cache (AF-M5-07)", () => {
+  const credentials = { openaiCredentialId: { apiKey: "key" } };
+  const cacheOptions = {
+    organizationId: "org_1",
+    nodeType: "AI_LLM",
+    cacheKey: "key_1",
+    ttlSeconds: 600,
+  };
+
+  beforeEach(() => {
+    readAiCache.mockReset();
+    writeAiCache.mockReset();
+    readAiCache.mockResolvedValue(null);
+    writeAiCache.mockResolvedValue(undefined);
+  });
+
+  it("serves a hit without calling any provider and reports no spend", async () => {
+    readAiCache.mockResolvedValue({
+      value: "cached answer",
+      model: "openai:gpt-4o",
+      tokensIn: 900,
+      tokensOut: 300,
+      costUsd: 0.0075,
+    });
+    const runFn = vi.fn();
+
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      runFn,
+      cacheOptions,
+    );
+
+    expect(runFn).not.toHaveBeenCalled();
+    expect(res.result).toBe("cached answer");
+    expect(res.servedModel).toBe("openai:gpt-4o");
+    expect(res.usage).toEqual({
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      model: "openai:gpt-4o",
+      cacheHit: true,
+    });
+  });
+
+  it("stores the response after a miss and marks the run a miss", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      async () => ({
+        value: "fresh answer",
+        usage: { promptTokens: 1000, completionTokens: 500 },
+      }),
+      cacheOptions,
+    );
+
+    expect(res.usage.cacheHit).toBe(false);
+    expect(writeAiCache).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org_1",
+        cacheKey: "key_1",
+        nodeType: "AI_LLM",
+        model: "openai:gpt-4o",
+        value: "fresh answer",
+        tokensIn: 1000,
+        tokensOut: 500,
+        costUsd: 0.0075,
+        ttlSeconds: 600,
+      }),
+    );
+  });
+
+  it("does not touch the cache when the node configured no TTL", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      async () => ({ value: "fresh answer" }),
+      { ...cacheOptions, ttlSeconds: 0 },
+    );
+
+    expect(readAiCache).not.toHaveBeenCalled();
+    expect(writeAiCache).not.toHaveBeenCalled();
+    expect(res.usage.cacheHit).toBeNull();
+  });
+
+  it("does not touch the cache when the run has no workspace context", async () => {
+    const res = await executeWithFallback(
+      ["openai:gpt-4o"],
+      credentials,
+      "AI Test Node",
+      async () => ({ value: "fresh answer" }),
+      { ...cacheOptions, organizationId: undefined },
+    );
+
+    expect(readAiCache).not.toHaveBeenCalled();
+    expect(writeAiCache).not.toHaveBeenCalled();
+    expect(res.usage.cacheHit).toBeNull();
+  });
+
+  it("never writes a failed run to the cache", async () => {
+    await expect(
+      executeWithFallback(
+        ["openai:gpt-4o"],
+        credentials,
+        "AI Test Node",
+        async () => {
+          throw new Error("provider outage");
+        },
+        cacheOptions,
+      ),
+    ).rejects.toThrow(/provider outage/);
+
+    expect(writeAiCache).not.toHaveBeenCalled();
   });
 });

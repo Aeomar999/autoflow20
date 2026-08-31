@@ -69,6 +69,13 @@ export interface NodeDefinition<TConfig = unknown> {
   inputs: PortDef[];
   outputs: PortDef[];
   credentials?: CredentialRequirement[];
+  /**
+   * True when this type honours a `cacheTtlSeconds` config field against the
+   * workspace AI response cache (AF-M5-07). Declared here so reporting and the
+   * editor can find cacheable types through the registry instead of
+   * hard-coding a list of node ids.
+   */
+  supportsResponseCache?: boolean;
   defaultRetry?: RetryPolicy;
   /** Wall-clock cap for one attempt (enforced by the runner, M2). */
   timeoutMs?: number;
@@ -76,6 +83,25 @@ export interface NodeDefinition<TConfig = unknown> {
   migrate?: (config: unknown, fromVersion: number) => TConfig;
   /** Docs link rendered in the config panel. */
   docsUrl?: string;
+  /**
+   * Retirement marker (AF-M5-09). A deprecated type stays registered and
+   * executable — saved workflows and published versions must keep running —
+   * but disappears from the palette, so no NEW instance can be created, and
+   * the config panel tells the user what replaced it.
+   *
+   * Removal is a separate, later step, taken only once no persisted node of
+   * this type remains. See ADR 0011.
+   */
+  deprecated?: NodeDeprecation;
+}
+
+export interface NodeDeprecation {
+  /** ISO date the type stopped being offered. */
+  since: string;
+  /** `type` of the node that supersedes it. */
+  replacedBy: string;
+  /** One line the config panel shows the user, saying what to do instead. */
+  reason: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +123,14 @@ export interface NodeRunParams<TData = Record<string, unknown>> {
   data: TData;
   nodeId: string;
   userId: string;
+  /**
+   * Tenant that owns the run. Every tenant-scoped read or write an executor
+   * makes — today the AF-M5-07 response cache — keys off this, never off
+   * `userId` (engineering_rules §1.3). Optional only because legacy runs
+   * created before the org backfill can still replay without one; an executor
+   * that needs it must degrade, not guess.
+   */
+  organizationId?: string;
   context: WorkflowContext;
   step: StepTools;
   publish: Realtime.PublishFn;
