@@ -229,6 +229,45 @@ tenant data, are identical for every workspace, and live client-side in
 happens on the client (`lib/fuzzy.ts`); the server decides only what this
 tenant may see.
 
+### `notifications` — **[M7]** (shipped AF-M7-08)
+
+`list` · `unreadCount` · `markRead` · `markAllRead`, in
+`src/features/notifications/server/routers.ts`.
+
+| Procedure | Permission rung | Input | Output |
+|---|---|---|---|
+| `list` | `orgViewerProcedure` | `{ filter?: "all" \| "unread", page?, pageSize?: 1..100 }` | `{ items, page, pageSize, totalCount, totalPages, hasNextPage, hasPreviousPage }` |
+| `unreadCount` | `orgViewerProcedure` | — | `{ count }` |
+| `markRead` | `orgViewerProcedure` | `{ id }` | `{ updated: 0 \| 1 }` |
+| `markAllRead` | `orgViewerProcedure` | — | `{ updated: number }` |
+
+Both mutations are `updateMany`, not `update`: the org scope lives in the same
+statement as the write, so a cross-tenant id matches zero rows and changes
+nothing — no read-then-check, which is the shape cross-tenant writes hide in.
+`markRead` returning `{ updated: 0 }` is therefore the normal response to
+another workspace's id, and reveals nothing about whether it exists.
+
+Notifications are **workspace-level, not per-user**: read state is shared. See
+`docs/architecture/data_model.md` §2.9.
+
+**Writers** all go through `writeNotifications` (`server/notify.ts`), the single
+write path, which uses `skipDuplicates` on `dedupeKey` so a replayed step is a
+no-op, and which logs-and-swallows its own failures — a notification is a
+courtesy, and failing a user's run because we could not announce it would be
+absurd. Producers today:
+
+| Type | Producer | Status |
+|---|---|---|
+| `EXECUTION_FAILED` | runner `onFailure` | live, gated on `Workflow.notifyOnFailure` (default ON) |
+| `EXECUTION_SUCCEEDED` | runner success tail | live, gated on `Workflow.notifyOnSuccess` (default OFF) |
+| `CREDENTIAL_EXPIRING` | `notifyExpiringCredentials` cron (daily 03:00) | live, +7d window with a 14d grace floor |
+| `APPROVAL_REQUESTED` | — | **builder ready, no producer**: nothing in the app creates `ApprovalRequest` rows yet (no approval node ships), so the approvals table has no writer either. Wiring is a one-line call from wherever that node lands. |
+| `SYSTEM` | — | **no producer**: maintenance notices are an operator action with no UI or script yet. |
+
+`Workflow.notifyOnFailure` / `notifyOnSuccess` are read by `workflows.getOne`
+and written by `workflows.updateNotificationPrefs` (`orgEditorProcedure` — this
+changes what the whole workspace gets told about).
+
 ---
 
 ## 4. Webhook ingress — M4

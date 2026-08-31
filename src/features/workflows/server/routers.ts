@@ -342,6 +342,27 @@ export const workflowsRouter = createTRPCRouter({
         data: { name: input.name },
       });
     }),
+  /**
+   * AF-M7-08: per-workflow notification delivery. Editor rung, not viewer —
+   * this changes what the whole workspace gets told about.
+   */
+  updateNotificationPrefs: orgEditorProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        notifyOnFailure: z.boolean().optional(),
+        notifyOnSuccess: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...prefs } = input;
+      const updated = await prisma.workflow.update({
+        where: { id, organizationId: ctx.org.id },
+        data: prefs,
+        select: { id: true, notifyOnFailure: true, notifyOnSuccess: true },
+      });
+      return updated;
+    }),
   getOne: orgViewerProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -352,6 +373,8 @@ export const workflowsRouter = createTRPCRouter({
           name: true,
           webhookSecret: true,
           revision: true,
+          notifyOnFailure: true,
+          notifyOnSuccess: true,
           nodes: {
             select: {
               id: true,
@@ -400,6 +423,8 @@ export const workflowsRouter = createTRPCRouter({
         name: workflow.name,
         webhookSecret: workflow.webhookSecret,
         revision: workflow.revision,
+        notifyOnFailure: workflow.notifyOnFailure,
+        notifyOnSuccess: workflow.notifyOnSuccess,
         nodes,
         edges,
       };
