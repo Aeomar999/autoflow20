@@ -660,7 +660,7 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
   - [ ] `analytics.usage` surfaces current-month executions vs plan limit from the quota resolver (`src/lib/quotas.ts`).
   - [ ] Tests: each aggregate query is org-isolated (org B sees no org A rows).
   - [ ] progress.md + tasks.md updated.
-- ⬜ **AF-M7-04** Quotas: per-plan execution + AI-spend limits enforced in the runner, surfaced before the limit, wired to Polar · 3d
+- ✅ **AF-M7-04** Quotas: per-plan execution + AI-spend limits enforced in the runner, surfaced before the limit, wired to Polar · 3d · DONE 2026-08-31 — execution-count gate landed; AI-spend + Polar meter deferred as documented sub-items (details in the M7 addenda).
 - ⬜ **AF-M7-05** Onboarding: first-run checklist, sample workflow, empty states · 2d *(deep-planned 2026-08-30)*
   First-run experience per `screens/onboarding.html`. New-org detection (org has no workflows) drives a checklist card + empty states on `/workflows`, `/executions`, `/credentials` (per `screens/executions-list-empty`, `credentials-empty`).
   **Acceptance**
@@ -773,20 +773,23 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 - [x] Integration tests prove org B cannot see/run org A workflows or executions.
 - [x] progress.md + tasks.md updated; docs corrected where they claimed this was M6.
 
-### ⬜ AF-M7-04 · Quotas: per-plan execution + AI-spend limits, enforced in the runner, wired to Polar · 3d
+### ✅ AF-M7-04 · Quotas: per-plan execution + AI-spend limits, enforced in the runner, wired to Polar · 3d · DONE 2026-08-31
 
 **Why:** Today `execute` / `run` / `testRun` are ungated `protectedProcedure`s — any free user runs unlimited workflows, unmetered, with no org context (`workflows/routers.ts:27,48,95`). Per-run enforcement belongs at the top of `executeWorkflow` (`src/inngest/functions.ts:125`), the single choke point for manual, webhook, cron, and API triggers.
 
 **Depends on:** AF-M7-pre-1 (org context), AF-M5-02 (cost capture wiring, for AI-spend), ADR-0010 (plan source of truth)
+
+**done (2026-08-31):** enum `ExecutionStatus.QUOTA_EXCEEDED` + guarded additive migration `20260831120000_add_quota_exceeded_status` (replay-safe `pg_enum`/`pg_type` guard — `'ExecutionStatus'::regtype` would fold to `executionstatus` and miss the quoted type). `src/lib/quotas.ts` gained `COUNTABLE_EXECUTION_STATUSES = [SUCCESS, FAILED, CANCELLED, TIMED_OUT]`, `isMeteredRun({mode, e2eServer})` (`mode !== "TEST" && !e2eServer`; missing mode = metered, conservative) and `quotaBreachMessage(plan, limit)` (unknown/null plan collapses to FREE per ADR-0010 — never widens; `Infinity` limit → "an unlimited"; singular "1 production run"). Runner gate `quota-gate` + `fail-quota-exceeded` now run at the top of `executeWorkflow`, before `create-execution`, covering every trigger path (manual/webhook/cron/API all pass through `sendWorkflowExecution`): mode is read from the pre-created Execution row (`run`/`testRun` set PRODUCTION/TEST), `E2E_SERVER === "1"` bypasses, and a denial updates the pre-created row to `QUOTA_EXCEEDED` (or creates one when absent) with the breach message and `durationMs: 0`, then returns — never throws, so it never lands in the retry path or `onFailure`. Metering is Postgres `Execution` rows: current-month count of countable statuses, `startedAt >=` UTC first-of-month, scoped by `workflow.organizationId`. UI: `QUOTA_EXCEEDED` renders as a red `BanIcon` on both the executions list and the execution detail, and the existing error alert shows the breach message (no stack). Tests: 12 new unit tests in `src/lib/quotas.test.ts` (limit resolution, boundary, TEST/E2E bypass, message formatting) + 3 gate-shaped count-isolation integration tests appended to `tests/integration/org-isolation.integration.test.ts` (independent per-org counts, `QUOTA_EXCEEDED`/TEST rows never inflate the count, previous-month rows excluded). Full gates green: Biome clean, `tsc --noEmit` clean, `npm test` 696/696, `test:integration` 41/41 (migration verified with `prisma migrate deploy` against the `autoflow-test-db` container after resolving a P3018), `npm run build` clean (two pre-existing warnings, none new). **Deferred sub-items (recorded, not part of this PR):** Polar customer meter for billing visibility, and AI-spend limits reading `Execution.costUsd` once AF-M5-02 capture is authoritative. `docs/planning/progress.md` updated.
+
 **Acceptance**
-- [ ] Plan source of truth is org-level `Organization.plan` (`FREE/STARTER/PRO/ENTERPRISE`), resolved on `ctx.org`, per ADR-0010.
-- [ ] Execution-count quota: a pure resolver (`src/lib/quotas.ts`) maps plan → limits and checks the org's current-month execution count; `QUOTA_EXCEEDED` is a distinguishable outcome.
-- [ ] Runner enforces the run gate at the top of `executeWorkflow`; over-limit runs fail with `QUOTA_EXCEEDED` status (not silent drop) for **all** trigger paths (manual/webhook/cron/API).
-- [ ] Metering source is Postgres `Execution` rows (transactional, enforcement) with Polar customer meter for billing visibility.
-- [ ] AI-spend quota deferred to a follow-up that reads `Execution.costUsd` once AF-M5-02 lands (documented as a sub-item, not the first PR).
-- [ ] `E2E_SERVER === "1"` bypasses the run gate under an explicit env flag, never in production.
-- [ ] Unit tests: limit resolution, over/under boundary, `QUOTA_EXCEEDED` semantics, tenant isolation.
-- [ ] progress.md + tasks.md updated.
+- [x] Plan source of truth is org-level `Organization.plan` (`FREE/STARTER/PRO/ENTERPRISE`), resolved on `ctx.org`, per ADR-0010.
+- [x] Execution-count quota: a pure resolver (`src/lib/quotas.ts`) maps plan → limits and checks the org's current-month execution count; `QUOTA_EXCEEDED` is a distinguishable outcome.
+- [x] Runner enforces the run gate at the top of `executeWorkflow`; over-limit runs fail with `QUOTA_EXCEEDED` status (not silent drop) for **all** trigger paths (manual/webhook/cron/API).
+- [x] Metering source is Postgres `Execution` rows (transactional, enforcement) with Polar customer meter for billing visibility — **Polar meter deferred as a documented sub-item** (Meter Postgres landed).
+- [x] AI-spend quota deferred to a follow-up that reads `Execution.costUsd` once AF-M5-02 lands (documented as a sub-item, not the first PR).
+- [x] `E2E_SERVER === "1"` bypasses the run gate under an explicit env flag, never in production.
+- [x] Unit tests: limit resolution, over/under boundary, `QUOTA_EXCEEDED` semantics, tenant isolation.
+- [x] progress.md + tasks.md updated.
 
 **Design decisions (recorded 2026-08-30, all four accepted):**
 1. Quota failure = **hard-fail** the run with `QUOTA_EXCEEDED`.

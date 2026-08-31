@@ -67,6 +67,8 @@ const getStatusIcon = (status: ExecutionStatus) => {
       return <StopCircleIcon className="size-5 text-orange-500" />;
     case ExecutionStatus.TIMED_OUT:
       return <TimerIcon className="size-5 text-red-600" />;
+    case ExecutionStatus.QUOTA_EXCEEDED:
+      return <BanIcon className="size-5 text-red-600" />;
     default:
       return <ClockIcon className="size-5 text-muted-foreground" />;
   }

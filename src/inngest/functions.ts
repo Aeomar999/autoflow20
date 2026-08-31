@@ -11,6 +11,12 @@ import {
   NodeExecutionStatus,
 } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import {
+  COUNTABLE_EXECUTION_STATUSES,
+  evaluateExecutionQuota,
+  isMeteredRun,
+  quotaBreachMessage,
+} from "@/lib/quotas";
 import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
@@ -146,6 +152,106 @@ export const executeWorkflow = inngest.createFunction(
 
     if (!inngestEventId || !workflowId) {
       throw new NonRetriableError("Event ID or workflow ID is missing");
+    }
+
+    // AF-M7-04: run gate. Runs first so a quota refusal never pays for the
+    // create-execution write. A refusal is a normal return (never a throw):
+    // the execution row gets a terminal QUOTA_EXCEEDED status + message, and
+    // the run stays out of the retry path and out of onFailure. TEST-mode runs
+    // (canvas test runs) and the explicit E2E_SERVER bypass never meter.
+    const quotaGate = await step.run("quota-gate", async () => {
+      const preCreated = event.data.executionId
+        ? await prisma.execution.findUnique({
+            where: { id: event.data.executionId as string },
+            select: { id: true, mode: true },
+          })
+        : null;
+      const mode =
+        preCreated?.mode ??
+        (event.data.mode as string | undefined) ??
+        "PRODUCTION";
+
+      if (!isMeteredRun({ mode, e2eServer: process.env.E2E_SERVER === "1" })) {
+        return null;
+      }
+
+      const { organizationId } = await prisma.workflow.findUniqueOrThrow({
+        where: { id: workflowId },
+        select: { organizationId: true },
+      });
+      const plan = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { plan: true },
+      });
+
+      const monthStart = new Date();
+      monthStart.setUTCDate(1);
+      monthStart.setUTCHours(0, 0, 0, 0);
+
+      const current = await prisma.execution.count({
+        where: {
+          organizationId,
+          status: {
+            in: [...COUNTABLE_EXECUTION_STATUSES] as ExecutionStatus[],
+          },
+          startedAt: { gte: monthStart },
+        },
+      });
+
+      const decision = evaluateExecutionQuota({
+        plan: plan?.plan ?? null,
+        currentMonthExecutions: current,
+      });
+
+      if (decision.allowed) {
+        return null;
+      }
+
+      return {
+        current: decision.current,
+        limit: decision.limit,
+        plan: plan?.plan ?? null,
+        organizationId,
+        executionId: preCreated?.id ?? null,
+      };
+    });
+
+    if (quotaGate) {
+      await step.run("fail-quota-exceeded", async () => {
+        const finishedAt = new Date();
+        const message = quotaBreachMessage(quotaGate.plan, quotaGate.limit);
+        if (quotaGate.executionId) {
+          return prisma.execution.update({
+            where: { id: quotaGate.executionId },
+            data: {
+              status: ExecutionStatus.QUOTA_EXCEEDED,
+              completedAt: finishedAt,
+              durationMs: 0,
+              error: message,
+              errorStack: null,
+            },
+          });
+        }
+        return prisma.execution.create({
+          data: {
+            workflowId,
+            inngestEventId,
+            trigger: (event.data.trigger as string) || "MANUAL",
+            mode: "PRODUCTION",
+            status: ExecutionStatus.QUOTA_EXCEEDED,
+            organizationId: quotaGate.organizationId,
+            completedAt: finishedAt,
+            durationMs: 0,
+            error: message,
+            errorStack: null,
+          },
+        });
+      });
+
+      return {
+        workflowId,
+        status: ExecutionStatus.QUOTA_EXCEEDED,
+      };
     }
 
     const execution = await step.run("create-execution", async () => {
