@@ -804,3 +804,9 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 3. Plan source of truth = **org-level `Organization.plan`** (ADR-0010).
 4. First quota PR = **execution-count only**; AI-spend deferred after AF-M5-02.
 
+
+
+### ? AF-UI-01 · Create KpiCard Component · 1d
+- [x] Create KpiCard component matching the provided UI design.
+- [x] Create test page at /test-kpi.
+- [x] Walkthrough created.
