@@ -72,6 +72,7 @@ export function KpiCard({
               >
                 <Bar dataKey="value" radius={[1, 1, 1, 1]} barSize={3}>
                   {chartData.map((entry, index) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: a sparkline bar's identity IS its position - the series is fixed-length and positional, nothing is inserted, removed, or reordered, so the index is the stable key rather than a stand-in for one. A synthetic id here would be fiction.
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Bar>

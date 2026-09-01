@@ -1,11 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { EditorNode } from "@/features/editor/store/atoms";
 import { definition as aiExtractDefinition } from "@/nodes/ai/extract/definition";
 import { definition as httpHttpRequest } from "@/nodes/http/request/definition";
-import { type NodeDefinition } from "@/nodes/types";
+import type { NodeDefinition } from "@/nodes/types";
 import { NodeConfigForm, NodeConfigPanel } from "./node-config-panel";
 
 const httpDefinition = httpHttpRequest;
@@ -27,10 +26,14 @@ const mockDeprecatedDefinition: NodeDefinition = {
   label: "Mock Deprecated",
   description: "A mocked deprecated node.",
   version: 1,
-  icon: () => null,
+  // `NodeDefinition.icon` is a lucide-react icon NAME, resolved by the palette
+  // and config panel - not a component. This mock passed a component, which is
+  // why the file did not typecheck.
+  icon: "Zap",
   inputs: [],
   outputs: [],
   configSchema: z.object({}),
+  defaults: {},
   deprecated: {
     since: "1.0",
     replacedBy: "NEW_NODE",
@@ -180,23 +183,24 @@ describe("NodeConfigPanel (AF-M1-06)", () => {
       <NodeConfigPanel
         node={{ ...mockDeprecatedNode }}
         definition={mockDeprecatedDefinition}
-        onChange={vi.fn()}
-        onClose={vi.fn()}
+        onNodeChange={vi.fn()}
       />,
     );
 
     // Using queryByText with a regular expression to handle text split across elements
     expect(
       queryByText(/Because testing\./i) ||
-        getAllByText((content, element) =>
-          element?.textContent?.includes("Because testing.") ?? false
-        )[0]
+        getAllByText(
+          (_content, element) =>
+            element?.textContent?.includes("Because testing.") ?? false,
+        )[0],
     ).toBeInTheDocument();
     expect(
       queryByText(/Please replace this with a NEW_NODE node\./i) ||
-        getAllByText((content, element) =>
-          element?.textContent?.includes("NEW_NODE") ?? false
-        )[0]
+        getAllByText(
+          (_content, element) =>
+            element?.textContent?.includes("NEW_NODE") ?? false,
+        )[0],
     ).toBeInTheDocument();
   });
 });
