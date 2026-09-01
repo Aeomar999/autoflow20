@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
-import { saveWorkflowInputSchema } from "./schemas";
+import { nodeManifest } from "@/nodes/manifest";
+import { saveWorkflowInputSchema, updateNodeSchemas } from "./schemas";
 
 const position = { x: 0, y: 0 };
 
@@ -278,5 +279,55 @@ describe("saveWorkflowInputSchema — node metadata (AF-M1-06)", () => {
         nodes: [{ ...validSave.nodes[1], notes: "x".repeat(501) }],
       }).success,
     ).toBe(false);
+  });
+});
+
+/**
+ * AF-M8-24: the saveable-type list in `schemas.ts` is hand-written, because
+ * `z.discriminatedUnion` needs a literal type per entry. Hand-written means it
+ * drifts, and both directions of drift are silent and serious:
+ *
+ * - A registered type missing from the union cannot be SAVED. `AI_LLM` and
+ *   `AI_EXTRACT` were in exactly that state - shipped in M5, present in the
+ *   palette, rejected by this input schema before the handler ran.
+ * - A deleted type still in the union throws `UnknownNodeTypeError` at import,
+ *   which is what AF-M8-12 did to the retired AI trio.
+ *
+ * This is the guard that makes either failure loud, and it names the type.
+ */
+describe("saveable types track the registry (AF-M8-24)", () => {
+  /** The legacy alias predates the registry and has no manifest entry. */
+  const ALIASES = new Set(["INITIAL"]);
+
+  const saveable = new Set(
+    updateNodeSchemas.map(
+      (schema) => (schema.shape.type as { value: string }).value,
+    ),
+  );
+  const registered = new Set(nodeManifest.map((definition) => definition.type));
+
+  it("can save every registered node type", () => {
+    const unsaveable = [...registered].filter((type) => !saveable.has(type));
+
+    expect(
+      unsaveable,
+      `these node types are in the palette but cannot be saved: ${unsaveable.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("lists no type the registry cannot resolve", () => {
+    const orphaned = [...saveable].filter(
+      (type) => !registered.has(type) && !ALIASES.has(type),
+    );
+
+    expect(
+      orphaned,
+      `these types are saveable but not registered, which throws at import: ${orphaned.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("covers a non-trivial number of types", () => {
+    // Guard the guard: two empty sets would satisfy both assertions above.
+    expect(saveable.size).toBeGreaterThan(10);
   });
 });
