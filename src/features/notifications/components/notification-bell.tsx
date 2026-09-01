@@ -11,8 +11,8 @@ import { UNREAD_BADGE_CAP } from "../lib/types";
 /**
  * Notification bell with unread badge (AF-M7-08).
  *
- * Lives in the sidebar header — this layout has no top header bar, and the
- * sidebar header is its equivalent region.
+ * Lives in the app header, beside search and the theme control. It used to sit
+ * in the sidebar header because the layout had no top bar; it does now.
  */
 export const NotificationBell = () => {
   const { data } = useUnreadNotificationCount();
@@ -25,7 +25,7 @@ export const NotificationBell = () => {
       asChild
       variant="ghost"
       size="icon"
-      className="relative size-9 shrink-0"
+      className="relative size-8 shrink-0 rounded-md border border-hairline bg-panel text-muted-foreground hover:text-foreground"
     >
       <Link
         href="/notifications"
@@ -40,7 +40,7 @@ export const NotificationBell = () => {
             // aria-hidden: the count is already in the link's accessible name,
             // and a screen reader announcing it twice is worse than once.
             aria-hidden
-            className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white tabular-nums"
+            className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-4 font-medium text-primary-foreground tabular-nums"
           >
             {label}
           </span>

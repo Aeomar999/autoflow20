@@ -13,9 +13,12 @@ export type StatDelta = {
 };
 
 /**
- * Bar sparkline. Real values only — this draws the same series the panel
- * below charts in full, at glanceable size. The peak bar is held at full
- * opacity so the shape reads at 56px wide.
+ * Bar sparkline. Real values only: this draws the same series the panel below
+ * charts in full, at glanceable size.
+ *
+ * The bars are neutral and only the peak is drawn in the accent. Colouring the
+ * whole sparkline made four cards read as four orange blocks and cost the
+ * accent its meaning; one accented bar tells you where the high point sits.
  */
 const Sparkbars = ({
   values,
@@ -35,11 +38,12 @@ const Sparkbars = ({
       aria-hidden
       viewBox={`0 0 ${Math.max(width, 1)} 24`}
       preserveAspectRatio="none"
-      className={cn("h-8 w-14 shrink-0 text-primary", className)}
+      className={cn("h-8 w-14 shrink-0", className)}
     >
       <title>Trend</title>
       {bars.map((value, index) => {
         const height = max > 0 ? Math.max(1.5, (value / max) * 24) : 1.5;
+        const isPeak = max > 0 && value === max;
         return (
           <rect
             key={`${index}-${value}`}
@@ -48,8 +52,7 @@ const Sparkbars = ({
             width={2}
             height={height}
             rx={0.5}
-            fill="currentColor"
-            opacity={max > 0 && value === max ? 1 : 0.3}
+            className={isPeak ? "fill-primary" : "fill-muted-foreground/35"}
           />
         );
       })}

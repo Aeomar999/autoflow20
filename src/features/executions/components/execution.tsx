@@ -28,6 +28,7 @@ import { useCallback, useState } from "react";
 import { Callout } from "@/components/dashboard/callout";
 import {
   DataTable,
+  rowActionClassName,
   TBody,
   TD,
   TH,
@@ -626,7 +627,7 @@ const NodeTraceRow = ({
                   variant="ghost"
                   size="icon-sm"
                   aria-label={`Actions for ${trace.nodeName || trace.nodeType}`}
-                  className="text-muted-foreground hover:text-foreground"
+                  className={rowActionClassName}
                 >
                   <MoreVerticalIcon className="size-4" />
                 </Button>

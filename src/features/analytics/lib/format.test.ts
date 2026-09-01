@@ -6,7 +6,7 @@ describe("formatDuration", () => {
   it("renders an em dash for a missing measurement", () => {
     // Null is "nothing completed yet", which is not the same as zero — the
     // dashboard must not print "0ms" for a workspace that has never run.
-    expect(formatDuration(null)).toBe("—");
+    expect(formatDuration(null)).toBe("n/a");
   });
 
   it("keeps sub-second durations in milliseconds", () => {
@@ -25,8 +25,8 @@ describe("formatDuration", () => {
   });
 
   it("survives a non-finite measurement", () => {
-    expect(formatDuration(Number.NaN)).toBe("—");
-    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatDuration(Number.NaN)).toBe("n/a");
+    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe("n/a");
   });
 });
 

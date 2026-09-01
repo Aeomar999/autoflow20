@@ -7,8 +7,8 @@ import {
   DashboardLoading,
   DashboardPage,
   PageHeader,
-  RangeSelect,
 } from "@/components/dashboard/page";
+import { RangeSelect } from "@/components/dashboard/range-select";
 
 import {
   useSuspenseCacheStats,

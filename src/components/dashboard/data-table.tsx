@@ -156,3 +156,10 @@ export const TableSkeleton = ({
     ))}
   </>
 );
+
+/**
+ * Row-action trigger. A bordered square rather than a bare ghost icon, so the
+ * "more" control is findable in a dense row without being loud.
+ */
+export const rowActionClassName =
+  "size-7 rounded-md border border-hairline bg-panel text-muted-foreground hover:text-foreground";

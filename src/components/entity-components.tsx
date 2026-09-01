@@ -223,9 +223,7 @@ export const EmptyView = ({
     <span className="flex size-10 items-center justify-center rounded-full border border-hairline bg-well text-muted-foreground">
       <Icon className="size-4" />
     </span>
-    {!!title && (
-      <p className="text-sm font-medium">{title}</p>
-    )}
+    {!!title && <p className="text-sm font-medium">{title}</p>}
     {!!message && (
       <p className="max-w-sm text-sm text-balance text-muted-foreground">
         {message}

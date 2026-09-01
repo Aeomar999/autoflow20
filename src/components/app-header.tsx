@@ -3,12 +3,13 @@
 import { ChevronRightIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useCallback, useMemo } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { NAV_GROUPS } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Kbd } from "@/components/ui/kbd";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { cn } from "@/lib/utils";
 
 const SECTION_LABELS = new Map(
@@ -22,6 +23,9 @@ const EXTRA_LABELS = new Map([
   ["new", "New"],
   ["billing", "Billing"],
   ["success", "Success"],
+  // Reachable from the header bell rather than the nav, so it is not in
+  // NAV_GROUPS and would otherwise be truncated as if it were a record id.
+  ["notifications", "Notifications"],
 ]);
 
 type Crumb = { label: string; href: string; isId: boolean };
@@ -45,9 +49,27 @@ const buildCrumbs = (pathname: string): Crumb[] => {
   });
 };
 
+/**
+ * The modifier the palette actually answers to on this machine. Resolved after
+ * mount rather than during render: the server cannot know the platform, and
+ * guessing would hydrate a different key cap than it rendered.
+ */
+const useShortcutKey = () => {
+  const [key, setKey] = useState("Ctrl");
+
+  useEffect(() => {
+    if (/mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent)) {
+      setKey("⌘");
+    }
+  }, []);
+
+  return key;
+};
+
 export const AppHeader = () => {
   const pathname = usePathname();
   const crumbs = useMemo(() => buildCrumbs(pathname), [pathname]);
+  const shortcutKey = useShortcutKey();
 
   /** Open the global command palette by dispatching the same shortcut it
    *  already listens for. This keeps the palette mounted exactly once (in
@@ -107,12 +129,16 @@ export const AppHeader = () => {
         <button
           type="button"
           onClick={openPalette}
-          className="flex h-8 items-center gap-2 rounded-md border border-hairline bg-well px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground sm:w-56 md:w-72"
+          className="flex h-8 items-center gap-2 rounded-md border border-hairline bg-well px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground sm:w-56 md:w-72 lg:w-96"
         >
           <SearchIcon className="size-3.5 shrink-0" />
           <span className="hidden sm:inline">Go to page</span>
-          <Kbd className="ml-auto hidden sm:inline-flex">Ctrl K</Kbd>
+          <KbdGroup className="ml-auto hidden sm:flex">
+            <Kbd>{shortcutKey}</Kbd>
+            <Kbd>K</Kbd>
+          </KbdGroup>
         </button>
+        <NotificationBell />
         <ThemeToggle />
       </div>
     </header>
