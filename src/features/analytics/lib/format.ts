@@ -13,12 +13,12 @@ export { formatDayLabel, formatPercent } from "@/features/costs/lib/format";
  * A duration in milliseconds, at a precision that stays readable across the
  * four orders of magnitude a step can take (a 12ms Set node, a 90s LLM call).
  *
- * `null` means "nothing completed in this window", not "zero" — the caller
- * renders an em dash and explains it, rather than printing "0ms" and implying
- * an impossibly fast run.
+ * `null` means "nothing completed in this window", not "zero". The caller
+ * renders "n/a" and explains it, rather than printing "0ms" and implying an
+ * impossibly fast run.
  */
 export function formatDuration(ms: number | null): string {
-  if (ms == null || !Number.isFinite(ms)) return "—";
+  if (ms == null || !Number.isFinite(ms)) return "n/a";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   const minutes = Math.floor(ms / 60_000);

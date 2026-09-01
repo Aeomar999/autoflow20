@@ -2,13 +2,6 @@ import { AlertTriangleIcon, ArrowLeftIcon, Loader2Icon } from "lucide-react";
 import Link from "next/link";
 import type * as React from "react";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 /**
@@ -63,7 +56,7 @@ export const PageHeader = ({
     <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">
+          <h1 className="truncate text-2xl font-semibold tracking-tight md:text-[1.75rem] md:leading-9">
             {title}
           </h1>
           {badge}
@@ -79,41 +72,6 @@ export const PageHeader = ({
       ) : null}
     </div>
   </div>
-);
-
-/** The "Last N days" control, identical on Monitoring and Costs. */
-export const RangeSelect = ({
-  value,
-  options,
-  onChange,
-  className,
-}: {
-  value: number;
-  options: readonly number[];
-  onChange: (days: number) => void;
-  className?: string;
-}) => (
-  <Select
-    value={String(value)}
-    onValueChange={(next) => onChange(Number(next))}
-  >
-    <SelectTrigger
-      aria-label="Reporting period"
-      className={cn(
-        "h-8 w-[150px] border-hairline bg-panel text-xs shadow-none",
-        className,
-      )}
-    >
-      <SelectValue />
-    </SelectTrigger>
-    <SelectContent>
-      {options.map((option) => (
-        <SelectItem key={option} value={String(option)} className="text-xs">
-          Last {option} days
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
 );
 
 /** Horizontal meter for quota-style values. */
@@ -144,7 +102,6 @@ export const Meter = ({
   </div>
 );
 
-/** Placeholder header for Suspense fallbacks that replace a whole page. */
 export const PageHeaderSkeleton = () => (
   <div className="flex flex-wrap items-end justify-between gap-4">
     <div className="space-y-2">

@@ -14,14 +14,19 @@ export {
 
 import type { DailyStatusPoint } from "./types";
 
-/** Status colors for the stacked chart (hand-rolled SVG). */
+/**
+ * Status colors for the stacked chart and the status pills.
+ *
+ * Theme tokens rather than hex: the hard-coded greens and reds were tuned for
+ * a white page and turned muddy the moment the dashboard rendered dark.
+ */
 export const STATUS_COLORS: Record<string, string> = {
-  SUCCESS: "#22c55e",
-  FAILED: "#ef4444",
-  CANCELLED: "#a3a3a3",
-  TIMED_OUT: "#f59e0b",
-  QUOTA_EXCEEDED: "#dc2626",
-  RUNNING: "#3b82f6",
+  SUCCESS: "var(--success)",
+  FAILED: "var(--danger)",
+  CANCELLED: "var(--muted-foreground)",
+  TIMED_OUT: "var(--warning)",
+  QUOTA_EXCEEDED: "var(--destructive)",
+  RUNNING: "var(--info)",
 };
 
 const STATUSES = [

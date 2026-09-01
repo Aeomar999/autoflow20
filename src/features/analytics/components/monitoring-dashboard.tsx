@@ -3,11 +3,10 @@
 /**
  * Monitoring dashboard client component (AF-M7-03).
  *
- * Layout note: this page renders inside `EntityContainer`, like every other
- * dashboard page. It previously did not, so it had no page padding and no
- * `max-w-screen-xl` — on a wide screen the stat row and the range control ran
- * past the viewport edge, and the chart, sized only by its viewBox aspect
- * ratio, grew taller the wider the window got.
+ * Layout: a stat row, a full-width outcome chart paired with the two panels
+ * that qualify it (step latency, monthly quota), then the two ranked failure
+ * lists. Every panel is the shared `Panel` shape, so this page and `/costs`
+ * read as one instrument rather than two.
  */
 
 import { formatDistanceToNow } from "date-fns";
@@ -17,22 +16,29 @@ import {
   ClockIcon,
   GaugeIcon,
   TimerIcon,
+  XCircleIcon,
 } from "lucide-react";
 import Link from "next/link";
 
 import {
-  EntityContainer,
-  ErrorView,
-  LoadingView,
-} from "@/components/entity-components";
-import { Card, CardContent } from "@/components/ui/card";
+  DashboardError,
+  DashboardLoading,
+  DashboardPage,
+  Meter,
+  PageHeader,
+} from "@/components/dashboard/page";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
+import { RangeSelect } from "@/components/dashboard/range-select";
+import {
+  halfOverHalfDelta,
+  StatCard,
+  StatGrid,
+} from "@/components/dashboard/stat-card";
 import { cn } from "@/lib/utils";
 
 import { useSuspenseMonitoringOverview } from "../hooks/use-monitoring";
@@ -42,35 +48,89 @@ import type { DailyStatusPoint } from "../lib/types";
 import { MONITORING_PERIOD_DAYS } from "../params";
 import { ExecutionsOverTimeChart, RankedListCard } from "./monitoring-charts";
 
-const Metric = ({
-  icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  detail: string;
-}) => (
-  <Card className="shadow-none">
-    <CardContent className="p-4">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        {icon}
-        <span className="text-xs font-medium">{label}</span>
-      </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
-      <p className="text-xs text-muted-foreground">{detail}</p>
-    </CardContent>
-  </Card>
-);
-
 /** Sum one status across the whole period. */
 function totalFor(series: DailyStatusPoint[], status: keyof DailyStatusPoint) {
   return series.reduce((sum, point) => sum + Number(point[status] ?? 0), 0);
 }
 
-const UsageMeter = ({
+/** Per-day series for one status, for the stat card sparklines. */
+function seriesFor(
+  series: DailyStatusPoint[],
+  statuses: (keyof DailyStatusPoint)[],
+) {
+  return series.map((point) =>
+    statuses.reduce((sum, status) => sum + Number(point[status] ?? 0), 0),
+  );
+}
+
+const FAILURE_STATUSES: (keyof DailyStatusPoint)[] = [
+  "FAILED",
+  "TIMED_OUT",
+  "QUOTA_EXCEEDED",
+];
+
+const ALL_STATUSES: (keyof DailyStatusPoint)[] = [
+  "SUCCESS",
+  "RUNNING",
+  "FAILED",
+  "TIMED_OUT",
+  "QUOTA_EXCEEDED",
+  "CANCELLED",
+];
+
+/**
+ * p50 and p95 measure NodeExecution, not Execution, so they are a different
+ * population from "Avg run" in the stat row above. They live in their own
+ * panel, labelled "step", so the three cannot be read as one distribution.
+ */
+const StepLatencyPanel = ({
+  p50DurationMs,
+  p95DurationMs,
+}: {
+  p50DurationMs: number | null;
+  p95DurationMs: number | null;
+}) => (
+  <Panel>
+    <PanelHeader>
+      <PanelTitle hint="Percentiles over individual node steps, not whole runs.">
+        Step latency
+      </PanelTitle>
+      <TimerIcon className="size-3.5 text-muted-foreground/60" />
+    </PanelHeader>
+    <PanelBody className="grid grid-cols-2 gap-4">
+      {[
+        {
+          label: "p50 step",
+          value: p50DurationMs,
+          detail:
+            p50DurationMs == null
+              ? "No step has completed yet"
+              : "Median single node step",
+        },
+        {
+          label: "p95 step",
+          value: p95DurationMs,
+          detail:
+            p95DurationMs == null
+              ? "No step has completed yet"
+              : "Slowest 5% of node steps",
+        },
+      ].map((metric) => (
+        <div key={metric.label} className="min-w-0">
+          <p className="dash-label text-muted-foreground">{metric.label}</p>
+          <p className="mt-2 truncate text-2xl leading-none font-semibold tabular-nums">
+            {formatDuration(metric.value)}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {metric.detail}
+          </p>
+        </div>
+      ))}
+    </PanelBody>
+  </Panel>
+);
+
+const UsagePanel = ({
   current,
   limit,
   remaining,
@@ -82,28 +142,24 @@ const UsageMeter = ({
   plan: string;
 }) => {
   const isUnlimited = limit === null;
-  const pct = isUnlimited ? 0 : Math.min(100, (current / limit) * 100);
-  const isNearLimit = !isUnlimited && pct >= 80;
+  const fraction = isUnlimited ? 0 : Math.min(1, current / limit);
+  const isNearLimit = !isUnlimited && fraction >= 0.8;
   const isAtLimit = !isUnlimited && current >= limit;
 
   return (
-    <Card className="shadow-none">
-      <CardContent className="p-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <GaugeIcon className="size-3.5" />
-            <span className="text-xs font-medium">
-              Production runs this month
-            </span>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {plan} plan · resets on the 1st
-          </span>
-        </div>
-
-        <p className="mt-2 text-2xl font-semibold tabular-nums">
+    <Panel>
+      <PanelHeader>
+        <PanelTitle hint="Production runs count against the plan quota. Test runs do not.">
+          Production runs this month
+        </PanelTitle>
+        <span className="text-xs text-muted-foreground">
+          {plan} plan, resets on the 1st
+        </span>
+      </PanelHeader>
+      <PanelBody className="space-y-3">
+        <p className="text-2xl leading-none font-semibold tabular-nums">
           {formatCount(current)}
-          <span className="ml-1 text-sm font-normal text-muted-foreground">
+          <span className="ml-1.5 text-sm font-normal text-muted-foreground">
             {isUnlimited ? "of unlimited" : `of ${formatCount(limit)}`}
           </span>
         </p>
@@ -114,37 +170,30 @@ const UsageMeter = ({
           </p>
         ) : (
           <>
-            <div className="mt-3 h-2 w-full rounded-full bg-muted">
-              <div
-                className={cn(
-                  "h-2 rounded-full transition-all",
-                  isAtLimit
-                    ? "bg-destructive"
-                    : isNearLimit
-                      ? "bg-amber-500"
-                      : "bg-primary",
-                )}
-                style={{ width: `${Math.max(1, pct)}%` }}
-              />
-            </div>
+            <Meter
+              fraction={fraction}
+              tone={isAtLimit ? "danger" : isNearLimit ? "warning" : "accent"}
+            />
             <p
               className={cn(
-                "mt-2 text-xs",
+                "text-xs",
                 isAtLimit
-                  ? "text-destructive"
+                  ? "text-danger"
                   : isNearLimit
-                    ? "text-amber-600"
+                    ? "text-warning"
                     : "text-muted-foreground",
               )}
             >
               {isAtLimit
-                ? "Limit reached — further production runs fail with QUOTA_EXCEEDED until the reset or an upgrade."
-                : `${pluralize(remaining ?? 0, "run")} remaining${isNearLimit ? " — approaching the limit" : ""}`}
+                ? "Limit reached. Further production runs fail with QUOTA_EXCEEDED until the reset or an upgrade."
+                : `${pluralize(remaining ?? 0, "run")} remaining${
+                    isNearLimit ? ", approaching the limit" : ""
+                  }`}
             </p>
           </>
         )}
-      </CardContent>
-    </Card>
+      </PanelBody>
+    </Panel>
   );
 };
 
@@ -156,82 +205,92 @@ export function MonitoringDashboard() {
   // reconstructing them from the rounded success-rate percentage.
   const succeeded = totalFor(executionsOverTime, "SUCCESS");
   const running = totalFor(executionsOverTime, "RUNNING");
-  const failed =
-    totalFor(executionsOverTime, "FAILED") +
-    totalFor(executionsOverTime, "TIMED_OUT") +
-    totalFor(executionsOverTime, "QUOTA_EXCEEDED");
+  const failed = FAILURE_STATUSES.reduce(
+    (sum, status) => sum + totalFor(executionsOverTime, status),
+    0,
+  );
+
+  const totalSeries = seriesFor(executionsOverTime, ALL_STATUSES);
+  const successSeries = seriesFor(executionsOverTime, ["SUCCESS"]);
+  const failureSeries = seriesFor(executionsOverTime, FAILURE_STATUSES);
 
   const hasRuns = overview.totalRuns > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <Metric
-          icon={<ActivityIcon className="size-3.5" />}
+    <div className="flex flex-col gap-4">
+      <StatGrid>
+        <StatCard
           label="Total runs"
           value={formatCount(overview.totalRuns)}
+          unit="runs"
+          icon={<ActivityIcon />}
+          spark={totalSeries}
+          delta={halfOverHalfDelta(totalSeries)}
           detail={
             running > 0
               ? `${formatCount(running)} still running`
               : "Executions started in this window"
           }
         />
-        <Metric
-          icon={<CheckCircle2Icon className="size-3.5" />}
+        <StatCard
           label="Success rate"
-          value={hasRuns ? `${overview.successRate}%` : "—"}
+          value={hasRuns ? `${overview.successRate}%` : "n/a"}
+          icon={<CheckCircle2Icon />}
+          spark={successSeries}
           detail={
             hasRuns
               ? `${formatCount(succeeded)} succeeded · ${formatCount(failed)} failed`
               : "No runs to measure yet"
           }
         />
-        <Metric
-          icon={<ClockIcon className="size-3.5" />}
+        <StatCard
           label="Avg run"
           value={formatDuration(overview.avgDurationMs)}
+          icon={<ClockIcon />}
           detail={
             overview.avgDurationMs == null
               ? "No run has finished yet"
               : "Mean end-to-end run time"
           }
         />
-        {/* p50/p95 measure NodeExecution, not Execution — a different
-            population from "Avg run" above. The labels say "step" so three
-            cards in a row cannot be read as one distribution. */}
-        <Metric
-          icon={<TimerIcon className="size-3.5" />}
-          label="p50 step"
-          value={formatDuration(overview.p50DurationMs)}
-          detail={
-            overview.p50DurationMs == null
-              ? "No step has completed yet"
-              : "Median single node step"
-          }
+        <StatCard
+          label="Failed runs"
+          value={formatCount(failed)}
+          unit={failed === 1 ? "run" : "runs"}
+          icon={<XCircleIcon />}
+          spark={failureSeries}
+          delta={halfOverHalfDelta(failureSeries, { invert: true })}
+          detail="Failed, timed out or blocked"
         />
-        <Metric
-          icon={<TimerIcon className="size-3.5" />}
-          label="p95 step"
-          value={formatDuration(overview.p95DurationMs)}
-          detail={
-            overview.p95DurationMs == null
-              ? "No step has completed yet"
-              : "Slowest 5% of node steps"
-          }
-        />
-      </div>
+      </StatGrid>
 
-      <ExecutionsOverTimeChart
-        data={executionsOverTime}
-        periodDays={periodDays}
-      />
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <ExecutionsOverTimeChart
+            data={executionsOverTime}
+            periodDays={periodDays}
+          />
+        </div>
+        <div className="flex flex-col gap-4">
+          <StepLatencyPanel
+            p50DurationMs={overview.p50DurationMs}
+            p95DurationMs={overview.p95DurationMs}
+          />
+          <UsagePanel
+            current={usage.currentMonthCount}
+            limit={usage.planLimit}
+            remaining={usage.remaining}
+            plan={usage.plan}
+          />
+        </div>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <RankedListCard
           title="Errors by node type"
-          description="Which node types are failing most in this window."
+          hint="Which node types are failing most in this window."
           unit="failure"
-          tone="var(--destructive)"
+          tone="var(--danger)"
           emptyMessage="No node has failed in this window."
           rows={data.errorBreakdown.map((row) => ({
             key: row.nodeType,
@@ -241,9 +300,9 @@ export function MonitoringDashboard() {
         />
         <RankedListCard
           title="Top failing workflows"
-          description="Workflows with the most failed or timed-out runs."
+          hint="Workflows with the most failed or timed-out runs."
           unit="failed run"
-          tone="var(--color-amber-500, #f59e0b)"
+          tone="var(--warning)"
           emptyMessage="No workflow has failed in this window."
           rows={data.topFailingWorkflows.map((row) => ({
             key: row.workflowId,
@@ -258,13 +317,6 @@ export function MonitoringDashboard() {
           }))}
         />
       </div>
-
-      <UsageMeter
-        current={usage.currentMonthCount}
-        limit={usage.planLimit}
-        remaining={usage.remaining}
-        plan={usage.plan}
-      />
 
       <p className="text-center text-sm text-muted-foreground">
         Looking for AI spend?{" "}
@@ -284,29 +336,23 @@ export const MonitoringHeader = () => {
   const { days, setDays } = useMonitoringParams();
 
   return (
-    <div className="flex flex-row items-center justify-between gap-x-4">
-      <div className="flex flex-col">
-        <h1 className="text-lg md:text-xl font-semibold">Monitoring</h1>
-        <p className="text-xs md:text-sm text-muted-foreground">
-          Execution health across this workspace
-        </p>
-      </div>
-      <Select
-        value={String(days)}
-        onValueChange={(value) => setDays(Number(value))}
-      >
-        <SelectTrigger className="w-[140px] h-8 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {MONITORING_PERIOD_DAYS.map((option) => (
-            <SelectItem key={option} value={String(option)}>
-              Last {option} days
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <PageHeader
+      title="Monitoring"
+      description="Execution health across this workspace"
+      actions={
+        <>
+          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+            <GaugeIcon className="size-3.5" />
+            Live workspace data
+          </span>
+          <RangeSelect
+            value={days}
+            options={MONITORING_PERIOD_DAYS}
+            onChange={setDays}
+          />
+        </>
+      }
+    />
   );
 };
 
@@ -315,13 +361,19 @@ export const MonitoringContainer = ({
 }: {
   children: React.ReactNode;
 }) => (
-  <EntityContainer header={<MonitoringHeader />}>{children}</EntityContainer>
+  /* The header (and its range control) renders outside the Suspense boundary,
+     so switching the window keeps the page frame stable instead of collapsing
+     the whole view into the fallback. */
+  <DashboardPage>
+    <MonitoringHeader />
+    {children}
+  </DashboardPage>
 );
 
 export const MonitoringLoading = () => (
-  <LoadingView message="Loading monitoring data..." />
+  <DashboardLoading message="Loading monitoring data..." />
 );
 
 export const MonitoringError = () => (
-  <ErrorView message="Error loading monitoring data" />
+  <DashboardError message="Error loading monitoring data" />
 );

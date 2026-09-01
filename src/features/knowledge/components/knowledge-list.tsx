@@ -18,6 +18,7 @@ import { memo, useState } from "react";
 
 import {
   DataTable,
+  rowActionClassName,
   TableEmpty,
   TableSkeleton,
   TBody,
@@ -285,7 +286,7 @@ const KnowledgeRow = memo(
                     size="icon-sm"
                     variant="ghost"
                     aria-label={`Actions for ${data.name}`}
-                    className="text-muted-foreground hover:text-foreground"
+                    className={rowActionClassName}
                   >
                     <MoreVerticalIcon className="size-4" />
                   </Button>

@@ -38,7 +38,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { NotificationBell } from "@/features/notifications/components/notification-bell";
+import { useOrganizations } from "@/features/organizations/hooks/use-organizations";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { authClient } from "@/lib/auth-client";
 import { polarProductSlug } from "@/lib/env";
@@ -85,14 +85,18 @@ const initialsOf = (value: string) =>
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "A";
 
+/**
+ * Workspace card. The small line names what the big line is, which is the only
+ * arrangement that survives an org called "Billing" or "Ops".
+ *
+ * There is no switcher yet: the active organization is resolved server-side
+ * from an `x-organization-id` header with an owner-membership fallback, and
+ * nothing persists a choice, so a chevron here would open a menu that cannot
+ * change anything.
+ */
 const WorkspaceCard = () => {
-  const { hasActiveSubscription, isLoading } = useHasActiveSubscription();
-
-  const plan = isLoading
-    ? "Loading plan"
-    : hasActiveSubscription
-      ? "Pro plan"
-      : "Free plan";
+  const { data: organizations, isLoading } = useOrganizations();
+  const workspace = organizations?.[0];
 
   return (
     <Link
@@ -103,7 +107,7 @@ const WorkspaceCard = () => {
         "group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0",
       )}
     >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/12 ring-1 ring-primary/25">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/12 ring-1 ring-primary/25">
         <Image
           src="/logos/autoflow-327.svg"
           alt=""
@@ -113,11 +117,11 @@ const WorkspaceCard = () => {
         />
       </span>
       <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
-        <span className="truncate text-sm leading-tight font-semibold">
-          AutoFlow
-        </span>
         <span className="truncate text-[11px] leading-tight text-muted-foreground">
-          {plan}
+          Workspace
+        </span>
+        <span className="truncate text-sm leading-tight font-semibold">
+          {isLoading ? "Loading" : (workspace?.name ?? "AutoFlow")}
         </span>
       </span>
     </Link>
@@ -154,11 +158,13 @@ const AccountCard = () => {
             <span className="truncate text-sm leading-tight font-medium">
               {name}
             </span>
-            {email ? (
-              <span className="truncate text-[11px] leading-tight text-muted-foreground">
-                {email}
-              </span>
-            ) : null}
+            <span className="truncate text-[11px] leading-tight text-muted-foreground">
+              {isLoading
+                ? "Loading plan"
+                : hasActiveSubscription
+                  ? "Pro plan"
+                  : "Free plan"}
+            </span>
           </span>
           <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
         </button>
@@ -214,21 +220,22 @@ export const AppSidebar = () => {
 
   return (
     <Sidebar collapsible="icon" className="border-hairline">
-      <SidebarHeader className="p-2">
-        <div className="flex items-center gap-2">
-          <WorkspaceCard />
-          {/* AF-M7-08. Hidden when the rail is collapsed to icons, where there
-              is no room for the badge to read. */}
-          <div className="group-data-[collapsible=icon]:hidden">
-            <NotificationBell />
-          </div>
-        </div>
+      <SidebarHeader className="border-b border-sidebar-border p-2">
+        <WorkspaceCard />
       </SidebarHeader>
 
       <SidebarContent className="gap-0">
-        {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.label} className="py-2">
-            <SidebarGroupLabel className="dash-label h-6 px-2 text-muted-foreground">
+        {NAV_GROUPS.map((group, index) => (
+          <SidebarGroup
+            key={group.label}
+            className={cn(
+              "py-3",
+              // A rule between groups, not around every one, so the rail reads
+              // as three sections rather than three boxes.
+              index > 0 && "border-t border-sidebar-border",
+            )}
+          >
+            <SidebarGroupLabel className="h-6 px-2 text-xs font-normal text-muted-foreground">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -240,7 +247,7 @@ export const AppSidebar = () => {
                       isActive={pathname.startsWith(item.url)}
                       asChild
                       className={cn(
-                        "h-9 gap-3 px-2 text-sidebar-foreground/80",
+                        "h-10 gap-3 px-2 text-sidebar-foreground/80",
                         "data-[active=true]:bg-primary/10 data-[active=true]:font-medium data-[active=true]:text-primary",
                       )}
                     >
@@ -257,7 +264,7 @@ export const AppSidebar = () => {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <AccountCard />
       </SidebarFooter>
     </Sidebar>

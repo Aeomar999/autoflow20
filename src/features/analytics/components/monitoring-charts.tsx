@@ -6,26 +6,23 @@
  * Built on recharts through the shared `ChartContainer`, the same primitives
  * the `/costs` dashboard uses. That is deliberate: the two pages sit next to
  * each other in the nav, and the hand-rolled SVG this replaced had no axes, no
- * gridlines, and a height that grew with the viewport width — a 30-day chart
- * rendered ~420px tall on a wide screen because its only size constraint was
- * the viewBox aspect ratio.
+ * gridlines, and a height that grew with the viewport width.
  */
 
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Panel,
+  PanelBody,
+  PanelEmpty,
+  PanelFooter,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
 import {
   type ChartConfig,
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
@@ -38,9 +35,7 @@ import type { DailyStatusPoint } from "../lib/types";
  * Stack order, bottom to top: the outcome you want, then the ones you don't.
  *
  * `RUNNING` is charted rather than dropped. The previous chart omitted it, so
- * a day whose runs were still in flight rendered as an empty column — the
- * dashboard showed "nothing happened" during exactly the window where
- * something was happening.
+ * a day whose runs were still in flight rendered as an empty column.
  */
 const CHARTED_STATUSES = [
   "SUCCESS",
@@ -81,23 +76,45 @@ export function ExecutionsOverTimeChart({
   );
 
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <CardTitle className="text-base">Executions over time</CardTitle>
-        <CardDescription>
-          Runs per day by outcome across the last {periodDays} days (UTC days).
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {total === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            No executions in this window. Run a workflow and it will appear
-            here.
-          </p>
-        ) : (
-          <ChartContainer config={chartConfig} className="h-[240px] w-full">
+    <Panel>
+      <PanelHeader>
+        <PanelTitle hint="Runs are bucketed by the UTC day they started, and stacked by their final outcome.">
+          Executions over time
+        </PanelTitle>
+      </PanelHeader>
+
+      {total === 0 ? (
+        <PanelEmpty>
+          No executions in this window. Run a workflow and it will appear here.
+        </PanelEmpty>
+      ) : (
+        <PanelBody className="space-y-4 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+            <p className="flex items-baseline gap-2">
+              <span className="text-sm text-muted-foreground">Total runs</span>
+              <span className="text-xl font-semibold tabular-nums">
+                {formatCount(total)}
+              </span>
+            </p>
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              {CHARTED_STATUSES.map((status) => (
+                <li
+                  key={status}
+                  className="dash-label flex items-center gap-1.5 text-muted-foreground"
+                >
+                  <span
+                    aria-hidden
+                    className="size-1.5 rounded-full"
+                    style={{ backgroundColor: STATUS_COLORS[status] }}
+                  />
+                  {STATUS_LABELS[status]}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <ChartContainer config={chartConfig} className="h-[248px] w-full">
             <BarChart data={data} margin={{ left: 4, right: 4, top: 4 }}>
-              <CartesianGrid vertical={false} />
+              <CartesianGrid vertical={false} strokeDasharray="2 4" />
               <XAxis
                 dataKey="date"
                 tickLine={false}
@@ -121,7 +138,6 @@ export function ExecutionsOverTimeChart({
                   />
                 }
               />
-              <ChartLegend content={<ChartLegendContent />} />
               {CHARTED_STATUSES.map((status) => (
                 <Bar
                   key={status}
@@ -135,9 +151,14 @@ export function ExecutionsOverTimeChart({
               ))}
             </BarChart>
           </ChartContainer>
-        )}
-      </CardContent>
-    </Card>
+        </PanelBody>
+      )}
+
+      <PanelFooter>
+        <span>Runs per day by outcome</span>
+        <span className="tabular-nums">Last {periodDays} days, UTC</span>
+      </PanelFooter>
+    </Panel>
   );
 }
 
@@ -151,9 +172,9 @@ export function ExecutionsOverTimeChart({
  * single failure visible rather than rendering a zero-width sliver.
  */
 const ShareBar = ({ fraction, tone }: { fraction: number; tone: string }) => (
-  <div className="h-1.5 w-full rounded-full bg-muted">
+  <div className="h-1 w-full overflow-hidden rounded-full bg-well">
     <div
-      className="h-1.5 rounded-full"
+      className="h-1 rounded-full"
       style={{
         width: `${Math.max(2, Math.min(100, fraction * 100))}%`,
         backgroundColor: tone,
@@ -166,7 +187,7 @@ export interface RankedRow {
   key: string;
   label: string;
   value: number;
-  /** Rendered under the bar — "last failed 3 hours ago". */
+  /** Rendered under the bar, e.g. "last failed 3 hours ago". */
   detail?: string;
   /** Makes the label a link when the row points at something. */
   href?: string;
@@ -174,41 +195,44 @@ export interface RankedRow {
 
 export function RankedListCard({
   title,
-  description,
+  hint,
   rows,
   emptyMessage,
   unit,
   tone,
 }: {
   title: string;
-  description: string;
+  hint: string;
   rows: RankedRow[];
   emptyMessage: string;
-  /** Singular noun for the value — "failure", "error". */
+  /** Singular noun for the value, e.g. "failure". */
   unit: string;
   tone: string;
 }) {
   const max = rows.reduce((m, row) => Math.max(m, row.value), 0);
 
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {rows.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {emptyMessage}
-          </p>
-        ) : (
-          rows.map((row) => (
-            <div key={row.key} className="space-y-1">
+    <Panel>
+      <PanelHeader>
+        <PanelTitle hint={hint}>{title}</PanelTitle>
+        {rows.length > 0 ? (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {rows.length} shown
+          </span>
+        ) : null}
+      </PanelHeader>
+
+      {rows.length === 0 ? (
+        <PanelEmpty>{emptyMessage}</PanelEmpty>
+      ) : (
+        <PanelBody className="space-y-3.5">
+          {rows.map((row) => (
+            <div key={row.key} className="space-y-1.5">
               <div className="flex items-baseline justify-between gap-3">
                 {row.href ? (
                   <Link
                     href={row.href}
-                    className="truncate text-sm hover:underline"
+                    className="truncate text-sm hover:text-primary hover:underline"
                   >
                     {row.label}
                   </Link>
@@ -227,9 +251,9 @@ export function RankedListCard({
                 {row.detail ? ` · ${row.detail}` : ""}
               </p>
             </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
+          ))}
+        </PanelBody>
+      )}
+    </Panel>
   );
 }
