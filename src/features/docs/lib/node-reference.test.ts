@@ -22,15 +22,20 @@ describe("nodeReference", () => {
     ).toEqual(nodeManifest.map((node) => node.type).sort());
   });
 
-  it("includes deprecated types", () => {
-    // A saved workflow can still hold one and still run it (ADR-0011), so
-    // someone reading a trace has to be able to look it up.
-    const deprecated = nodeManifest.filter((node) => node.deprecated);
-    expect(deprecated.length).toBeGreaterThan(0);
-
-    for (const node of deprecated) {
+  it("carries the deprecation notice for any deprecated type", () => {
+    // A saved workflow can still hold a deprecated type and still run it
+    // (ADR-0011), so someone reading a trace has to be able to look it up.
+    //
+    // This deliberately does NOT assert that any deprecated type exists.
+    // AF-M8-12 retired the last three (OPENAI/ANTHROPIC/GEMINI) once no row
+    // referenced them, so requiring a non-empty set would make the reference
+    // suite fail every time a retirement completes - punishing the cleanup
+    // rather than testing the reference. What matters is that the notice
+    // survives the mapping whenever there is one.
+    for (const node of nodeManifest.filter((entry) => entry.deprecated)) {
       const entry = findNodeReference(node.type);
       expect(entry?.deprecated?.replacedBy).toBe(node.deprecated?.replacedBy);
+      expect(entry?.deprecated?.since).toBe(node.deprecated?.since);
     }
   });
 

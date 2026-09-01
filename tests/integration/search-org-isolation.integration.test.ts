@@ -228,7 +228,25 @@ describe.runIf(hasDb)("Search router org isolation", () => {
     asUser(h.users.userA);
     const results = await search.query({ q: SHARED_NAME, limit: 5 });
 
-    const serialized = JSON.stringify(results.credentials);
+    // AF-M8-22: assert on the KEYS present, not on substrings of the
+    // serialized payload. `not.toContain("iv")` failed nondeterministically
+    // whenever a freshly generated cuid happened to contain those two letters
+    // - `cmtivfuqa...` does. Same defect class as AF-M8-14 and AF-M8-15. Keys
+    // are what the assertion was ever about: the claim is that no secret FIELD
+    // is returned, not that the bytes "iv" never occur.
+    const keysAtEveryDepth = (value: unknown): string[] => {
+      if (Array.isArray(value)) {
+        return value.flatMap(keysAtEveryDepth);
+      }
+      if (value !== null && typeof value === "object") {
+        return Object.entries(value as Record<string, unknown>).flatMap(
+          ([key, nested]) => [key, ...keysAtEveryDepth(nested)],
+        );
+      }
+      return [];
+    };
+
+    const keys = new Set(keysAtEveryDepth(results.credentials));
     for (const forbidden of [
       "ciphertext",
       "iv",
@@ -236,8 +254,11 @@ describe.runIf(hasDb)("Search router org isolation", () => {
       "wrappedDek",
       "preview",
     ]) {
-      expect(serialized).not.toContain(forbidden);
+      expect(keys).not.toContain(forbidden);
     }
+    // Guard the guard: if the shape ever changes to something with no keys,
+    // the loop above would pass vacuously.
+    expect(keys.size).toBeGreaterThan(0);
   });
 
   it("respects the per-kind limit", async () => {
