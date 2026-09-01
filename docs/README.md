@@ -50,6 +50,8 @@ autoflow/
 | Document | Read it when |
 |---|---|
 | [`operations/environment_setup.md`](operations/environment_setup.md) | Local setup, env vars, or a boot failure. |
+| [`operations/runbooks.md`](operations/runbooks.md) | You are on call, or an incident is happening. Five failure modes, symptom first. |
+| [`operations/slos.md`](operations/slos.md) | Setting or arguing about reliability targets, error budgets, or what should alert. |
 
 ## decisions/ — why
 
@@ -92,7 +94,7 @@ Three cautions:
 |---|---|
 | `reference/nodes/<node>.md` — per-node config reference | one per node, from M1 |
 | `operations/deployment.md` — production topology and release process | M8 |
-| `operations/runbooks/` — incident procedures (credential exposure is mandatory) | M8 |
+| ~~`operations/runbooks/` — incident procedures (credential exposure is mandatory)~~ — **built** as [`operations/runbooks.md`](operations/runbooks.md) (AF-M8-07); credential exposure is F3 | M8 |
 | `reference/rest-v1.md` — public API reference | M8 |
 | `operations/support.md` — triage and escalation | Beta |
 
