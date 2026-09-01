@@ -729,6 +729,9 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 
 ---
 
+
+- ✅ **AF-M8-21** Configure alert delivery and external uptime monitors · 0.5d · *(added 2026-09-01)* · **DONE 2026-09-01** — Documented and finalized external polling configuration via /api/health (60s interval, two consecutive 5xx failures), JSON body assertions for 'degraded' status, Sentry alert for credential decryption failures, and documented the out-of-hours on-call reality.
+
 ## Phase 2 epics (post-Beta — do not start early)
 
 | ID | Epic | Screens |
