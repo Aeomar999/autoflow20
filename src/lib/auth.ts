@@ -1,10 +1,11 @@
-import { checkout, polar, portal } from "@polar-sh/better-auth";
+import { checkout, polar, portal, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { resolveTrustedOrigins } from "@/lib/auth-origins";
 import prisma from "@/lib/db";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
 import { polarProductId, polarProductSlug } from "@/lib/env";
+import { updatePlanFromWebhook } from "./auth-webhooks";
 import { polarClient } from "./polar";
 
 export const auth = betterAuth({
@@ -72,6 +73,33 @@ export const auth = betterAuth({
           authenticatedUsersOnly: true,
         }),
         portal(),
+        webhooks({
+          secret: process.env.POLAR_WEBHOOK_SECRET as string,
+          onSubscriptionActive: async (payload) =>
+            updatePlanFromWebhook(
+              payload.data.customer?.externalId,
+              payload.data.productId,
+              false,
+            ),
+          onSubscriptionUpdated: async (payload) =>
+            updatePlanFromWebhook(
+              payload.data.customer?.externalId,
+              payload.data.productId,
+              false,
+            ),
+          onSubscriptionCanceled: async (payload) =>
+            updatePlanFromWebhook(
+              payload.data.customer?.externalId,
+              payload.data.productId,
+              true,
+            ),
+          onSubscriptionRevoked: async (payload) =>
+            updatePlanFromWebhook(
+              payload.data.customer?.externalId,
+              payload.data.productId,
+              true,
+            ),
+        }),
       ],
     }),
   ],
