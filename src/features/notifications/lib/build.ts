@@ -51,6 +51,37 @@ export function approvalDedupeKey(approvalRequestId: string): string {
   return `approval:${approvalRequestId}`;
 }
 
+/**
+ * Keyed on an operator-chosen announcement id AND the organization (AF-M8-13).
+ *
+ * A system announcement has no row of its own to key on, so the operator
+ * supplies the identity. That is the idempotency story for a broadcast:
+ * sending "scheduled maintenance on the 14th" to 400 organizations and then
+ * re-running the script - because it half-failed, or because nobody was sure
+ * it went - must reach only the workspaces that missed it.
+ *
+ * **The organization id has to be in the key**, and this is the first
+ * notification type where that is true. `Notification.dedupeKey` is globally
+ * `@unique`, not unique per organization. Every other producer gets away with
+ * that because its key embeds a globally-unique row id - `execution:<cuid>`,
+ * `credential:<cuid>`, `approval:<cuid>` - and each of those rows belongs to
+ * exactly one organization, so global uniqueness and per-organization
+ * uniqueness happened to coincide. A system announcement is the first
+ * notification with no owning row, so without the organization here a
+ * broadcast would write to the first workspace and be silently skipped for
+ * every other one.
+ *
+ * It is deliberately not derived from the title: fixing a typo in the copy and
+ * re-sending should reach the people who never saw the first version, not
+ * silently do nothing because the text changed.
+ */
+export function systemDedupeKey(
+  announcementId: string,
+  organizationId: string,
+): string {
+  return `system:${announcementId}:${organizationId}`;
+}
+
 export function buildExecutionNotification(params: {
   executionId: string;
   workflowId: string;
@@ -145,6 +176,34 @@ export function buildApprovalNotification(params: {
     dedupeKey: approvalDedupeKey(params.approvalRequestId),
     workflowId: params.workflowId,
     executionId: params.executionId,
+    credentialId: null,
+  };
+}
+
+/**
+ * An operator announcement: maintenance, an incident, a deprecation.
+ *
+ * Unlike every other notification type this one has no originating row, so it
+ * carries no `workflowId`, `executionId`, or `credentialId`. The copy is the
+ * operator's, verbatim - this builder deliberately does not template or
+ * decorate it, because an announcement that says something other than what the
+ * operator typed is worse than no announcement.
+ */
+export function buildSystemNotification(params: {
+  announcementId: string;
+  organizationId: string;
+  title: string;
+  message: string;
+  href?: string | null;
+}): NotificationDraft {
+  return {
+    type: "SYSTEM",
+    title: params.title,
+    message: params.message,
+    href: params.href ?? null,
+    dedupeKey: systemDedupeKey(params.announcementId, params.organizationId),
+    workflowId: null,
+    executionId: null,
     credentialId: null,
   };
 }
