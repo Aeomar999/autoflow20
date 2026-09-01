@@ -1,4 +1,4 @@
-import { KpiCard } from "@/features/analytics/components/kpi-card"
+import { KpiCard } from "@/features/analytics/components/kpi-card";
 
 export default function TestKpiPage() {
   // Sample data: orange mostly, some dim gray.
@@ -15,8 +15,8 @@ export default function TestKpiPage() {
     { value: 20, color: "#404040" },
     { value: 15, color: "#404040" },
     { value: 40, color: "#f97316" },
-    { value: 45, color: "#f97316" }
-  ]
+    { value: 45, color: "#f97316" },
+  ];
 
   const dataCustomers = [
     { value: 5, color: "#404040" },
@@ -30,8 +30,8 @@ export default function TestKpiPage() {
     { value: 18, color: "#404040" },
     { value: 15, color: "#404040" },
     { value: 22, color: "#404040" },
-    { value: 28, color: "#f97316" } // Highlight last one
-  ]
+    { value: 28, color: "#f97316" }, // Highlight last one
+  ];
 
   return (
     <div className="p-8 bg-[#121316] min-h-screen">
@@ -74,5 +74,5 @@ export default function TestKpiPage() {
         />
       </div>
     </div>
-  )
+  );
 }
