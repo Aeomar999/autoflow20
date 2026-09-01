@@ -1,22 +1,45 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { KeyRoundIcon } from "lucide-react";
+import { KeyRoundIcon, MoreVerticalIcon, TrashIcon } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo, useState } from "react";
+
+import {
+  DataTable,
+  TableEmpty,
+  TableSkeleton,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@/components/dashboard/data-table";
+import {
+  Panel,
+  PanelActions,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
 import {
   EmptyView,
   EntityContainer,
   EntityHeader,
-  EntityItem,
-  EntityList,
   EntityPagination,
   EntitySearch,
   ErrorView,
-  LoadingView,
 } from "@/components/entity-components";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useEntitySearch } from "@/hooks/use-entity-search";
+
 import { credentialDefsById } from "../credential-types";
 import {
   useCredentials,
@@ -25,6 +48,8 @@ import {
 import { useCredentialsParams } from "../hooks/use-credentials-params";
 import type { CredentialPublic } from "../server/serialize";
 import { DeleteCredentialDialog } from "./delete-credential-dialog";
+
+const COLUMNS = 5;
 
 export const CredentialsSearch = () => {
   const [params, setParams] = useCredentialsParams();
@@ -42,30 +67,53 @@ export const CredentialsSearch = () => {
   );
 };
 
+const CredentialsTableHead = () => (
+  <THead>
+    <tr>
+      <TH>Credential</TH>
+      <TH className="hidden md:table-cell">Secret</TH>
+      <TH align="right" className="hidden lg:table-cell">
+        Used by
+      </TH>
+      <TH className="hidden sm:table-cell">Updated</TH>
+      <TH align="right">
+        <span className="sr-only">Actions</span>
+      </TH>
+    </tr>
+  </THead>
+);
+
 export const CredentialsList = () => {
   const credentials = useSuspenseCredentials();
+  const items = credentials.data.items;
 
   return (
-    <EntityList
-      items={credentials.data.items}
-      getKey={(credential) => credential.id}
-      renderItem={(credential) => <CredentialItem data={credential} />}
-      emptyView={<CredentialsEmpty />}
-    />
+    <DataTable>
+      <CredentialsTableHead />
+      <TBody>
+        {items.length === 0 ? (
+          <TableEmpty colSpan={COLUMNS}>
+            <CredentialsEmpty />
+          </TableEmpty>
+        ) : (
+          items.map((credential) => (
+            <CredentialRow key={credential.id} data={credential} />
+          ))
+        )}
+      </TBody>
+    </DataTable>
   );
 };
 
-export const CredentialsHeader = ({ disabled }: { disabled?: boolean }) => {
-  return (
-    <EntityHeader
-      title="Credentials"
-      description="Create and manage your credentials"
-      newButtonHref="/credentials/new"
-      newButtonLabel="New credential"
-      disabled={disabled}
-    />
-  );
-};
+export const CredentialsHeader = ({ disabled }: { disabled?: boolean }) => (
+  <EntityHeader
+    title="Credentials"
+    description="Create and manage your credentials"
+    newButtonHref="/credentials/new"
+    newButtonLabel="New credential"
+    disabled={disabled}
+  />
+);
 
 export const CredentialsPagination = () => {
   const credentials = useCredentials();
@@ -87,39 +135,45 @@ export const CredentialsContainer = ({
   children,
 }: {
   children: React.ReactNode;
-}) => {
-  return (
-    <EntityContainer
-      header={<CredentialsHeader />}
-      search={<CredentialsSearch />}
-      pagination={<CredentialsPagination />}
-    >
+}) => (
+  <EntityContainer header={<CredentialsHeader />}>
+    <Panel>
+      <PanelHeader>
+        <PanelTitle hint="Secrets are stored encrypted and never returned to the browser in full.">
+          Stored credentials
+        </PanelTitle>
+        <PanelActions>
+          <CredentialsSearch />
+        </PanelActions>
+      </PanelHeader>
       {children}
-    </EntityContainer>
-  );
-};
+      <CredentialsPagination />
+    </Panel>
+  </EntityContainer>
+);
 
-export const CredentialsLoading = () => {
-  return <LoadingView message="Loading credentials..." />;
-};
+export const CredentialsLoading = () => (
+  <DataTable>
+    <CredentialsTableHead />
+    <TBody>
+      <TableSkeleton columns={COLUMNS} />
+    </TBody>
+  </DataTable>
+);
 
-export const CredentialsError = () => {
-  return <ErrorView message="Error loading credentials" />;
-};
+export const CredentialsError = () => (
+  <ErrorView message="Error loading credentials" />
+);
 
 export const CredentialsEmpty = () => {
   const router = useRouter();
-
-  const handleCreate = () => {
-    router.push(`/credentials/new`);
-  };
 
   return (
     <EmptyView
       icon={KeyRoundIcon}
       title="Connect your first service"
       message="Credentials let nodes authenticate to Slack, your database, or a model provider. They're encrypted with a per-credential key and decrypted only inside a running node — never returned to the browser, not even to you."
-      onNew={handleCreate}
+      onNew={() => router.push("/credentials/new")}
       actionLabel="Add a credential"
       secondaryAction={{
         label: "Start from a template",
@@ -129,43 +183,71 @@ export const CredentialsEmpty = () => {
   );
 };
 
-export const CredentialItem = memo(({ data }: { data: CredentialPublic }) => {
+export const CredentialRow = memo(({ data }: { data: CredentialPublic }) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
-
   const logo = credentialDefsById.get(data.type)?.logo ?? "/logos/logo.svg";
-
-  const subtitle = (
-    <>
-      {data.preview && (
-        <span className="font-mono text-xs">{data.preview}</span>
-      )}
-      {data.preview && " · "}
-      Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}
-      {data.usageCount > 0 && (
-        <>
-          {" · "}
-          <span className="text-muted-foreground">
-            Used by {data.usageCount} workflow
-            {data.usageCount !== 1 ? "s" : ""}
-          </span>
-        </>
-      )}
-    </>
-  );
 
   return (
     <>
-      <EntityItem
-        href={`/credentials/${data.id}`}
-        title={data.name}
-        subtitle={subtitle}
-        image={
-          <div className="size-8 flex items-center justify-center">
-            <Image src={logo} alt={data.type} width={20} height={20} />
+      <TR href={`/credentials/${data.id}`}>
+        <TD className="max-w-[280px]">
+          <div className="flex items-center gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-hairline bg-well">
+              <Image src={logo} alt="" width={16} height={16} />
+            </span>
+            <div className="min-w-0">
+              <Link
+                href={`/credentials/${data.id}`}
+                prefetch
+                className="block truncate font-medium hover:text-primary hover:underline"
+              >
+                {data.name}
+              </Link>
+              <p className="truncate text-xs text-muted-foreground">
+                {data.type}
+              </p>
+            </div>
           </div>
-        }
-        onRemove={() => setDeleteOpen(true)}
-      />
+        </TD>
+        <TD className="hidden font-mono text-xs text-muted-foreground md:table-cell">
+          {data.preview || "Hidden"}
+        </TD>
+        <TD
+          align="right"
+          className="hidden text-muted-foreground tabular-nums lg:table-cell"
+        >
+          {data.usageCount > 0
+            ? `${data.usageCount} workflow${data.usageCount !== 1 ? "s" : ""}`
+            : "Unused"}
+        </TD>
+        <TD className="hidden text-muted-foreground sm:table-cell">
+          {formatDistanceToNow(data.updatedAt, { addSuffix: true })}
+        </TD>
+        <TD align="right">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={`Actions for ${data.name}`}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <MoreVerticalIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="gap-2 text-destructive focus:text-destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <TrashIcon className="size-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TD>
+      </TR>
+
       <DeleteCredentialDialog
         credentialId={data.id}
         credentialName={data.name}
@@ -176,3 +258,4 @@ export const CredentialItem = memo(({ data }: { data: CredentialPublic }) => {
     </>
   );
 });
+CredentialRow.displayName = "CredentialRow";

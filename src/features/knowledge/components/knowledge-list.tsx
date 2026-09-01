@@ -2,30 +2,51 @@
 
 import { formatDistanceToNow } from "date-fns";
 import {
-  AlertCircle,
-  BookOpen,
-  CheckCircle2,
-  FileCode,
-  FileText,
-  Globe,
-  Loader2,
-  MoreVertical,
-  RefreshCw,
-  Search,
-  Trash2,
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  FileCodeIcon,
+  FileTextIcon,
+  GlobeIcon,
+  Loader2Icon,
+  MoreVerticalIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { memo, useState } from "react";
+
+import {
+  DataTable,
+  TableEmpty,
+  TableSkeleton,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@/components/dashboard/data-table";
+import {
+  DashboardError,
+  DashboardPage,
+  PageHeader,
+  PageHeaderSkeleton,
+} from "@/components/dashboard/page";
+import {
+  Panel,
+  PanelActions,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
+import {
+  StatusPill,
+  type StatusTone,
+} from "@/components/dashboard/status-pill";
 import {
   EmptyView,
-  EntityContainer,
-  EntityItem,
-  EntityList,
   EntityPagination,
   EntitySearch,
-  ErrorView,
-  LoadingView,
 } from "@/components/entity-components";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,6 +55,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEntitySearch } from "@/hooks/use-entity-search";
+
 import { useKnowledgeParams } from "../hooks/use-knowledge-params";
 import {
   useKnowledgeSources,
@@ -44,6 +66,73 @@ import { DeleteSourceDialog } from "./delete-source-dialog";
 import { SourceDetailDialog } from "./source-detail-dialog";
 import { TestRetrievalDialog } from "./test-retrieval-dialog";
 import { UploadSourceDialog } from "./upload-source-dialog";
+
+const COLUMNS = 6;
+
+interface KnowledgeItemData {
+  id: string;
+  name: string;
+  type: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  url: string | null;
+  status: string;
+  errorMessage: string | null;
+  revision: number;
+  chunkCount: number;
+  tokenCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const sourceIcon = (type: string, mimeType?: string | null) => {
+  if (type === "URL") return <GlobeIcon className="size-4 text-info" />;
+  if (mimeType?.includes("markdown") || mimeType?.includes("text")) {
+    return <FileCodeIcon className="size-4 text-success" />;
+  }
+  return <FileTextIcon className="size-4 text-primary" />;
+};
+
+const STATUS_META: Record<
+  string,
+  { label: string; tone: StatusTone; icon: React.ReactNode }
+> = {
+  EMBEDDED: {
+    label: "Embedded",
+    tone: "success",
+    icon: <CheckCircle2Icon />,
+  },
+  PROCESSING: {
+    label: "Processing",
+    tone: "info",
+    icon: <Loader2Icon className="animate-spin" />,
+  },
+  ERROR: { label: "Error", tone: "danger", icon: <AlertCircleIcon /> },
+};
+
+const KnowledgeStatusPill = ({
+  status,
+  errorMessage,
+}: {
+  status: string;
+  errorMessage?: string | null;
+}) => {
+  const meta = STATUS_META[status];
+
+  if (!meta) {
+    return <StatusPill tone="neutral">Pending</StatusPill>;
+  }
+
+  return (
+    <StatusPill
+      tone={meta.tone}
+      icon={meta.icon}
+      title={status === "ERROR" ? (errorMessage ?? undefined) : undefined}
+    >
+      {meta.label}
+    </StatusPill>
+  );
+};
 
 export const KnowledgeSearch = () => {
   const [params, setParams] = useKnowledgeParams();
@@ -56,37 +145,8 @@ export const KnowledgeSearch = () => {
     <EntitySearch
       value={searchValue}
       onChange={onSearchChange}
-      placeholder="Search knowledge sources"
+      placeholder="Search sources"
     />
-  );
-};
-
-export const KnowledgeHeader = ({
-  onNew,
-  onTest,
-}: {
-  onNew: () => void;
-  onTest: () => void;
-}) => {
-  return (
-    <div className="flex flex-row items-center justify-between gap-x-4">
-      <div className="flex flex-col">
-        <h1 className="text-lg md:text-xl font-semibold">Knowledge Base</h1>
-        <p className="text-xs md:text-sm text-muted-foreground">
-          Ingest documents, webpages, and data into pgvector for AI retrieval.
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onTest}>
-          <Search className="size-4 mr-1.5" />
-          Test Retrieval
-        </Button>
-        <Button size="sm" onClick={onNew}>
-          <BookOpen className="size-4 mr-1.5" />
-          Add Source
-        </Button>
-      </div>
-    </div>
   );
 };
 
@@ -106,86 +166,54 @@ export const KnowledgePagination = () => {
   );
 };
 
-export const KnowledgeLoading = () => {
-  return <LoadingView message="Loading knowledge sources..." />;
-};
+const KnowledgeTableHead = () => (
+  <THead>
+    <tr>
+      <TH>Source</TH>
+      <TH>Status</TH>
+      <TH align="right" className="hidden sm:table-cell">
+        Chunks
+      </TH>
+      <TH align="right" className="hidden lg:table-cell">
+        Tokens
+      </TH>
+      <TH className="hidden md:table-cell">Updated</TH>
+      <TH align="right">
+        <span className="sr-only">Actions</span>
+      </TH>
+    </tr>
+  </THead>
+);
 
-export const KnowledgeError = () => {
-  return <ErrorView message="Error loading knowledge sources" />;
-};
+export const KnowledgeLoading = () => (
+  <DashboardPage>
+    <PageHeaderSkeleton />
+    <Panel>
+      <DataTable>
+        <KnowledgeTableHead />
+        <TBody>
+          <TableSkeleton columns={COLUMNS} />
+        </TBody>
+      </DataTable>
+    </Panel>
+  </DashboardPage>
+);
 
-export const KnowledgeEmpty = ({ onNew }: { onNew: () => void }) => {
-  return (
-    <EmptyView
-      onNew={onNew}
-      message="You haven't added any knowledge sources yet. Ingest your first PDF, DOCX, webpage, or text document to get started."
-    />
-  );
-};
+export const KnowledgeError = () => (
+  <DashboardPage>
+    <DashboardError message="Error loading knowledge sources" />
+  </DashboardPage>
+);
 
-interface KnowledgeItemData {
-  id: string;
-  name: string;
-  type: string;
-  mimeType: string | null;
-  sizeBytes: number | null;
-  url: string | null;
-  status: string;
-  errorMessage: string | null;
-  revision: number;
-  chunkCount: number;
-  tokenCount: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export const KnowledgeEmpty = ({ onNew }: { onNew: () => void }) => (
+  <EmptyView
+    actionLabel="Add source"
+    onNew={onNew}
+    message="No sources yet. Ingest a PDF, DOCX, webpage or text document and it becomes retrievable by your AI nodes."
+  />
+);
 
-const getSourceIcon = (type: string, mimeType?: string | null) => {
-  if (type === "URL") {
-    return <Globe className="size-5 text-blue-500" />;
-  }
-  if (mimeType?.includes("markdown") || mimeType?.includes("text")) {
-    return <FileCode className="size-5 text-emerald-500" />;
-  }
-  return <FileText className="size-5 text-primary" />;
-};
-
-const getStatusBadge = (status: string, errorMessage?: string | null) => {
-  switch (status) {
-    case "EMBEDDED":
-      return (
-        <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/30 text-[11px] h-5">
-          <CheckCircle2 className="size-3 mr-1" />
-          Embedded
-        </Badge>
-      );
-    case "PROCESSING":
-      return (
-        <Badge className="bg-blue-500/15 text-blue-600 hover:bg-blue-500/20 border-blue-500/30 text-[11px] h-5">
-          <Loader2 className="size-3 mr-1 animate-spin" />
-          Processing
-        </Badge>
-      );
-    case "ERROR":
-      return (
-        <Badge
-          variant="destructive"
-          className="text-[11px] h-5 cursor-help"
-          title={errorMessage || "Processing error"}
-        >
-          <AlertCircle className="size-3 mr-1" />
-          Error
-        </Badge>
-      );
-    default:
-      return (
-        <Badge variant="outline" className="text-[11px] h-5">
-          Pending
-        </Badge>
-      );
-  }
-};
-
-export const KnowledgeItem = memo(
+const KnowledgeRow = memo(
   ({
     data,
     onInspect,
@@ -194,77 +222,102 @@ export const KnowledgeItem = memo(
     onInspect: (id: string) => void;
   }) => {
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const reindexMutation = useReindexSource();
-
-    const handleReindex = async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      await reindexMutation.mutateAsync({ id: data.id });
-    };
-
-    const subtitle = (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-        {getStatusBadge(data.status, data.errorMessage)}
-        <span>·</span>
-        <span>
-          {data.chunkCount} chunks (~{data.tokenCount.toLocaleString()} tokens)
-        </span>
-        <span>·</span>
-        <span>
-          Updated{" "}
-          {formatDistanceToNow(new Date(data.updatedAt), { addSuffix: true })}
-        </span>
-      </div>
-    );
+    const reindex = useReindexSource();
 
     return (
       <>
-        <EntityItem
-          href="#"
-          title={data.name}
-          subtitle={subtitle}
-          image={
-            <div className="size-8 flex items-center justify-center bg-muted rounded-md">
-              {getSourceIcon(data.type, data.mimeType)}
+        <TR>
+          <TD className="max-w-[300px]">
+            <div className="flex items-center gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-hairline bg-well">
+                {sourceIcon(data.type, data.mimeType)}
+              </span>
+              <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => onInspect(data.id)}
+                  className="block max-w-full truncate text-left font-medium hover:text-primary hover:underline"
+                >
+                  {data.name}
+                </button>
+                <p className="truncate text-xs text-muted-foreground">
+                  {data.type}
+                </p>
+              </div>
             </div>
-          }
-          actions={
-            <div className="flex items-center gap-1">
+          </TD>
+          <TD>
+            <KnowledgeStatusPill
+              status={data.status}
+              errorMessage={data.errorMessage}
+            />
+          </TD>
+          <TD
+            align="right"
+            className="hidden font-mono text-muted-foreground tabular-nums sm:table-cell"
+          >
+            {data.chunkCount.toLocaleString()}
+          </TD>
+          <TD
+            align="right"
+            className="hidden font-mono text-muted-foreground tabular-nums lg:table-cell"
+          >
+            {data.tokenCount.toLocaleString()}
+          </TD>
+          <TD className="hidden text-muted-foreground md:table-cell">
+            {formatDistanceToNow(new Date(data.updatedAt), {
+              addSuffix: true,
+            })}
+          </TD>
+          <TD align="right">
+            <div className="flex items-center justify-end gap-1">
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 text-xs"
+                className="hidden h-7 border-hairline bg-panel px-2 text-xs sm:inline-flex"
                 onClick={() => onInspect(data.id)}
               >
-                <FileText className="size-3.5 mr-1" />
                 Chunks
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" className="size-8">
-                    <MoreVertical className="size-4" />
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Actions for ${data.name}`}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <MoreVerticalIcon className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onInspect(data.id)}>
-                    <FileText className="size-4 mr-2" />
-                    View Details & Chunks
+                  <DropdownMenuItem
+                    className="gap-2"
+                    onClick={() => onInspect(data.id)}
+                  >
+                    <FileTextIcon className="size-4" />
+                    View details and chunks
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleReindex}>
-                    <RefreshCw className="size-4 mr-2" />
+                  <DropdownMenuItem
+                    className="gap-2"
+                    disabled={reindex.isPending}
+                    onClick={() => reindex.mutate({ id: data.id })}
+                  >
+                    <RefreshCwIcon className="size-4" />
                     Reindex
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    className="gap-2 text-destructive focus:text-destructive"
                     onClick={() => setDeleteOpen(true)}
-                    className="text-destructive focus:text-destructive"
                   >
-                    <Trash2 className="size-4 mr-2" />
+                    <Trash2Icon className="size-4" />
                     Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          }
-        />
+          </TD>
+        </TR>
 
         <DeleteSourceDialog
           sourceId={data.id}
@@ -276,7 +329,7 @@ export const KnowledgeItem = memo(
     );
   },
 );
-KnowledgeItem.displayName = "KnowledgeItem";
+KnowledgeRow.displayName = "KnowledgeRow";
 
 export const KnowledgeList = () => {
   const sources = useSuspenseKnowledgeSources();
@@ -284,38 +337,71 @@ export const KnowledgeList = () => {
   const [testOpen, setTestOpen] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
 
+  const items = sources.data.items;
+
   return (
-    <EntityContainer
-      header={
-        <KnowledgeHeader
-          onNew={() => setUploadOpen(true)}
-          onTest={() => setTestOpen(true)}
-        />
-      }
-      search={<KnowledgeSearch />}
-      pagination={<KnowledgePagination />}
-    >
-      <EntityList
-        items={sources.data.items}
-        getKey={(source) => source.id}
-        renderItem={(source) => (
-          <KnowledgeItem
-            data={source}
-            onInspect={(id) => setSelectedSourceId(id)}
-          />
-        )}
-        emptyView={<KnowledgeEmpty onNew={() => setUploadOpen(true)} />}
+    <DashboardPage>
+      <PageHeader
+        title="Knowledge Base"
+        description="Ingest documents, webpages, and data into pgvector for AI retrieval."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-hairline bg-panel"
+              onClick={() => setTestOpen(true)}
+            >
+              <SearchIcon className="size-4" />
+              Test retrieval
+            </Button>
+            <Button size="sm" onClick={() => setUploadOpen(true)}>
+              <PlusIcon className="size-4" />
+              Add source
+            </Button>
+          </>
+        }
       />
 
+      <Panel>
+        <PanelHeader>
+          <PanelTitle hint="Each source is chunked and embedded; AI nodes retrieve the chunks, not the file.">
+            Indexed sources
+          </PanelTitle>
+          <PanelActions>
+            <KnowledgeSearch />
+          </PanelActions>
+        </PanelHeader>
+
+        <DataTable>
+          <KnowledgeTableHead />
+          <TBody>
+            {items.length === 0 ? (
+              <TableEmpty colSpan={COLUMNS}>
+                <KnowledgeEmpty onNew={() => setUploadOpen(true)} />
+              </TableEmpty>
+            ) : (
+              items.map((source) => (
+                <KnowledgeRow
+                  key={source.id}
+                  data={source}
+                  onInspect={setSelectedSourceId}
+                />
+              ))
+            )}
+          </TBody>
+        </DataTable>
+
+        <KnowledgePagination />
+      </Panel>
+
       <UploadSourceDialog open={uploadOpen} onOpenChange={setUploadOpen} />
-
       <TestRetrievalDialog open={testOpen} onOpenChange={setTestOpen} />
-
       <SourceDetailDialog
         sourceId={selectedSourceId}
         open={Boolean(selectedSourceId)}
         onOpenChange={(open) => !open && setSelectedSourceId(null)}
       />
-    </EntityContainer>
+    </DashboardPage>
   );
 };

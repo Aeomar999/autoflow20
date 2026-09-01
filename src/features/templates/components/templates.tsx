@@ -1,14 +1,24 @@
 "use client";
 
 import { SearchIcon } from "lucide-react";
+
+import {
+  DashboardError,
+  DashboardPage,
+  PageHeader,
+} from "@/components/dashboard/page";
+import {
+  Panel,
+  PanelActions,
+  PanelBody,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
 import {
   EmptyView,
-  EntityHeader,
   EntityPagination,
-  ErrorView,
   LoadingView,
 } from "@/components/entity-components";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,20 +30,12 @@ import {
 import { PAGINATION } from "@/config/constants";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import { cn } from "@/lib/utils";
+
 import type { TemplateSort } from "../constants";
 import { TEMPLATE_CATEGORIES, TEMPLATE_SORTS } from "../constants";
 import { useSuspenseTemplates, useTemplates } from "../hooks/use-templates";
 import { useTemplatesParams } from "../hooks/use-templates-params";
 import { TemplateCard } from "./template-card";
-
-export const TemplatesHeader = () => {
-  return (
-    <EntityHeader
-      title="Templates"
-      description="Ready-made workflows that run as-is. Install, connect credentials, deploy."
-    />
-  );
-};
 
 export const TemplatesSearch = () => {
   const [params, setParams] = useTemplatesParams();
@@ -43,13 +45,13 @@ export const TemplatesSearch = () => {
   });
 
   return (
-    <div className="relative w-full max-w-xs">
-      <SearchIcon className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+    <div className="relative w-full sm:w-64">
+      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
-        className="pl-8 bg-background shadow-none border-border"
+        className="h-8 border-hairline bg-well pl-8 text-sm shadow-none"
         placeholder="Search templates"
         value={searchValue}
-        onChange={(e) => onSearchChange(e.target.value)}
+        onChange={(event) => onSearchChange(event.target.value)}
       />
     </div>
   );
@@ -60,26 +62,30 @@ export const TemplatesChips = () => {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {TEMPLATE_CATEGORIES.map((category) => (
-        <Button
-          key={category}
-          size="sm"
-          variant={params.category === category ? "secondary" : "ghost"}
-          className={cn(
-            "h-7 rounded-full px-3 text-xs",
-            params.category === category && "font-medium",
-          )}
-          onClick={() =>
-            setParams({
-              ...params,
-              category,
-              page: PAGINATION.DEFAULT_PAGE,
-            })
-          }
-        >
-          {category}
-        </Button>
-      ))}
+      {TEMPLATE_CATEGORIES.map((category) => {
+        const isActive = params.category === category;
+        return (
+          <button
+            key={category}
+            type="button"
+            onClick={() =>
+              setParams({
+                ...params,
+                category,
+                page: PAGINATION.DEFAULT_PAGE,
+              })
+            }
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs transition-colors",
+              isActive
+                ? "border-primary/30 bg-primary/10 font-medium text-primary"
+                : "border-hairline bg-panel text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {category}
+          </button>
+        );
+      })}
     </div>
   );
 };
@@ -98,12 +104,19 @@ export const TemplatesSort = () => {
         })
       }
     >
-      <SelectTrigger className="w-[170px] h-8 text-xs">
+      <SelectTrigger
+        aria-label="Sort templates"
+        className="h-8 w-[170px] border-hairline bg-panel text-xs shadow-none"
+      >
         <SelectValue placeholder="Sort" />
       </SelectTrigger>
       <SelectContent>
         {TEMPLATE_SORTS.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="text-xs"
+          >
             {option.label}
           </SelectItem>
         ))}
@@ -112,33 +125,15 @@ export const TemplatesSort = () => {
   );
 };
 
-export const TemplatesToolbar = () => {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-      <TemplatesSearch />
-      <div className="grow flex flex-wrap items-center justify-between gap-3">
-        <TemplatesChips />
-        <TemplatesSort />
-      </div>
-    </div>
-  );
-};
-
 export const TemplatesGrid = () => {
   const templates = useSuspenseTemplates();
 
   if (templates.data.items.length === 0) {
-    return (
-      <div className="flex-1 flex justify-center items-center">
-        <div className="max-w-sm mx-auto">
-          <TemplatesEmpty />
-        </div>
-      </div>
-    );
+    return <TemplatesEmpty />;
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {templates.data.items.map((template) => (
         <TemplateCard key={template.id} data={template} />
       ))}
@@ -154,6 +149,7 @@ export const TemplatesPagination = () => {
 
   return (
     <EntityPagination
+      className="rounded-xl border border-hairline"
       disabled={templates.isFetching}
       totalPages={templates.data.totalPages}
       page={templates.data.page}
@@ -166,31 +162,41 @@ export const TemplatesContainer = ({
   children,
 }: {
   children: React.ReactNode;
-}) => {
-  return (
-    <div className="p-4 md:px-10 md:py-6 h-full">
-      <div className="mx-auto max-w-screen-xl w-full flex flex-col gap-y-8 h-full">
-        <TemplatesHeader />
-        <div className="flex flex-col gap-y-4 h-full">
-          <TemplatesToolbar />
-          {children}
-        </div>
-        <TemplatesPagination />
-      </div>
-    </div>
-  );
-};
+}) => (
+  <DashboardPage>
+    <PageHeader
+      title="Templates"
+      description="Ready-made workflows that run as-is. Install, connect credentials, deploy."
+      actions={<TemplatesSort />}
+    />
 
-export const TemplatesLoading = () => {
-  return <LoadingView message="Loading templates..." />;
-};
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>Browse by category</PanelTitle>
+        <PanelActions>
+          <TemplatesSearch />
+        </PanelActions>
+      </PanelHeader>
+      <PanelBody className="py-3">
+        <TemplatesChips />
+      </PanelBody>
+    </Panel>
 
-export const TemplatesError = () => {
-  return <ErrorView message="Error loading templates" />;
-};
+    {children}
+    <TemplatesPagination />
+  </DashboardPage>
+);
 
-export const TemplatesEmpty = () => {
-  return (
+export const TemplatesLoading = () => (
+  <LoadingView message="Loading templates..." />
+);
+
+export const TemplatesError = () => (
+  <DashboardError message="Error loading templates" />
+);
+
+export const TemplatesEmpty = () => (
+  <Panel>
     <EmptyView message="No templates match your filters. Try another search or category." />
-  );
-};
+  </Panel>
+);
