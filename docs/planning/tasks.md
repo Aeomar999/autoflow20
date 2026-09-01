@@ -810,3 +810,8 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 - [x] Create KpiCard component matching the provided UI design.
 - [x] Create test page at /test-kpi.
 - [x] Walkthrough created.
+
+
+### ? AF-UI-02 · Style Executions Chart like Sales Trend · 1d
+- [x] Group metrics into successful and failed/other.
+- [x] Rewrite ExecutionsOverTimeChart to use dark theme matching the Sales Trend design.

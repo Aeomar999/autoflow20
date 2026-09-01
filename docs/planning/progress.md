@@ -241,3 +241,5 @@ When you complete a task:
 **Do not mark anything green that you have not personally exercised.** An honest progress document is the only thing standing between this project and a rebuild.
 
 | 2026-09-01 | **AF-UI-01**: Created KpiCard component and /test-kpi page to match UI designs. | M7 |
+
+| 2026-09-01 | **AF-UI-02**: Styled ExecutionsOverTimeChart to match the Sales Trend dark theme design. | M7 |

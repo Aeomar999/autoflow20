@@ -156,21 +156,23 @@ const MosaicCursor = (props: ShapeProps) => {
         x2={center}
         y1={y}
         y2={y + height}
-        stroke="var(--primary)"
+        stroke="#f97316"
         strokeWidth={1}
         strokeDasharray="3 3"
       />
       <circle
         cx={center}
         cy={y}
-        r={3}
-        fill="var(--panel)"
-        stroke="var(--primary)"
-        strokeWidth={1.5}
+        r={4}
+        fill="#1a1c23"
+        stroke="#f97316"
+        strokeWidth={2}
       />
     </g>
   );
 };
+
+import { InfoIcon } from "lucide-react";
 
 export function ExecutionsOverTimeChart({
   data,
@@ -185,126 +187,122 @@ export function ExecutionsOverTimeChart({
     0,
   );
 
+  const chartData = data.map((point) => {
+    const successful = (point.SUCCESS ?? 0);
+    const failed = (point.FAILED ?? 0) + (point.TIMED_OUT ?? 0) + (point.QUOTA_EXCEEDED ?? 0) + (point.CANCELLED ?? 0) + (point.RUNNING ?? 0);
+    return {
+      ...point,
+      successful,
+      failed,
+    };
+  });
+
+  const customConfig = {
+    successful: { label: "Successful", color: "#f97316" },
+    failed: { label: "Failed / Other", color: "#4b5563" },
+  } satisfies ChartConfig;
+
   return (
-    <Panel>
-      <PanelHeader>
-        <PanelTitle hint="Runs are bucketed by the UTC day they started, and stacked by their final outcome.">
-          Executions over time
-        </PanelTitle>
-      </PanelHeader>
-
-      {total === 0 ? (
-        <PanelEmpty>
-          No executions in this window. Run a workflow and it will appear here.
-        </PanelEmpty>
-      ) : (
-        <PanelBody className="space-y-4 pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-            <p className="flex items-baseline gap-2">
-              <span className="text-sm text-muted-foreground">Total runs</span>
-              <span className="text-xl font-semibold tabular-nums">
-                {formatCount(total)}
-              </span>
-            </p>
-            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              {CHARTED_STATUSES.map((status) => (
-                <li
-                  key={status}
-                  className="dash-label flex items-center gap-1.5 text-muted-foreground"
-                >
-                  <span
-                    aria-hidden
-                    className="size-1.5 rounded-full"
-                    style={{ backgroundColor: STATUS_COLORS[status] }}
-                  />
-                  {STATUS_LABELS[status]}
-                </li>
-              ))}
-            </ul>
+    <div className="flex flex-col bg-[#1a1c23] border border-white/5 rounded-xl overflow-hidden text-white w-full h-full shadow-lg">
+      <div className="p-5 pb-0 flex flex-col gap-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-widest text-white/40 uppercase mb-4">
+              EXECUTIONS TREND <InfoIcon className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex items-baseline gap-2 text-white/60 text-sm mb-1">
+              Total Executions : <span className="text-white text-3xl font-semibold tracking-tight">{formatCount(total)}</span>
+            </div>
           </div>
-          <ChartContainer config={chartConfig} className="h-[248px] w-full">
-            <BarChart data={data} margin={{ left: 4, right: 4, top: 4 }}>
-              {/* The empty part of each column, so the plot reads as a
-                  board the bars fill. Tiled as a pattern rather than per-square
-                  rects: a full-height column is ~27 rows, which across 30 days
-                  would be four thousand nodes for a 10%-opacity texture.
+          
+          <div className="flex gap-4 text-[10px] font-semibold uppercase tracking-wider text-white/50 pt-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#f97316]"></div>
+              SUCCESSFUL
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#4b5563]"></div>
+              FAILED / OTHER
+            </div>
+          </div>
+        </div>
+      </div>
 
-                  This <defs> has to be a direct child: recharts renders only
-                  the SVG children it recognises and drops wrapped ones. */}
-              <defs>
-                <pattern
-                  id={GHOST_PATTERN_ID}
-                  width={CELL}
-                  height={CELL}
-                  patternUnits="userSpaceOnUse"
-                >
-                  <rect
-                    width={CELL - GAP}
-                    height={CELL - GAP}
-                    rx={1}
-                    fill="var(--muted-foreground)"
-                    opacity={0.1}
-                  />
-                </pattern>
-              </defs>
-              <CartesianGrid vertical={false} strokeDasharray="2 4" />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                minTickGap={24}
-                tickFormatter={formatDayLabel}
-              />
-              <YAxis
-                axisLine={false}
-                width={40}
-                tickSize={2}
-                // A short round-capped stub reads as a tick dot beside the
-                // label rather than a rule running into the plot.
-                tickLine={{
-                  stroke: "var(--muted-foreground)",
-                  strokeWidth: 2,
-                  strokeLinecap: "round",
-                }}
-                // Runs are whole things; "1.5 executions" is not a reading.
-                allowDecimals={false}
-                tickFormatter={formatCount}
-              />
-              <ChartTooltip
-                cursor={<MosaicCursor />}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(label) => formatDayLabel(String(label))}
-                  />
-                }
-              />
-              {CHARTED_STATUSES.map((status, index) => (
-                <Bar
-                  key={status}
-                  dataKey={status}
-                  stackId="runs"
-                  fill={`var(--color-${status})`}
-                  shape={<MosaicBar />}
-                  // Only the bottom bar paints the empty grid, or six stacked
-                  // series would each redraw the same column.
-                  background={
-                    index === 0
-                      ? { fill: `url(#${GHOST_PATTERN_ID})` }
-                      : undefined
-                  }
+      <div className="p-5 pt-2">
+        <ChartContainer config={customConfig} className="h-[280px] w-full">
+          <BarChart data={chartData} margin={{ left: 4, right: 4, top: 20 }}>
+            <defs>
+              <pattern
+                id={GHOST_PATTERN_ID}
+                width={CELL}
+                height={CELL}
+                patternUnits="userSpaceOnUse"
+              >
+                <rect
+                  width={CELL - GAP}
+                  height={CELL - GAP}
+                  rx={1}
+                  fill="#ffffff"
+                  opacity={0.03}
                 />
-              ))}
-            </BarChart>
-          </ChartContainer>
-        </PanelBody>
-      )}
-
-      <PanelFooter>
-        <span>Runs per day by outcome, one block per segment</span>
-        <span className="tabular-nums">Last {periodDays} days, UTC</span>
-      </PanelFooter>
-    </Panel>
+              </pattern>
+            </defs>
+            <CartesianGrid vertical={false} strokeDasharray="2 4" stroke="#ffffff" strokeOpacity={0.05} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={12}
+              minTickGap={24}
+              tickFormatter={formatDayLabel}
+              stroke="#ffffff"
+              strokeOpacity={0.3}
+              fontSize={10}
+              fontWeight={500}
+            />
+            <YAxis
+              axisLine={false}
+              width={40}
+              tickSize={2}
+              tickLine={{
+                stroke: "rgba(255,255,255,0.1)",
+                strokeWidth: 2,
+                strokeLinecap: "round",
+              }}
+              allowDecimals={false}
+              tickFormatter={formatCount}
+              stroke="#ffffff"
+              strokeOpacity={0.3}
+              fontSize={10}
+              fontWeight={500}
+            />
+            <ChartTooltip
+              cursor={<MosaicCursor />}
+              content={
+                <ChartTooltipContent
+                  className="bg-[#2a2c35] border-white/10 text-white rounded-lg shadow-xl"
+                  labelFormatter={(label) => formatDayLabel(String(label))}
+                />
+              }
+            />
+            
+            <Bar
+              dataKey="successful"
+              stackId="runs"
+              fill="#f97316"
+              shape={<MosaicBar />}
+              background={{ fill: `url(#${GHOST_PATTERN_ID})` }}
+            />
+            <Bar
+              dataKey="failed"
+              stackId="runs"
+              fill="#4b5563"
+              shape={<MosaicBar />}
+            />
+          </BarChart>
+        </ChartContainer>
+      </div>
+    </div>
   );
 }
 
