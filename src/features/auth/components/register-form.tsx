@@ -93,6 +93,10 @@ export function RegisterForm() {
       },
       {
         onSuccess: () => {
+          // AF-M8-04: a verification email is sent automatically on signup.
+          // The user is signed in immediately (autoSignIn), but is prompted
+          // to confirm their address.
+          toast.success("Check your inbox to verify your email");
           router.push("/");
         },
         onError: (ctx) => {

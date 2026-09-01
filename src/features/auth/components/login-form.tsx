@@ -177,6 +177,14 @@ export function LoginForm() {
                   <Button type="submit" className="w-full" disabled={isPending}>
                     Login
                   </Button>
+                  <div className="text-right text-sm">
+                    <Link
+                      href="/forgot-password"
+                      className="underline underline-offset-4"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                 </div>
                 <div className="text-center text-sm">
                   Don&apos;t have an account?{" "}

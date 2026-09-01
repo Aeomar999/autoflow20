@@ -44,6 +44,14 @@ const serverEnvSchema = z.object({
 
   SENTRY_AUTH_TOKEN: z.string().optional(),
   NGROK_URL: z.string().optional(),
+
+  // AF-M8-04: transactional auth email (reset password + email verification)
+  // via Resend. Optional so the app still boots and unaffected flows keep
+  // working without them (same pattern as POLAR billing config). Auth flows
+  // that REQUIRE sending an email fail loudly when these are missing - never
+  // silently.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  RESEND_FROM_EMAIL: z.string().email("must be a valid email").optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -96,3 +104,12 @@ export const polarProductSlug =
   process.env.POLAR_PRODUCT_SLUG ??
   process.env.NEXT_PUBLIC_POLAR_PRODUCT_SLUG ??
   "pro";
+
+/**
+ * Resend configuration for transactional auth email (AF-M8-04). Both are
+ * optional at boot; the sending module in `src/lib/email.ts` throws a clear
+ * error (never logs the key) when an auth flow needs them and they are absent.
+ */
+export const resendApiKey = process.env.RESEND_API_KEY;
+export const resendFromEmail =
+  process.env.RESEND_FROM_EMAIL ?? "AutoFlow <onboarding@resend.dev>";

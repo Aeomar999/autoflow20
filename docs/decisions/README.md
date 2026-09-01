@@ -58,3 +58,4 @@ Each with the reason it lost.
 | [0011](0011-node-type-deprecation-lifecycle.md) | Node types are retired by deprecation, never by deletion | Accepted |
 | [0012](0012-public-api-and-api-keys.md) | Public REST API with scoped, hashed API keys | Accepted |
 | [0013](0013-rate-limit-store.md) | Shared injectable rate-limit store (in-memory default, no new dependency) | Accepted |
+| [0014](0014-resend-for-auth-email.md) | Resend for transactional auth email | Accepted |

@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { resolveTrustedOrigins } from "@/lib/auth-origins";
 import prisma from "@/lib/db";
+import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
 import { polarProductId, polarProductSlug } from "@/lib/env";
 import { polarClient } from "./polar";
 
@@ -25,6 +26,23 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    // AF-M8-04: password reset delivered via Resend. When RESEND_API_KEY is
+    // unset the sender throws, so the reset action fails loudly rather than
+    // silently pretending an email went out.
+    sendResetPassword: async (data) => {
+      await sendPasswordResetEmail(data);
+    },
+  },
+  // AF-M8-04: verify email addresses on signup. `sendOnSignUp` emails a
+  // verification link automatically; `autoSignInAfterVerification` signs the
+  // user in once they click it. `requireEmailVerification` is intentionally
+  // NOT set so existing unverified users are not locked out.
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async (data) => {
+      await sendVerificationEmail(data);
+    },
   },
   socialProviders: {
     github: {

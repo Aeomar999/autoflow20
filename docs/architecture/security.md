@@ -106,6 +106,8 @@ Rules:
 
 **Now:** email/password via Better Auth; `requireAuth()` on pages; `protectedProcedure` on tRPC.
 
+**Transactional auth email (AF-M8-04):** password reset + email verification are sent via **Resend** (`src/lib/email.ts`, ADR-0014). The sender never logs the API key, the reset/verify token, or any password; only the recipient address and the generated link reach the Resend API. Missing `RESEND_API_KEY` makes the flow throw `ResendNotConfiguredError` (a loud failure, never a silent "email sent that was not"). The "forgot password" and "verify email" pages render a neutral message so a response never discloses whether an account exists.
+
 **Target (M6):**
 - SSO: Google + GitHub. (SAML/SCIM/Okta is Phase 3 — do not promise it before then.)
 - `orgProcedure(minRole)` resolves membership once per request and enforces `OWNER > ADMIN > EDITOR > VIEWER`.
