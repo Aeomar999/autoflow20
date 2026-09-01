@@ -5,6 +5,7 @@ import superjson from "superjson";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { polarClient } from "@/lib/polar";
+import { type BucketConfig, memoryRateLimiter } from "@/lib/rate-limit";
 import { isRoleAtLeast, type Role } from "@/lib/rbac";
 
 export interface ActiveOrgContext {
@@ -27,20 +28,39 @@ export const createCallerFactory = t.createCallerFactory;
 
 export const baseProcedure = t.procedure;
 
-export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+/** Per-user mutation burst cap (security.md §8). Queries are not limited. */
+const MUTATION_BURST: BucketConfig = { capacity: 60, refillPerSecond: 1 };
 
-  if (!session) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Unauthorized",
+export const protectedProcedure = baseProcedure.use(
+  async ({ ctx, type, next }) => {
+    const session = await auth.api.getSession({
+      headers: await headers(),
     });
-  }
 
-  return next({ ctx: { ...ctx, auth: session } });
-});
+    if (!session) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Unauthorized",
+      });
+    }
+
+    if (type === "mutation") {
+      const decision = memoryRateLimiter.consume(
+        `trpc:mutation:${session.user.id}`,
+        MUTATION_BURST,
+      );
+      if (!decision.allowed) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Too many requests",
+          cause: { retryAfterSeconds: decision.retryAfterSeconds },
+        });
+      }
+    }
+
+    return next({ ctx: { ...ctx, auth: session } });
+  },
+);
 
 /** Active Polar customer for a userId, or null when E2E bypass is set. */
 export async function resolvePremiumCustomer(

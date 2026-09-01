@@ -2,32 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { memoryRateLimiter, resolvePlanBucket } from "@/lib/rate-limit";
 import { secureCompare } from "@/lib/secure-compare";
-
-const RATE_LIMIT_WINDOW = 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 60; // 60 req/min per endpoint
-const rateLimits = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(key: string): {
-  allowed: boolean;
-  retryAfter?: number;
-} {
-  const now = Date.now();
-  const record = rateLimits.get(key);
-
-  if (!record || now >= record.resetAt) {
-    rateLimits.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-    return { allowed: true };
-  }
-
-  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((record.resetAt - now) / 1000);
-    return { allowed: false, retryAfter };
-  }
-
-  record.count += 1;
-  return { allowed: true };
-}
 
 export async function POST(
   request: NextRequest,
@@ -37,20 +13,6 @@ export async function POST(
     const { workflowId, path } = await params;
     const url = new URL(request.url);
 
-    // Rate Limit check
-    const { allowed, retryAfter } = checkRateLimit(
-      `webhook:${workflowId}:${path}`,
-    );
-    if (!allowed) {
-      return new NextResponse(JSON.stringify({ error: "Too many requests" }), {
-        status: 429,
-        headers: {
-          "Content-Type": "application/json",
-          "Retry-After": String(retryAfter),
-        },
-      });
-    }
-
     const workflow = await prisma.workflow.findUnique({
       where: { id: workflowId },
       select: {
@@ -59,12 +21,29 @@ export async function POST(
         organizationId: true,
         webhookSecret: true,
         activeVersionId: true,
+        organization: { select: { plan: true } },
       },
     });
 
     if (!workflow) {
       // Generic 404 - never reveals workflow exists
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Plan-aware token bucket per endpoint (security.md §8). Consumed only for
+    // real workflows; unknown ids already returned 404 above.
+    const decision = memoryRateLimiter.consume(
+      `webhook:${workflowId}:${path}`,
+      resolvePlanBucket(workflow.organization?.plan),
+    );
+    if (!decision.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        {
+          status: 429,
+          headers: { "Retry-After": String(decision.retryAfterSeconds) },
+        },
+      );
     }
 
     if (!workflow.activeVersionId) {
