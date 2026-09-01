@@ -120,6 +120,8 @@ export function LoginForm() {
                       src="/logos/github.svg"
                       width={20}
                       height={20}
+                      // Solid black mark; it disappears on a dark button.
+                      className="dark:invert"
                     />
                     Continue with GitHub
                   </Button>
