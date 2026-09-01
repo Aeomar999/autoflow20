@@ -261,8 +261,8 @@ absurd. Producers today:
 | `EXECUTION_FAILED` | runner `onFailure` | live, gated on `Workflow.notifyOnFailure` (default ON) |
 | `EXECUTION_SUCCEEDED` | runner success tail | live, gated on `Workflow.notifyOnSuccess` (default OFF) |
 | `CREDENTIAL_EXPIRING` | `notifyExpiringCredentials` cron (daily 03:00) | live, +7d window with a 14d grace floor |
-| `APPROVAL_REQUESTED` | — | **builder ready, no producer**: nothing in the app creates `ApprovalRequest` rows yet (no approval node ships), so the approvals table has no writer either. Wiring is a one-line call from wherever that node lands. |
-| `SYSTEM` | — | **no producer**: maintenance notices are an operator action with no UI or script yet. |
+| `APPROVAL_REQUESTED` | — | **builder ready, no producer — still blocked** (re-verified 2026-09-01, AF-M8-13). Nothing in the app creates `ApprovalRequest` rows: the approvals router has `list` and `respond` only, both of which read or update rows that must already exist, and the sole `approvalRequest.create` references in the repo are in generated Prisma code. The blocker is the approval node itself (**AF-P2-E**), not the notification — once that node lands, wiring is one `writeNotifications` call with the existing `buildApprovalNotification`. Note its dedupe key does *not* need the organization id, because `approval:<approvalRequestId>` already embeds a row that belongs to exactly one org. |
+| `SYSTEM` | `npm run notify:system` (operator script) | **live** (AF-M8-13). Maintenance, incident, and deprecation announcements. A script rather than an in-app procedure because there is no platform-admin role — `Role` is org-scoped, so an operator procedure would mean inventing a cross-tenant privilege and exposing it on the public app. Dry-run by default; `--yes` sends. Idempotent per `(announcement, organization)`. |
 
 `Workflow.notifyOnFailure` / `notifyOnSuccess` are read by `workflows.getOne`
 and written by `workflows.updateNotificationPrefs` (`orgEditorProcedure` — this
