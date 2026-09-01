@@ -212,3 +212,62 @@ describe("MonitoringDashboard", () => {
     expect(link).toHaveAttribute("href", "/workflows/wf_123");
   });
 });
+
+/**
+ * AF-M8-20: retention is per-plan, so a range wider than the plan keeps renders
+ * as a period that merely contains fewer runs — indistinguishable from a quiet
+ * month unless the page says which it is.
+ */
+describe("MonitoringDashboard — retention honesty", () => {
+  it("warns when the range is wider than the plan keeps run history", () => {
+    renderWith(overview({ periodDays: 90 }));
+
+    // FREE deletes runs at 35 days, so a 90-day view cannot show 90 days.
+    expect(screen.getByRole("note")).toHaveTextContent(
+      /keeps run history for 35 days/,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(/at most 35 days/);
+  });
+
+  it("warns about erased payloads when only those have aged out", () => {
+    // FREE erases inputs/outputs at 7 days but keeps runs to 35: over 30 days
+    // the history is complete and the detail is not.
+    renderWith(overview({ periodDays: 30 }));
+
+    expect(screen.getByRole("note")).toHaveTextContent(
+      /inputs and outputs have been erased/,
+    );
+  });
+
+  it("stays silent when the range fits inside the plan's windows", () => {
+    renderWith(
+      overview({
+        periodDays: 30,
+        usage: {
+          currentMonthCount: 0,
+          planLimit: null,
+          plan: "PRO",
+          remaining: null,
+        },
+      }),
+    );
+
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("treats an unrecognised plan as FREE rather than unlimited", () => {
+    renderWith(
+      overview({
+        periodDays: 90,
+        usage: {
+          currentMonthCount: 0,
+          planLimit: 100,
+          plan: "LEGACY",
+          remaining: 100,
+        },
+      }),
+    );
+
+    expect(screen.getByRole("note")).toHaveTextContent(/35 days/);
+  });
+});

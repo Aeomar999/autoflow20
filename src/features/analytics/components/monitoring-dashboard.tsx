@@ -15,6 +15,7 @@ import {
   CheckCircle2Icon,
   ClockIcon,
   GaugeIcon,
+  InfoIcon,
   TimerIcon,
   XCircleIcon,
 } from "lucide-react";
@@ -44,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { useSuspenseMonitoringOverview } from "../hooks/use-monitoring";
 import { useMonitoringParams } from "../hooks/use-monitoring-params";
 import { formatCount, formatDuration, pluralize } from "../lib/format";
+import { retentionNotice } from "../lib/retention-notice";
 import type { DailyStatusPoint } from "../lib/types";
 import { MONITORING_PERIOD_DAYS } from "../params";
 import { ExecutionsOverTimeChart, RankedListCard } from "./monitoring-charts";
@@ -216,8 +218,22 @@ export function MonitoringDashboard() {
 
   const hasRuns = overview.totalRuns > 0;
 
+  // AF-M8-20: retention is per-plan, so a range wider than the plan keeps
+  // renders as a period that simply contains fewer runs - indistinguishable
+  // from a quiet month. Say which it is.
+  const retention = retentionNotice(periodDays, usage.plan);
+
   return (
     <div className="flex flex-col gap-4">
+      {retention ? (
+        <p
+          className="flex items-start gap-2 rounded-lg border border-hairline bg-well px-3 py-2 text-xs text-muted-foreground"
+          role="note"
+        >
+          <InfoIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <span>{retention.message}</span>
+        </p>
+      ) : null}
       <StatGrid>
         <StatCard
           label="Total runs"
