@@ -9,6 +9,7 @@ import {
 } from "@/inngest/knowledge";
 import { notifyExpiringCredentials } from "@/inngest/notifications";
 import { refreshOAuthTokens } from "@/inngest/oauth-refresh";
+import { sweepExecutionHistory } from "@/inngest/retention";
 
 // Create an API that serves functions
 export const { GET, POST, PUT } = serve({
@@ -21,5 +22,6 @@ export const { GET, POST, PUT } = serve({
     scheduledKnowledgeSync,
     sweepAiResponseCache,
     notifyExpiringCredentials,
+    sweepExecutionHistory,
   ],
 });

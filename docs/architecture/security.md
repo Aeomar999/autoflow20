@@ -179,7 +179,7 @@ Rate-limit responses use `429` with `Retry-After`. They are audit-logged when th
 
 - **[HARD]** All logging goes through `src/lib/logger.ts`, which redacts keys matching `/(token|secret|password|apikey|api_key|authorization|cookie|credential|private[_-]?key)/i` at any depth, including inside arrays.
 - **[HARD]** Sentry's `beforeSend` applies the same redaction, and request bodies/headers are stripped.
-- Execution IO is customer data: access is tenant-scoped, retention is bounded, and it is excluded from support tooling by default.
+- Execution IO is customer data: access is tenant-scoped, retention is bounded, and it is excluded from support tooling by default. **Bounded as of AF-M8-06** (it was not before): a nightly sweep nulls `input`/`output` on `Execution` and `NodeExecution` at the plan's `ioRetentionDays` — 7 days on FREE — and deletes the run at `deleteAfterDays`. Redaction runs on a much shorter clock than deletion precisely so the privacy window does not have to be as long as the analytics window (ADR-0016). "Excluded from support tooling" is enforced by there being no support tooling that reads it, not by a control.
 - Cached AI responses (`AiResponseCache`, M5-07) are customer data on the same terms: rows are keyed by `(organizationId, cacheKey)` so a lookup cannot cross tenants, entries expire on their TTL and are swept daily, and `ai.clearCache` gives an org admin an immediate purge. The cached prompt fingerprint is a sha256, not the prompt; the response body is stored in full, exactly as `NodeExecution.output` already is.
 - Never log a full request body from a webhook — it is arbitrary customer data.
 

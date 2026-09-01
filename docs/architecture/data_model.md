@@ -256,7 +256,7 @@ Notes:
 - `model` is the model the fallback chain actually served with, not the one configured — per-model cost reporting (`AF-M5-08`) would otherwise attribute spend to a model that never ran.
 - `cacheHit` is deliberately three-valued: `null` means the node had no response cache configured, so it belongs in neither half of a hit rate; `false` is a real miss. See `AiResponseCache` below.
 - `nodeName`/`nodeType` are **denormalized** onto `NodeExecution` so a trace remains readable after the node is deleted from the workflow.
-- These are the highest-growth tables in the system. Retention and partitioning are `AF-M8-04`.
+- These are the highest-growth tables in the system. **Retention is enforced as of `AF-M8-06`** (the note here previously pointed at `AF-M8-04`, which is the auth-email task): a nightly `sweep-execution-history` cron applies a per-plan, two-stage policy from `src/lib/retention.ts` — `input`/`output` are nulled at `ioRetentionDays`, and the `Execution` row is deleted at `deleteAfterDays` with `NodeExecution` following by cascade. Redaction deliberately keeps status, timings, tokens, `costUsd`, `model`, and error text, so the monitoring and cost dashboards stay truthful over rows whose payloads are gone. The delete window may never be shorter than `QUOTA_SAFE_DELETE_FLOOR_DAYS` (35) because the runner meters the monthly quota by counting `Execution` rows in the current calendar month — a shorter window would refund quota. **Partitioning is deliberately deferred** behind a stated trigger; see ADR-0016.
 
 ### 2.5 Credentials — M3
 
