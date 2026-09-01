@@ -1,6 +1,6 @@
+import type { Plan } from "@/generated/prisma/client";
 import { logAuditEvent } from "@/lib/audit";
 import prisma from "@/lib/db";
-import type { Plan } from "@/generated/prisma/client";
 
 const PLAN_MAP: Record<string, Plan> = {
   "92c60556-b654-4c4f-acb6-34119166eca4": "STARTER",
