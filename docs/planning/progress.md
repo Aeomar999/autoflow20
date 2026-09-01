@@ -253,3 +253,5 @@ When you complete a task:
 | 2026-09-01 | **AF-M8-21**: Configured alert delivery and external uptime monitors in slos.md. | M8 |
 
 | 2026-09-01 | **AF-M8-23**: Payment doesn't change the plan - Implemented Polar webhooks in auth.ts to automatically upgrade/downgrade organization plans based on subscription events. | M8 |
+
+| 2026-09-01 | **AF-M8-12**: Deleted deprecated legacy AI nodes (OPENAI, ANTHROPIC, GEMINI) and their migration script since no references exist in the database. | M8 |
