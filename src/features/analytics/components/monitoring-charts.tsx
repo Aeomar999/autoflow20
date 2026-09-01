@@ -188,8 +188,13 @@ export function ExecutionsOverTimeChart({
   );
 
   const chartData = data.map((point) => {
-    const successful = (point.SUCCESS ?? 0);
-    const failed = (point.FAILED ?? 0) + (point.TIMED_OUT ?? 0) + (point.QUOTA_EXCEEDED ?? 0) + (point.CANCELLED ?? 0) + (point.RUNNING ?? 0);
+    const successful = point.SUCCESS ?? 0;
+    const failed =
+      (point.FAILED ?? 0) +
+      (point.TIMED_OUT ?? 0) +
+      (point.QUOTA_EXCEEDED ?? 0) +
+      (point.CANCELLED ?? 0) +
+      (point.RUNNING ?? 0);
     return {
       ...point,
       successful,
@@ -211,10 +216,13 @@ export function ExecutionsOverTimeChart({
               EXECUTIONS TREND <InfoIcon className="w-3.5 h-3.5" />
             </div>
             <div className="flex items-baseline gap-2 text-white/60 text-sm mb-1">
-              Total Executions : <span className="text-white text-3xl font-semibold tracking-tight">{formatCount(total)}</span>
+              Total Executions :{" "}
+              <span className="text-white text-3xl font-semibold tracking-tight">
+                {formatCount(total)}
+              </span>
             </div>
           </div>
-          
+
           <div className="flex gap-4 text-[10px] font-semibold uppercase tracking-wider text-white/50 pt-2">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-[#f97316]"></div>
@@ -247,7 +255,12 @@ export function ExecutionsOverTimeChart({
                 />
               </pattern>
             </defs>
-            <CartesianGrid vertical={false} strokeDasharray="2 4" stroke="#ffffff" strokeOpacity={0.05} />
+            <CartesianGrid
+              vertical={false}
+              strokeDasharray="2 4"
+              stroke="#ffffff"
+              strokeOpacity={0.05}
+            />
             <XAxis
               dataKey="date"
               tickLine={false}
@@ -285,7 +298,7 @@ export function ExecutionsOverTimeChart({
                 />
               }
             />
-            
+
             <Bar
               dataKey="successful"
               stackId="runs"
