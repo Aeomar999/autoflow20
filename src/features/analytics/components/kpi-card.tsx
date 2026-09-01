@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { Bar, BarChart, Cell } from "recharts"
 import { HelpCircle } from "lucide-react"
