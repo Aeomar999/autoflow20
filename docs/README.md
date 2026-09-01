@@ -92,7 +92,7 @@ Three cautions:
 
 | Path | Milestone |
 |---|---|
-| `reference/nodes/<node>.md` — per-node config reference | one per node, from M1 |
+| ~~`reference/nodes/<node>.md` — per-node config reference~~ — **superseded** by the in-app reference at `/docs/nodes` (AF-M8-09), rendered from the node registry so it cannot drift; a checked-in file per node would be stale the first time a config field changed | one per node, from M1 |
 | `operations/deployment.md` — production topology and release process | M8 |
 | ~~`operations/runbooks/` — incident procedures (credential exposure is mandatory)~~ — **built** as [`operations/runbooks.md`](operations/runbooks.md) (AF-M8-07); credential exposure is F3 | M8 |
 | `reference/rest-v1.md` — public API reference | M8 |
