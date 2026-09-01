@@ -83,12 +83,21 @@ describe("template catalogue", () => {
     const deprecated = new Set(
       nodeManifest.filter((n) => n.deprecated).map((n) => n.type),
     );
-    // Guard the guard: if nothing is deprecated this assertion proves nothing,
-    // and AF-M5-09 retired three types.
-    expect(deprecated.size).toBeGreaterThan(0);
+    // AF-M8-24: this used to require a non-empty deprecated set, which made
+    // AF-M8-12's completed retirement fail the catalogue suite. The stronger
+    // invariant, and the one that covers the retired types now that they are
+    // gone entirely, is that a template never authors a type the registry
+    // cannot resolve - deprecated or deleted.
     for (const template of templateCatalog) {
       for (const node of template.graph.nodes) {
-        expect(deprecated.has(node.type)).toBe(false);
+        expect(
+          deprecated.has(node.type),
+          `${template.slug} authors deprecated node ${node.type}`,
+        ).toBe(false);
+        expect(
+          nodeRegistry.has(node.type),
+          `${template.slug} authors unregistered node ${node.type}`,
+        ).toBe(true);
       }
     }
   });

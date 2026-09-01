@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { nodeManifest, nodePalette } from "./manifest";
@@ -92,15 +92,17 @@ describe("production node registry + manifest", () => {
   });
 
   it("keeps deprecated types registered and executable (AF-M5-09)", () => {
-    const retired = nodeManifest.filter((definition) => definition.deprecated);
-    expect(retired.map((definition) => definition.type)).toEqual([
-      "ANTHROPIC",
-      "GEMINI",
-      "OPENAI",
-    ]);
-
-    for (const definition of retired) {
-      // A saved workflow still holding one of these must keep running.
+    // ADR-0011's rule: deprecation removes a type from the palette, never from
+    // the registry. A saved workflow still holding one must keep running, so
+    // the type stays resolvable until no row references it and it is deleted
+    // outright (AF-M8-12).
+    //
+    // This used to pin the exact retired set to ["ANTHROPIC","GEMINI","OPENAI"].
+    // AF-M8-12 completed their retirement, so that list made a finished
+    // lifecycle fail the suite. The rule is what matters, not the population:
+    // stated this way the guard is latent today and fires on its own the next
+    // time something is deprecated, which is exactly when it is needed.
+    for (const definition of nodeManifest.filter((d) => d.deprecated)) {
       expect(nodeRegistry.has(definition.type)).toBe(true);
       expect(typeof nodeRegistry.resolve(definition.type).execute).toBe(
         "function",
@@ -158,32 +160,37 @@ describe("production node registry + manifest", () => {
   });
 
   it('starts every execute module with import "server-only"', () => {
-    const folders: Array<[string, string]> = [
-      ["core", "manual-trigger"],
-      ["forms", "google-form"],
-      ["payments", "stripe-trigger"],
-      ["http", "request"],
-      ["ai", "anthropic"],
-      ["ai", "compatible"],
-      ["ai", "extract"],
-      ["ai", "gemini"],
-      ["ai", "llm"],
-      ["ai", "openai"],
-      ["discord", "send-message"],
-      ["slack", "send-message"],
-      ["email", "send"],
-      ["webhook", "out"],
-      ["postgres", "query"],
-      ["google-sheets", "append"],
-      ["airtable", "create-record"],
-      ["hubspot", "create-contact"],
-    ];
-    for (const [ns, node] of folders) {
-      const source = readFileSync(
-        join(process.cwd(), "src/nodes", ns, node, "execute.ts"),
-        "utf8",
-      );
-      expect(source.startsWith('import "server-only";')).toBe(true);
+    // Discovered from disk rather than listed by hand. The list used to be
+    // hardcoded, which broke twice over when AF-M8-12 deleted the retired AI
+    // node folders - it named three directories that no longer exist - and,
+    // worse, it failed OPEN: adding a node and forgetting to add it here meant
+    // the guard silently skipped it, which is the one case this test exists to
+    // catch. Walking the tree cannot go stale and cannot miss a new node.
+    const root = join(process.cwd(), "src/nodes");
+    const executes: string[] = [];
+
+    for (const namespace of readdirSync(root, { withFileTypes: true })) {
+      if (!namespace.isDirectory()) continue;
+      const namespaceDir = join(root, namespace.name);
+
+      for (const node of readdirSync(namespaceDir, { withFileTypes: true })) {
+        if (!node.isDirectory()) continue;
+        const executePath = join(namespaceDir, node.name, "execute.ts");
+        if (existsSync(executePath)) {
+          executes.push(executePath);
+        }
+      }
+    }
+
+    // Guard the guard: a walk that found nothing would pass vacuously.
+    expect(executes.length).toBeGreaterThan(10);
+
+    for (const executePath of executes) {
+      const source = readFileSync(executePath, "utf8");
+      expect(
+        source.startsWith('import "server-only";'),
+        `${executePath} must start with import "server-only"`,
+      ).toBe(true);
     }
   });
 });
