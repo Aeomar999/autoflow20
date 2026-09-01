@@ -65,6 +65,10 @@ model Session {
 
 model Account {
   id                    String    @id
+  // Better Auth 1.7 keys accounts by (issuer, accountId): "local:credential" for
+  // password logins, "local:oauth:<provider>" for social ones. Every write of an
+  // account row sends it, so the column is not optional.
+  issuer                String
   accountId             String
   providerId            String
   userId                String
@@ -79,6 +83,7 @@ model Account {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  @@unique([issuer, accountId])
   @@map("account")
 }
 
