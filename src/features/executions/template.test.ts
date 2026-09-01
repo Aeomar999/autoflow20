@@ -178,3 +178,56 @@ describe("ExpressionError", () => {
     expect(err.nodeName).toBeUndefined();
   });
 });
+
+/**
+ * AF-M8-09: these pin the behaviour `docs/reference/expressions.md` documents.
+ * Escaping is the sharpest edge in the whole expression language - a template
+ * that builds a JSON body with `{{ }}` silently produces invalid JSON the
+ * moment a value contains a quote - so the reference makes a promise about it,
+ * and this is the test that keeps that promise true.
+ */
+describe("compileTemplate — escaping and missing values (AF-M8-09 reference)", () => {
+  const context = {
+    name: `O'Brien & Sons "Ltd"`,
+    nested: { deep: "value" },
+    payload: { a: 1, b: [2, 3] },
+  };
+
+  it("HTML-escapes a double-stache value", () => {
+    const rendered = compileTemplate("{{name}}")(context);
+
+    expect(rendered).not.toContain(`"`);
+    expect(rendered).not.toContain("&&");
+    expect(rendered).toContain("&amp;");
+  });
+
+  it("does not escape a triple-stache value", () => {
+    expect(compileTemplate("{{{name}}}")(context)).toBe(`O'Brien & Sons "Ltd"`);
+  });
+
+  it("does not escape what the json helper emits", () => {
+    const rendered = compileTemplate("{{json payload}}")(context);
+
+    expect(rendered).toContain(`"a": 1`);
+    expect(rendered).not.toContain("&quot;");
+    expect(JSON.parse(rendered)).toEqual({ a: 1, b: [2, 3] });
+  });
+
+  it("renders a missing key as empty rather than throwing", () => {
+    expect(compileTemplate("[{{nope}}]")(context)).toBe("[]");
+  });
+
+  it("renders a missing deep path as empty rather than throwing", () => {
+    expect(compileTemplate("[{{a.b.c}}]")(context)).toBe("[]");
+  });
+
+  it("resolves a nested own-property path", () => {
+    expect(compileTemplate("{{nested.deep}}")(context)).toBe("value");
+  });
+
+  it("renders an object interpolated directly as [object Object]", () => {
+    // Worth pinning because it is a common surprise: interpolating a bag
+    // rather than a scalar does not serialise it - `json` is for that.
+    expect(compileTemplate("{{payload}}")(context)).toBe("[object Object]");
+  });
+});
