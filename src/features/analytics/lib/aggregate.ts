@@ -21,7 +21,12 @@ import type { DailyStatusPoint } from "./types";
  * a white page and turned muddy the moment the dashboard rendered dark.
  */
 export const STATUS_COLORS: Record<string, string> = {
-  SUCCESS: "var(--success)",
+  // Succeeded is the volume series, so it carries the brand accent rather than
+  // green. Nothing reads a monitoring chart to confirm that runs worked; it is
+  // read for how much ran and how much broke, and a wall of green says neither.
+  // The Success *pill* stays green: a pill labels one discrete state, where
+  // green means "good", while here the colour means "this is the baseline".
+  SUCCESS: "var(--primary)",
   FAILED: "var(--danger)",
   CANCELLED: "var(--muted-foreground)",
   TIMED_OUT: "var(--warning)",

@@ -62,6 +62,116 @@ const chartConfig = Object.fromEntries(
   ]),
 ) satisfies ChartConfig;
 
+/**
+ * Mosaic rendering.
+ *
+ * The bar height is still the truth; the squares are how it is painted. In a
+ * six-way stack, solid segments of adjacent hues (amber on orange, two reds)
+ * bleed into one another and a thin sliver disappears entirely. Gapped squares
+ * keep every segment separable, and a segment one square tall is still visible.
+ *
+ * Cells stretch to fill their segment exactly, so nothing is clipped and the
+ * stack tiles cleanly from the baseline up. That also means a square is not a
+ * fixed number of runs: the axis and the tooltip carry the counts.
+ */
+const CELL = 7;
+const GAP = 1.6;
+/** Past this many rows the squares stop being legible and cost DOM for nothing. */
+const MAX_ROWS = 26;
+
+type ShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+};
+
+const mosaicRects = (
+  { x = 0, y = 0, width = 0, height = 0 }: ShapeProps,
+  fill: string,
+  keyPrefix: string,
+) => {
+  const cols = Math.max(1, Math.floor(width / CELL));
+  const rows = Math.max(1, Math.round(height / CELL));
+  const cellW = width / cols;
+  const cellH = height / rows;
+
+  const rects: React.ReactNode[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      rects.push(
+        <rect
+          key={`${keyPrefix}-${row}-${col}`}
+          x={x + col * cellW}
+          y={y + height - (row + 1) * cellH}
+          width={Math.max(1, cellW - GAP)}
+          height={Math.max(1, cellH - GAP)}
+          rx={1}
+          fill={fill}
+        />,
+      );
+    }
+  }
+  return rects;
+};
+
+/** One stacked segment, drawn as squares. */
+const MosaicBar = (props: ShapeProps & { fill?: string }) => {
+  const { height = 0, width = 0, fill = "currentColor" } = props;
+  if (height <= 0 || width <= 0) return null;
+
+  // Tall segments fall back to a solid block rather than emitting hundreds of
+  // rects that read as a solid block anyway.
+  if (Math.round(height / CELL) > MAX_ROWS) {
+    return (
+      <rect
+        x={props.x}
+        y={props.y}
+        width={width}
+        height={height}
+        fill={fill}
+        rx={1}
+      />
+    );
+  }
+
+  return <g>{mosaicRects(props, fill, "m")}</g>;
+};
+
+const GHOST_PATTERN_ID = "mosaic-ghost";
+
+/**
+ * Hover crosshair. Recharts' default bar cursor is a filled slab that hides the
+ * column you are pointing at; this marks the day without covering it.
+ */
+const MosaicCursor = (props: ShapeProps) => {
+  const { x = 0, y = 0, width = 0, height = 0 } = props;
+  const center = x + width / 2;
+
+  return (
+    <g>
+      <line
+        x1={center}
+        x2={center}
+        y1={y}
+        y2={y + height}
+        stroke="var(--primary)"
+        strokeWidth={1}
+        strokeDasharray="3 3"
+      />
+      <circle
+        cx={center}
+        cy={y}
+        r={3}
+        fill="var(--panel)"
+        stroke="var(--primary)"
+        strokeWidth={1.5}
+      />
+    </g>
+  );
+};
+
 export function ExecutionsOverTimeChart({
   data,
   periodDays,
@@ -114,6 +224,29 @@ export function ExecutionsOverTimeChart({
           </div>
           <ChartContainer config={chartConfig} className="h-[248px] w-full">
             <BarChart data={data} margin={{ left: 4, right: 4, top: 4 }}>
+              {/* The empty part of each column, so the plot reads as a
+                  board the bars fill. Tiled as a pattern rather than per-square
+                  rects: a full-height column is ~27 rows, which across 30 days
+                  would be four thousand nodes for a 10%-opacity texture.
+
+                  This <defs> has to be a direct child: recharts renders only
+                  the SVG children it recognises and drops wrapped ones. */}
+              <defs>
+                <pattern
+                  id={GHOST_PATTERN_ID}
+                  width={CELL}
+                  height={CELL}
+                  patternUnits="userSpaceOnUse"
+                >
+                  <rect
+                    width={CELL - GAP}
+                    height={CELL - GAP}
+                    rx={1}
+                    fill="var(--muted-foreground)"
+                    opacity={0.1}
+                  />
+                </pattern>
+              </defs>
               <CartesianGrid vertical={false} strokeDasharray="2 4" />
               <XAxis
                 dataKey="date"
@@ -124,29 +257,42 @@ export function ExecutionsOverTimeChart({
                 tickFormatter={formatDayLabel}
               />
               <YAxis
-                tickLine={false}
                 axisLine={false}
                 width={40}
+                tickSize={2}
+                // A short round-capped stub reads as a tick dot beside the
+                // label rather than a rule running into the plot.
+                tickLine={{
+                  stroke: "var(--muted-foreground)",
+                  strokeWidth: 2,
+                  strokeLinecap: "round",
+                }}
                 // Runs are whole things; "1.5 executions" is not a reading.
                 allowDecimals={false}
                 tickFormatter={formatCount}
               />
               <ChartTooltip
+                cursor={<MosaicCursor />}
                 content={
                   <ChartTooltipContent
                     labelFormatter={(label) => formatDayLabel(String(label))}
                   />
                 }
               />
-              {CHARTED_STATUSES.map((status) => (
+              {CHARTED_STATUSES.map((status, index) => (
                 <Bar
                   key={status}
                   dataKey={status}
                   stackId="runs"
                   fill={`var(--color-${status})`}
-                  // Only the top segment of a stack should be rounded, and
-                  // which status that is varies per day, so leave all square.
-                  radius={0}
+                  shape={<MosaicBar />}
+                  // Only the bottom bar paints the empty grid, or six stacked
+                  // series would each redraw the same column.
+                  background={
+                    index === 0
+                      ? { fill: `url(#${GHOST_PATTERN_ID})` }
+                      : undefined
+                  }
                 />
               ))}
             </BarChart>
@@ -155,7 +301,7 @@ export function ExecutionsOverTimeChart({
       )}
 
       <PanelFooter>
-        <span>Runs per day by outcome</span>
+        <span>Runs per day by outcome, one block per segment</span>
         <span className="tabular-nums">Last {periodDays} days, UTC</span>
       </PanelFooter>
     </Panel>
