@@ -1,9 +1,6 @@
-import { definition as aiAnthropic } from "./ai/anthropic/definition";
 import { definition as aiCompatible } from "./ai/compatible/definition";
 import { definition as aiExtract } from "./ai/extract/definition";
-import { definition as aiGemini } from "./ai/gemini/definition";
 import { definition as aiLlm } from "./ai/llm/definition";
-import { definition as aiOpenai } from "./ai/openai/definition";
 import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
 import { definition as coreCondition } from "./core/condition/definition";
@@ -47,12 +44,9 @@ export const nodeManifest: NodeDefinition[] = [
   paymentsStripeTrigger,
   postgresQuery,
   httpHttpRequest,
-  aiAnthropic,
   aiCompatible,
   aiExtract,
-  aiGemini,
   aiLlm,
-  aiOpenai,
   aiRetrieve,
   discordSendMessage,
   slackSendMessage,

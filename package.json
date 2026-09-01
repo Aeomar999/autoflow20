@@ -16,7 +16,6 @@
     "test:db:down": "docker rm -f autoflow-test-db",
     "ngrok:dev": "node scripts/ngrok-dev.mjs",
     "migrate:credentials": "tsx scripts/migrate-credentials.ts",
-    "migrate:legacy-ai-nodes": "tsx scripts/migrate-legacy-ai-nodes.ts",
     "seed:templates": "tsx --conditions=react-server scripts/seed-templates.ts",
     "format": "biome format --write",
     "inngest:dev": "inngest-cli dev",
