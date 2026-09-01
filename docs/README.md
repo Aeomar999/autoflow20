@@ -52,6 +52,8 @@ autoflow/
 | [`operations/environment_setup.md`](operations/environment_setup.md) | Local setup, env vars, or a boot failure. |
 | [`operations/runbooks.md`](operations/runbooks.md) | You are on call, or an incident is happening. Five failure modes, symptom first. |
 | [`operations/slos.md`](operations/slos.md) | Setting or arguing about reliability targets, error budgets, or what should alert. |
+| [`operations/beta_launch_checklist.md`](operations/beta_launch_checklist.md) | Deciding whether the service can be opened to external users. Names four blockers. |
+| [`operations/support.md`](operations/support.md) | Answering a customer, or deciding whether a report is an incident. |
 
 ## decisions/ — why
 
@@ -96,7 +98,7 @@ Three cautions:
 | `operations/deployment.md` — production topology and release process | M8 |
 | ~~`operations/runbooks/` — incident procedures (credential exposure is mandatory)~~ — **built** as [`operations/runbooks.md`](operations/runbooks.md) (AF-M8-07); credential exposure is F3 | M8 |
 | `reference/rest-v1.md` — public API reference | M8 |
-| `operations/support.md` — triage and escalation | Beta |
+| ~~`operations/support.md` — triage and escalation~~ — **built** (AF-M8-10) | Beta |
 
 ---
 
