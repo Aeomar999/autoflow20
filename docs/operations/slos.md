@@ -85,12 +85,26 @@ Two thresholds are deliberately not tighter:
 
 ---
 
-## 5. What is not built
+## 5. Alert delivery and on-call
 
-- **No alert delivery.** Everything in §4 is a definition. `health-down` and `runner-stalled` need an external uptime monitor polling `/api/health`; the rest need either Sentry alert rules or a metrics backend that does not exist. **Nothing pages anyone today.**
-- **No external prober**, so S1 is currently unmeasured. This is the first thing to fix — it is also the cheapest, being one monitor pointed at one URL.
-- **No on-call rotation, escalation policy, or incident log.**
+**AF-M8-21** established the initial alerting and delivery configuration.
+
+### External Probing (Availability & Runner Status)
+An external uptime monitor polls `https://autoflow20.vercel.app/api/health` every 60s. 
+- **`health-down` / `runner-stalled`**: The monitor alerts on two consecutive HTTP 5xx failures (~2 minutes), preventing a single blip from paging. This single monitor provides both page-severity alerts and measures the S1 Availability SLO.
+- **`runner-degraded`**: The `/api/health` endpoint deliberately returns HTTP 200 when degraded (so load balancers do not evict instances that are still serving useful traffic). The monitor uses JSON body assertions to alert separately when `.status` is `"degraded"` for 30 minutes. *(Gap: If the specific monitor used cannot assert against JSON bodies, this alert is currently dropped rather than misconfigured to trigger on 200s).*
+
+### Sentry Alerts
+- **`credential-decrypt-failures`**: A Sentry alert triggers on ≥10 credential-resolution exceptions in 5 minutes across ≥2 organizations (Runbook F3). The multi-tenant condition ensures we don't page when a single user breaks their own third-party token.
+
+### On-call Rotation
+There is no formal rotation or escalation policy today.
+- **During working hours:** Alerts notify the primary maintainer.
+- **Out of hours:** Nobody is paged. Alerts are reviewed the next working morning.
+
+---
+
+## 6. What is not built
+
 - **No burn-rate alerting.** Budget consumption is computed by hand from the tables, not tracked.
 - **S4 is not instrumented.** Comparing accepted triggers to created rows needs a counter at the trigger boundary that does not exist yet.
-
-Filed as **AF-M8-21**. Until it is done, these SLOs are targets we can verify after the fact but not be told about, and the honest summary is: **we would find out about most of these from a customer.**
