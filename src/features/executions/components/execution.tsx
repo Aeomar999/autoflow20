@@ -8,10 +8,14 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ClockIcon,
+  CoinsIcon,
   CopyIcon,
+  DatabaseZapIcon,
   GlobeIcon,
+  HashIcon,
   KeyboardIcon,
   Loader2Icon,
+  MoreVerticalIcon,
   RefreshCwIcon,
   StopCircleIcon,
   TimerIcon,
@@ -20,15 +24,29 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
+import { Callout } from "@/components/dashboard/callout";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  DataTable,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@/components/dashboard/data-table";
+import { PageHeader } from "@/components/dashboard/page";
+import {
+  Fact,
+  Panel,
+  PanelActions,
+  PanelBody,
+  PanelFacts,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
+import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
+import { StatusPill } from "@/components/dashboard/status-pill";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
@@ -40,12 +58,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { useSuspenseExecution } from "@/features/executions/hooks/use-executions";
 import {
   ExecutionStatus,
   NodeExecutionStatus,
 } from "@/generated/prisma/browser";
+import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
+
+import { ExecutionStatusPill } from "../lib/status";
 
 /** Compatible with the router's output (costUsd is number, not Prisma Decimal). */
 type TraceRow = {
@@ -73,54 +95,47 @@ type TraceRow = {
 };
 
 const TRIGGER_ICONS: Record<string, React.ReactNode> = {
-  MANUAL: <KeyboardIcon className="size-4" />,
-  WEBHOOK: <WebhookIcon className="size-4" />,
-  SCHEDULE: <TimerIcon className="size-4" />,
-  API: <GlobeIcon className="size-4" />,
+  MANUAL: <KeyboardIcon className="size-3.5" />,
+  WEBHOOK: <WebhookIcon className="size-3.5" />,
+  SCHEDULE: <TimerIcon className="size-3.5" />,
+  API: <GlobeIcon className="size-3.5" />,
 };
 
-const getStatusIcon = (status: ExecutionStatus) => {
-  switch (status) {
-    case ExecutionStatus.SUCCESS:
-      return <CheckCircle2Icon className="size-5 text-green-600" />;
-    case ExecutionStatus.FAILED:
-      return <XCircleIcon className="size-5 text-red-600" />;
-    case ExecutionStatus.RUNNING:
-      return <Loader2Icon className="size-5 text-blue-600 animate-spin" />;
-    case ExecutionStatus.CANCELLED:
-      return <StopCircleIcon className="size-5 text-orange-500" />;
-    case ExecutionStatus.TIMED_OUT:
-      return <TimerIcon className="size-5 text-red-600" />;
-    case ExecutionStatus.QUOTA_EXCEEDED:
-      return <BanIcon className="size-5 text-red-600" />;
-    default:
-      return <ClockIcon className="size-5 text-muted-foreground" />;
-  }
-};
-
-const formatStatus = (status: ExecutionStatus) => {
-  return status.charAt(0) + status.slice(1).toLowerCase();
+const NODE_STATUS_META: Record<
+  string,
+  { label: string; tone: "success" | "danger" | "info" | "neutral" }
+> = {
+  SUCCESS: { label: "Success", tone: "success" },
+  FAILED: { label: "Failed", tone: "danger" },
+  RUNNING: { label: "Running", tone: "info" },
+  SKIPPED: { label: "Skipped", tone: "neutral" },
 };
 
 const nodeStatusIcon = (status: NodeExecutionStatus) => {
   switch (status) {
     case NodeExecutionStatus.SUCCESS:
-      return <CheckCircle2Icon className="size-4 shrink-0 text-green-600" />;
+      return <CheckCircle2Icon />;
     case NodeExecutionStatus.FAILED:
-      return <XCircleIcon className="size-4 shrink-0 text-red-600" />;
+      return <XCircleIcon />;
     case NodeExecutionStatus.RUNNING:
-      return (
-        <Loader2Icon className="size-4 shrink-0 animate-spin text-blue-600" />
-      );
+      return <Loader2Icon className="animate-spin" />;
     case NodeExecutionStatus.SKIPPED:
-      return <BanIcon className="size-4 shrink-0 text-muted-foreground" />;
+      return <BanIcon />;
     default:
-      return <ClockIcon className="size-4 shrink-0 text-muted-foreground" />;
+      return <ClockIcon />;
   }
 };
 
-const formatNodeStatus = (status: NodeExecutionStatus) => {
-  return status.charAt(0) + status.slice(1).toLowerCase();
+const NodeStatusPill = ({ status }: { status: NodeExecutionStatus }) => {
+  const meta = NODE_STATUS_META[status] ?? {
+    label: "Pending",
+    tone: "neutral",
+  };
+  return (
+    <StatusPill tone={meta.tone} icon={nodeStatusIcon(status)}>
+      {meta.label}
+    </StatusPill>
+  );
 };
 
 const formatCost = (costUsd: number | null): string | null => {
@@ -150,19 +165,31 @@ const CopyButton = ({ text }: { text: string }) => {
   return (
     <Button
       variant="ghost"
-      size="icon"
-      className="size-6 shrink-0"
+      size="sm"
+      aria-label="Copy to clipboard"
+      className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
       onClick={handleCopy}
     >
       <CopyIcon className="size-3" />
-      {copied && (
-        <span className="text-[10px] text-muted-foreground ml-1">Copied</span>
-      )}
+      {copied ? "Copied" : "Copy"}
     </Button>
   );
 };
 
-const JsonViewer = ({ label, data }: { label: string; data: unknown }) => {
+/**
+ * JSON payload viewer. The search box marks matches inline rather than
+ * filtering lines, because a payload read out of context is worse than a long
+ * one: you need the surrounding keys to know what you are looking at.
+ */
+const JsonViewer = ({
+  label,
+  data,
+  hint,
+}: {
+  label: string;
+  data: unknown;
+  hint?: string;
+}) => {
   const [search, setSearch] = useState("");
   const truncated = isTruncated(data);
   const raw = truncated ? (data as string) : JSON.stringify(data, null, 2);
@@ -178,28 +205,25 @@ const JsonViewer = ({ label, data }: { label: string; data: unknown }) => {
       : raw;
 
   return (
-    <div className="rounded-md border bg-muted/50">
-      <div className="flex items-center gap-2 px-3 py-2 border-b">
-        <span className="text-xs font-medium">{label}</span>
-        {truncated && (
-          <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-            Truncated
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          <input
-            className="text-[11px] px-1.5 py-0.5 border rounded bg-background w-28"
-            placeholder="Search..."
+    <Panel>
+      <PanelHeader>
+        <PanelTitle hint={hint}>{label}</PanelTitle>
+        <PanelActions>
+          {truncated ? <StatusPill tone="warning">Truncated</StatusPill> : null}
+          <Input
+            className="h-7 w-32 border-hairline bg-well text-xs shadow-none"
+            placeholder="Find in payload"
+            aria-label={`Search ${label}`}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
           />
           <CopyButton text={raw} />
-        </div>
-      </div>
-      <pre className="text-xs font-mono overflow-auto max-h-64 p-3 whitespace-pre-wrap">
+        </PanelActions>
+      </PanelHeader>
+      <pre className="max-h-72 overflow-auto bg-well p-4 font-mono text-xs whitespace-pre-wrap">
         {highlighted}
       </pre>
-    </div>
+    </Panel>
   );
 };
 
@@ -251,28 +275,26 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
   const isRetryable = ["FAILED", "TIMED_OUT", "CANCELLED"].includes(
     execution.status,
   );
+  const tokensIn = execution.tokensIn ?? 0;
+  const tokensOut = execution.tokensOut ?? 0;
+  const traces = (execution.nodeExecutions ?? []) as TraceRow[];
 
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {getStatusIcon(execution.status)}
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                {formatStatus(execution.status)}
-                {execution.mode === "TEST" && (
-                  <Badge variant="outline" className="text-[10px]">
-                    TEST
-                  </Badge>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Execution for {execution.workflow.name}
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
+    <>
+      <PageHeader
+        backTo={{ href: "/executions", label: "Executions" }}
+        title={execution.workflow.name}
+        badge={
+          <>
+            <ExecutionStatusPill status={execution.status} />
+            {execution.mode === "TEST" ? (
+              <StatusPill tone="neutral">Test run</StatusPill>
+            ) : null}
+          </>
+        }
+        description={<span className="font-mono text-xs">{execution.id}</span>}
+        actions={
+          <>
             {isRunning && (
               <Button
                 size="sm"
@@ -280,169 +302,201 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
                 disabled={cancelMutation.isPending}
                 onClick={() => cancelMutation.mutate({ id: executionId })}
               >
-                <StopCircleIcon className="size-4 mr-1" />
-                Cancel
+                <StopCircleIcon className="size-4" />
+                Cancel run
               </Button>
             )}
             {isRetryable && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={retryMutation.isPending}
-                  >
-                    <RefreshCwIcon className="size-4 mr-1" />
-                    Retry
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => retryMutation.mutate({ id: executionId })}
-                  >
-                    Retry from start
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Workflow
-            </p>
-            <Link
-              prefetch
-              className="text-sm hover:underline text-primary"
-              href={`/workflows/${execution.workflowId}`}
-            >
-              {execution.workflow.name}
-            </Link>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Trigger</p>
-            <p className="text-sm flex items-center gap-1.5">
-              {TRIGGER_ICONS[execution.trigger] ?? (
-                <KeyboardIcon className="size-4" />
-              )}
-              {execution.trigger}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Started</p>
-            <p className="text-sm">
-              {formatDistanceToNow(execution.startedAt, { addSuffix: true })}
-            </p>
-          </div>
-          {execution.completedAt && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Completed
-              </p>
-              <p className="text-sm">
-                {formatDistanceToNow(execution.completedAt, {
-                  addSuffix: true,
-                })}
-              </p>
-            </div>
-          )}
-          {duration && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Duration
-              </p>
-              <p className="text-sm">{duration}</p>
-            </div>
-          )}
-          {cost && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Cost</p>
-              <p className="text-sm font-mono">{cost}</p>
-            </div>
-          )}
-          {execution.tokensIn !== null &&
-            execution.tokensIn !== undefined &&
-            execution.tokensIn > 0 && (
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Tokens
-                </p>
-                <p className="text-sm">
-                  {execution.tokensIn.toLocaleString()} in /{" "}
-                  {execution.tokensOut?.toLocaleString() ?? 0} out
-                </p>
-              </div>
-            )}
-          {cacheableTraces.length > 0 && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Cache</p>
-              <p className="text-sm">
-                {cachedTraceCount} of {cacheableTraces.length} AI{" "}
-                {cacheableTraces.length === 1 ? "node" : "nodes"} served from
-                cache
-              </p>
-            </div>
-          )}
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Event ID
-            </p>
-            <p className="text-xs font-mono text-muted-foreground truncate">
-              {execution.inngestEventId}
-            </p>
-          </div>
-        </div>
-
-        {execution.error && (
-          <div className="p-4 bg-red-50 rounded-md space-y-3">
-            <div>
-              <p className="text-sm font-medium text-red-900 mb-1">Error</p>
-              <p className="text-sm text-red-800 font-mono">
-                {execution.error}
-              </p>
-            </div>
-            {execution.errorStack && (
-              <Collapsible
-                open={showStackTrace}
-                onOpenChange={setShowStackTrace}
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-hairline bg-panel"
+                disabled={retryMutation.isPending}
+                onClick={() => retryMutation.mutate({ id: executionId })}
               >
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-900 hover:bg-red-100"
-                  >
-                    {showStackTrace ? "Hide stack trace" : "Show stack trace"}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <pre className="text-xs font-mono text-red-800 overflow-auto mt-2 p-2 bg-red-100 max-h-48">
-                    {execution.errorStack}
-                  </pre>
-                </CollapsibleContent>
-              </Collapsible>
+                <RefreshCwIcon
+                  className={cn(
+                    "size-4",
+                    retryMutation.isPending && "animate-spin",
+                  )}
+                />
+                Retry from start
+              </Button>
             )}
-          </div>
-        )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-hairline bg-panel"
+              asChild
+            >
+              <Link href={`/workflows/${execution.workflowId}`} prefetch>
+                Open workflow
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-        {execution.input && (
-          <JsonViewer label="Workflow Input" data={execution.input} />
-        )}
+      <StatGrid>
+        <StatCard
+          label="Duration"
+          value={duration ?? "n/a"}
+          icon={<ClockIcon />}
+          detail={
+            duration
+              ? "End to end, trigger to finish"
+              : "This run has not finished yet"
+          }
+        />
+        <StatCard
+          label="Cost"
+          value={cost ?? "$0.00"}
+          icon={<CoinsIcon />}
+          detail={cost ? "Provider spend on this run" : "No AI node billed"}
+        />
+        <StatCard
+          label="Tokens"
+          value={(tokensIn + tokensOut).toLocaleString()}
+          icon={<HashIcon />}
+          detail={`${tokensIn.toLocaleString()} in / ${tokensOut.toLocaleString()} out`}
+        />
+        <StatCard
+          label="Cache"
+          value={
+            cacheableTraces.length > 0
+              ? `${cachedTraceCount}/${cacheableTraces.length}`
+              : "n/a"
+          }
+          icon={<DatabaseZapIcon />}
+          detail={
+            cacheableTraces.length > 0
+              ? "AI nodes served from cache"
+              : "No cacheable AI node ran"
+          }
+        />
+      </StatGrid>
 
-        {execution.output && (
-          <JsonViewer label="Workflow Output" data={execution.output} />
-        )}
+      {execution.error && (
+        <Callout tone="danger" title="This run failed">
+          <p className="font-mono text-xs break-words">{execution.error}</p>
+          {execution.errorStack && (
+            <Collapsible
+              open={showStackTrace}
+              onOpenChange={setShowStackTrace}
+              className="mt-2"
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 border-danger/30 bg-transparent px-2 text-xs text-danger hover:bg-danger/10 hover:text-danger"
+                >
+                  {showStackTrace ? "Hide stack trace" : "Show stack trace"}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-danger/8 p-3 font-mono text-xs whitespace-pre-wrap text-foreground/80">
+                  {execution.errorStack}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </Callout>
+      )}
 
-        {execution.nodeExecutions && execution.nodeExecutions.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium">
-              Node traces ({execution.nodeExecutions.length})
-            </p>
-            <div className="rounded-md border divide-y">
-              {(execution.nodeExecutions as TraceRow[]).map((trace) => (
+      <Panel>
+        <PanelHeader>
+          <PanelTitle hint="Where this run came from and what it was tied to.">
+            Run details
+          </PanelTitle>
+        </PanelHeader>
+        <PanelBody>
+          <PanelFacts>
+            <Fact label="Workflow">
+              <Link
+                prefetch
+                className="text-primary hover:underline"
+                href={`/workflows/${execution.workflowId}`}
+              >
+                {execution.workflow.name}
+              </Link>
+            </Fact>
+            <Fact label="Trigger">
+              <span className="inline-flex items-center gap-1.5">
+                {TRIGGER_ICONS[execution.trigger] ?? (
+                  <KeyboardIcon className="size-3.5" />
+                )}
+                {execution.trigger}
+              </span>
+            </Fact>
+            <Fact label="Started">
+              {formatDistanceToNow(execution.startedAt, { addSuffix: true })}
+            </Fact>
+            <Fact label="Completed">
+              {execution.completedAt
+                ? formatDistanceToNow(execution.completedAt, {
+                    addSuffix: true,
+                  })
+                : "Still running"}
+            </Fact>
+            <Fact label="Node steps">{traces.length.toLocaleString()}</Fact>
+            <Fact label="Event ID">
+              <span className="font-mono text-xs text-muted-foreground">
+                {execution.inngestEventId}
+              </span>
+            </Fact>
+          </PanelFacts>
+        </PanelBody>
+      </Panel>
+
+      {execution.input ? (
+        <JsonViewer
+          label="Workflow input"
+          data={execution.input}
+          hint="The payload the trigger handed to the first node."
+        />
+      ) : null}
+
+      {execution.output ? (
+        <JsonViewer
+          label="Workflow output"
+          data={execution.output}
+          hint="What the last node returned when the run finished."
+        />
+      ) : null}
+
+      {traces.length > 0 && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle hint="One row per node attempt, in execution order. Expand a row for its payloads.">
+              Node traces
+            </PanelTitle>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {traces.length} {traces.length === 1 ? "step" : "steps"}
+            </span>
+          </PanelHeader>
+          <DataTable>
+            <THead>
+              <tr>
+                <TH className="w-8">
+                  <span className="sr-only">Expand</span>
+                </TH>
+                <TH>Node</TH>
+                <TH>Status</TH>
+                <TH align="right" className="hidden lg:table-cell">
+                  Attempt
+                </TH>
+                <TH align="right" className="hidden sm:table-cell">
+                  Duration
+                </TH>
+                <TH align="right">Cost</TH>
+                <TH align="right">
+                  <span className="sr-only">Actions</span>
+                </TH>
+              </tr>
+            </THead>
+            <TBody>
+              {traces.map((trace) => (
                 <NodeTraceRow
                   key={trace.id}
                   trace={trace}
@@ -450,13 +504,15 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
                   isRetryable={isRetryable}
                 />
               ))}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            </TBody>
+          </DataTable>
+        </Panel>
+      )}
+    </>
   );
 };
+
+const TRACE_COLUMNS = 7;
 
 const NodeTraceRow = ({
   trace,
@@ -477,127 +533,164 @@ const NodeTraceRow = ({
     }),
   );
 
-  const hasDetails =
-    trace.error || trace.input || trace.output || trace.skipReason;
+  const hasDetails = Boolean(
+    trace.error || trace.input || trace.output || trace.skipReason,
+  );
   const cost = formatCost(trace.costUsd);
   const duration = formatDuration(trace.durationMs);
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="flex items-center gap-3 px-4 py-3">
-        {nodeStatusIcon(trace.status)}
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-mono truncate block">
-            {trace.nodeName || trace.nodeType}
-          </span>
-          {trace.nodeName && trace.nodeName !== trace.nodeType && (
-            <span className="text-[11px] text-muted-foreground font-mono">
-              {trace.nodeType}
-            </span>
-          )}
-        </div>
-        {trace.status === NodeExecutionStatus.SKIPPED && trace.skipReason && (
-          <span className="text-[11px] text-muted-foreground italic max-w-[200px] truncate">
-            {trace.skipReason}
-          </span>
+    <>
+      <TR
+        className={cn(
+          hasDetails && "cursor-pointer hover:bg-well",
+          isOpen && "bg-well",
         )}
-        {duration && (
-          <span className="text-xs text-muted-foreground shrink-0">
-            {duration}
-          </span>
-        )}
-        {cost && (
-          <span className="text-xs text-muted-foreground font-mono shrink-0">
-            {cost}
-          </span>
-        )}
-        {/* AF-M5-07: a cached node bought nothing, so it shows no cost at all.
-            The badge is what tells the two zero-cost cases apart. */}
-        {trace.cacheHit === true && (
-          <span
-            className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 shrink-0"
-            title="Served from the workspace response cache — no provider call, no spend"
-          >
-            Cached
-          </span>
-        )}
-        <span className="text-xs text-muted-foreground shrink-0">
-          {formatNodeStatus(trace.status)}
-        </span>
-        {hasDetails && (
-          <CollapsibleTrigger asChild>
+        onClick={
+          hasDetails
+            ? (event) => {
+                if ((event.target as HTMLElement).closest("button,a")) return;
+                setIsOpen((open) => !open);
+              }
+            : undefined
+        }
+      >
+        <TD>
+          {hasDetails ? (
             <Button
               variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs shrink-0"
+              size="icon-sm"
+              aria-expanded={isOpen}
+              aria-label={isOpen ? "Collapse payloads" : "Expand payloads"}
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={() => setIsOpen((open) => !open)}
             >
               {isOpen ? (
-                <ChevronDownIcon className="size-3" />
+                <ChevronDownIcon className="size-3.5" />
               ) : (
-                <ChevronRightIcon className="size-3" />
+                <ChevronRightIcon className="size-3.5" />
               )}
             </Button>
-          </CollapsibleTrigger>
-        )}
-        {isRetryable && trace.status !== NodeExecutionStatus.SKIPPED && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs shrink-0"
+          ) : null}
+        </TD>
+        <TD className="max-w-[280px]">
+          <span className="block truncate font-mono text-sm">
+            {trace.nodeName || trace.nodeType}
+          </span>
+          {trace.nodeName && trace.nodeName !== trace.nodeType ? (
+            <span className="block truncate font-mono text-[11px] text-muted-foreground">
+              {trace.nodeType}
+            </span>
+          ) : null}
+        </TD>
+        <TD>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <NodeStatusPill status={trace.status} />
+            {/* AF-M5-07: a cached node bought nothing, so it shows no cost at
+                all. The pill is what tells the two zero-cost cases apart. */}
+            {trace.cacheHit === true ? (
+              <StatusPill
+                tone="info"
+                title="Served from the workspace response cache, so no provider call and no spend"
               >
-                ...
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                disabled={retryFromNodeMutation.isPending}
-                onClick={() =>
-                  retryFromNodeMutation.mutate({
-                    id: executionId,
-                    nodeId: trace.nodeId,
-                  })
-                }
-              >
-                Retry from this node
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-      <CollapsibleContent>
-        <div className="px-4 pb-3 space-y-3">
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>Attempt {trace.attempt}</span>
-            {trace.startedAt && (
-              <span>
-                Started{" "}
-                {formatDistanceToNow(new Date(trace.startedAt), {
-                  addSuffix: true,
-                })}
-              </span>
-            )}
+                Cached
+              </StatusPill>
+            ) : null}
           </div>
-          {trace.error && (
-            <div className="p-3 bg-red-50 rounded-sm space-y-1">
-              <p className="text-xs font-medium text-red-900">Error</p>
-              <pre className="text-xs font-mono text-red-800 overflow-auto whitespace-pre-wrap">
-                {trace.error}
-              </pre>
-            </div>
-          )}
-          {trace.skipReason && (
-            <div className="p-3 bg-muted rounded-sm">
+          {trace.status === NodeExecutionStatus.SKIPPED && trace.skipReason ? (
+            <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground">
+              {trace.skipReason}
+            </p>
+          ) : null}
+        </TD>
+        <TD
+          align="right"
+          className="hidden font-mono text-muted-foreground tabular-nums lg:table-cell"
+        >
+          {trace.attempt}
+        </TD>
+        <TD
+          align="right"
+          className="hidden font-mono text-muted-foreground tabular-nums sm:table-cell"
+        >
+          {duration ?? "-"}
+        </TD>
+        <TD align="right" className="font-mono tabular-nums">
+          {cost ?? <span className="text-muted-foreground">-</span>}
+        </TD>
+        <TD align="right">
+          {isRetryable && trace.status !== NodeExecutionStatus.SKIPPED ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Actions for ${trace.nodeName || trace.nodeType}`}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <MoreVerticalIcon className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="gap-2"
+                  disabled={retryFromNodeMutation.isPending}
+                  onClick={() =>
+                    retryFromNodeMutation.mutate({
+                      id: executionId,
+                      nodeId: trace.nodeId,
+                    })
+                  }
+                >
+                  <RefreshCwIcon className="size-4" />
+                  Retry from this node
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </TD>
+      </TR>
+
+      {isOpen && hasDetails ? (
+        <tr className="border-b border-hairline bg-well">
+          <td colSpan={TRACE_COLUMNS} className="px-4 pt-1 pb-4">
+            <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Skipped: {trace.skipReason}
+                Attempt {trace.attempt}
+                {trace.startedAt
+                  ? `, started ${formatDistanceToNow(
+                      new Date(trace.startedAt),
+                      {
+                        addSuffix: true,
+                      },
+                    )}`
+                  : ""}
               </p>
+
+              {trace.error ? (
+                <Callout tone="danger" title="Node error">
+                  <pre className="overflow-auto font-mono text-xs whitespace-pre-wrap">
+                    {trace.error}
+                  </pre>
+                </Callout>
+              ) : null}
+
+              {trace.skipReason ? (
+                <Callout tone="info" title="Skipped">
+                  {trace.skipReason}
+                </Callout>
+              ) : null}
+
+              {trace.input ? (
+                <JsonViewer label="Input" data={trace.input} />
+              ) : null}
+              {trace.output ? (
+                <JsonViewer label="Output" data={trace.output} />
+              ) : null}
             </div>
-          )}
-          {trace.input && <JsonViewer label="Input" data={trace.input} />}
-          {trace.output && <JsonViewer label="Output" data={trace.output} />}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 };

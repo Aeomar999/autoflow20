@@ -130,7 +130,7 @@ export function TestRetrievalDialog({
                   >
                     <div className="flex items-center justify-between">
                       <div className="font-semibold text-foreground flex items-center gap-1.5">
-                        <CheckCircle className="size-3.5 text-emerald-500" />
+                        <CheckCircle className="size-3.5 text-success" />
                         {result.sourceName} (Chunk #{result.chunkIndex + 1})
                       </div>
                       <Badge

@@ -125,3 +125,36 @@ export const PanelEmpty = ({
     <p className="max-w-sm text-balance">{children}</p>
   </div>
 );
+
+/**
+ * Label / value grid for detail views. The label voice is the same mono
+ * micro-label used by panel headers and table columns, so a record page and a
+ * table of the same records read as the same system.
+ */
+export const PanelFacts = ({
+  className,
+  ...props
+}: React.ComponentProps<"dl">) => (
+  <dl
+    className={cn(
+      "grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3",
+      className,
+    )}
+    {...props}
+  />
+);
+
+export const Fact = ({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div className={cn("min-w-0", className)}>
+    <dt className="dash-label text-muted-foreground">{label}</dt>
+    <dd className="mt-1 truncate text-sm">{children}</dd>
+  </div>
+);

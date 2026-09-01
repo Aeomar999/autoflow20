@@ -1,22 +1,33 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Loader2, Plug2, Trash2, XCircle } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  Loader2Icon,
+  Plug2Icon,
+  Trash2Icon,
+  XCircleIcon,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 import z from "zod";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
+import { Callout } from "@/components/dashboard/callout";
+import { PageHeader } from "@/components/dashboard/page";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Fact,
+  Panel,
+  PanelBody,
+  PanelFacts,
+  PanelFooter,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
+import { StatusPill } from "@/components/dashboard/status-pill";
+import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -35,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
+
 import {
   CREDENTIAL_TYPE_IDS,
   credentialDefsById,
@@ -94,32 +106,26 @@ function buildFormSchema(isEditMode: boolean): z.ZodType<FormValues> {
 
 type TestResult = { ok: true } | { ok: false; error: string };
 
-function TestResultBadge({ result }: { result: TestResult }) {
+const TEST_FAILURE_LABELS: Record<string, string> = {
+  AUTH: "Auth failed",
+  CONNECTION: "Connection error",
+  TIMEOUT: "Timed out",
+  NOT_TESTABLE: "Not testable",
+};
+
+function TestResultPill({ result }: { result: TestResult }) {
   if (result.ok) {
     return (
-      <Badge
-        variant="outline"
-        className="gap-1 text-green-600 border-green-200 bg-green-50"
-      >
-        <CheckCircle2 className="size-3.5" />
+      <StatusPill tone="success" icon={<CheckCircle2Icon />}>
         Connected
-      </Badge>
+      </StatusPill>
     );
   }
-  const labels: Record<string, string> = {
-    AUTH: "Auth failed",
-    CONNECTION: "Connection error",
-    TIMEOUT: "Timed out",
-    NOT_TESTABLE: "Not testable",
-  };
+
   return (
-    <Badge
-      variant="outline"
-      className="gap-1 text-red-600 border-red-200 bg-red-50"
-    >
-      <XCircle className="size-3.5" />
-      {labels[result.error] ?? "Failed"}
-    </Badge>
+    <StatusPill tone="danger" icon={<XCircleIcon />}>
+      {TEST_FAILURE_LABELS[result.error] ?? "Failed"}
+    </StatusPill>
   );
 }
 
@@ -224,47 +230,83 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
   };
 
   const isSaving = createCredential.isPending || updateCredential.isPending;
+  const usageCount = initialData?.usageCount ?? 0;
 
   return (
     <>
       {modal}
-      <Card className="shadow-none">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>
-                {isEdit ? "Edit Credential" : "Create Credential"}
-              </CardTitle>
-              <CardDescription>
-                {isEdit
-                  ? "Update your credential details"
-                  : "Add a new credential to your account"}
-              </CardDescription>
-            </div>
-            {isEdit && def.testable && (
-              <div className="flex items-center gap-2">
-                {testResult && <TestResultBadge result={testResult} />}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleTest}
-                  disabled={testCredential.isPending}
-                >
-                  {testCredential.isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Plug2 className="size-4" />
-                  )}
-                  Test connection
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+      <PageHeader
+        backTo={{ href: "/credentials", label: "Credentials" }}
+        title={isEdit ? initialData.name : "New credential"}
+        badge={testResult ? <TestResultPill result={testResult} /> : null}
+        description={
+          isEdit
+            ? "Update this credential. Secrets stay encrypted and are never sent back to the browser."
+            : "Add a credential so your nodes can authenticate."
+        }
+        actions={
+          isEdit && def.testable ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-hairline bg-panel"
+              onClick={handleTest}
+              disabled={testCredential.isPending}
+            >
+              {testCredential.isPending ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <Plug2Icon className="size-4" />
+              )}
+              Test connection
+            </Button>
+          ) : null
+        }
+      />
+
+      {isEdit && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle hint="Only a masked preview of the secret ever reaches the browser.">
+              Stored credential
+            </PanelTitle>
+          </PanelHeader>
+          <PanelBody>
+            <PanelFacts>
+              <Fact label="Type">{def.label}</Fact>
+              <Fact label="Secret">
+                <span className="font-mono text-xs text-muted-foreground">
+                  {initialData?.preview || "Hidden"}
+                </span>
+              </Fact>
+              <Fact label="Used by">
+                {usageCount > 0
+                  ? `${usageCount} workflow${usageCount === 1 ? "" : "s"}`
+                  : "No workflow yet"}
+              </Fact>
+            </PanelFacts>
+          </PanelBody>
+        </Panel>
+      )}
+
+      {initialData?.refreshError && (
+        <Callout tone="danger" title="Background token refresh failed">
+          {initialData.refreshError}. Reconnect to authorize again.
+        </Callout>
+      )}
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <Panel>
+            <PanelHeader>
+              <PanelTitle>
+                {isEdit ? "Edit credential" : "Credential details"}
+              </PanelTitle>
+            </PanelHeader>
+
+            <PanelBody className="max-w-2xl space-y-6">
               <FormField
                 control={form.control}
                 name="name"
@@ -300,7 +342,7 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                             <div className="flex items-center gap-2">
                               <Image
                                 src={option.logo ?? "/logos/logo.svg"}
-                                alt={option.label}
+                                alt=""
                                 width={16}
                                 height={16}
                               />
@@ -320,28 +362,16 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
               />
 
               {def.oauth ? (
-                <div className="space-y-4 rounded-md border p-6 bg-muted/30">
-                  {initialData?.refreshError && (
-                    <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200 font-medium">
-                      ⚠️ Background token refresh failed:{" "}
-                      {initialData.refreshError}. Please reconnect to authorize
-                      again.
-                    </div>
-                  )}
+                <div className="space-y-4 rounded-lg border border-hairline bg-well p-5">
                   {isEdit && !initialData?.refreshError && (
-                    <div className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       Connected to {def.label}. To rotate tokens or change
                       scopes, reconnect.
-                    </div>
+                    </p>
                   )}
-                  <Button
-                    type="button"
-                    size="lg"
-                    className="w-full sm:w-auto"
-                    asChild
-                  >
+                  <Button type="button" className="w-full sm:w-auto" asChild>
                     <a href={`/api/oauth/${def.type}/connect`}>
-                      <Plug2 className="mr-2 size-4" />
+                      <Plug2Icon className="size-4" />
                       {isEdit
                         ? `Reconnect ${def.label}`
                         : `Connect with ${def.label}`}
@@ -356,7 +386,7 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                       : undefined;
 
                   const createHint = fieldDef.optional
-                    ? "Optional — leave blank to skip."
+                    ? "Optional, leave blank to skip."
                     : fieldDef.secret
                       ? "Stored encrypted. You will only see a masked preview."
                       : undefined;
@@ -379,7 +409,7 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                               <SecretInput
                                 placeholder={
                                   isEdit
-                                    ? "Enter new value to replace…"
+                                    ? "Enter a new value to replace it"
                                     : fieldDef.placeholder
                                 }
                                 {...field}
@@ -404,40 +434,52 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                   );
                 })
               )}
+            </PanelBody>
 
-              <div className="flex items-center gap-4">
+            <PanelFooter className="py-2.5">
+              <div className="flex items-center gap-2">
                 {(!def.oauth || isEdit) && (
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving && <Loader2 className="size-4 animate-spin" />}
-                    {isEdit ? "Save changes" : "Create"}
+                  <Button type="submit" size="sm" disabled={isSaving}>
+                    {isSaving && (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    )}
+                    {isEdit ? "Save changes" : "Create credential"}
                   </Button>
                 )}
-                <Button type="button" variant="outline" asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-hairline bg-panel"
+                  asChild
+                >
                   <Link href="/credentials" prefetch>
                     Cancel
                   </Link>
                 </Button>
-                {isEdit && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="ml-auto text-destructive hover:text-destructive"
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    <Trash2 className="size-4" />
-                    Delete
-                  </Button>
-                )}
               </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+              {isEdit && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete
+                </Button>
+              )}
+            </PanelFooter>
+          </Panel>
+        </form>
+      </Form>
+
       {isEdit && initialData?.id && (
         <DeleteCredentialDialog
           credentialId={initialData.id}
           credentialName={initialData.name}
-          usageCount={initialData.usageCount ?? 0}
+          usageCount={usageCount}
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
           navigateOnDelete

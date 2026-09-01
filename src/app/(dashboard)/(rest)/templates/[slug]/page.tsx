@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-import { ErrorView } from "@/components/entity-components";
+import { DashboardError, DashboardPage } from "@/components/dashboard/page";
 import TemplateDetail, {
   TemplateDetailSkeleton,
 } from "@/features/templates/components/template-detail";
@@ -22,15 +22,15 @@ const Page = async ({ params }: PageProps) => {
 
   return (
     <HydrateClient>
-      <div className="p-4 md:px-10 md:py-6 h-full">
+      <DashboardPage>
         <ErrorBoundary
-          fallback={<ErrorView message="Error loading template" />}
+          fallback={<DashboardError message="Error loading template" />}
         >
           <Suspense fallback={<TemplateDetailSkeleton />}>
             <TemplateDetail slug={slug} />
           </Suspense>
         </ErrorBoundary>
-      </div>
+      </DashboardPage>
     </HydrateClient>
   );
 };

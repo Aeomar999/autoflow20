@@ -1,4 +1,5 @@
-import { AlertTriangleIcon, Loader2Icon } from "lucide-react";
+import { AlertTriangleIcon, ArrowLeftIcon, Loader2Icon } from "lucide-react";
+import Link from "next/link";
 import type * as React from "react";
 
 import {
@@ -37,23 +38,46 @@ export const PageHeader = ({
   title,
   description,
   actions,
+  badge,
+  backTo,
 }: {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   actions?: React.ReactNode;
+  /** Rendered inline after the title, e.g. a run status pill. */
+  badge?: React.ReactNode;
+  /** Detail pages get an explicit way back to the list they came from. */
+  backTo?: { href: string; label: string };
 }) => (
-  <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-    <div className="min-w-0">
-      <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">
-        {title}
-      </h1>
-      {description ? (
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+  <div className="flex flex-col gap-3">
+    {backTo ? (
+      <Link
+        href={backTo.href}
+        prefetch
+        className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeftIcon className="size-3.5" />
+        {backTo.label}
+      </Link>
+    ) : null}
+    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">
+            {title}
+          </h1>
+          {badge}
+        </div>
+        {description ? (
+          <div className="mt-1 text-sm text-muted-foreground">
+            {description}
+          </div>
+        ) : null}
+      </div>
+      {actions ? (
+        <div className="flex flex-wrap items-center gap-2">{actions}</div>
       ) : null}
     </div>
-    {actions ? (
-      <div className="flex flex-wrap items-center gap-2">{actions}</div>
-    ) : null}
   </div>
 );
 

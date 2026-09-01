@@ -1,209 +1,204 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import {
-  ArrowLeftIcon,
-  BoxesIcon,
-  CheckCircle2Icon,
-  KeyIcon,
-  PlugIcon,
-  UserIcon,
-} from "lucide-react";
+import { DownloadIcon, KeyIcon } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+
+import { PageHeader } from "@/components/dashboard/page";
+import {
+  Fact,
+  Panel,
+  PanelBody,
+  PanelFacts,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
+import { StatusPill } from "@/components/dashboard/status-pill";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+
 import {
   useInstallTemplate,
   useSuspenseTemplate,
 } from "../hooks/use-templates";
 
-const TemplateDetail = ({ slug }: { slug: string }) => {
-  const template = useSuspenseTemplate(slug);
-
-  return (
-    <div className="mx-auto max-w-screen-xl w-full flex flex-col gap-y-8">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link
-          href="/templates"
-          className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Templates
-        </Link>
-        <span>/</span>
-        <span className="text-foreground">{template.data.name}</span>
-      </div>
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold leading-tight">
-              {template.data.name}
-            </h1>
-            {template.data.featured && <Badge>Featured</Badge>}
-            <Badge variant="secondary">{template.data.category}</Badge>
-          </div>
-          <p className="text-muted-foreground text-sm max-w-2xl">
-            {template.data.description}
-          </p>
-          {template.data.tags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {template.data.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col gap-y-1.5 text-sm text-muted-foreground border rounded-lg px-4 py-3 bg-muted/30">
-          <span className="flex items-center gap-2">
-            <UserIcon className="size-4" /> {template.data.author}
-          </span>
-          <span className="flex items-center gap-2">
-            <BoxesIcon className="size-4" /> {template.data.nodeCount} nodes
-          </span>
-          <span className="flex items-center gap-2">
-            <PlugIcon className="size-4" /> {template.data.credentialCount}{" "}
-            credentials needed
-          </span>
-          <span className="flex items-center gap-2">
-            {template.data.installs} installs · v{template.data.version}
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 flex flex-col gap-y-6">
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-medium">
-                What it does
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 flex flex-col gap-y-4">
-              <p className="text-sm text-muted-foreground">
-                {template.data.description}
-              </p>
-              <div className="flex flex-col gap-y-1.5">
-                {template.data.nodeSummary.map((node) => (
-                  <div
-                    key={node.nodeId}
-                    className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-sm"
-                  >
-                    <span className="font-medium">{node.nodeName}</span>
-                    <span className="text-muted-foreground text-xs font-mono">
-                      {node.nodeType}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Updated{" "}
-                {formatDistanceToNow(template.data.updatedAt, {
-                  addSuffix: true,
-                })}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex flex-col gap-y-6">
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-medium">
-                Before you install
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 flex flex-col gap-y-2">
-              <p className="text-sm text-muted-foreground">
-                Connect the integrations this template uses. You can skip
-                optional ones.
-              </p>
-              {template.data.pendingCredentials.length === 0 ? (
-                <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-                  <CheckCircle2Icon className="size-4" />
-                  No credentials needed
-                </div>
-              ) : (
-                template.data.pendingCredentials.map((credential) => (
-                  <div
-                    key={credential.nodeId + credential.credentialKey}
-                    className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2"
-                  >
-                    <div className="flex flex-col gap-y-0.5 min-w-0">
-                      <span className="flex items-center gap-1.5 text-sm font-medium truncate">
-                        <KeyIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                        {credential.credentialKey}
-                      </span>
-                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {credential.nodeName}
-                        {credential.optional && (
-                          <Badge variant="outline" className="text-[10px]">
-                            optional
-                          </Badge>
-                        )}
-                      </span>
-                    </div>
-                    <Button asChild size="sm" variant="outline" className="h-7">
-                      <Link href="/credentials">Connect</Link>
-                    </Button>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <InstallCard slug={slug} />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const InstallCard = ({ slug }: { slug: string }) => {
+/**
+ * Install lives in the page header and nowhere else. The previous layout had
+ * an "Install workflow" card in the sidebar as well, which meant two controls
+ * competing for the same decision on one screen.
+ */
+const InstallButton = ({ slug }: { slug: string }) => {
   const install = useInstallTemplate();
 
   return (
-    <Card className="bg-primary text-primary-foreground border-primary">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-base font-medium">Looks good?</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 flex flex-col gap-y-3">
-        <p className="text-sm text-primary-foreground/80">
-          Installs as a draft workflow. Connect any missing credentials, then
-          deploy when you are ready.
-        </p>
-        <Button
-          className="w-full bg-background text-foreground hover:bg-background/90"
-          disabled={install.isPending}
-          onClick={() => install.mutate({ slug })}
-        >
-          {install.isPending ? "Installing..." : "Install workflow"}
-        </Button>
-      </CardContent>
-    </Card>
+    <Button
+      size="sm"
+      disabled={install.isPending}
+      onClick={() => install.mutate({ slug })}
+    >
+      <DownloadIcon className="size-4" />
+      {install.isPending ? "Installing..." : "Install workflow"}
+    </Button>
   );
 };
 
-export const TemplateDetailSkeleton = () => {
+const TemplateDetail = ({ slug }: { slug: string }) => {
+  const template = useSuspenseTemplate(slug);
+  const data = template.data;
+
   return (
-    <div className="mx-auto max-w-screen-xl w-full flex flex-col gap-y-8">
-      <Skeleton className="h-4 w-40" />
-      <div className="flex flex-col gap-y-2">
-        <Skeleton className="h-8 w-72" />
-        <Skeleton className="h-4 w-full max-w-2xl" />
-        <Skeleton className="h-4 w-96" />
+    <>
+      <PageHeader
+        backTo={{ href: "/templates", label: "Templates" }}
+        title={data.name}
+        badge={
+          <>
+            {data.featured ? (
+              <StatusPill tone="accent">Featured</StatusPill>
+            ) : null}
+            <StatusPill tone="neutral">{data.category}</StatusPill>
+          </>
+        }
+        description={<p className="max-w-2xl">{data.description}</p>}
+        actions={<InstallButton slug={slug} />}
+      />
+
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Template</PanelTitle>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}
+          </span>
+        </PanelHeader>
+        <PanelBody>
+          <PanelFacts>
+            <Fact label="Author">{data.author}</Fact>
+            <Fact label="Version">
+              <span className="font-mono text-sm">v{data.version}</span>
+            </Fact>
+            <Fact label="Installs">
+              <span className="tabular-nums">
+                {data.installs.toLocaleString()}
+              </span>
+            </Fact>
+            <Fact label="Nodes">
+              <span className="tabular-nums">{data.nodeCount}</span>
+            </Fact>
+            <Fact label="Credentials needed">
+              <span className="tabular-nums">{data.credentialCount}</span>
+            </Fact>
+            {data.tags.length > 0 ? (
+              <Fact label="Tags">
+                <span className="flex flex-wrap gap-1.5">
+                  {data.tags.map((tag) => (
+                    <StatusPill key={tag} tone="neutral">
+                      {tag}
+                    </StatusPill>
+                  ))}
+                </span>
+              </Fact>
+            ) : null}
+          </PanelFacts>
+        </PanelBody>
+      </Panel>
+
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <Panel className="lg:col-span-2">
+          <PanelHeader>
+            <PanelTitle hint="The nodes this template installs, in the order they were authored.">
+              What it does
+            </PanelTitle>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {data.nodeSummary.length}{" "}
+              {data.nodeSummary.length === 1 ? "node" : "nodes"}
+            </span>
+          </PanelHeader>
+          <ul className="divide-y divide-hairline">
+            {data.nodeSummary.map((node) => (
+              <li
+                key={node.nodeId}
+                className="flex items-center justify-between gap-3 px-4 py-2.5"
+              >
+                <span className="truncate text-sm font-medium">
+                  {node.nodeName}
+                </span>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                  {node.nodeType}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+
+        <Panel>
+          <PanelHeader>
+            <PanelTitle hint="Installing works without these; the workflow just cannot run until they are connected.">
+              Before you install
+            </PanelTitle>
+          </PanelHeader>
+
+          {data.pendingCredentials.length === 0 ? (
+            <PanelBody>
+              <StatusPill tone="success">No credentials needed</StatusPill>
+              <p className="mt-2 text-sm text-muted-foreground">
+                This template runs as-is once installed.
+              </p>
+            </PanelBody>
+          ) : (
+            <ul className="divide-y divide-hairline">
+              {data.pendingCredentials.map((credential) => (
+                <li
+                  key={credential.nodeId + credential.credentialKey}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <span className="flex items-center gap-1.5 truncate text-sm font-medium">
+                      <KeyIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      {credential.credentialKey}
+                    </span>
+                    <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                      {credential.nodeName}
+                      {credential.optional ? (
+                        <StatusPill tone="neutral">optional</StatusPill>
+                      ) : null}
+                    </span>
+                  </div>
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="h-7 shrink-0 border-hairline bg-panel text-xs"
+                  >
+                    <Link href="/credentials">Connect</Link>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Skeleton className="lg:col-span-2 h-64" />
-        <Skeleton className="h-64" />
-        <Skeleton className="h-40 lg:col-start-2" />
-      </div>
-    </div>
+    </>
   );
 };
+
+export const TemplateDetailSkeleton = () => (
+  <>
+    <div className="flex flex-col gap-3">
+      <Skeleton className="h-4 w-28" />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-72" />
+          <Skeleton className="h-4 w-full max-w-xl" />
+        </div>
+        <Skeleton className="h-8 w-36" />
+      </div>
+    </div>
+    <Skeleton className="h-32 rounded-xl" />
+    <div className="grid gap-4 lg:grid-cols-3">
+      <Skeleton className="h-64 rounded-xl lg:col-span-2" />
+      <Skeleton className="h-64 rounded-xl" />
+    </div>
+  </>
+);
 
 export default TemplateDetail;

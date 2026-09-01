@@ -59,7 +59,7 @@ export const ValidationPanel = memo(function ValidationPanel() {
           aria-expanded={open}
           className={cn(
             "flex cursor-pointer items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs font-semibold shadow-md",
-            status === "error" ? "text-destructive" : "text-amber-600",
+            status === "error" ? "text-danger" : "text-warning",
           )}
         >
           <span>
@@ -96,7 +96,7 @@ export const ValidationPanel = memo(function ValidationPanel() {
                     {isError ? (
                       <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
                     ) : (
-                      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warning" />
                     )}
                     <span className="min-w-0">
                       <span className="block truncate font-medium">

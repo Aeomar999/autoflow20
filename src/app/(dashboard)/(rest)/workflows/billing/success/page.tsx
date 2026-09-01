@@ -4,21 +4,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2Icon } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
+
+import { Panel, PanelBody } from "@/components/dashboard/panel";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 /**
  * Post-checkout landing page (AF-M0-10). POLAR_SUCCESS_URL targets this route;
  * the Better Auth checkout plugin substitutes `{CHECKOUT_ID}` in the URL.
  *
  * The sidebar reads subscription state from the ["subscription"] React Query
- * cache (useSubscription) — invalidate it on mount so the upgrade button
+ * cache (useSubscription), so invalidate it on mount and the upgrade button
  * flips to the billing-portal state immediately, without a full reload.
  */
 const BillingSuccessPage = () => {
@@ -29,31 +24,39 @@ const BillingSuccessPage = () => {
   }, [queryClient]);
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-green-500/10">
-            <CheckCircle2Icon className="size-6 text-green-600" />
+    <div className="flex min-h-full flex-1 items-center justify-center bg-surface p-6">
+      <Panel className="w-full max-w-md">
+        <PanelBody className="flex flex-col items-center gap-4 p-8 text-center">
+          <span className="flex size-11 items-center justify-center rounded-full border border-success/25 bg-success/10">
+            <CheckCircle2Icon className="size-5 text-success" />
+          </span>
+          <div className="space-y-1.5">
+            <h1 className="text-lg font-semibold tracking-tight">
+              You are on Pro
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Your subscription is active. Premium actions are unlocked right
+              away, with no reload needed.
+            </p>
           </div>
-          <CardTitle>You're on Pro</CardTitle>
-          <CardDescription>
-            Your subscription is active. Premium actions are unlocked right away
-            — no reload needed.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <Button asChild className="w-full">
-            <Link href="/workflows">Back to workflows</Link>
-          </Button>
-          <Button variant="outline" asChild className="w-full">
-            <Link href="/credentials">Add credentials</Link>
-          </Button>
+          <div className="flex w-full flex-col gap-2 pt-1">
+            <Button asChild className="w-full">
+              <Link href="/workflows">Back to workflows</Link>
+            </Button>
+            <Button
+              variant="outline"
+              asChild
+              className="w-full border-hairline bg-panel"
+            >
+              <Link href="/credentials">Add credentials</Link>
+            </Button>
+          </div>
           <p className="text-xs text-muted-foreground">
-            Manage invoices and cancellation anytime via the billing portal in
+            Manage invoices and cancellation anytime from the billing portal in
             the sidebar.
           </p>
-        </CardContent>
-      </Card>
+        </PanelBody>
+      </Panel>
     </div>
   );
 };
