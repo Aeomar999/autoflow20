@@ -815,3 +815,7 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 ### ? AF-UI-02 · Style Executions Chart like Sales Trend · 1d
 - [x] Group metrics into successful and failed/other.
 - [x] Rewrite ExecutionsOverTimeChart to use dark theme matching the Sales Trend design.
+
+
+### ? AF-UI-03 · Make Sparkbars Thicker · 1d
+- [x] Adjust width and spacing in Sparkbars to render thicker lines.

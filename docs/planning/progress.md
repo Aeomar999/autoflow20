@@ -243,3 +243,5 @@ When you complete a task:
 | 2026-09-01 | **AF-UI-01**: Created KpiCard component and /test-kpi page to match UI designs. | M7 |
 
 | 2026-09-01 | **AF-UI-02**: Styled ExecutionsOverTimeChart to match the Sales Trend dark theme design. | M7 |
+
+| 2026-09-01 | **AF-UI-03**: Made the trend sparkbars thicker and more visible across all dashboards. | M7 |

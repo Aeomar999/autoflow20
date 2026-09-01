@@ -31,14 +31,14 @@ const Sparkbars = ({
 
   const max = Math.max(...values, 0);
   const bars = values.slice(-24);
-  const width = bars.length * 3 - 1;
+  const width = bars.length * 6 - 2;
 
   return (
     <svg
       aria-hidden
       viewBox={`0 0 ${Math.max(width, 1)} 24`}
       preserveAspectRatio="none"
-      className={cn("h-8 w-14 shrink-0", className)}
+      className={cn("h-8 w-24 shrink-0", className)}
     >
       <title>Trend</title>
       {bars.map((value, index) => {
@@ -47,11 +47,11 @@ const Sparkbars = ({
         return (
           <rect
             key={`${index}-${value}`}
-            x={index * 3}
+            x={index * 6}
             y={24 - height}
-            width={2}
+            width={4}
             height={height}
-            rx={0.5}
+            rx={1}
             className={isPeak ? "fill-primary" : "fill-muted-foreground/35"}
           />
         );
