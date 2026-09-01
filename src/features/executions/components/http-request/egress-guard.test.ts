@@ -1,3 +1,5 @@
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import type { MockInstance } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -8,6 +10,7 @@ import {
   MAX_HTTP_TIMEOUT_MS,
   MAX_REDIRECT_HOPS,
   MAX_RESPONSE_BYTES,
+  pinnedDispatcher,
   readCappedText,
   resolveTimeoutMs,
   safeFetch,
@@ -287,5 +290,83 @@ describe("safeFetch - guarded redirects", () => {
     const response = await safeFetch(PUBLIC);
 
     expect(response.status).toBe(302);
+  });
+});
+
+/**
+ * AF-M8-17. These are the tests that keep the DNS-rebinding fix honest.
+ *
+ * The protection lives in a `lookup` override handed to undici, and the
+ * failure mode that matters is not "it throws" - it is "the dispatcher is
+ * silently ignored and the connection resolves the hostname again", which
+ * looks exactly like success while providing nothing. So the test connects a
+ * hostname that has no DNS record at all to a real local server: if the pin is
+ * honored the request arrives, and if it is ever ignored the lookup fails and
+ * this goes red. It runs on whatever Node CI uses, which is the point.
+ */
+describe("pinnedDispatcher — connections go where we vetted", () => {
+  let server: Server;
+  let port: number;
+  let seenHostHeader: string | undefined;
+
+  beforeEach(async () => {
+    server = createServer((req, res) => {
+      seenHostHeader = req.headers.host;
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end("reached the pinned address");
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    port = (server.address() as AddressInfo).port;
+  });
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  });
+
+  const LOOPBACK = [{ address: "127.0.0.1", family: 4 }];
+
+  it("connects to the vetted address, not to whatever DNS says", async () => {
+    // `pinned.invalid` is guaranteed never to resolve (RFC 6761). Reaching the
+    // server can therefore only happen through the pinned lookup.
+    const dispatcher = pinnedDispatcher("pinned.invalid", LOOPBACK);
+
+    const response = await fetch(`http://pinned.invalid:${port}/`, {
+      dispatcher,
+    } as RequestInit & { dispatcher: typeof dispatcher });
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("reached the pinned address");
+    await dispatcher.close();
+  });
+
+  it("still presents the hostname, so virtual hosting and TLS SNI work", async () => {
+    // The whole reason this is a lookup override rather than rewriting the URL
+    // to an IP: the origin must still see the name it was asked for.
+    const dispatcher = pinnedDispatcher("pinned.invalid", LOOPBACK);
+
+    await fetch(`http://pinned.invalid:${port}/`, {
+      dispatcher,
+    } as RequestInit & { dispatcher: typeof dispatcher });
+
+    expect(seenHostHeader).toBe(`pinned.invalid:${port}`);
+    await dispatcher.close();
+  });
+
+  it("fails closed when asked for a host it was not built for", async () => {
+    // A dispatcher is per-request. Being asked about another host means a
+    // redirect reached the connector without being re-vetted.
+    const dispatcher = pinnedDispatcher("expected.invalid", LOOPBACK);
+
+    await expect(
+      fetch(`http://other.invalid:${port}/`, {
+        dispatcher,
+      } as RequestInit & { dispatcher: typeof dispatcher }),
+    ).rejects.toThrow();
+
+    await dispatcher.close();
   });
 });
