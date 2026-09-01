@@ -2,7 +2,10 @@ import "server-only";
 import { decode } from "html-entities";
 import { NonRetriableError } from "inngest";
 import ky from "ky";
-import { assertSafeEndpoint } from "@/features/executions/components/http-request/egress-guard";
+import {
+  assertSafeEndpoint,
+  safeFetch,
+} from "@/features/executions/components/http-request/egress-guard";
 import { compileTemplate } from "@/features/executions/template";
 import { discordChannel } from "@/inngest/channels/discord";
 import type { NodeRun } from "@/nodes/types";
@@ -58,6 +61,7 @@ export const execute: NodeRun<DiscordData> = async ({
 
       const webhookUrl = await assertSafeEndpoint(data.webhookUrl);
       await ky.post(webhookUrl, {
+        fetch: safeFetch,
         json: {
           content: content.slice(0, 2000), // Discord's max message length
           username,

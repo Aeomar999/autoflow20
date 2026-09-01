@@ -59,3 +59,4 @@ Each with the reason it lost.
 | [0012](0012-public-api-and-api-keys.md) | Public REST API with scoped, hashed API keys | Accepted |
 | [0013](0013-rate-limit-store.md) | Shared injectable rate-limit store (in-memory default, no new dependency) | Accepted |
 | [0014](0014-resend-for-auth-email.md) | Resend for transactional auth email | Accepted |
+| [0015](0015-guarded-fetch-for-redirects.md) | The SSRF guard owns redirect following, via a `fetch` given to the client | Accepted |

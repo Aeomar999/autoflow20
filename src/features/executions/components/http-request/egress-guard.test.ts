@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest";
+import type { MockInstance } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertSafeEndpoint,
   DEFAULT_HTTP_TIMEOUT_MS,
   expandIpv6,
   isBlockedIp,
   MAX_HTTP_TIMEOUT_MS,
+  MAX_REDIRECT_HOPS,
   MAX_RESPONSE_BYTES,
   readCappedText,
   resolveTimeoutMs,
+  safeFetch,
 } from "./egress-guard";
 
 describe("isBlockedIp — IPv4 ranges", () => {
@@ -142,5 +145,147 @@ describe("readCappedText", () => {
     await expect(readCappedText(textResponse("abcdef"), 3)).rejects.toThrow(
       /exceeded/,
     );
+  });
+});
+
+/**
+ * AF-M8-16: `assertSafeEndpoint` only ever saw the FIRST url. Every call site
+ * then handed that url to `ky`, which follows redirects itself - so a
+ * user-supplied endpoint on an attacker-controlled host could 302 straight to
+ * cloud metadata and walk right past the guard. `safeFetch` is the fetch
+ * implementation those call sites now pass to ky: it follows redirects itself
+ * and re-runs the guard on every hop.
+ */
+describe("safeFetch - guarded redirects", () => {
+  const PUBLIC = "https://93.184.216.34/start";
+  const OTHER_PUBLIC = "https://8.8.8.8/next";
+
+  const redirectTo = (location: string, status = 302) =>
+    new Response(null, { status, headers: { location } });
+
+  let fetchSpy: MockInstance<typeof globalThis.fetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  it("returns a non-redirect response untouched", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response("body", { status: 200 }));
+
+    const response = await safeFetch(PUBLIC);
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("body");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("never lets the platform follow redirects on its own", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response("body", { status: 200 }));
+
+    await safeFetch(PUBLIC);
+
+    expect(fetchSpy.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
+  });
+
+  it("follows a redirect to a public host", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(redirectTo(OTHER_PUBLIC))
+      .mockResolvedValueOnce(new Response("landed", { status: 200 }));
+
+    const response = await safeFetch(PUBLIC);
+
+    await expect(response.text()).resolves.toBe("landed");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("blocks a redirect to the cloud metadata address", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      redirectTo("http://169.254.169.254/latest/meta-data/"),
+    );
+
+    await expect(safeFetch(PUBLIC)).rejects.toThrow(/blocked/);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks a redirect to loopback expressed as a relative Location", async () => {
+    fetchSpy.mockResolvedValueOnce(redirectTo("//127.0.0.1/admin"));
+
+    await expect(safeFetch(PUBLIC)).rejects.toThrow(/blocked/);
+  });
+
+  it("blocks a redirect that switches to a non-http scheme", async () => {
+    fetchSpy.mockResolvedValueOnce(redirectTo("file:///etc/passwd"));
+
+    await expect(safeFetch(PUBLIC)).rejects.toThrow(/scheme/);
+  });
+
+  it("caps the redirect chain", async () => {
+    fetchSpy.mockResolvedValue(redirectTo(OTHER_PUBLIC));
+
+    await expect(safeFetch(PUBLIC)).rejects.toThrow(/redirect/i);
+    expect(fetchSpy.mock.calls.length).toBeLessThanOrEqual(
+      MAX_REDIRECT_HOPS + 1,
+    );
+  });
+
+  it("drops credential headers when a redirect crosses origins", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(redirectTo(OTHER_PUBLIC))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await safeFetch(PUBLIC, {
+      headers: { authorization: "Bearer secret", "x-trace": "keep" },
+    });
+
+    const followed = fetchSpy.mock.calls[1][0] as Request;
+    expect(followed.headers.get("authorization")).toBeNull();
+    expect(followed.headers.get("x-trace")).toBe("keep");
+  });
+
+  it("keeps credential headers on a same-origin redirect", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(redirectTo("https://93.184.216.34/moved"))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await safeFetch(PUBLIC, { headers: { authorization: "Bearer secret" } });
+
+    const followed = fetchSpy.mock.calls[1][0] as Request;
+    expect(followed.headers.get("authorization")).toBe("Bearer secret");
+  });
+
+  it("turns a POST into a GET on a 303 and drops the body", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(redirectTo(OTHER_PUBLIC, 303))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await safeFetch(PUBLIC, { method: "POST", body: "payload" });
+
+    const followed = fetchSpy.mock.calls[1][0] as Request;
+    expect(followed.method).toBe("GET");
+    expect(followed.body).toBeNull();
+  });
+
+  it("preserves the method and body across a 307", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(redirectTo(OTHER_PUBLIC, 307))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await safeFetch(PUBLIC, { method: "POST", body: "payload" });
+
+    const followed = fetchSpy.mock.calls[1][0] as Request;
+    expect(followed.method).toBe("POST");
+    await expect(followed.text()).resolves.toBe("payload");
+  });
+
+  it("returns a 3xx that carries no Location rather than looping", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 302 }));
+
+    const response = await safeFetch(PUBLIC);
+
+    expect(response.status).toBe(302);
   });
 });

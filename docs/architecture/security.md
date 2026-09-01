@@ -16,13 +16,13 @@ An automation platform holds the keys to every system its customers connect. The
 | Session management | ✅ Better Auth |
 | Authorization | 🟠 Ownership-only (`userId`). No roles, no workspace boundary. |
 | Credential storage | ✅ Envelope encryption (AES-256-GCM, per-record DEK, AF-M3-01/02); engine-level injection via single decrypt site (AF-M3-04); no plaintext read path. |
-| Secrets in logs | ✅ Redacting logger (`src/lib/logger.ts`) + Sentry `beforeSend` scrubbing (AF-M0-07); credentials never in `NodeExecution` IO (AF-M3-04 leak guard tests). |
+| Secrets in logs | ✅ Redacting logger (`src/lib/logger.ts`) + Sentry `beforeSend` scrubbing on **all three** runtimes via the shared `scrubSentryEvent` (AF-M0-07 shipped browser-only; server and edge added in AF-M8-16, which also turned off `sendDefaultPii` and AI prompt/completion recording); credentials never in `NodeExecution` IO (AF-M3-04 leak guard tests). |
 | Audit trail | 🔴 None. |
 | Rate limiting | 🟠 Unified on a shared `RateLimitStore` (AF-M8-01 + AF-M8-02): public API per-key token bucket (plan), webhook plan-aware token bucket, auth sign-in/up 5/15min + reset 3/hr, tRPC per-user mutation burst cap — all `429` + `Retry-After`. Store is in-memory by default; a distributed store behind the interface is the documented follow-up (ADR-0013). |
-| SSRF protection | ✅ `egress-guard.ts` — scheme/host allowlist, private-IP blocks, DNS resolve check (AF-A-02). |
+| SSRF protection | 🟠 `egress-guard.ts` — scheme/host allowlist, private-IP blocks, DNS resolve check (AF-A-02), now re-checked on every redirect hop (AF-M8-16, ADR-0015). DNS-rebinding TOCTOU remains open (AF-M8-17). |
 | Webhook authentication | ✅ Per-workflow secret + Stripe signature verification (AF-A-01). |
 | Input validation | 🟠 Zod on tRPC inputs + per-node-type config schemas at save boundary (AF-A-04); nothing on other surfaces. |
-| Dependency scanning | 🔴 No CI, no audit. |
+| Dependency scanning | 🟠 `npm audit` clean at HIGH+ as of the AF-M8-08 review (39 findings → 6, all LOW, all in the `@ai-sdk/*` chain and closable only by a major SDK bump — AF-M8-19). Enforcement in CI is still missing. |
 | Env validation | ✅ `src/lib/env.ts` Zod validation at boot; app refuses to start misconfigured (AF-M0-08). |
 
 Nothing here is alarming for a pre-alpha, but every 🔴 must close before external users touch the system. Most are M0–M3 tasks.
@@ -120,13 +120,13 @@ Rules:
 
 ## 5. Outbound requests (SSRF)
 
-Any node that fetches a user-supplied URL — HTTP Request, webhook-out, URL ingestion, image fetch — passes through `src/lib/ssrf.ts` first.
+Any node that fetches a user-supplied URL — HTTP Request, webhook-out, Slack, Discord, the OpenAI-compatible AI node, knowledge URL ingestion — passes through `src/features/executions/components/http-request/egress-guard.ts` first. (This section previously named `src/lib/ssrf.ts`, which has never existed.)
 
 Blocked by default:
-- loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16` — cloud metadata), private ranges (`10/8`, `172.16/12`, `192.168/16`), unique-local IPv6
-- non-`http`/`https` schemes
-- redirects that land on any of the above (**re-check after every hop** — checking only the initial URL is the classic bypass)
-- DNS results resolving to blocked ranges (re-resolve and pin, or use a checked-resolve fetch, to close the TOCTOU window)
+- ✅ loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16` — cloud metadata), private ranges (`10/8`, `172.16/12`, `192.168/16`), CGNAT (`100.64/10`), unspecified, unique-local IPv6, and the IPv4-mapped IPv6 form of each — `isBlockedIp`
+- ✅ non-`http`/`https` schemes, and URLs embedding credentials — `assertSafeEndpoint`
+- ✅ redirects that land on any of the above (**re-check after every hop** — checking only the initial URL is the classic bypass) — `safeFetch`, passed to `ky` as its `fetch`, follows redirects itself with `redirect: "manual"` and re-runs `assertSafeEndpoint` on each hop, capped at `MAX_REDIRECT_HOPS` (5). Credential headers (`authorization`, `cookie`, `proxy-authorization`) are dropped on a cross-origin hop. **This was the HIGH finding of the AF-M8-08 review** (AF-M8-16, ADR-0015): the requirement was written here, but no code implemented it and every call site let `ky`/`fetch` follow redirects unchecked, so one `302` reached the metadata endpoint.
+- ⬜ DNS results resolving to blocked ranges (re-resolve and pin, or use a checked-resolve fetch, to close the TOCTOU window) — **NOT closed.** `assertSafeEndpoint` resolves the hostname, then hands the *hostname* to `fetch`, which resolves it again; a rebinding record can differ between the two. Needs a pinned-address dispatcher. Filed as **AF-M8-17**.
 
 Enterprise allowlisting of internal ranges is a per-organization setting, off by default, audit-logged when enabled.
 
@@ -223,17 +223,19 @@ Runbooks for the top five failure modes are `AF-M8-05`. A credential-exposure ru
 
 ## 13. Pre-Beta security checklist
 
-- [ ] All credentials encrypted at rest; no plaintext read path anywhere (proven by test)
-- [ ] Redacting logger in place; Sentry scrubbing verified
-- [ ] Cross-tenant isolation test suite green across every procedure
-- [ ] Role enforcement tested for every role × every mutating procedure
-- [ ] SSRF guard on every user-controlled outbound request, including redirect hops
-- [ ] Webhook signature verification + rate limiting
-- [ ] Rate limits on auth, API, and webhook surfaces
-- [ ] Audit logging on every mutation
-- [ ] `npm audit` clean at HIGH+
-- [ ] Env validation at boot; app refuses to start misconfigured
-- [ ] Session cookie flags verified in production
-- [ ] Backup + restore rehearsed, not just configured
-- [ ] Incident response runbook written and walked through once
-- [ ] External review or penetration test scheduled
+Reviewed end to end in **AF-M8-08 (2026-09-01)**. A box is ticked only where the control was read in the code, not merely specified here.
+
+- [x] All credentials encrypted at rest; no plaintext read path anywhere (proven by test) — AF-M3-02/04, `credentials-security.test.ts`
+- [x] Redacting logger in place; Sentry scrubbing verified — **was a finding.** Only the browser config scrubbed; server and edge had no `beforeSend` at all, `sendDefaultPii: true` attached request headers, and `vercelAIIntegration` recorded prompts and completions. Closed by AF-M8-16 (`src/lib/sentry-scrub.ts`, 7 tests).
+- [x] Cross-tenant isolation test suite green across every procedure — 95 integration tests. **Was unreliable, not green:** files raced each other's `TRUNCATE`, which is what AF-M8-02 recorded as a "pre-existing FK seeding" fault. Closed by AF-M8-18.
+- [x] Role enforcement tested for every role × every mutating procedure — AF-M6, `rbac.test.ts` + org-isolation suites
+- [x] SSRF guard on every user-controlled outbound request, including redirect hops — **was the HIGH finding.** Redirect hops were unguarded at all six call sites. Closed by AF-M8-16 / ADR-0015.
+- [x] Webhook signature verification + rate limiting — AF-A-01 + AF-M8-02
+- [x] Rate limits on auth, API, and webhook surfaces — AF-M8-02 (in-memory store; distributed store is ADR-0013 follow-up)
+- [x] Audit logging on every mutation — AF-M6-08
+- [x] `npm audit` clean at HIGH+ — 39 → 6, all LOW (AF-M8-19 tracks the `@ai-sdk/*` majors). **Not yet enforced in CI.**
+- [x] Env validation at boot; app refuses to start misconfigured — AF-M0-08. Note the AF-M8-04 correction: the check briefly refused *correct* configuration too.
+- [ ] Session cookie flags verified in production — not verified; no production deploy to inspect
+- [ ] Backup + restore rehearsed, not just configured — not started
+- [ ] Incident response runbook written and walked through once — AF-M8-07
+- [ ] External review or penetration test scheduled — not scheduled; a decision for the beta launch checklist (AF-M8-10)

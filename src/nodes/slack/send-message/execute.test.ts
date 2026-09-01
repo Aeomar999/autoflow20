@@ -22,6 +22,8 @@ vi.mock("ky", () => {
 
 vi.mock("@/features/executions/components/http-request/egress-guard", () => ({
   assertSafeEndpoint: async (endpoint: string) => new URL(endpoint),
+  safeFetch: (input: RequestInfo | URL, init?: RequestInit) =>
+    fetch(input, init),
 }));
 
 // The realtime sender is an infra binding; stub it to a plain payload so the

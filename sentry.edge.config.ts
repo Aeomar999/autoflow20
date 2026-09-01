@@ -5,6 +5,8 @@
 
 import * as Sentry from "@sentry/nextjs";
 
+import { scrubSentryEvent } from "@/lib/sentry-scrub";
+
 Sentry.init({
   dsn: "https://f1a2853e6bb4b74c72976cd5c3b37dd9@o4507629901053952.ingest.de.sentry.io/4510150041337936",
 
@@ -14,6 +16,10 @@ Sentry.init({
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
+
+  // AF-M8-16: this config had no scrubbing at all. security.md §9 [HARD].
+  sendDefaultPii: false,
+  beforeSend: scrubSentryEvent,
 
   // Enable logs to be sent to Sentry
   enableLogs: true,

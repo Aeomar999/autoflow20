@@ -2,7 +2,10 @@ import "server-only";
 import { decode } from "html-entities";
 import { NonRetriableError } from "inngest";
 import ky from "ky";
-import { assertSafeEndpoint } from "@/features/executions/components/http-request/egress-guard";
+import {
+  assertSafeEndpoint,
+  safeFetch,
+} from "@/features/executions/components/http-request/egress-guard";
 import { compileTemplate } from "@/features/executions/template";
 import { slackChannel } from "@/inngest/channels/slack";
 import type { NodeRun } from "@/nodes/types";
@@ -54,6 +57,7 @@ export const execute: NodeRun<SlackData> = async ({
 
       const webhookUrl = await assertSafeEndpoint(data.webhookUrl);
       await ky.post(webhookUrl, {
+        fetch: safeFetch,
         json: {
           content: content, // The key depends on workflow config
         },

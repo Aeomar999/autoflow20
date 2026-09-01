@@ -5,6 +5,7 @@ import {
   assertSafeEndpoint,
   readCappedText,
   resolveTimeoutMs,
+  safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
 import { compileTemplate } from "@/features/executions/template";
 import { openAiCompatibleChatChannel } from "@/inngest/channels/openai-compatible-chat";
@@ -91,6 +92,7 @@ export const execute: NodeRun<OpenAiCompatibleData> = async ({
 
       const response = await ky(chatUrl, {
         method: "POST",
+        fetch: safeFetch,
         timeout: resolveTimeoutMs(undefined),
         throwHttpErrors: false,
         headers: {
