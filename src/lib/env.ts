@@ -11,6 +11,24 @@ import { z } from "zod";
  * where secrets are intentionally absent).
  */
 
+/**
+ * An RFC 5322 sender: either a bare address (`noreply@autoflow.dev`) or the
+ * display-name form (`AutoFlow <noreply@autoflow.dev>`, quoted name allowed).
+ *
+ * AF-M8-15: this was `z.string().email()`, which rejected the display-name
+ * form that `.env.example` and `resendFromEmail`'s own default both ship - so
+ * a correctly-configured install failed `ensureEnv()` and refused to boot.
+ * Exported for direct testing.
+ */
+export const emailSenderSchema = z.string().refine(
+  (value) => {
+    const match = /^\s*(?:"[^"]*"|[^<>"]*)\s*<([^<>]+)>\s*$/.exec(value);
+    const address = match ? match[1].trim() : value.trim();
+    return z.email().safeParse(address).success;
+  },
+  { message: "must be an email address or `Name <email@host>`" },
+);
+
 const serverEnvSchema = z.object({
   DATABASE_URL: z.url("must be a valid Postgres connection URL"),
   BETTER_AUTH_SECRET: z.string().min(32, "must be at least 32 characters"),
@@ -51,7 +69,7 @@ const serverEnvSchema = z.object({
   // that REQUIRE sending an email fail loudly when these are missing - never
   // silently.
   RESEND_API_KEY: z.string().min(1).optional(),
-  RESEND_FROM_EMAIL: z.string().email("must be a valid email").optional(),
+  RESEND_FROM_EMAIL: emailSenderSchema.optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
