@@ -5,6 +5,7 @@ import {
   assertSafeEndpoint,
   readCappedText,
   resolveTimeoutMs,
+  safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
 import { compileTemplate } from "@/features/executions/template";
 import { httpRequestChannel } from "@/inngest/channels/http-request";
@@ -110,7 +111,7 @@ export const execute: NodeRun<HttpRequestData> = async ({
         }
       }
 
-      const response = await ky(url, options);
+      const response = await ky(url, { ...options, fetch: safeFetch });
       const contentType = response.headers.get("content-type");
       // Body is read through the byte cap before any parse.
       const rawBody = await readCappedText(response);

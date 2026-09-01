@@ -5,6 +5,7 @@ import {
   assertSafeEndpoint,
   readCappedText,
   resolveTimeoutMs,
+  safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
 import { compileTemplate } from "@/features/executions/template";
 import { webhookOutChannel } from "@/inngest/channels/webhook-out";
@@ -98,7 +99,7 @@ export const execute: NodeRun<WebhookOutData> = async ({
         };
       }
 
-      const response = await ky(url, options);
+      const response = await ky(url, { ...options, fetch: safeFetch });
       const contentType = response.headers.get("content-type");
       // Body is read through the byte cap before any parse.
       const rawBody = await readCappedText(response);

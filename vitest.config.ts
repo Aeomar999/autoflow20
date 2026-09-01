@@ -50,7 +50,18 @@ export default defineConfig({
           // One shared Postgres, and every suite TRUNCATEs the whole schema
           // in beforeEach. Parallel files would deadlock and clobber each
           // other's fixtures, so integration files run strictly serially.
+          //
+          // AF-M8-18: `fileParallelism: false` is documented as forcing
+          // `maxWorkers` to 1, but on its own it did not hold once the unit
+          // and dom projects ran alongside this one - files still interleaved,
+          // and one suite's TRUNCATE landed between another's user insert and
+          // its organization insert, surfacing as a `member_userId_fkey`
+          // violation. That is the failure AF-M8-02 recorded as a
+          // "pre-existing environment/DB-state issue" in the api-keys and
+          // public-api suites. Capping the workers explicitly is what holds.
           fileParallelism: false,
+          maxWorkers: 1,
+          pool: "forks",
         },
       },
     ],

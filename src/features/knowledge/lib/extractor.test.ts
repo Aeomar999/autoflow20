@@ -8,6 +8,8 @@ import {
 
 vi.mock("@/features/executions/components/http-request/egress-guard", () => ({
   assertSafeEndpoint: async (url: string) => new URL(url),
+  safeFetch: (input: RequestInfo | URL, init?: RequestInit) =>
+    fetch(input, init),
 }));
 
 describe("normalizeText", () => {

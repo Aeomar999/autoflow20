@@ -147,6 +147,109 @@ export const assertSafeEndpoint = async (raw: string): Promise<URL> => {
   return url;
 };
 
+/** Hops allowed in a single redirect chain before the request is abandoned. */
+export const MAX_REDIRECT_HOPS = 5;
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Headers that authenticate the caller and must not follow a redirect to a
+ * different origin - otherwise a redirect turns any node that sends a
+ * credential into a way to harvest it.
+ */
+const CREDENTIAL_HEADERS = ["authorization", "cookie", "proxy-authorization"];
+
+const buildRedirectRequest = (
+  previous: Request,
+  next: URL,
+  status: number,
+): Request => {
+  // Per the fetch spec: 303 always becomes GET, and 301/302 become GET when
+  // the original was a POST. 307/308 preserve the method and body.
+  const downgradeToGet =
+    status === 303 ||
+    (previous.method === "POST" && status !== 307 && status !== 308);
+
+  const headers = new Headers(previous.headers);
+  if (new URL(previous.url).origin !== next.origin) {
+    for (const header of CREDENTIAL_HEADERS) {
+      headers.delete(header);
+    }
+  }
+
+  if (downgradeToGet) {
+    return new Request(next, {
+      method: "GET",
+      headers,
+      redirect: "manual",
+    });
+  }
+
+  return new Request(next, {
+    method: previous.method,
+    headers,
+    body: previous.body,
+    // Node requires this when a stream body is reused.
+    duplex: "half",
+    redirect: "manual",
+  } as RequestInit);
+};
+
+/**
+ * A `fetch` that runs `assertSafeEndpoint` on every redirect hop.
+ *
+ * AF-M8-16: `assertSafeEndpoint` validates one url. Handing that url to a
+ * client that follows redirects itself leaves the guard checking only the
+ * first hop, so a user-supplied endpoint pointing at a host the attacker
+ * controls could answer `302 Location: http://169.254.169.254/...` and reach
+ * cloud metadata - the exact target the IP blocklist exists to deny.
+ * `docs/architecture/security.md` §5 already required the re-check; nothing
+ * implemented it.
+ *
+ * Pass this to `ky` as its `fetch` option rather than calling it directly:
+ * ky then keeps its own timeout, retry, and `throwHttpErrors` semantics, and
+ * every hop is validated in one place instead of at each call site (ADR-0015).
+ */
+export const safeFetch = async (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> => {
+  let request = new Request(input, init);
+
+  for (let hop = 0; ; hop += 1) {
+    const response = await globalThis.fetch(request, { redirect: "manual" });
+
+    if (!REDIRECT_STATUSES.has(response.status)) {
+      return response;
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      // A redirect status with nothing to redirect to is just a response.
+      return response;
+    }
+
+    if (hop >= MAX_REDIRECT_HOPS) {
+      throw new NonRetriableError(
+        `HTTP Request node: exceeded ${MAX_REDIRECT_HOPS} redirects from "${request.url}"`,
+      );
+    }
+
+    let next: URL;
+    try {
+      next = new URL(location, request.url);
+    } catch {
+      throw new NonRetriableError(
+        `HTTP Request node: redirect to invalid location "${location}"`,
+      );
+    }
+
+    // The guard, on every hop - this is the whole point of the wrapper.
+    await assertSafeEndpoint(next.toString());
+    request = buildRedirectRequest(request, next, response.status);
+  }
+};
+
 export const resolveTimeoutMs = (input?: number): number => {
   if (typeof input !== "number" || Number.isNaN(input) || input <= 0) {
     return DEFAULT_HTTP_TIMEOUT_MS;

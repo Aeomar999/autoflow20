@@ -52,22 +52,34 @@ export interface PreparedTemplate {
 const NODE_REF_PREFIX = "$node.";
 
 /**
+ * A `$node.<id>` reference. The id runs to the next `.` (the output-handle
+ * separator) or to any other character an id cannot contain, so the capture is
+ * always a whole id - never a prefix of a longer one.
+ */
+const NODE_REF_PATTERN = /\$node\.([A-Za-z0-9_-]+)/g;
+
+/**
  * Rewrite every `$node.<oldId>` reference found anywhere inside a config value
  * (JS template strings in `code`, `{{ }}` expression payloads, nested objects)
  * to the id that `prepareTemplateGraph` assigned to that node.
  */
-function rewriteNodeRefs(
+export function rewriteNodeRefs(
   value: unknown,
   idMap: ReadonlyMap<string, string>,
 ): unknown {
   if (typeof value === "string") {
-    let out = value;
-    for (const [oldId, newId] of idMap) {
-      out = out
-        .split(`${NODE_REF_PREFIX}${oldId}`)
-        .join(`${NODE_REF_PREFIX}${newId}`);
-    }
-    return out;
+    // AF-M8-15: one pass, resolving each token through the map, rather than
+    // one `split`/`join` per mapping over the accumulating output. The
+    // sequential form had two order-dependent faults: an id it had just
+    // written could be matched again by a later mapping (a -> "b1", then
+    // b -> "z9", yielding "$node.z91"), and a mapped id that is a prefix of
+    // an unmapped one corrupted the longer id ("$node.abc" -> "$node.n1bc").
+    // A token here is the whole id up to the reference separator, so it is
+    // matched in full or not at all, and a token is only ever visited once.
+    return value.replace(NODE_REF_PATTERN, (match, oldId: string) => {
+      const newId = idMap.get(oldId);
+      return newId === undefined ? match : `${NODE_REF_PREFIX}${newId}`;
+    });
   }
 
   if (Array.isArray(value)) {

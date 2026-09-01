@@ -1,7 +1,10 @@
 import { decode } from "html-entities";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
-import { assertSafeEndpoint } from "@/features/executions/components/http-request/egress-guard";
+import {
+  assertSafeEndpoint,
+  safeFetch,
+} from "@/features/executions/components/http-request/egress-guard";
 
 export interface ExtractedDocument {
   title?: string;
@@ -94,7 +97,7 @@ export async function extractTextFromUrl(
 ): Promise<ExtractedDocument> {
   const safeUrl = await assertSafeEndpoint(urlString);
 
-  const response = await fetch(safeUrl.href, {
+  const response = await safeFetch(safeUrl.href, {
     method: "GET",
     headers: {
       "User-Agent": "AutoFlow-Bot/1.0 (+https://autoflow.local)",

@@ -3,6 +3,7 @@ import { nodeRegistry, UnknownNodeTypeError } from "@/nodes/registry";
 import {
   collectPendingCredentials,
   prepareTemplateGraph,
+  rewriteNodeRefs,
   type TemplateGraph,
 } from "./instantiate";
 
@@ -29,6 +30,67 @@ const baseGraph: TemplateGraph = {
   nodes: [trigger("a"), sheets("b")],
   edges: [{ source: "a", target: "b" }],
 };
+
+/**
+ * AF-M8-15: `rewriteNodeRefs` applied each mapping in sequence over the
+ * accumulating output, so a substituted new id could be matched again by a
+ * later old id. Exercised directly with hand-built maps - going through
+ * `prepareTemplateGraph` would depend on which cuids happen to be generated.
+ */
+describe("rewriteNodeRefs", () => {
+  it("does not re-substitute an id it has already written", () => {
+    // "a" maps to an id starting with "b", and "b" is itself a key: a
+    // sequential replace rewrites the freshly written "b" a second time.
+    const idMap = new Map([
+      ["a", "b111"],
+      ["b", "z999"],
+    ]);
+
+    expect(rewriteNodeRefs("$node.a.main.value", idMap)).toBe(
+      "$node.b111.main.value",
+    );
+  });
+
+  it("produces the same result regardless of map insertion order", () => {
+    const forward = new Map([
+      ["a", "b111"],
+      ["b", "z999"],
+    ]);
+    const reverse = new Map([
+      ["b", "z999"],
+      ["a", "b111"],
+    ]);
+    const input = "$node.a.main.value and $node.b.main.value";
+
+    expect(rewriteNodeRefs(input, forward)).toBe(
+      rewriteNodeRefs(input, reverse),
+    );
+  });
+
+  it("leaves an unmapped id alone even when a mapped id is its prefix", () => {
+    // "a" is mapped; "abc" is a different node that is not in this graph.
+    // A prefix-based replace would corrupt it to "$node.n1bc.main.value".
+    const idMap = new Map([["a", "n1"]]);
+
+    expect(rewriteNodeRefs("$node.abc.main.value", idMap)).toBe(
+      "$node.abc.main.value",
+    );
+  });
+
+  it("rewrites every occurrence in one string", () => {
+    const idMap = new Map([["a", "n1"]]);
+
+    expect(rewriteNodeRefs("$node.a.x + $node.a.y", idMap)).toBe(
+      "$node.n1.x + $node.n1.y",
+    );
+  });
+
+  it("leaves a reference with no mapping untouched", () => {
+    expect(rewriteNodeRefs("$node.gone.main", new Map())).toBe(
+      "$node.gone.main",
+    );
+  });
+});
 
 describe("prepareTemplateGraph", () => {
   it("rotates every node id to a fresh cuid and maps old -> new", () => {
