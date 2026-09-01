@@ -52,6 +52,7 @@ autoflow/
 | [`operations/environment_setup.md`](operations/environment_setup.md) | Local setup, env vars, or a boot failure. |
 | [`operations/runbooks.md`](operations/runbooks.md) | You are on call, or an incident is happening. Five failure modes, symptom first. |
 | [`operations/slos.md`](operations/slos.md) | Setting or arguing about reliability targets, error budgets, or what should alert. |
+| [`operations/operator_actions.md`](operations/operator_actions.md) | Working out why a task is still open, and which open items need a human with account access rather than a code change. |
 
 ## decisions/ — why
 
