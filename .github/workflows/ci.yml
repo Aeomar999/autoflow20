@@ -39,6 +39,18 @@ jobs:
         run: npx tsc --noEmit
       - name: Lint (Biome)
         run: npm run lint
+      - name: Dependency audit
+        # AF-M8-08 took this from 39 findings (3 critical, 18 high) to 6 LOW.
+        # Without a gate it silently rots back: an advisory published against
+        # an already-installed version regresses the tree with no code change,
+        # so nothing else in this pipeline would ever notice.
+        #
+        # HIGH+ only. `--audit-level=high` still REPORTS low and moderate
+        # findings, it just does not fail on them - matching the bar security.md
+        # states ("HIGH/CRITICAL blocks merge") rather than blocking every merge
+        # on the 6 known LOW advisories in the @ai-sdk chain, whose only fix is
+        # a major upgrade tracked as AF-M8-19.
+        run: npm audit --audit-level=high
       - name: Unit tests
         run: npm test
       - name: Build
