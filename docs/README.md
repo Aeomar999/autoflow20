@@ -53,6 +53,8 @@ autoflow/
 | [`operations/runbooks.md`](operations/runbooks.md) | You are on call, or an incident is happening. Five failure modes, symptom first. |
 | [`operations/slos.md`](operations/slos.md) | Setting or arguing about reliability targets, error budgets, or what should alert. |
 | [`operations/operator_actions.md`](operations/operator_actions.md) | Working out why a task is still open, and which open items need a human with account access rather than a code change. |
+| [`operations/beta_launch_checklist.md`](operations/beta_launch_checklist.md) | Deciding whether the service can be opened to external users. Names four blockers. |
+| [`operations/support.md`](operations/support.md) | Answering a customer, or deciding whether a report is an incident. |
 
 ## decisions/ — why
 
@@ -67,6 +69,16 @@ autoflow/
 | [0005](decisions/0005-tenancy-timing.md) | Introduce tenancy at M6, not later |
 | [0006](decisions/0006-expressions-not-eval.md) | Expressions are parsed, not evaluated |
 | [0007](decisions/0007-handlebars-runtime-compilation.md) | Handlebars runtime compilation kept, sandboxed |
+| [0008](decisions/0008-credential-model-registry-and-api.md) | Credential model + registry + API (no plaintext read path) |
+| [0009](decisions/0009-ai-provider-registry.md) | AI provider registry with capability + pricing data |
+| [0010](decisions/0010-org-level-plan-as-quota-source.md) | Org-level `Organization.plan` is the quota source of truth |
+| [0011](decisions/0011-node-type-deprecation-lifecycle.md) | Node types are retired by deprecation, never by deletion |
+| [0012](decisions/0012-public-api-and-api-keys.md) | Public REST API with scoped, hashed API keys |
+| [0013](decisions/0013-rate-limit-store.md) | Shared injectable rate-limit store (in-memory default) |
+| [0014](decisions/0014-resend-for-auth-email.md) | Resend for transactional auth email |
+| [0015](decisions/0015-guarded-fetch-for-redirects.md) | The SSRF guard owns redirect following, via a `fetch` given to the client |
+| [0016](decisions/0016-execution-retention-over-partitioning.md) | Two-stage execution retention now; partitioning deferred behind a trigger |
+| [0017](decisions/0017-pinned-address-egress.md) | Egress connects to the address the guard vetted, via undici |
 
 ## reference/ — lookups
 
@@ -97,7 +109,7 @@ Three cautions:
 | `operations/deployment.md` — production topology and release process | M8 |
 | ~~`operations/runbooks/` — incident procedures (credential exposure is mandatory)~~ — **built** as [`operations/runbooks.md`](operations/runbooks.md) (AF-M8-07); credential exposure is F3 | M8 |
 | `reference/rest-v1.md` — public API reference | M8 |
-| `operations/support.md` — triage and escalation | Beta |
+| ~~`operations/support.md` — triage and escalation~~ — **built** (AF-M8-10) | Beta |
 
 ---
 
