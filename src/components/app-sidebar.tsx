@@ -2,6 +2,7 @@
 
 import {
   BookOpenIcon,
+  ChevronsUpDownIcon,
   CoinsIcon,
   CreditCardIcon,
   FolderOpenIcon,
@@ -10,18 +11,28 @@ import {
   LayoutTemplateIcon,
   LineChartIcon,
   LogOutIcon,
-  StarIcon,
+  SparklesIcon,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -31,97 +42,207 @@ import { NotificationBell } from "@/features/notifications/components/notificati
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { authClient } from "@/lib/auth-client";
 import { polarProductSlug } from "@/lib/env";
+import { cn } from "@/lib/utils";
 
-const menuItems = [
+/**
+ * Grouped navigation.
+ *
+ * Every label and URL is unchanged from the flat list this replaced, so
+ * bookmarks, muscle memory and anything keyed on nav labels keep working. The
+ * groups exist because seven equal items gave no clue which page answers which
+ * question.
+ */
+export const NAV_GROUPS = [
   {
-    title: "Main",
+    label: "Build",
     items: [
-      {
-        title: "Workflows",
-        icon: FolderOpenIcon,
-        url: "/workflows",
-      },
-      {
-        title: "Templates",
-        icon: LayoutTemplateIcon,
-        url: "/templates",
-      },
-      {
-        title: "Credentials",
-        icon: KeyIcon,
-        url: "/credentials",
-      },
-      {
-        title: "Executions",
-        icon: HistoryIcon,
-        url: "/executions",
-      },
-      {
-        title: "Knowledge Base",
-        icon: BookOpenIcon,
-        url: "/knowledge",
-      },
-      {
-        title: "Costs",
-        icon: CoinsIcon,
-        url: "/costs",
-      },
-      {
-        title: "Monitoring",
-        icon: LineChartIcon,
-        url: "/monitoring",
-      },
+      { title: "Workflows", icon: FolderOpenIcon, url: "/workflows" },
+      { title: "Templates", icon: LayoutTemplateIcon, url: "/templates" },
     ],
   },
-];
+  {
+    label: "Operate",
+    items: [
+      { title: "Executions", icon: HistoryIcon, url: "/executions" },
+      { title: "Monitoring", icon: LineChartIcon, url: "/monitoring" },
+      { title: "Costs", icon: CoinsIcon, url: "/costs" },
+    ],
+  },
+  {
+    label: "Library",
+    items: [
+      { title: "Credentials", icon: KeyIcon, url: "/credentials" },
+      { title: "Knowledge Base", icon: BookOpenIcon, url: "/knowledge" },
+    ],
+  },
+] as const;
 
-export const AppSidebar = () => {
-  const router = useRouter();
-  const pathname = usePathname();
+const initialsOf = (value: string) =>
+  value
+    .split(/[\s@._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "A";
+
+const WorkspaceCard = () => {
   const { hasActiveSubscription, isLoading } = useHasActiveSubscription();
-  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const plan = isLoading
+    ? "Loading plan"
+    : hasActiveSubscription
+      ? "Pro plan"
+      : "Free plan";
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <div className="flex items-center gap-1">
-          <SidebarMenuItem className="min-w-0 flex-1">
-            <SidebarMenuButton asChild className="gap-x-4 h-10 px-4">
-              <Link href="/" prefetch>
-                <Image
-                  src="/logos/autoflow-327.svg"
-                  alt="Autoflow"
-                  width={30}
-                  height={30}
-                />
-                <span className="font-semibold text-sm">Autoflow</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          {/* AF-M7-08. This layout has no top header bar; the sidebar header
-              is its equivalent region. Hidden when the rail is collapsed to
-              icons, where there is no room for the badge to read. */}
+    <Link
+      href="/"
+      prefetch
+      className={cn(
+        "flex items-center gap-2.5 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2 transition-colors hover:bg-sidebar-accent",
+        "group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0",
+      )}
+    >
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/12 ring-1 ring-primary/25">
+        <Image
+          src="/logos/autoflow-327.svg"
+          alt=""
+          width={18}
+          height={18}
+          priority
+        />
+      </span>
+      <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
+        <span className="truncate text-sm leading-tight font-semibold">
+          AutoFlow
+        </span>
+        <span className="truncate text-[11px] leading-tight text-muted-foreground">
+          {plan}
+        </span>
+      </span>
+    </Link>
+  );
+};
+
+const AccountCard = () => {
+  const router = useRouter();
+  const { hasActiveSubscription, isLoading } = useHasActiveSubscription();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const session = authClient.useSession();
+
+  const user = session.data?.user;
+  const name = user?.name || user?.email || "Your account";
+  const email = user?.email ?? "";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2 text-left transition-colors hover:bg-sidebar-accent",
+            "group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0",
+          )}
+        >
+          <Avatar className="size-8 shrink-0 rounded-md">
+            {user?.image ? <AvatarImage src={user.image} alt="" /> : null}
+            <AvatarFallback className="rounded-md bg-primary/12 text-[11px] font-semibold text-primary">
+              {initialsOf(name)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+            <span className="truncate text-sm leading-tight font-medium">
+              {name}
+            </span>
+            {email ? (
+              <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                {email}
+              </span>
+            ) : null}
+          </span>
+          <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="w-60">
+        <div className="px-2 py-1.5">
+          <p className="truncate text-sm font-medium">{name}</p>
+          {email ? (
+            <p className="truncate text-xs text-muted-foreground">{email}</p>
+          ) : null}
+        </div>
+        <DropdownMenuSeparator />
+        {!hasActiveSubscription && !isLoading && (
+          <DropdownMenuItem
+            onClick={() => authClient.checkout({ slug: polarProductSlug })}
+            className="gap-2 text-primary focus:text-primary"
+          >
+            <SparklesIcon className="size-4" />
+            Upgrade to Pro
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          onClick={() => authClient.customer.portal()}
+          className="gap-2"
+        >
+          <CreditCardIcon className="size-4" />
+          Billing portal
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={isSigningOut}
+          className="gap-2"
+          onClick={() => {
+            setIsSigningOut(true);
+            authClient.signOut({
+              fetchOptions: {
+                onSuccess: () => router.push("/login"),
+                onError: () => setIsSigningOut(false),
+              },
+            });
+          }}
+        >
+          <LogOutIcon className="size-4" />
+          {isSigningOut ? "Signing out..." : "Sign out"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+export const AppSidebar = () => {
+  const pathname = usePathname();
+
+  return (
+    <Sidebar collapsible="icon" className="border-hairline">
+      <SidebarHeader className="p-2">
+        <div className="flex items-center gap-2">
+          <WorkspaceCard />
+          {/* AF-M7-08. Hidden when the rail is collapsed to icons, where there
+              is no room for the badge to read. */}
           <div className="group-data-[collapsible=icon]:hidden">
             <NotificationBell />
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
-        {menuItems.map((group) => (
-          <SidebarGroup key={group.title}>
+
+      <SidebarContent className="gap-0">
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label} className="py-2">
+            <SidebarGroupLabel className="dash-label h-6 px-2 text-muted-foreground">
+              {group.label}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       tooltip={item.title}
-                      isActive={
-                        item.url === "/"
-                          ? pathname === "/"
-                          : pathname.startsWith(item.url)
-                      }
+                      isActive={pathname.startsWith(item.url)}
                       asChild
-                      className="gap-x-4 h-10 px-4"
+                      className={cn(
+                        "h-9 gap-3 px-2 text-sidebar-foreground/80",
+                        "data-[active=true]:bg-primary/10 data-[active=true]:font-medium data-[active=true]:text-primary",
+                      )}
                     >
                       <Link href={item.url} prefetch>
                         <item.icon className="size-4" />
@@ -135,51 +256,9 @@ export const AppSidebar = () => {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
-          {!hasActiveSubscription && !isLoading && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Upgrade to Pro"
-                className="gap-x-4 h-10 px-4"
-                onClick={() => authClient.checkout({ slug: polarProductSlug })}
-              >
-                <StarIcon className="h-4 w-4" />
-                <span>Upgrade to Pro</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Billing Portal"
-              className="gap-x-4 h-10 px-4"
-              onClick={() => authClient.customer.portal()}
-            >
-              <CreditCardIcon className="h-4 w-4" />
-              <span>Billing Portal</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Sign out"
-              className="gap-x-4 h-10 px-4"
-              disabled={isSigningOut}
-              onClick={() => {
-                setIsSigningOut(true);
-                authClient.signOut({
-                  fetchOptions: {
-                    onSuccess: () => {
-                      router.push("/login");
-                    },
-                  },
-                });
-              }}
-            >
-              <LogOutIcon className="h-4 w-4" />
-              <span>Sign out</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+
+      <SidebarFooter className="p-2">
+        <AccountCard />
       </SidebarFooter>
     </Sidebar>
   );

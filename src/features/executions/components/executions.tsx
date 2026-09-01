@@ -2,28 +2,39 @@
 
 import { formatDistanceToNow } from "date-fns";
 import {
-  BanIcon,
-  CheckCircle2Icon,
-  ClockIcon,
   GlobeIcon,
   KeyboardIcon,
-  Loader2Icon,
   PlayIcon,
-  StopCircleIcon,
   TimerIcon,
   WebhookIcon,
-  XCircleIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { memo } from "react";
+
+import {
+  DataTable,
+  TableEmpty,
+  TableSkeleton,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@/components/dashboard/data-table";
+import { PageHeader } from "@/components/dashboard/page";
+import {
+  Panel,
+  PanelActions,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/dashboard/panel";
+import { StatusPill } from "@/components/dashboard/status-pill";
 import {
   EmptyView,
   EntityContainer,
-  EntityItem,
-  EntityList,
   EntityPagination,
   ErrorView,
-  LoadingView,
 } from "@/components/entity-components";
 import {
   Select,
@@ -32,9 +43,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ExecutionStatus } from "@/generated/prisma/browser";
+import type { ExecutionStatus } from "@/generated/prisma/browser";
+
 import { useExecutions, useSuspenseExecutions } from "../hooks/use-executions";
 import { useExecutionsParams } from "../hooks/use-executions-params";
+import { ExecutionStatusPill } from "../lib/status";
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "All statuses" },
@@ -63,69 +76,104 @@ const formatDuration = (durationMs: number | null): string | null => {
   return `${(durationMs / 1000).toFixed(1)}s`;
 };
 
+const COLUMNS = 7;
+
+const ExecutionsTableHead = () => (
+  <THead>
+    <tr>
+      <TH>Run</TH>
+      <TH>Workflow</TH>
+      <TH className="hidden lg:table-cell">Trigger</TH>
+      <TH>Status</TH>
+      <TH className="hidden md:table-cell">Started</TH>
+      <TH align="right" className="hidden sm:table-cell">
+        Duration
+      </TH>
+      <TH align="right">Cost</TH>
+    </tr>
+  </THead>
+);
+
 export const ExecutionsList = () => {
   const executions = useSuspenseExecutions();
-  const hasRunning = executions.data.items.some((e) => e.status === "RUNNING");
+  const items = executions.data.items;
 
   return (
-    <>
-      <EntityList
-        items={executions.data.items}
-        getKey={(execution) => execution.id}
-        renderItem={(execution) => <ExecutionItem data={execution} />}
-        emptyView={<ExecutionsEmpty />}
-      />
-      {hasRunning && (
-        <p className="text-xs text-muted-foreground text-center py-1">
-          Auto-refreshing while runs are active...
-        </p>
-      )}
-    </>
-  );
-};
-
-export const ExecutionsHeader = () => {
-  const [params, setParams] = useExecutionsParams();
-  const executions = useExecutions();
-  const hasRunning = executions.data?.items.some((e) => e.status === "RUNNING");
-
-  return (
-    <div className="flex flex-row items-center justify-between gap-x-4">
-      <div className="flex flex-col">
-        <h1 className="text-lg md:text-xl font-semibold">Executions</h1>
-        <p className="text-xs md:text-sm text-muted-foreground">
-          View your workflow execution history
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Select
-          value={params.status ?? "ALL"}
-          onValueChange={(value) =>
-            setParams({
-              ...params,
-              status: value === "ALL" ? null : value,
-              page: 1,
-            })
-          }
-        >
-          <SelectTrigger className="w-[160px] h-8 text-xs">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {hasRunning && (
-          <Loader2Icon className="size-4 animate-spin text-blue-600" />
+    <DataTable>
+      <ExecutionsTableHead />
+      <TBody>
+        {items.length === 0 ? (
+          <TableEmpty colSpan={COLUMNS}>
+            <ExecutionsEmpty />
+          </TableEmpty>
+        ) : (
+          items.map((execution) => (
+            <ExecutionRow key={execution.id} data={execution} />
+          ))
         )}
-      </div>
-    </div>
+      </TBody>
+    </DataTable>
   );
 };
+
+/** Live indicator, shown only while at least one run is still in flight. */
+const RunningIndicator = () => {
+  const executions = useExecutions();
+  const running =
+    executions.data?.items.filter((item) => item.status === "RUNNING").length ??
+    0;
+
+  if (running === 0) return null;
+
+  return (
+    <StatusPill tone="info" title="This list refreshes while runs are active">
+      {running} running
+    </StatusPill>
+  );
+};
+
+const ExecutionsStatusFilter = () => {
+  const [params, setParams] = useExecutionsParams();
+
+  return (
+    <Select
+      value={params.status ?? "ALL"}
+      onValueChange={(value) =>
+        setParams({
+          ...params,
+          status: value === "ALL" ? null : value,
+          page: 1,
+        })
+      }
+    >
+      <SelectTrigger
+        aria-label="Filter by status"
+        className="h-8 w-[150px] border-hairline bg-panel text-xs shadow-none"
+      >
+        <SelectValue placeholder="All statuses" />
+      </SelectTrigger>
+      <SelectContent>
+        {STATUS_OPTIONS.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="text-xs"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
+export const ExecutionsHeader = () => (
+  <PageHeader
+    title="Executions"
+    description="View your workflow execution history"
+    actions={<ExecutionsStatusFilter />}
+  />
+);
 
 export const ExecutionsPagination = () => {
   const executions = useExecutions();
@@ -147,24 +195,35 @@ export const ExecutionsContainer = ({
   children,
 }: {
   children: React.ReactNode;
-}) => {
-  return (
-    <EntityContainer
-      header={<ExecutionsHeader />}
-      pagination={<ExecutionsPagination />}
-    >
+}) => (
+  <EntityContainer header={<ExecutionsHeader />}>
+    <Panel>
+      <PanelHeader>
+        <PanelTitle hint="Every run started in this workspace, newest first.">
+          Run history
+        </PanelTitle>
+        <PanelActions>
+          <RunningIndicator />
+        </PanelActions>
+      </PanelHeader>
       {children}
-    </EntityContainer>
-  );
-};
+      <ExecutionsPagination />
+    </Panel>
+  </EntityContainer>
+);
 
-export const ExecutionsLoading = () => {
-  return <LoadingView message="Loading executions..." />;
-};
+export const ExecutionsLoading = () => (
+  <DataTable>
+    <ExecutionsTableHead />
+    <TBody>
+      <TableSkeleton columns={COLUMNS} />
+    </TBody>
+  </DataTable>
+);
 
-export const ExecutionsError = () => {
-  return <ErrorView message="Error loading executions" />;
-};
+export const ExecutionsError = () => (
+  <ErrorView message="Error loading executions" />
+);
 
 export const ExecutionsEmpty = () => {
   const router = useRouter();
@@ -184,30 +243,7 @@ export const ExecutionsEmpty = () => {
   );
 };
 
-const getStatusIcon = (status: ExecutionStatus) => {
-  switch (status) {
-    case ExecutionStatus.SUCCESS:
-      return <CheckCircle2Icon className="size-5 text-green-600" />;
-    case ExecutionStatus.FAILED:
-      return <XCircleIcon className="size-5 text-red-600" />;
-    case ExecutionStatus.RUNNING:
-      return <Loader2Icon className="size-5 text-blue-600 animate-spin" />;
-    case ExecutionStatus.CANCELLED:
-      return <StopCircleIcon className="size-5 text-orange-500" />;
-    case ExecutionStatus.TIMED_OUT:
-      return <TimerIcon className="size-5 text-red-600" />;
-    case ExecutionStatus.QUOTA_EXCEEDED:
-      return <BanIcon className="size-5 text-red-600" />;
-    default:
-      return <ClockIcon className="size-5 text-muted-foreground" />;
-  }
-};
-
-const formatStatus = (status: ExecutionStatus) => {
-  return status.charAt(0) + status.slice(1).toLowerCase();
-};
-
-export const ExecutionItem = memo(
+export const ExecutionRow = memo(
   ({
     data,
   }: {
@@ -219,10 +255,7 @@ export const ExecutionItem = memo(
       completedAt: Date | null;
       durationMs: number | null;
       costUsd: number | null;
-      workflow: {
-        id: string;
-        name: string;
-      };
+      workflow: { id: string; name: string };
     };
   }) => {
     const duration = data.durationMs
@@ -239,44 +272,47 @@ export const ExecutionItem = memo(
       <PlayIcon className="size-3" />
     );
 
-    const subtitle = (
-      <span className="flex flex-wrap items-center gap-x-1.5">
-        <span className="inline-flex items-center gap-1">
-          {triggerIcon}
-          {data.trigger}
-        </span>
-        <span>&bull;</span>
-        <span>{data.workflow.name}</span>
-        <span>&bull;</span>
-        <span>
-          Started {formatDistanceToNow(data.startedAt, { addSuffix: true })}
-        </span>
-        {duration && (
-          <>
-            <span>&bull;</span>
-            <span>{duration}</span>
-          </>
-        )}
-        {cost && (
-          <>
-            <span>&bull;</span>
-            <span className="font-mono">{cost}</span>
-          </>
-        )}
-      </span>
-    );
-
     return (
-      <EntityItem
-        href={`/executions/${data.id}`}
-        title={formatStatus(data.status)}
-        subtitle={subtitle}
-        image={
-          <div className="size-8 flex items-center justify-center">
-            {getStatusIcon(data.status)}
-          </div>
-        }
-      />
+      <TR href={`/executions/${data.id}`}>
+        <TD>
+          <Link
+            href={`/executions/${data.id}`}
+            className="font-mono text-xs text-muted-foreground hover:text-primary"
+          >
+            {data.id.slice(0, 8)}
+          </Link>
+        </TD>
+        <TD className="max-w-[220px]">
+          <Link
+            href={`/workflows/${data.workflow.id}`}
+            className="block truncate font-medium hover:text-primary hover:underline"
+          >
+            {data.workflow.name}
+          </Link>
+        </TD>
+        <TD className="hidden lg:table-cell">
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            {triggerIcon}
+            {data.trigger}
+          </span>
+        </TD>
+        <TD>
+          <ExecutionStatusPill status={data.status} />
+        </TD>
+        <TD className="hidden text-muted-foreground md:table-cell">
+          {formatDistanceToNow(data.startedAt, { addSuffix: true })}
+        </TD>
+        <TD
+          align="right"
+          className="hidden font-mono text-muted-foreground tabular-nums sm:table-cell"
+        >
+          {duration ?? "-"}
+        </TD>
+        <TD align="right" className="font-mono tabular-nums">
+          {cost ?? <span className="text-muted-foreground">-</span>}
+        </TD>
+      </TR>
     );
   },
 );
+ExecutionRow.displayName = "ExecutionRow";

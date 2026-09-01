@@ -29,7 +29,7 @@ export const NodeValidationBadge = memo(function NodeValidationBadge({
       <Icon
         className={cn(
           "size-4 rounded-full bg-background ring-2 ring-background",
-          hasErrors ? "text-destructive" : "text-amber-500",
+          hasErrors ? "text-danger" : "text-warning",
         )}
       />
       <span className="pointer-events-none absolute right-0 top-full z-10 mt-2 w-56 rounded-md border bg-popover p-3 text-xs opacity-0 shadow-md transition-opacity group-hover/badge:opacity-100">
@@ -41,12 +41,12 @@ export const NodeValidationBadge = memo(function NodeValidationBadge({
                 <span
                   className={cn(
                     "font-medium capitalize",
-                    isError ? "text-destructive" : "text-amber-500",
+                    isError ? "text-danger" : "text-warning",
                   )}
                 >
                   {issue.severity}
                 </span>{" "}
-                {issue.path ? `· ${issue.path} — ` : ""}
+                {issue.path ? `${issue.path}: ` : ""}
                 {issue.message}
               </li>
             );

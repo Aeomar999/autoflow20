@@ -3,7 +3,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { CheckCircle2Icon, HistoryIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/dashboard/status-pill";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -75,12 +75,10 @@ function getDiffSummary(
   return (
     <div className="flex flex-col gap-1 text-xs mt-2">
       {added.length > 0 && (
-        <span className="text-emerald-600 dark:text-emerald-400">
-          + {added.join(", ")}
-        </span>
+        <span className="text-success">+ {added.join(", ")}</span>
       )}
       {removed.length > 0 && (
-        <span className="text-destructive">- {removed.join(", ")}</span>
+        <span className="text-danger">- {removed.join(", ")}</span>
       )}
     </div>
   );
@@ -111,7 +109,7 @@ export const VersionHistorySheet = ({ workflowId }: { workflowId: string }) => {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex items-center justify-between py-4 border-b">
+        <div className="flex items-center justify-between gap-4 border-b border-hairline py-4">
           <div>
             <h4 className="text-sm font-medium">Publish Draft</h4>
             <p className="text-sm text-muted-foreground">
@@ -151,26 +149,21 @@ export const VersionHistorySheet = ({ workflowId }: { workflowId: string }) => {
               return (
                 <div
                   key={v.id}
-                  className={`p-4 border rounded-lg flex flex-col gap-3 ${isActive ? "bg-primary/5 border-primary/20" : "bg-card"}`}
+                  className={`flex flex-col gap-3 rounded-lg border p-4 ${isActive ? "border-primary/25 bg-primary/8" : "border-hairline bg-panel"}`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">v{v.version}</span>
                         {isActive ? (
-                          <Badge
-                            variant="default"
-                            className="gap-1 px-1.5 h-5 text-[10px]"
+                          <StatusPill
+                            tone="success"
+                            icon={<CheckCircle2Icon />}
                           >
-                            <CheckCircle2Icon className="size-3" /> Active
-                          </Badge>
+                            Active
+                          </StatusPill>
                         ) : (
-                          <Badge
-                            variant="secondary"
-                            className="px-1.5 h-5 text-[10px]"
-                          >
-                            Inactive
-                          </Badge>
+                          <StatusPill tone="neutral">Inactive</StatusPill>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -204,9 +197,9 @@ export const VersionHistorySheet = ({ workflowId }: { workflowId: string }) => {
                     </div>
                   </div>
 
-                  <div className="bg-muted/50 rounded p-2 border">
-                    <p className="text-xs font-medium mb-1">
-                      Changes in this version:
+                  <div className="rounded-md border border-hairline bg-well p-2.5">
+                    <p className="dash-label mb-1.5 text-muted-foreground">
+                      Changes in this version
                     </p>
                     {typeof diffNode === "string" ? (
                       <p className="text-xs text-muted-foreground">

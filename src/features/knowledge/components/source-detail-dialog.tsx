@@ -8,7 +8,7 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/dashboard/status-pill";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -85,24 +85,22 @@ export function SourceDetailDialog({
                 <span className="text-muted-foreground block">Status</span>
                 <div className="mt-1">
                   {source.status === "EMBEDDED" ? (
-                    <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[11px]">
-                      <CheckCircle2 className="size-3 mr-1" />
+                    <StatusPill tone="success" icon={<CheckCircle2 />}>
                       Embedded
-                    </Badge>
+                    </StatusPill>
                   ) : source.status === "PROCESSING" ? (
-                    <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/30 text-[11px]">
-                      <Loader2 className="size-3 mr-1 animate-spin" />
+                    <StatusPill
+                      tone="info"
+                      icon={<Loader2 className="animate-spin" />}
+                    >
                       Processing
-                    </Badge>
+                    </StatusPill>
                   ) : source.status === "FAILED" ? (
-                    <Badge variant="destructive" className="text-[11px]">
-                      <AlertCircle className="size-3 mr-1" />
+                    <StatusPill tone="danger" icon={<AlertCircle />}>
                       Error
-                    </Badge>
+                    </StatusPill>
                   ) : (
-                    <Badge variant="outline" className="text-[11px]">
-                      Pending
-                    </Badge>
+                    <StatusPill tone="neutral">Pending</StatusPill>
                   )}
                 </div>
               </div>

@@ -1,17 +1,11 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { BoxesIcon, PlugIcon } from "lucide-react";
+import { BoxesIcon, DownloadIcon, PlugIcon } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
+import { StatusPill } from "@/components/dashboard/status-pill";
 
 export type TemplateCardData = {
   slug: string;
@@ -27,43 +21,46 @@ export type TemplateCardData = {
   updatedAt: Date;
 };
 
-export const TemplateCard = memo(({ data }: { data: TemplateCardData }) => {
-  return (
-    <Link href={`/templates/${data.slug}`} prefetch className="h-full">
-      <Card className="h-full cursor-pointer hover:shadow transition-shadow">
-        <CardHeader className="p-4 pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <Badge variant="secondary" className="text-[10px]">
-              {data.category}
-            </Badge>
-            {data.featured && <Badge className="text-[10px]">Featured</Badge>}
-          </div>
-          <CardTitle className="text-base font-medium mt-2">
-            {data.name}
-          </CardTitle>
-          <CardDescription className="line-clamp-2 text-xs">
-            {data.description}
-          </CardDescription>
-        </CardHeader>
-        <CardFooter className="p-4 pt-0 flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <BoxesIcon className="size-3.5" />
-              {data.nodeCount} nodes
-            </span>
-            <span className="flex items-center gap-1">
-              <PlugIcon className="size-3.5" />
-              {data.credentialCount} needed
-            </span>
-          </div>
-          <span className="flex items-center gap-1">
-            {data.installs} installs
-          </span>
-          <span className="hidden sm:inline">
-            {formatDistanceToNow(data.updatedAt, { addSuffix: true })}
-          </span>
-        </CardFooter>
-      </Card>
-    </Link>
-  );
-});
+export const TemplateCard = memo(({ data }: { data: TemplateCardData }) => (
+  <Link
+    href={`/templates/${data.slug}`}
+    prefetch
+    className="group flex h-full flex-col overflow-hidden rounded-xl border border-hairline bg-panel transition-colors hover:border-primary/40"
+  >
+    <div className="flex flex-1 flex-col gap-2 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <span className="dash-label text-muted-foreground">
+          {data.category}
+        </span>
+        {data.featured ? <StatusPill tone="accent">Featured</StatusPill> : null}
+      </div>
+      <h3 className="font-medium transition-colors group-hover:text-primary">
+        {data.name}
+      </h3>
+      <p className="line-clamp-2 text-xs text-muted-foreground">
+        {data.description}
+      </p>
+    </div>
+
+    <div className="flex items-center justify-between gap-3 border-t border-hairline bg-well px-4 py-2 text-xs text-muted-foreground">
+      <span className="flex items-center gap-3">
+        <span className="flex items-center gap-1 tabular-nums">
+          <BoxesIcon className="size-3.5" />
+          {data.nodeCount} nodes
+        </span>
+        <span className="flex items-center gap-1 tabular-nums">
+          <PlugIcon className="size-3.5" />
+          {data.credentialCount} keys
+        </span>
+        <span className="flex items-center gap-1 tabular-nums">
+          <DownloadIcon className="size-3.5" />
+          {data.installs}
+        </span>
+      </span>
+      <span className="hidden truncate sm:inline">
+        {formatDistanceToNow(data.updatedAt, { addSuffix: true })}
+      </span>
+    </div>
+  </Link>
+));
+TemplateCard.displayName = "TemplateCard";

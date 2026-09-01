@@ -1,17 +1,15 @@
 "use client";
 
+import { CoinsIcon } from "lucide-react";
+
 import {
-  EntityContainer,
-  ErrorView,
-  LoadingView,
-} from "@/components/entity-components";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DashboardError,
+  DashboardLoading,
+  DashboardPage,
+  PageHeader,
+  RangeSelect,
+} from "@/components/dashboard/page";
+
 import {
   useSuspenseCacheStats,
   useSuspenseCostSummary,
@@ -27,7 +25,7 @@ import { CostSummaryCards } from "./cost-summary-cards";
 import { CostTrendChart } from "./cost-trend-chart";
 
 /**
- * Cost views (AF-M5-08): per run, per workflow, per model, over time — plus
+ * Cost views (AF-M5-08): per run, per workflow, per model, over time, plus
  * the AF-M5-07 cache hit rate, which is the lever for lowering the number
  * above it.
  */
@@ -36,13 +34,14 @@ export const CostDashboard = () => {
   const { data: cache } = useSuspenseCacheStats();
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <CostSummaryCards
         costUsd={summary.totals.costUsd}
         runs={summary.totals.runs}
         tokensIn={summary.totals.tokensIn}
         tokensOut={summary.totals.tokensOut}
         cache={cache}
+        daily={summary.daily}
       />
       <CostTrendChart daily={summary.daily} periodDays={summary.periodDays} />
       <div className="grid gap-4 lg:grid-cols-2">
@@ -64,36 +63,37 @@ export const CostsHeader = () => {
   const [params, setParams] = useCostsParams();
 
   return (
-    <div className="flex flex-row items-center justify-between gap-x-4">
-      <div className="flex flex-col">
-        <h1 className="text-lg md:text-xl font-semibold">Costs</h1>
-        <p className="text-xs md:text-sm text-muted-foreground">
-          Actual AI spend recorded on completed runs, test runs included
-        </p>
-      </div>
-      <Select
-        value={String(params.days)}
-        onValueChange={(value) => setParams({ days: Number(value) })}
-      >
-        <SelectTrigger className="w-[140px] h-8 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {COST_PERIOD_DAYS.map((days) => (
-            <SelectItem key={days} value={String(days)}>
-              Last {days} days
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <PageHeader
+      title="Costs"
+      description="Actual AI spend recorded on completed runs, test runs included"
+      actions={
+        <>
+          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+            <CoinsIcon className="size-3.5" />
+            Provider-reported spend
+          </span>
+          <RangeSelect
+            value={params.days}
+            options={COST_PERIOD_DAYS}
+            onChange={(days) => setParams({ days })}
+          />
+        </>
+      }
+    />
   );
 };
 
 export const CostsContainer = ({ children }: { children: React.ReactNode }) => (
-  <EntityContainer header={<CostsHeader />}>{children}</EntityContainer>
+  <DashboardPage>
+    <CostsHeader />
+    {children}
+  </DashboardPage>
 );
 
-export const CostsLoading = () => <LoadingView message="Loading costs..." />;
+export const CostsLoading = () => (
+  <DashboardLoading message="Loading costs..." />
+);
 
-export const CostsError = () => <ErrorView message="Error loading cost data" />;
+export const CostsError = () => (
+  <DashboardError message="Error loading cost data" />
+);

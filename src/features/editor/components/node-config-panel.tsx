@@ -609,7 +609,7 @@ export function NodeConfigPanel({
       className="absolute right-4 top-16 z-50 flex max-h-[calc(100%-5rem)] w-[360px] flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-xl"
     >
       {definition.deprecated ? (
-        <output className="block rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+        <output className="block rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
           <p className="font-medium text-foreground">
             Deprecated since {definition.deprecated.since}
           </p>
@@ -674,9 +674,9 @@ export function NodeConfigPanel({
       </div>
 
       {costEstimate ? (
-        <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs">
+        <div className="flex items-center justify-between rounded-lg border border-warning/25 bg-warning/8 px-3 py-2 text-xs">
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <SparklesIcon className="size-3.5 text-amber-500" />
+            <SparklesIcon className="size-3.5 text-warning" />
             <span>Est. run cost:</span>
           </div>
           <div className="flex items-center gap-1.5">

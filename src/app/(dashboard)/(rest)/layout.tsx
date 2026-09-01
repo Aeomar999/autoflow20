@@ -4,7 +4,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
       <AppHeader />
-      <main className="flex-1">{children}</main>
+      {/* `SidebarInset` already renders the page <main>; this is just the
+          scroll body under the sticky header. */}
+      <div className="flex flex-1 flex-col bg-surface">{children}</div>
     </>
   );
 };

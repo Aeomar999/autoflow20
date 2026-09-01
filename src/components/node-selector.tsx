@@ -326,8 +326,8 @@ export function NodeSelector({
                   </div>
 
                   {isTriggerDisabled && (
-                    <div className="mx-2 p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-300 text-xs flex items-start gap-2">
-                      <InfoIcon className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                    <div className="mx-2 p-2.5 rounded-md bg-warning/10 border border-warning/25 text-warning text-xs flex items-start gap-2">
+                      <InfoIcon className="size-4 shrink-0 mt-0.5 text-warning" />
                       <span>
                         Workflows can only have one trigger. Remove the active
                         trigger on the canvas to select a different one.

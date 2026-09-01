@@ -30,7 +30,7 @@ export function CostEstimateBadge() {
           className="h-8 gap-1.5 rounded-full border-border/80 bg-background/95 px-3 text-xs font-medium shadow-sm backdrop-blur transition-all hover:bg-muted/80 hover:shadow"
           aria-label="Workflow cost estimate"
         >
-          <SparklesIcon className="size-3.5 text-amber-500 animate-pulse" />
+          <SparklesIcon className="size-3.5 text-warning animate-pulse" />
           <span>Est. ~{estimate.formattedCost}</span>
           <span className="text-[10px] text-muted-foreground">/ run</span>
         </Button>
@@ -39,7 +39,7 @@ export function CostEstimateBadge() {
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between border-b border-border/60 pb-2">
             <div className="flex items-center gap-1.5">
-              <CoinsIcon className="size-4 text-amber-500" />
+              <CoinsIcon className="size-4 text-warning" />
               <span className="text-xs font-semibold text-foreground">
                 Estimated AI Run Cost
               </span>
