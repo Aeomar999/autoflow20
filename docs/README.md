@@ -54,6 +54,7 @@ autoflow/
 | [`operations/slos.md`](operations/slos.md) | Setting or arguing about reliability targets, error budgets, or what should alert. |
 | [`operations/beta_launch_checklist.md`](operations/beta_launch_checklist.md) | Deciding whether the service can be opened to external users. Names four blockers. |
 | [`operations/support.md`](operations/support.md) | Answering a customer, or deciding whether a report is an incident. |
+| [`operations/operator_actions.md`](operations/operator_actions.md) | Working out why a task is still open, and which open items need a human with account access rather than a code change. |
 
 ## decisions/ — why
 
