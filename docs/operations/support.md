@@ -94,7 +94,7 @@ npm run notify:system -- --id maint-2026-09-14 --title "..." --message "..."
 
 Dry-run by default; add `--yes` to send. Idempotent per workspace, so a half-finished broadcast is safe to run again. Keep the same `--id` when correcting wording — a new id announces it a second time to everyone who already read it.
 
-Add `--href /status` to give it somewhere to go. The dry run prints how many workspaces it would reach and how many already have it, so **read that count before adding `--yes`** — the blast radius is every tenant and there is no unsend.
+Add `--href /status` to give it somewhere to go. Add `--org <id>` (repeatable) to reach only named workspaces instead of every tenant — useful for telling one customer about something that only affects them. The dry run prints how many workspaces it would reach and how many already have it, so **read that count before adding `--yes`** — without `--org` the blast radius is every tenant and there is no unsend.
 
 On Windows, run it from PowerShell rather than Git Bash: Git Bash rewrites a leading-slash argument like `/status` into a Windows path.
 

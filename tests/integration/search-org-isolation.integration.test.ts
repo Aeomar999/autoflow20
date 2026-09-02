@@ -231,9 +231,9 @@ describe.runIf(hasDb)("Search router org isolation", () => {
     // AF-M8-22: assert on the KEYS present, not on substrings of the
     // serialized payload. `not.toContain("iv")` failed nondeterministically
     // whenever a freshly generated cuid happened to contain those two letters
-    // - `cmtivfuqa...` does. Same defect class as AF-M8-14 and AF-M8-15. Keys
-    // are what the assertion was ever about: the claim is that no secret FIELD
-    // is returned, not that the bytes "iv" never occur.
+    // - `cmtimivby002a44qefumtlore` does. Same defect class as AF-M8-14 and
+    // AF-M8-15. Keys are what the assertion was ever about: the claim is that
+    // no secret FIELD is returned, not that the bytes "iv" never occur.
     const keysAtEveryDepth = (value: unknown): string[] => {
       if (Array.isArray(value)) {
         return value.flatMap(keysAtEveryDepth);
