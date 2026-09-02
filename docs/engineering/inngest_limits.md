@@ -68,18 +68,21 @@ The five cron functions (`ai-cache`, `cron`, `knowledge`, `notifications`, `oaut
 
 ### 5.1 Steps per node
 
-`executeWorkflow` opens **four steps per node** on the happy path:
+`executeWorkflowHandler` opens **five steps per node** on the happy path:
 
 | Step | Line |
 |---|---|
-| `trace-start:<nodeId>` | ~492 |
-| `resolve-credentials:<nodeId>` — unconditional, even for nodes needing none | ~525 |
-| `node:<nodeId>:attempt:<n>` | ~548 |
-| `trace-end:<nodeId>` / `trace-fail:<nodeId>` | ~607 / ~641 |
+| `cancel-check:<nodeId>` — added by AF-M8-27 | ~498 |
+| `trace-start:<nodeId>` | ~549 |
+| `resolve-credentials:<nodeId>` — unconditional, even for nodes needing none | ~583 |
+| `node:<nodeId>:attempt:<n>` | ~606 |
+| `trace-end:<nodeId>` / `trace-fail:<nodeId>` | ~676 / ~710 |
 
 Plus about six fixed steps per run (quota gate, create execution, sort graph, resolve ids, update execution, notify). Retries add a step per extra attempt and a `step.sleep` between them, so a node that exhausts its retries costs roughly twice a healthy one.
 
-**Ceiling from step count alone: ~248 nodes.** That is generous, and it is not what will stop you.
+**Ceiling from step count alone: ~198 nodes.**
+
+> **This was four steps and ~248 nodes when first written, hours earlier.** AF-M8-27 then added the per-node cancellation read, and the ceiling moved by 50 nodes. That is the argument for keeping this section honest: the per-node step count is a shared budget, and anything added to the node loop spends it. Adding a sixth step would take it to ~165.
 
 ### 5.2 The rolling context makes state quadratic
 
@@ -97,11 +100,11 @@ b × (1 + 2 + … + n)  =  b × n(n+1)/2
 
 | Output added per node | 4 MiB step cap | 32 MB state cap | 1000-step cap | **Binds first** |
 |---|---|---|---|---|
-| 1 KB | 4096 | 249 | 248 | step count — **248 nodes** |
-| 10 KB | 409 | 78 | 248 | run state — **78 nodes** |
-| 100 KB | 40 | 24 | 248 | run state — **24 nodes** |
-| 1 MB | 4 | 7 | 248 | step output — **4 nodes** |
-| 4 MB | 1 | 3 | 248 | step output — **1 node** |
+| 1 KB | 4096 | 249 | 198 | step count — **198 nodes** |
+| 10 KB | 409 | 78 | 198 | run state — **78 nodes** |
+| 100 KB | 40 | 24 | 198 | run state — **24 nodes** |
+| 1 MB | 4 | 7 | 198 | step output — **4 nodes** |
+| 4 MB | 1 | 3 | 198 | step output — **1 node** |
 
 100 KB per node is not a pathological number — it is one ordinary HTTP node returning a JSON list, or one AI node returning a long completion. **At that size the engine tops out around two dozen nodes**, roughly a tenth of what the step ceiling suggests.
 
@@ -110,6 +113,8 @@ b × (1 + 2 + … + n)  =  b × n(n+1)/2
 The only truncation anywhere in the engine is `MAX_STACK_LENGTH = 8_000` for stack traces (`src/inngest/config.ts`). Node outputs are not bounded, sampled, or measured. An HTTP node fetching a 5 MB response exceeds the 4 MiB step cap on its own, and the failure surfaces as an Inngest error about state size rather than as "your HTTP node returned too much data".
 
 **Updated 2026-09-02 (AF-M2-09):** one bound now exists. `executeWorkflow` measures each node's executor return *after* the per-node retry loop — the single boundary every node type crosses — and fails with a `NonRetriableError` naming the node and size when the serialized output exceeds `MAX_NODE_OUTPUT_BYTES` (1 MiB, `src/inngest/config.ts`). It rejects rather than truncates, so the "5 MB HTTP response dies as a generic Inngest state error" failure above instead becomes "node X returned N bytes". The bound is a guardrail, not a fix for the quadratic term — that remains AF-M9-12.
+
+One honest cost of that guardrail: because each node's return *is* the whole accumulated context (§5.2), measuring it re-serializes the context once per node, so the check itself is O(n²) CPU across a run. At the graph sizes these limits permit that is milliseconds and not worth optimising — but it is the same rolling-context design paying twice, and it disappears with AF-M9-12 rather than needing its own fix.
 
 ### 5.4 Consequences already visible in the backlog
 

@@ -9,7 +9,7 @@ AF-M2-00 asked for a decision on large-payload handling — **inline vs. blob-sp
 
 Inngest's published limits: a step return may not exceed **4 MiB**, and a run's total retained state — event data plus every step return plus metadata — may not exceed **32 MB**. Neither varies by plan. Steps per run cap at **1000**.
 
-The engine opens four steps per node, so the step ceiling allows roughly 248 nodes. That is not the binding constraint, and assuming it was is the mistake this ADR exists to prevent.
+The engine opens five steps per node (four when this ADR was written; AF-M8-27 added the cancellation read), so the step ceiling allows roughly 198 nodes. That is not the binding constraint, and assuming it was is the mistake this ADR exists to prevent.
 
 **18 of the 21 node executors return `{ ...context, <their own output> }`.** Each node's memoised step return therefore contains every prior node's output. For `n` nodes contributing `b` bytes each, the run retains about `b × n(n+1)/2` — quadratic in node count — while each individual return must still fit under 4 MiB.
 
@@ -17,7 +17,7 @@ What that costs, derived from the published caps:
 
 | Output per node | Node ceiling | Binds on |
 |---|---|---|
-| 1 KB | 248 | step count |
+| 1 KB | 198 | step count |
 | 10 KB | 78 | run state |
 | **100 KB** | **24** | run state |
 | 1 MB | 4 | step output |
