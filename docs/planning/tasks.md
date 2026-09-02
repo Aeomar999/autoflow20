@@ -405,14 +405,14 @@ De-risk before designing around it.
 
 ---
 
-### ⬜ AF-M2-09 · Bound node output at the executor boundary · 0.5d · *(added 2026-09-02, ADR-0018)*
+### ✅ AF-M2-09 · Bound node output at the executor boundary · 0.5d · *(added 2026-09-02, ADR-0018)* · **DONE 2026-09-02**
 ADR-0018 decided the guardrail; this builds it. A node whose output exceeds the threshold fails with an error naming the node and the size, rather than the run dying opaquely on Inngest state limits several nodes later. **Deliberately not built as part of the spike** — putting an unmeasured guardrail into the execution path on the strength of arithmetic alone is exactly the move the spike was supposed to prevent.
 
 **Acceptance**
-- [ ] Output size checked once, at the executor boundary in `src/inngest/functions.ts`, so every node type is covered without 21 separate changes.
-- [ ] Over-limit fails with a `NonRetriableError` naming the node and the actual size — never truncates, because a workflow that silently drops half an API response produces wrong results that look right (AF-M0-05).
-- [ ] Threshold is a single exported constant next to `MAX_STACK_LENGTH`, so the measurement from AF-M2-00 can change it in one place.
-- [ ] Tests: under, over, and exactly at the limit.
+- [x] Output size checked once, at the executor boundary in `src/inngest/functions.ts`, so every node type is covered without 21 separate changes. *(Boundary: immediately after the per-node retry loop, before the output is captured for `$node`/`context` — the one place every executor's return passes through.)*
+- [x] Over-limit fails with a `NonRetriableError` naming the node and the actual size — never truncates, because a workflow that silently drops half an API response produces wrong results that look right (AF-M0-05).
+- [x] Threshold is a single exported constant next to `MAX_STACK_LENGTH`, so the measurement from AF-M2-00 can change it in one place. *(`MAX_NODE_OUTPUT_BYTES` in `src/inngest/config.ts`.)*
+- [x] Tests: under, over, and exactly at the limit. *(9-unit config suite: `serializedBytes` UTF-8 semantics, plus the boundary predicate across both sides and exactly-on the threshold.)*
 
 ---
 

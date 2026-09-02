@@ -1,6 +1,6 @@
 # 0018 - Bound node output; fix the rolling context before adding blob-spill
 
-**Status:** Accepted (AF-M2-00), with one number still unmeasured — see "The threshold".
+**Status:** Accepted (AF-M2-00); **implemented (AF-M2-09, 2026-09-02)** — the 1 MiB node-output guardrail is live in `src/inngest/functions.ts` via `MAX_NODE_OUTPUT_BYTES` in `src/inngest/config.ts`. The one number in the table below is still unmeasured — see "The threshold".
 **Companion:** `docs/engineering/inngest_limits.md`, which shows the working.
 
 ## Context
@@ -55,7 +55,7 @@ Until then the threshold is a guardrail chosen to be obviously safe, not a tuned
 - A workflow moving genuinely large payloads will fail at a node with a clear message, instead of dying opaquely on run-state size several nodes later.
 - Some workflows that would have squeezed through will now be refused. That is the intended trade: a bound that is occasionally too strict is recoverable, and a run that exceeds Inngest's state cap is not.
 - The engine keeps a hard ceiling on graph size until AF-M9-12 lands. It must be documented rather than discovered — `inngest_limits.md` §5.2 is that documentation.
-- **The bound is not built yet.** This ADR records the decision; AF-M2-09 tracks the implementation. Writing the decision and leaving the code unchanged is deliberate — the spike's job was the decision, and pretending otherwise would put an unmeasured guardrail into the execution path on the strength of arithmetic alone.
+- **Implemented 2026-09-02 under AF-M2-09.** The decision is no longer aspirational: `executeWorkflow` measures the serialized size of every node's executor return and throws a `NonRetriableError` naming the node and the size when it exceeds `MAX_NODE_OUTPUT_BYTES` (`src/inngest/config.ts`, next to `MAX_STACK_LENGTH`). The threshold is deliberately a single named constant, so the measurement from AF-M2-00 changes it in one place. Deciding was the spike's job; building the guardrail with an unmeasured number was deferred on purpose until the decision existed — it now does.
 
 ## Alternatives considered
 

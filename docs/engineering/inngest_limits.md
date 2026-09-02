@@ -1,6 +1,6 @@
 # Inngest limits, and what they mean for this engine
 
-**Status:** Built (AF-M2-00), from **published limits**. See §7 for the one number that is still unmeasured.
+**Status:** Built (AF-M2-00), from **published limits**. The guardrail it motivated is live (AF-M2-09, 2026-09-02); §7 records the one number still unmeasured.
 **Read before:** raising a node timeout, adding a step to the engine loop, or telling anyone how large a workflow can be.
 **Companions:** `docs/decisions/0002-inngest-as-execution-runtime.md`, `docs/decisions/0018-bounded-node-output-over-blob-spill.md`.
 
@@ -108,6 +108,8 @@ b × (1 + 2 + … + n)  =  b × n(n+1)/2
 ### 5.3 Nothing bounds node output
 
 The only truncation anywhere in the engine is `MAX_STACK_LENGTH = 8_000` for stack traces (`src/inngest/config.ts`). Node outputs are not bounded, sampled, or measured. An HTTP node fetching a 5 MB response exceeds the 4 MiB step cap on its own, and the failure surfaces as an Inngest error about state size rather than as "your HTTP node returned too much data".
+
+**Updated 2026-09-02 (AF-M2-09):** one bound now exists. `executeWorkflow` measures each node's executor return *after* the per-node retry loop — the single boundary every node type crosses — and fails with a `NonRetriableError` naming the node and size when the serialized output exceeds `MAX_NODE_OUTPUT_BYTES` (1 MiB, `src/inngest/config.ts`). It rejects rather than truncates, so the "5 MB HTTP response dies as a generic Inngest state error" failure above instead becomes "node X returned N bytes". The bound is a guardrail, not a fix for the quadratic term — that remains AF-M9-12.
 
 ### 5.4 Consequences already visible in the backlog
 

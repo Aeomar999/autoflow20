@@ -29,7 +29,13 @@ import { openAiChannel } from "./channels/openai";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
 import { inngest } from "./client";
-import { ENGINE_RETRIES, truncateStack } from "./config";
+import {
+  ENGINE_RETRIES,
+  MAX_NODE_OUTPUT_BYTES,
+  nodeOutputIsOverLimit,
+  serializedBytes,
+  truncateStack,
+} from "./config";
 import {
   buildGraphMaps,
   computeDurationMs,
@@ -587,6 +593,18 @@ export const executeWorkflow = inngest.createFunction(
         if (result === undefined) {
           // All retry attempts exhausted.
           throw lastError;
+        }
+
+        // AF-M2-09: Bound node output at the executor boundary so every node
+        // type is covered without per-executor changes. Fails loudly rather
+        // than letting the run die on an Inngest state/step cap later, and
+        // never truncates — a workflow that silently drops half a response
+        // produces wrong results that look right.
+        const outputBytes = serializedBytes(result);
+        if (nodeOutputIsOverLimit(outputBytes)) {
+          throw new NonRetriableError(
+            `Node "${node.name}" returned ${outputBytes} bytes of output, exceeding the ${MAX_NODE_OUTPUT_BYTES}-byte limit (ADR-0018). Reduce the node's payload or split the workflow into smaller nodes.`,
+          );
         }
 
         // Capture this node's individual output for $node["Name"]
