@@ -822,7 +822,7 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 
 ### ? AF-UI-01 � Create KpiCard Component � 1d
 - [x] Create KpiCard component matching the provided UI design.
-- [x] Create test page at /test-kpi.
+- [x] Create test page at /test-kpi. — **removed 2026-09-02**: it was a scratch page of hardcoded e-commerce figures (`TOTAL REVENUE`, `NEW CUSTOMERS`, `CONVERSION RATE`) that shipped in the production build. `KpiCard` itself is kept, but is now referenced by nothing.
 - [x] Walkthrough created.
 
 

@@ -331,7 +331,7 @@ Everything that was listed here as "not waiting on you" has landed:
 |---|---|
 | Checklist 4.8 | Record acceptance of the Terms at signup. Signup *links* them now, but stores nothing — so there is no record of who agreed to what. A schema change plus a write; say the word. |
 | Checklist 1.6 | The failed-payment branch, once you have made decision 2. |
-| `/test-kpi` | A development page that is in the production build. Almost certainly should not ship. Tell me to delete it. |
+| `KpiCard` | ✅ `/test-kpi` deleted 2026-09-02 — a scratch page of hardcoded e-commerce figures that was shipping in the production build. It was the component's only caller, so `KpiCard` (AF-UI-01) is now referenced by nothing. Kept rather than deleted, since it was built to a design and the dashboard may still want it; say the word if it should go too. |
 
 ---
 
