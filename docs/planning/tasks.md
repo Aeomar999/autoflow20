@@ -104,6 +104,12 @@ Also fixed the user-facing "Unathorized" typo while in file.
 **Reality (2026-08-22):** zero test files, no `.github/`, no vitest/playwright configs or devDeps. Everything after this task depends on being able to verify work.
 **Status (2026-08-26):** harness complete except the DB-backed **e2e signup journey** (needs a running app + reachable Polar sandbox). Integration testing against real Postgres shipped 2026-08-26 — see §6 of `docs/engineering/testing_strategy.md`.
 
+**Status (2026-09-02) — the CI half of this was never finished, and it mattered.** The workflow started a `pgvector` service and ran migrations against it but **never set `TEST_DATABASE_URL`**, which is what the `integration` project keys off. Every integration suite therefore skipped itself and CI went green having run **none** of them — including the suites that prove cross-tenant isolation, the public REST surface, and API-key auth. `TEST_DATABASE_URL` is now set at the job level, so `npm test` runs all three projects (1088 tests) instead of 961.
+
+Wiring that up surfaced a second, worse problem: skipping is opt-in per suite (`describe.runIf(hasDb)`), so it only holds while every author remembers the guard — and `polar-webhooks.integration.test.ts` did not have one. With `TEST_DATABASE_URL` unset the setup only *warned*, leaving `DATABASE_URL` pointed at whatever `.env` says, so that suite **created and deleted users and organizations in the developer's dev database**. Proven by running it against a decoy URL: it printed "integration suites will skip" and then connected anyway. Fixed on both levels — the missing guard is restored, and the setup now repoints `DATABASE_URL` at an unresolvable host when `TEST_DATABASE_URL` is absent, so an unguarded suite fails immediately with an error naming the cause instead of quietly mutating real data. The invariant is now structural rather than remembered.
+
+**Still open:** only the e2e signup journey, which needs a running app and a reachable Polar sandbox.
+
 **Acceptance**
 - [x] Vitest configured with path aliases matching `tsconfig.json`; `npm test` and `npm run test:watch` work.
 - [x] Testing Library configured for component tests. *(2026-08-24: `@testing-library/react` + jsdom `dom` vitest project (`*.dom.test.{ts,tsx}`) + jest-dom matchers; first component test `src/components/upgrade-modal.dom.test.tsx` (3 tests). Fixed root-cause: inline `test.projects` don't inherit root `resolve.alias`/`setupFiles` — both now declared per project, which also unblocks `@/` imports in unit tests.)*
@@ -127,7 +133,7 @@ Also fixed the user-facing "Unathorized" typo while in file.
 
 ---
 
-### 🟡 AF-M0-08 · Environment validation and `.env.example` · 0.5d
+### ✅ AF-M0-08 · Environment validation and `.env.example` · 0.5d · DONE 2026-09-02
 **Reality (2026-08-22):** no `src/lib/env.ts`, and no `.env*` file of any kind exists in this checkout — the app cannot boot without provisioning secrets first.
 **Status (2026-08-24):** env module shipped and wired at boot; docs sync remains.
 
@@ -135,7 +141,7 @@ Also fixed the user-facing "Unathorized" typo while in file.
 - [x] `src/lib/env.ts` validates server env with Zod via cached `ensureEnv()`, called from `src/instrumentation.ts` at boot; exports typed values (`publicAppUrl`). `SKIP_ENV_VALIDATION=1` bypasses for CI/build.
 - [x] Missing/invalid vars produce a single readable error naming each variable (from `result.error.issues`).
 - [x] `.env.example` lists every variable with a dummy value and a one-line comment, including `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `POLAR_*`, provider keys, `STRIPE_WEBHOOK_SECRET` (AF-A-01), `ENGINE_RETRIES` (AF-A-07). *(Created 2026-08-22, verified against code; `!.env.example` gitignore exception added.)*
-- [ ] `docs/operations/environment_setup.md` matches.
+- [x] `docs/operations/environment_setup.md` matches. *(2026-09-02: §4.2 had drifted 13 variables behind `.env.example` — the Resend pair (AF-M8-04), `POLAR_WEBHOOK_SECRET` + the per-plan product ids (AF-M8-23), and the legal/support block (AF-M8-10). All added, with a note that the legal block is all-or-nothing. Also fixed a malformed 4-column table row for `ENCRYPTION_KEY`, and removed the quick start's `npm run migrate:legacy-ai-nodes` step — a script AF-M8-12 deleted — in favour of the `verify:legacy-ai-nodes` check that replaced it. Verified by diffing variable names in `.env.example` against the document rather than by reading it.)*
 
 ---
 
@@ -173,7 +179,7 @@ Currently a 404 that the sidebar logo links to; trivially demoable win, no depen
 
 New milestone opened by the 2026-08-22 audit (`progress.md` §5). Security findings S1–S3 are release blockers for anything public-facing.
 
-### 🟡 AF-A-01 · Authenticate + authorize webhook triggers · 1d · **[HARD security]**
+### ✅ AF-A-01 · Authenticate + authorize webhook triggers · 1d · **[HARD security]** · DONE 2026-09-02
 `POST /api/webhooks/stripe?workflowId=…` accepts unsigned bodies with arbitrary workflow IDs — anyone can trigger any user's workflow.
 **Status (2026-08-24):** code complete — per-workflow `webhookSecret` (cuid, unique) added to Workflow + migration `20260822030000_workflow_webhook_secret`; both routes require `workflowId`+`secret` params (400 missing / 404 unknown-or-mismatch via `secureCompare` sha256+timingSafeEqual); Stripe route additionally verifies `stripe-signature` with raw body (`constructEvent`, invalid → 400) and 500s if `STRIPE_WEBHOOK_SECRET` unset; trigger dialogs embed the secret in webhook URLs (plain `useQuery`, not suspense). Route-level tests pending DB-backed harness.
 
@@ -182,7 +188,7 @@ New milestone opened by the 2026-08-22 audit (`progress.md` §5). Security findi
 - [x] Resolved workflow ownership enforced before enqueueing; foreign/unknown `workflowId` or bad secret → 404. *(Design deviation: per-workflow secret proves ownership directly instead of a Stripe-account join — simpler and covers Google Forms identically.)*
 - [x] Google Form webhook gets an equivalent per-workflow secret path param. *(no signature possible with Google Forms; secret is the only proof)*
 - [x] Tests: valid signature passes, invalid/missing rejected, cross-owner rejected. *(2026-08-26: 12 route-level integration tests in `tests/integration/webhooks.authz.integration.test.ts`, real Postgres, all green locally — found & fixed an unsigned-request 500 that violated this very acceptance line; unsigned now → 400.)*
-- [ ] progress.md updated
+- [x] progress.md updated *(was already true and never ticked — progress.md records S1 as RESOLVED 2026-08-24 and M-A as done; box closed 2026-09-02)*
 
 ---
 
@@ -335,7 +341,7 @@ Nodes/edges lifted to Jotai atoms (observable across header + editor). `ServerSn
 
 ---
 
-### 🟡 AF-M1-06 · Schema-driven config panel · 3d
+### ✅ AF-M1-06 · Schema-driven config panel · 3d · DONE 2026-08-29
 **Acceptance**
 - [x] Selecting a node opens a panel rendering a form generated from its Zod `configSchema`.
 - [x] Supported field types: string, number, boolean, enum/select, multiline text, credential reference, kv-list (`z.record` / array-of-key-value).

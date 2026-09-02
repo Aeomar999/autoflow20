@@ -31,6 +31,17 @@ if (!process.env.TEST_DATABASE_URL) {
   console.warn(
     "[integration] TEST_DATABASE_URL is not set - integration suites will skip.",
   );
+  // Skipping is opt-in per suite (`describe.runIf(hasDb)`), so it only holds
+  // while every author remembers the guard - and one suite did not, which
+  // meant it ran against whatever `.env` pointed `DATABASE_URL` at. On a
+  // developer's checkout that is the dev database, and the suite creates and
+  // deletes users and organizations.
+  //
+  // Repointing at an unresolvable host makes that structurally impossible: a
+  // guarded suite still skips, and an unguarded one fails immediately with an
+  // error that names the cause instead of quietly mutating real data.
+  process.env.DATABASE_URL =
+    "postgresql://unset@test-database-url-is-not-set.invalid:5432/unset";
 } else {
   // Hard-require the integration project onto the TEST database. This must
   // happen in setup (before any module imports construct the Prisma client),

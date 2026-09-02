@@ -277,3 +277,11 @@ When you complete a task:
 | 2026-09-02 | **AF-M8-26**: renumbered from the second, colliding **AF-M8-21** entry (same collision class as AF-M8-14). AF-M8-21 is the problem and the plan; AF-M8-26 is the delivery. Operator created the uptime monitor 2026-09-02, closing checklist 3.5 — not verifiable from the repository, and no alert has been seen to fire yet. | M8 |
 
 | 2026-09-02 | **AF-M8-19 done**: upgraded to `ai@6` + `@ai-sdk/{openai,anthropic,google}@3` — one major, not the two `npm audit fix --force` proposed. All six LOW advisories cleared: **0 vulnerabilities**. The only forced code change was v6's widened `usage` shape; added `pickRunUsage` so the persisted trace shape stays identical to v5. Removed the now-redundant `provider-utils → undici` override. | M8 |
+
+| 2026-09-02 | **AF-M0-06: CI was never running the integration suite.** The workflow started Postgres and migrated it but never set `TEST_DATABASE_URL`, so all 127 integration tests skipped themselves and CI went green having proven nothing about cross-tenant isolation, the public REST surface, or API-key auth. Now wired: `npm test` runs 1088 tests instead of 961. | M0 |
+
+| 2026-09-02 | **Integration suites could hit the dev database.** Skipping was opt-in per suite and `polar-webhooks.integration.test.ts` had no guard, so with `TEST_DATABASE_URL` unset it created and deleted users/orgs in whatever `.env` pointed at. Guard restored, and the setup now repoints `DATABASE_URL` at an unresolvable host when the test DB is absent — an unguarded suite fails loudly instead of mutating real data. | M0 |
+
+| 2026-09-02 | **AF-M0-08 done**: `environment_setup.md` had drifted 13 variables behind `.env.example` (Resend, Polar webhook + per-plan product ids, legal/support block). All documented; also removed a quick-start step invoking `migrate:legacy-ai-nodes`, deleted by AF-M8-12. | M0 |
+
+| 2026-09-02 | **Record corrections**: AF-A-01 and AF-M1-06 were both complete but still marked 🟡 — every acceptance item checked, AF-M1-06's own status reading "done" since 2026-08-29. Closed. | M-A / M1 |

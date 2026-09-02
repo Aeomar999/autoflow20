@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { updatePlanFromWebhook } from "@/lib/auth-webhooks";
 import prisma from "@/lib/db";
 
-describe("Polar webhooks", () => {
+/**
+ * Guarded like every other integration suite: without TEST_DATABASE_URL there
+ * is no test database to talk to, and running anyway would mean creating and
+ * deleting users and organizations in whatever DATABASE_URL points at.
+ */
+const hasDb = Boolean(process.env.TEST_DATABASE_URL);
+
+describe.runIf(hasDb)("Polar webhooks", () => {
   let userId: string;
   let orgId: string;
 
