@@ -156,7 +156,7 @@ tables are the source of truth for meaning and requiredness.
 | `GITHUB_CLIENT_ID` / `_SECRET` | `src/lib/auth.ts` | enables GitHub sign-in |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | `src/lib/auth.ts` | enables Google sign-in |
 | `POLAR_ACCESS_TOKEN` | `src/lib/polar.ts` | Polar API access; billing calls fail without it |
-| `POLAR_SUCCESS_URL` | checkout plugin | server-side post-checkout redirect |
+| — (no `POLAR_SUCCESS_URL`) | checkout plugin | post-checkout redirect is a relative path in `src/lib/auth.ts`, resolved against the request's own host — no env var |
 | `POLAR_PRODUCT_ID` | `polarProductId` export | Pro product UUID; unset = empty products list, app still boots |
 | `POLAR_PRODUCT_SLUG` | `polarProductSlug` export | server-side slug override |
 | `ENCRYPTION_KEY` | `scripts/migrate-credentials.ts` | **legacy** pre-AF-M3-02 Cryptr key, 64 hex chars; required only to convert old credential rows — the vault itself uses `CREDENTIAL_MASTER_KEY` |
@@ -295,9 +295,9 @@ Polar has sandbox (fake money) and production. The SDK client here targets
    UUID from its page URL -> `POLAR_PRODUCT_ID`.
 4. Checkout slug users see, e.g. `pro` -> set both `POLAR_PRODUCT_SLUG` and
    `NEXT_PUBLIC_POLAR_PRODUCT_SLUG`.
-5. `POLAR_SUCCESS_URL`: point at an existing route — note there is no
-   `/workflows/billing/success` page yet, so use
-   `http://localhost:3000/workflows`.
+5. No `POLAR_SUCCESS_URL` to set: the checkout `successUrl` is a relative path
+   in `src/lib/auth.ts` that the plugin resolves against the request's own host
+   (`/workflows/billing/success`), so it needs no value in any environment.
 6. Configure a Beneficiary under Settings if prompted; sandbox checkout needs
    one before completing.
 
@@ -470,7 +470,8 @@ DATABASE_URL="<direct-url>" npx prisma migrate deploy
 1. Create the production product at https://polar.sh (not sandbox); obtain a
    production access token; swap into Vercel env.
 2. Edit `src/lib/polar.ts` to `server: "production"`.
-3. Point `POLAR_SUCCESS_URL` and the OAuth callbacks at the prod domain.
+3. No `POLAR_SUCCESS_URL` to point (relative successUrl resolves against the
+   request host); point only the OAuth callbacks at the prod domain.
 4. Redeploy.
 
 ### 8.5 Stripe live webhook
@@ -530,7 +531,7 @@ Postgres service container.
 | Workflows enqueue but never run | only `npm run dev` running | use `npm run dev:all` |
 | mprocs ngrok pane exits instantly | no `NGROK_URL` set (normal) or ngrok unauthenticated | ignore, or run `ngrok config add-authtoken` |
 | Social sign-in fails at provider | callback URL mismatch | must be exactly `<BETTER_AUTH_URL>/api/auth/callback/<provider>` |
-| Checkout opens but lands wrong | `POLAR_SUCCESS_URL` points at a nonexistent route | point it at `/workflows` (no billing/success page exists yet) |
+| Checkout opens but lands wrong | success redirect resolves against a wrong host | relative `successUrl` in `src/lib/auth.ts`; if it ever regresses to an absolute localhost value, revert — no env var drives it |
 | Stripe webhook returns 500 | `STRIPE_WEBHOOK_SECRET` unset or wrong endpoint secret | set the value printed by `stripe listen` / dashboard endpoint |
 | Playwright form never hydrates | cross-origin host block in dev | use `http://localhost:3000`, never `127.0.0.1`, as baseURL |
 | E2E signup HTTP 500 | signup creates a real Polar customer | valid sandbox token + deliverable-looking email domain |

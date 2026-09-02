@@ -71,7 +71,6 @@ const serverEnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
   POLAR_ACCESS_TOKEN: z.string().optional(),
-  POLAR_SUCCESS_URL: z.url("must be a valid absolute URL").optional(),
   POLAR_PRODUCT_ID: blankAsUnset(z.uuid("must be a UUID")),
   POLAR_PRODUCT_SLUG: z.string().min(1).optional(),
 

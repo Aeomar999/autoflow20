@@ -105,7 +105,7 @@ M3 and M5 are parallelizable after M2. M6 can start any time after M2 but must c
 **Deliverables**
 - Commit the pending React Flow work currently sitting unstaged.
 - Fix the pagination `count` that ignores the search filter.
-- Extract the hardcoded Polar product ID to `POLAR_PRODUCT_ID` / `NEXT_PUBLIC_POLAR_PRODUCT_ID`; fix `POLAR_SUCCESS_URL` being read client-side without a `NEXT_PUBLIC_` prefix.
+- Extract the hardcoded Polar product ID to `POLAR_PRODUCT_ID` / `NEXT_PUBLIC_POLAR_PRODUCT_ID`. *(Done: AF-M0-03. The `POLAR_SUCCESS_URL` client-read issue is moot — it was never truly client-read, and the post-checkout successUrl is now a relative path resolved server-side, so no `POLAR_SUCCESS_URL` env var exists at all.)*
 - Remove the fake `{ userId: 'user_123' }` tRPC context.
 - Replace silent `.catch(() => {})` prefetch swallows with logged, rendered error states.
 - Delete dead artifacts: `Post` table, `sentry-example-*` routes, unused imports (`title` from `process`).

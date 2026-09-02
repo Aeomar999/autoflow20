@@ -34,7 +34,7 @@ Better Auth **1.3.x**.
 | 1 | https://sandbox.polar.sh | Create a **separate** sandbox account + organization |
 | 2 | Sandbox dashboard → Products | Create a **recurring monthly** product named `Pro`; copy its UUID |
 | 3 | Sandbox org Settings → Developers → New Token | Create an Organization Access Token with the scopes in §3.5 |
-| 4 | `.env` | Fill `POLAR_ACCESS_TOKEN`, `POLAR_PRODUCT_ID`, `POLAR_SUCCESS_URL` (§4) |
+| 4 | `.env` | Fill `POLAR_ACCESS_TOKEN`, `POLAR_PRODUCT_ID` (no success URL — it's a relative path in `src/lib/auth.ts`, §4) |
 | 5 | Restart dev server | Polar vars are optional — the app boots either way, but restart to load them |
 | 6 | Sign up in the app | A Polar *customer* is created automatically (server logs will show it if it fails) |
 | 7 | Click "Upgrade to Pro" | Pay with test card `4242 4242 4242 4242` |
@@ -88,7 +88,7 @@ Key design facts (important mental model):
 |---|---|
 | `src/lib/polar.ts` | Shared `Polar` SDK client. Reads `POLAR_ACCESS_TOKEN`; pins `server: "sandbox"` |
 | `src/lib/auth.ts:26-46` | Better Auth `polar()` plugin: `createCustomerOnSignUp: true`, wires `checkout()` + `portal()` sub-plugins |
-| `src/lib/auth.ts:31-42` | Checkout config: product list built from `POLAR_PRODUCT_ID` + slug; `successUrl` from `POLAR_SUCCESS_URL`; `authenticatedUsersOnly: true` |
+| `src/lib/auth.ts:31-44` | Checkout config: product list built from `POLAR_PRODUCT_ID` + slug; `successUrl` is a **relative path** (`/workflows/billing/success`) resolved against the request's own host — no env var; `authenticatedUsersOnly: true` |
 | `src/lib/env.ts:84-88` | Exports `polarProductId` / `polarProductSlug`. Slug resolution order: `POLAR_PRODUCT_SLUG` → `NEXT_PUBLIC_POLAR_PRODUCT_SLUG` → `"pro"` |
 | `src/lib/env.ts:25-28` | Zod schema: all four `POLAR_*` vars are **optional** (billing unconfigured ⇒ app still boots) |
 | `src/lib/auth-client.ts` | Client side: `createAuthClient` + `polarClient()` plugin from `@polar-sh/better-auth` |
@@ -105,7 +105,7 @@ Key design facts (important mental model):
 | Variable | Read by | Client-visible? | Effect if unset |
 |---|---|---|---|
 | `POLAR_ACCESS_TOKEN` | `src/lib/polar.ts:4` | No (server only) | Every Polar call fails. **Signup breaks too** (see §9 row 1). Checkout/portal buttons error |
-| `POLAR_SUCCESS_URL` | `src/lib/auth.ts:40` | No | Checkout completes but lands nowhere sensible (plugin falls back to its own default) |
+| — (no `POLAR_SUCCESS_URL`) | `src/lib/auth.ts` relative path | No | N/A — success URL is always `/workflows/billing/success` resolved against the request host |
 | `POLAR_PRODUCT_ID` | `src/lib/env.ts:84` → `auth.ts:36` | No | Server checkout product list is empty ⇒ slug never resolves ⇒ upgrade clicks fail (app still boots) |
 | `POLAR_PRODUCT_SLUG` | `src/lib/env.ts:85` | No | Falls back to `NEXT_PUBLIC_POLAR_PRODUCT_SLUG`, then `"pro"` |
 | `NEXT_PUBLIC_POLAR_PRODUCT_SLUG` | `src/lib/env.ts:87` (inlined into client bundle) | **Yes** | Same chain — client buttons send whatever this resolves to |
@@ -117,8 +117,7 @@ so the **effective client slug is `NEXT_PUBLIC_POLAR_PRODUCT_SLUG` or
 literally `"pro"`**. Keep both set to the same value unless you know better.
 
 Validation rules enforced at boot by `src/lib/env.ts` (when present):
-token = any string, `POLAR_SUCCESS_URL` = absolute URL,
-`POLAR_PRODUCT_ID` = UUID, slugs ≥ 1 char. Invalid values refuse to boot
+token = any string, `POLAR_PRODUCT_ID` = UUID, slugs ≥ 1 char. Invalid values refuse to boot
 with a readable error naming the variable.
 
 ---
@@ -207,10 +206,10 @@ Edit `.env` (copy `.env.example` if starting fresh):
 # --- Polar billing (sandbox) -------------------------------------------------
 POLAR_ACCESS_TOKEN="polar_oat_xxxxxxxxxxxxxxxxxxxxxxxx"   # §3.5
 
-# Post-checkout redirect. MUST be an absolute URL and MUST point at a route
-# that exists. The success page lives at /workflows/billing/success and the
-# plugin substitutes {CHECKOUT_ID} into this URL if you include it:
-POLAR_SUCCESS_URL="http://localhost:3000/workflows/billing/success"
+# Post-checkout redirect. NOT configured by env var: src/lib/auth.ts passes a
+# relative successUrl ("/workflows/billing/success") that the Polar plugin
+# resolves against the request's own host, so prod→prod, localhost→localhost.
+# The plugin still substitutes {CHECKOUT_ID} into it at runtime.
 
 # Your product UUID from §3.3
 POLAR_PRODUCT_ID="12345678-90ab-4cde-8f01-23456789abcd"
@@ -234,9 +233,10 @@ Behavior tiers, for orientation:
   upgrade buttons fail at request time (empty product map).
 - **All set (above):** full happy path.
 
-Known wart: `.env.example` contains a duplicated `POLAR_SUCCESS_URL` block
-(lines 55–59). Harmless (same value), but don't let it suggest two distinct
-variables exist.
+No `POLAR_SUCCESS_URL` in env at all anymore: the checkout successUrl is a
+relative path resolved against the request's own host (see `src/lib/auth.ts`),
+so there is no per-environment value to set or get wrong. The old `.env.example`
+duplicate block was removed.
 
 ---
 
@@ -258,7 +258,8 @@ Run through this after configuring; each step names the thing that proves it.
    - Polar-hosted checkout opens with the email pre-filled and locked
      (`authenticatedUsersOnly: true`).
    - Pay with `4242 4242 4242 4242`, any future expiry, any CVC.
-   - After paying you are redirected to `POLAR_SUCCESS_URL`.
+   - After paying you are redirected to the success page at
+     `/workflows/billing/success` on the same host you checked out from.
    - Verify: dashboard → **Customers → (you)** shows an active subscription;
      sidebar no longer renders the upgrade button
      (`useHasActiveSubscription` flipped).
@@ -337,9 +338,9 @@ Checklist, in order:
    first, add `POLAR_SERVER` to `src/lib/env.ts` and read it here — keep the
    Zod boundary, no raw `process.env` in feature code.
 3. **Host env vars** (Vercel project settings or equivalent):
-   production values for all five `POLAR_*` variables, plus updated
-   `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL` to your domain, and
-   `POLAR_SUCCESS_URL="https://your-domain.com/workflows"`.
+   production values for the `POLAR_*` variables (no `POLAR_SUCCESS_URL` — the
+   checkout successUrl is a relative path resolved against the request host), plus
+   updated `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL` to your domain.
 4. **Finance.** Connect a real payout account (Stripe Connect Express) under
    Settings → Finance; expect a Polar account review before meaningful
    volume. Fees start at 5% + 50¢/transaction on the Starter plan — Polar is
@@ -386,10 +387,14 @@ enabled: true, afterDelete: async (user) => {
 
 ### 8.4 Success page
 
-There is no dedicated post-checkout page. A nice small task: build
-`/workflows/billing/success`, support the `{CHECKOUT_ID}` placeholder in
-`POLAR_SUCCESS_URL` (the plugin substitutes it), and reconcile state on
-landing. Until then `/workflows` is the honest target.
+The post-checkout page exists at `/workflows/billing/success` (AF-M0-10). It
+renders inside the app shell and invalidates the `["subscription"]` cache on
+mount so the sidebar flips to the billing-portal state without a reload. The
+checkout `successUrl` is a **relative path** set in `src/lib/auth.ts` that the
+plugin resolves against the request's own host (the `{CHECKOUT_ID}` placeholder
+is substituted by the plugin at runtime). Because it's relative, there is no
+env var to keep in sync between localhost and production — root-cause fix for
+the old "paid, then redirected to localhost" prod bug.
 
 ---
 

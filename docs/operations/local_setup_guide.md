@@ -99,7 +99,8 @@ GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
 
 POLAR_ACCESS_TOKEN=""
-POLAR_SUCCESS_URL="http://localhost:3000/workflows/billing/success"
+# No POLAR_SUCCESS_URL: the checkout successUrl is a relative path in
+# src/lib/auth.ts resolved against the request's own host.
 
 INNGEST_EVENT_KEY=""
 INNGEST_SIGNING_KEY=""
@@ -130,8 +131,8 @@ NGROK_URL=""
 |---|---|---|
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | "Sign in with GitHub" button | See §7.1 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | "Sign in with Google" button | See §7.1 |
-| `POLAR_ACCESS_TOKEN` | Polar billing checkout + customer-on-signup | Without it, checkout endpoints fail but signup still works. Note: the Pro product ID is hardcoded in `src/lib/auth.ts:33` |
-| `POLAR_SUCCESS_URL` | Post-checkout redirect target | Must be absolute |
+| `POLAR_ACCESS_TOKEN` | Polar billing checkout + customer-on-signup | Without it, checkout endpoints fail but signup still works. Product UUID now comes from `POLAR_PRODUCT_ID` (env), not a hardcoded literal |
+| — (no `POLAR_SUCCESS_URL`) | Post-checkout redirect | N/A — relative successUrl in `src/lib/auth.ts` resolves against the request host |
 | `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` | Production Inngest Cloud | **Not needed locally** — `npm run inngest:dev` works without them |
 | `STRIPE_WEBHOOK_SECRET` | Stripe trigger nodes receiving webhooks | Route returns 500 for unsigned requests when unset (`src/app/api/webhooks/stripe/route.ts:11`). Only needed if you build Stripe-trigger workflows |
 | `NGROK_URL` | `npm run ngrok:dev` public webhook ingress | Your reserved ngrok domain; leave empty otherwise |
@@ -309,9 +310,10 @@ callback `http://localhost:3000/api/auth/callback/google`.
 ### 7.3 Polar billing
 
 Dashboard → https://polar.sh → Settings/API → create an access token → `POLAR_ACCESS_TOKEN`.
-Keep `POLAR_SUCCESS_URL` absolute. Note the Pro product ID hardcoded in `src/lib/auth.ts:33`
-belongs to the original author's Polar account — externalizing it is tracked as AF-M0-03;
-until then checkout points at *their* product.
+No `POLAR_SUCCESS_URL` to keep: the checkout successUrl is a relative path in
+`src/lib/auth.ts` resolved against the request's own host. Set `POLAR_PRODUCT_ID`/
+`POLAR_PRODUCT_SLUG` to your own Sandbox product (AF-M0-03 externalized the original
+author's hardcoded Pro product ID).
 
 ### 7.4 Stripe triggers
 
