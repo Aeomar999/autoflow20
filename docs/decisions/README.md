@@ -62,3 +62,4 @@ Each with the reason it lost.
 | [0015](0015-guarded-fetch-for-redirects.md) | The SSRF guard owns redirect following, via a `fetch` given to the client | Accepted |
 | [0016](0016-execution-retention-over-partitioning.md) | Two-stage execution retention now; partitioning deferred behind a trigger | Accepted |
 | [0017](0017-pinned-address-egress.md) | Egress connects to the address the guard vetted, via undici | Accepted |
+| [0018](0018-bounded-node-output-over-blob-spill.md) | Bound node output; fix the rolling context before adding blob-spill | Accepted |

@@ -44,6 +44,7 @@ autoflow/
 |---|---|
 | [`engineering/engineering_rules.md`](engineering/engineering_rules.md) | **Before writing any code.** Binding rules. |
 | [`engineering/testing_strategy.md`](engineering/testing_strategy.md) | Writing tests — which is most of the time. |
+| [`engineering/inngest_limits.md`](engineering/inngest_limits.md) | Adding a step to the engine loop, or saying how large a workflow can be. |
 
 ## operations/ — how we run it
 
