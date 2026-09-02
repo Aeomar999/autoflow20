@@ -27,6 +27,15 @@ if (!process.env.STRIPE_WEBHOOK_SECRET) {
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration_test_signing_secret";
 }
 
+// The credential vault refuses to seal anything without a master key, so the
+// credentials suites cannot run without one. Defaulted here rather than in the
+// CI job's env so a bare `npm run test:integration` works the same everywhere:
+// this is a throwaway key for a throwaway database, and the value is public.
+if (!process.env.CREDENTIAL_MASTER_KEY) {
+  process.env.CREDENTIAL_MASTER_KEY =
+    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+}
+
 if (!process.env.TEST_DATABASE_URL) {
   console.warn(
     "[integration] TEST_DATABASE_URL is not set - integration suites will skip.",

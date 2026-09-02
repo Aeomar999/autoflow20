@@ -1,5 +1,5 @@
 import { createId } from "@paralleldrive/cuid2";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePlanFromWebhook } from "@/lib/auth-webhooks";
 import prisma from "@/lib/db";
 
@@ -10,11 +10,28 @@ import prisma from "@/lib/db";
  */
 const hasDb = Boolean(process.env.TEST_DATABASE_URL);
 
+/**
+ * AF-M8-23 moved the product-id -> plan mapping out of the source and into
+ * `POLAR_PRODUCT_ID_*`. This suite must therefore supply its own mapping: it
+ * used to hardcode a product id that only resolved because that same id
+ * happened to sit in the developer's `.env`, so it passed locally and failed
+ * anywhere else. Stubbing here makes the plan map a fact of the test rather
+ * than of the machine running it.
+ */
+const PRO_PRODUCT_ID = "287c0566-c317-491b-b804-c118a4fdab0f";
+
 describe.runIf(hasDb)("Polar webhooks", () => {
   let userId: string;
   let orgId: string;
 
   beforeEach(async () => {
+    // Clear the single-product fallback too, so an ambient POLAR_PRODUCT_ID
+    // cannot map a second id to PRO behind the test's back.
+    vi.stubEnv("POLAR_PRODUCT_ID", "");
+    vi.stubEnv("POLAR_PRODUCT_ID_STARTER", "");
+    vi.stubEnv("POLAR_PRODUCT_ID_ENTERPRISE", "");
+    vi.stubEnv("POLAR_PRODUCT_ID_PRO", PRO_PRODUCT_ID);
+
     userId = createId();
     orgId = createId();
 
@@ -43,17 +60,13 @@ describe.runIf(hasDb)("Polar webhooks", () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await prisma.organization.deleteMany({ where: { id: orgId } });
     await prisma.user.deleteMany({ where: { id: userId } });
   });
 
   it("upgrades plan and logs audit event", async () => {
-    // 287c0566-c317-491b-b804-c118a4fdab0f is PRO
-    await updatePlanFromWebhook(
-      userId,
-      "287c0566-c317-491b-b804-c118a4fdab0f",
-      false,
-    );
+    await updatePlanFromWebhook(userId, PRO_PRODUCT_ID, false);
 
     const org = await prisma.organization.findUnique({ where: { id: orgId } });
     expect(org?.plan).toBe("PRO");
@@ -68,11 +81,7 @@ describe.runIf(hasDb)("Polar webhooks", () => {
 
   it("is idempotent when redelivered", async () => {
     // First delivery
-    await updatePlanFromWebhook(
-      userId,
-      "287c0566-c317-491b-b804-c118a4fdab0f",
-      false,
-    );
+    await updatePlanFromWebhook(userId, PRO_PRODUCT_ID, false);
 
     const countBefore = await prisma.auditLog.count({
       where: { organizationId: orgId, action: "organization.update_plan" },
@@ -80,11 +89,7 @@ describe.runIf(hasDb)("Polar webhooks", () => {
     expect(countBefore).toBe(1);
 
     // Redelivery
-    await updatePlanFromWebhook(
-      userId,
-      "287c0566-c317-491b-b804-c118a4fdab0f",
-      false,
-    );
+    await updatePlanFromWebhook(userId, PRO_PRODUCT_ID, false);
 
     const org = await prisma.organization.findUnique({ where: { id: orgId } });
     expect(org?.plan).toBe("PRO"); // Stays PRO
@@ -97,20 +102,12 @@ describe.runIf(hasDb)("Polar webhooks", () => {
 
   it("downgrades to FREE on cancellation", async () => {
     // Setup to PRO
-    await updatePlanFromWebhook(
-      userId,
-      "287c0566-c317-491b-b804-c118a4fdab0f",
-      false,
-    );
+    await updatePlanFromWebhook(userId, PRO_PRODUCT_ID, false);
     let org = await prisma.organization.findUnique({ where: { id: orgId } });
     expect(org?.plan).toBe("PRO");
 
     // Cancel
-    await updatePlanFromWebhook(
-      userId,
-      "287c0566-c317-491b-b804-c118a4fdab0f",
-      true,
-    );
+    await updatePlanFromWebhook(userId, PRO_PRODUCT_ID, true);
 
     org = await prisma.organization.findUnique({ where: { id: orgId } });
     expect(org?.plan).toBe("FREE");
