@@ -262,7 +262,7 @@ absurd. Producers today:
 | `EXECUTION_SUCCEEDED` | runner success tail | live, gated on `Workflow.notifyOnSuccess` (default OFF) |
 | `CREDENTIAL_EXPIRING` | `notifyExpiringCredentials` cron (daily 03:00) | live, +7d window with a 14d grace floor |
 | `APPROVAL_REQUESTED` | — | **builder ready, no producer**: nothing in the app creates `ApprovalRequest` rows yet (no approval node ships), so the approvals table has no writer either. Wiring is a one-line call from wherever that node lands. |
-| `SYSTEM` | `scripts/notify-system.ts` (`npm run notify:system`) | operator broadcast, one row per workspace. Dry-run by default; dedupe key `system:<announcementId>:<orgId>` so a half-finished broadcast is safe to repeat (AF-M8-13). |
+| `SYSTEM` | `broadcastSystemNotification` in `src/features/notifications/server/system-notifier.ts`, driven by `npm run notify:system` | operator broadcast, one row per workspace, written through `writeNotifications` like every other producer. Dry-run by default; dedupe key `system:<announcementId>:<orgId>` so a half-finished broadcast is safe to repeat (AF-M8-13). |
 
 `Workflow.notifyOnFailure` / `notifyOnSuccess` are read by `workflows.getOne`
 and written by `workflows.updateNotificationPrefs` (`orgEditorProcedure` — this

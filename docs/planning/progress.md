@@ -265,3 +265,7 @@ When you complete a task:
 | 2026-09-01 | **AF-M8-10 (wiring)**: Legal pages linked from the landing footer and signup (4.7); `/support` built and linked (5.3); the footer's hardcoded "All Systems Operational" badge now links to /status instead of asserting health. | M8 |
 
 | 2026-09-01 | **AF-M8-05 (target + harness)**: Documented a derived concurrency target (100 req/s = one PRO tenant's own bucket) in `docs/operations/load_test.md` and built `npm run load-test`. No run performed — needs a deployed environment and an API key. | M8 |
+
+| 2026-09-02 | **AF-M8-13 (rework)**: Replaced the script-only SYSTEM producer with `system-notifier.ts`, ported from the parallel `af-m8-23-polar-plan` branch where the better implementation had been written independently. The script's direct `prisma.notification.createMany` bypassed `writeNotifications` — the documented single write path — so the replay guard was being re-implemented instead of reused. Now batched (200/statement), targetable by organization, with a tested `previewSystemBroadcast` behind the dry run. 13 integration tests. | M8 |
+
+| 2026-09-02 | **Verification**: full suite green on `af-m8-12-delete-legacy-ai-nodes` — tsc, biome, 955 unit+dom, **127 integration**, production build. Integration had never been run before; the test database now comes up under Podman with `--pull=never` and the host-network recipe. | M8 |

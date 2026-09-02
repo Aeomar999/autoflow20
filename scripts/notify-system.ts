@@ -1,5 +1,5 @@
 /**
- * AF-M8-13: the producer for `SYSTEM` notifications.
+ * AF-M8-13: the operator entry point for `SYSTEM` notifications.
  *
  * AF-M7-08 shipped the type, the copy, the icon and the bell, and nothing ever
  * wrote one — so the operator's only way to tell every workspace about
@@ -7,6 +7,12 @@
  * way. It is a script rather than an admin console because there is no admin
  * console (`docs/operations/support.md` §7), and a broadcast to every tenant
  * should be a deliberate command with a written record, not a button.
+ *
+ * This file is deliberately thin: argument parsing lives in
+ * `src/features/notifications/lib/announcement.ts` and the broadcast itself in
+ * `src/features/notifications/server/system-notifier.ts`, both of which are
+ * tested. A script runs `main()` on import, so anything defined here can only
+ * be exercised by actually broadcasting.
  *
  * Usage:
  *   npm run notify:system -- --id maint-2026-09-14 \
@@ -25,13 +31,16 @@
  * already has it. Use a new `--id` when you genuinely mean to say it again.
  */
 import "dotenv/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { parseAnnouncementArgs } from "@/features/notifications/lib/announcement";
-import { buildSystemNotification } from "@/features/notifications/lib/build";
-import { PrismaClient } from "@/generated/prisma/client";
+import {
+  broadcastSystemNotification,
+  previewSystemBroadcast,
+} from "@/features/notifications/server/system-notifier";
+import prisma from "@/lib/db";
 
 /** Host and database only — never log the password in a connection string. */
-const describeTarget = (url: string): string => {
+const describeTarget = (url: string | undefined): string => {
+  if (!url) return "(DATABASE_URL unset)";
   try {
     const parsed = new URL(url);
     return `${parsed.hostname}${parsed.pathname}`;
@@ -43,88 +52,50 @@ const describeTarget = (url: string): string => {
 async function main(): Promise<void> {
   const args = parseAnnouncementArgs(process.argv.slice(2));
 
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required.");
-  }
-
-  const prisma = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: databaseUrl }),
-  });
-
   try {
-    // Same reason as verify-legacy-ai-nodes: the failure mode is broadcasting
-    // to production while believing you are on a laptop.
-    console.log(`Database     : ${describeTarget(databaseUrl)}`);
+    // Name the database being written to. The failure mode this guards against
+    // is someone broadcasting to production while believing they are on a
+    // laptop, so the target is printed rather than assumed.
+    console.log(`Database     : ${describeTarget(process.env.DATABASE_URL)}`);
     console.log(`Announcement : ${args.id}`);
     console.log(`Title        : ${args.title}`);
     console.log(`Message      : ${args.message}`);
     console.log(`Link         : ${args.href ?? "(none)"}\n`);
 
-    const organizations = await prisma.organization.findMany({
-      select: { id: true, name: true },
-      orderBy: { createdAt: "asc" },
-    });
-
-    if (organizations.length === 0) {
-      console.log("No workspaces exist; nothing to announce.");
-      return;
-    }
-
-    // Organisation and draft travel together: pairing two separately filtered
-    // arrays by index is exactly how a broadcast ends up writing one
-    // workspace's announcement under another workspace's id.
-    const targets = organizations.map((organization) => ({
-      organization,
-      draft: buildSystemNotification({
-        announcementId: args.id,
-        organizationId: organization.id,
-        title: args.title,
-        message: args.message,
-        href: args.href,
-      }),
-    }));
-
-    // Report who has already been told BEFORE writing, so a dry run predicts
-    // the real outcome instead of just counting workspaces.
-    const alreadySent = await prisma.notification.findMany({
-      where: { dedupeKey: { in: targets.map(({ draft }) => draft.dedupeKey) } },
-      select: { dedupeKey: true },
-    });
-    const seen = new Set(alreadySent.map((row) => row.dedupeKey));
-    const pending = targets.filter(({ draft }) => !seen.has(draft.dedupeKey));
-
-    console.log(`Workspaces          : ${organizations.length}`);
-    console.log(`Already announced to: ${seen.size}`);
-    console.log(`Would notify        : ${pending.length}`);
+    const announcement = {
+      announcementId: args.id,
+      title: args.title,
+      message: args.message,
+      href: args.href,
+    };
 
     if (!args.confirmed) {
+      const preview = await previewSystemBroadcast(announcement);
+
+      console.log(`Workspaces          : ${preview.targeted}`);
+      console.log(`Already announced to: ${preview.skipped}`);
+      console.log(`Would notify        : ${preview.pending}`);
       console.log(
         "\nDRY RUN - nothing was written. Re-run with --yes to send.",
       );
       return;
     }
 
-    if (pending.length === 0) {
-      console.log("\nEvery workspace already has this announcement.");
+    const result = await broadcastSystemNotification(announcement);
+
+    console.log(`Workspaces          : ${result.targeted}`);
+    console.log(`Already announced to: ${result.skipped}`);
+    console.log(`Notified            : ${result.written}`);
+
+    if (result.targeted === 0) {
+      console.log("\nNo workspaces exist; nothing to announce.");
       return;
     }
-
-    const result = await prisma.notification.createMany({
-      data: pending.map(({ organization, draft }) => ({
-        organizationId: organization.id,
-        type: draft.type,
-        title: draft.title,
-        message: draft.message,
-        href: draft.href,
-        dedupeKey: draft.dedupeKey,
-      })),
-      // Belt and braces: a workspace created between the read above and this
-      // write, or a concurrent run of this script, collides instead of failing.
-      skipDuplicates: true,
-    });
-
-    console.log(`\nSENT - ${result.count} workspace(s) notified.`);
+    if (result.written === 0) {
+      console.log("\nEvery workspace already had this announcement.");
+      return;
+    }
+    console.log(`\nSENT - ${result.written} workspace(s) notified.`);
   } finally {
     await prisma.$disconnect();
   }

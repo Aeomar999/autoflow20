@@ -52,17 +52,28 @@ export function approvalDedupeKey(approvalRequestId: string): string {
 }
 
 /**
- * Keyed on the announcement id AND the workspace (AF-M8-13).
+ * Keyed on an operator-chosen announcement id AND the organization (AF-M8-13).
  *
- * `Notification.dedupeKey` is unique across the whole table, not per
- * organisation, so a broadcast needs one key per recipient — otherwise the
- * first workspace written would claim the key and `skipDuplicates` would
- * silently swallow every other workspace in the fan-out.
+ * A system announcement has no row of its own to key on, so the operator
+ * supplies the identity. That is the idempotency story for a broadcast:
+ * sending "scheduled maintenance on the 14th" to 400 organizations and then
+ * re-running the script - because it half-failed, or because nobody was sure
+ * it went - must reach only the workspaces that missed it.
  *
- * Scoping it this way is also what makes a half-finished broadcast safe to
- * re-run: workspaces already told collide and are skipped, the rest are
- * written. Re-using an id after correcting the wording is therefore a no-op
- * for anyone who already has it, which is the intended behaviour.
+ * **The organization id has to be in the key**, and this is the first
+ * notification type where that is true. `Notification.dedupeKey` is globally
+ * `@unique`, not unique per organization. Every other producer gets away with
+ * that because its key embeds a globally-unique row id - `execution:<cuid>`,
+ * `credential:<cuid>`, `approval:<cuid>` - and each of those rows belongs to
+ * exactly one organization, so global uniqueness and per-organization
+ * uniqueness happened to coincide. A system announcement is the first
+ * notification with no owning row, so without the organization here a
+ * broadcast would write to the first workspace and be silently skipped for
+ * every other one.
+ *
+ * It is deliberately not derived from the title: fixing a typo in the copy and
+ * re-sending should reach the people who never saw the first version, not
+ * silently do nothing because the text changed.
  */
 export function systemDedupeKey(
   announcementId: string,
