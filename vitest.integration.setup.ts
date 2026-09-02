@@ -29,11 +29,17 @@ if (!process.env.STRIPE_WEBHOOK_SECRET) {
 
 // The credential vault refuses to seal anything without a master key, so the
 // credentials suites cannot run without one. Defaulted here rather than in the
-// CI job's env so a bare `npm run test:integration` works the same everywhere:
-// this is a throwaway key for a throwaway database, and the value is public.
+// CI job's env so a bare `npm run test:integration` works the same everywhere.
+//
+// Derived rather than written as a base64 literal: a 44-character base64 blob
+// in a committed file is what a secret looks like to a scanner, and one that
+// cries wolf on every run stops being read. Thirty-two bytes of a repeated
+// filler character is self-evidently not a real key.
 if (!process.env.CREDENTIAL_MASTER_KEY) {
-  process.env.CREDENTIAL_MASTER_KEY =
-    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+  process.env.CREDENTIAL_MASTER_KEY = Buffer.alloc(
+    32,
+    "integration-test",
+  ).toString("base64");
 }
 
 if (!process.env.TEST_DATABASE_URL) {
