@@ -62,3 +62,7 @@ next-env.d.ts
 /test-results/
 
 
+
+# Captured lint/build console output. biome-errors.txt was committed by
+# accident in 0040238 - a UTF-16 PowerShell transcript, not source.
+*-errors.txt
