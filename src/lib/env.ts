@@ -55,6 +55,16 @@ const serverEnvSchema = z.object({
   POLAR_PRODUCT_ID: z.uuid("must be a UUID").optional(),
   POLAR_PRODUCT_SLUG: z.string().min(1).optional(),
 
+  // AF-M8-23: the subscription webhooks that write `Organization.plan`.
+  // Optional at boot for the same reason the rest of the Polar block is - an
+  // install without billing configured still runs. When the secret is unset
+  // the webhook handler is registered without one and Polar's deliveries fail
+  // signature verification, so billing is inert rather than unauthenticated.
+  POLAR_WEBHOOK_SECRET: z.string().min(1).optional(),
+  POLAR_PRODUCT_ID_STARTER: z.uuid("must be a UUID").optional(),
+  POLAR_PRODUCT_ID_PRO: z.uuid("must be a UUID").optional(),
+  POLAR_PRODUCT_ID_ENTERPRISE: z.uuid("must be a UUID").optional(),
+
   INNGEST_EVENT_KEY: z.string().optional(),
   INNGEST_SIGNING_KEY: z.string().optional(),
 
@@ -122,6 +132,15 @@ export const polarProductSlug =
   process.env.POLAR_PRODUCT_SLUG ??
   process.env.NEXT_PUBLIC_POLAR_PRODUCT_SLUG ??
   "pro";
+
+/**
+ * Signing secret for the Polar subscription webhooks (AF-M8-23).
+ *
+ * Undefined when billing is not configured. The plugin rejects every delivery
+ * with 400 in that case rather than trusting an unsigned body, so an install
+ * without it has inert billing, not an open endpoint.
+ */
+export const polarWebhookSecret = process.env.POLAR_WEBHOOK_SECRET;
 
 /**
  * Resend configuration for transactional auth email (AF-M8-04). Both are

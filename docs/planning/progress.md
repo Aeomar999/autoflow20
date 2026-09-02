@@ -257,3 +257,11 @@ When you complete a task:
 | 2026-09-01 | **AF-M8-23**: Payment doesn't change the plan - Implemented Polar webhooks in auth.ts to automatically upgrade/downgrade organization plans based on subscription events. | M8 |
 
 | 2026-09-01 | **AF-M8-12**: Deleted deprecated legacy AI nodes (OPENAI, ANTHROPIC, GEMINI) and their migration script since no references exist in the database. | M8 |
+
+| 2026-09-01 | **AF-M8-23 (hardening)**: Moved the three hard-coded Polar product UUIDs out of `auth-webhooks.ts` into `POLAR_PRODUCT_ID_*`; added `POLAR_WEBHOOK_SECRET` to the env schema and `.env.example`; made every refusal log instead of returning silently. 14 unit tests. Recorded the task in tasks.md, where it had never been written down. | M8 |
+
+| 2026-09-01 | **AF-M8-13 (SYSTEM half)**: Built `npm run notify:system` — the broadcast surface support.md §6 already documented and nothing implemented. Dry-run by default, dedupe key per workspace. Approvals half stays blocked on the approval node (AF-P2-E). | M8 |
+
+| 2026-09-01 | **AF-M8-10 (wiring)**: Legal pages linked from the landing footer and signup (4.7); `/support` built and linked (5.3); the footer's hardcoded "All Systems Operational" badge now links to /status instead of asserting health. | M8 |
+
+| 2026-09-01 | **AF-M8-05 (target + harness)**: Documented a derived concurrency target (100 req/s = one PRO tenant's own bucket) in `docs/operations/load_test.md` and built `npm run load-test`. No run performed — needs a deployed environment and an API key. | M8 |

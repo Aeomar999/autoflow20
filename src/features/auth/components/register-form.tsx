@@ -209,6 +209,26 @@ export function RegisterForm() {
                     Sign up
                   </Button>
                 </div>
+                {/*
+                  Checklist item 4.7: the policies are linked from signup.
+                  Notice, not a checkbox - item 4.8 (recording acceptance) is
+                  a separate, unbuilt thing, and a tick box that stores nothing
+                  would look like consent was captured when no record exists.
+                */}
+                <p className="text-center text-xs text-muted-foreground">
+                  By creating an account you agree to our{" "}
+                  <Link href="/terms" className="underline underline-offset-4">
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href="/privacy"
+                    className="underline underline-offset-4"
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
                 <div className="text-center text-sm">
                   Already have an account?{" "}
                   <Link href="/login" className="underline underline-offset-4">

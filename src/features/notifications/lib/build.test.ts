@@ -5,10 +5,12 @@ import {
   buildApprovalNotification,
   buildCredentialExpiryNotification,
   buildExecutionNotification,
+  buildSystemNotification,
   credentialDedupeKey,
   daysBetween,
   executionDedupeKey,
   summarizeError,
+  systemDedupeKey,
 } from "./build";
 import { NOTIFICATION_TYPE_LABELS } from "./types";
 
@@ -185,6 +187,64 @@ describe("daysBetween", () => {
         new Date("2026-09-01T00:00:00.000Z"),
       ),
     ).toBe(-4);
+  });
+});
+
+describe("buildSystemNotification", () => {
+  const base = {
+    announcementId: "maint-2026-09-14",
+    organizationId: "org_1",
+    title: "Scheduled maintenance",
+    message: "Runs may be delayed between 02:00 and 03:00 UTC.",
+  };
+
+  it("carries the operator's own words through unchanged", () => {
+    const draft = buildSystemNotification(base);
+
+    expect(draft.type).toBe("SYSTEM");
+    expect(draft.title).toBe(base.title);
+    expect(draft.message).toBe(base.message);
+  });
+
+  it("links nowhere by default", () => {
+    // Most announcements have no destination, and navigating to the dashboard
+    // for no reason is worse than not navigating at all.
+    expect(buildSystemNotification(base).href).toBeNull();
+  });
+
+  it("carries an href when the operator gives one", () => {
+    expect(buildSystemNotification({ ...base, href: "/status" }).href).toBe(
+      "/status",
+    );
+  });
+
+  it("has no workflow, execution, or credential to point at", () => {
+    const draft = buildSystemNotification(base);
+
+    expect(draft.workflowId).toBeNull();
+    expect(draft.executionId).toBeNull();
+    expect(draft.credentialId).toBeNull();
+  });
+
+  it("keys per workspace, so a broadcast reaches every one of them", () => {
+    // `dedupeKey` is unique across the whole table. Keyed on the announcement
+    // alone, the first workspace written would claim it and `skipDuplicates`
+    // would silently swallow the rest of the fan-out.
+    expect(systemDedupeKey("maint-1", "org_1")).not.toBe(
+      systemDedupeKey("maint-1", "org_2"),
+    );
+  });
+
+  it("repeats the same key for the same workspace, so a re-run is a no-op", () => {
+    expect(buildSystemNotification(base).dedupeKey).toBe(
+      buildSystemNotification(base).dedupeKey,
+    );
+  });
+
+  it("gives a different announcement a different key", () => {
+    expect(systemDedupeKey("maint-1", "org_1")).not.toBe(
+      systemDedupeKey("maint-2", "org_1"),
+    );
   });
 });
 

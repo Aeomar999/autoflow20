@@ -706,30 +706,31 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
   - [x] Email verification flow: signup → verification email sent → click link → email verified → redirect to dashboard.
   - [x] Both flows work with the configured email provider (Resend).
   - [x] Custom screens rendered inside the `(auth)` group.
-- ⬜ **AF-M8-05** Load test to the concurrency target; fix findings · 3d
+- 🟡 **AF-M8-05** Load test to the concurrency target; fix findings · 3d · **harness + target built 2026-09-01; no run performed** — the task was unstartable as written because, as the launch checklist recorded, **no concurrency target was documented anywhere** and a load test without one produces a number with nothing to compare it to. `docs/operations/load_test.md` now proposes one and derives it rather than inventing it: **100 req/s sustained for 5 minutes from 50 clients, zero 5xx, p95 under 1s** — which is exactly one PRO tenant saturating the bucket they are already sold (`PLAN_BUCKETS.PRO` refills at 100/s), with the error budget taken from the existing S1 availability SLO. If one paying customer at their published rate limit can degrade the service, the rate limit is a fiction. `scripts/load-test.ts` (`npm run load-test`) drives the public REST API — the only authenticated surface a generator can drive without a browser session, and the one that exercises bearer auth, the token bucket, the org scope, the database, and (on the `run` profile) the quota check and enqueue. Two profiles: `read` first, because cheap requests saturate **connections** before CPU and connection-pool exhaustion is this deployment's most likely failure; `run` is destructive and starts real executions. **429 is scored as a pass, not an error** — a saturated service shedding load with 429 is behaving correctly, and counting it as failure would hide the 5xx that matter. Exit code is the verdict, so it can gate a release. **Still open:** running it needs a deployed non-production environment and an API key, neither of which is in the repository, so §5 of the doc has no results row and no capacity claim is supportable yet. "Fix findings" cannot start before there are findings.
 - ✅ **AF-M8-06** Execution retention policy + archival/partitioning for `NodeExecution` · 3d · **DONE 2026-09-01** — `Execution`/`NodeExecution` grew without bound and nothing pruned them, so `security.md` §9's "execution IO is customer data … retention is bounded" was simply untrue. **Two-stage policy, not one** (ADR-0016): `input`/`output` are nulled at `ioRetentionDays`, and the `Execution` row is deleted at `deleteAfterDays` with `NodeExecution` following by `onDelete: Cascade`. A single delete stage would have forced a choice between holding customer payloads as long as we want cost history or discarding cost history as fast as we want to drop payloads — two stages needs neither, because redaction keeps status, timings, tokens, `costUsd`, `model`, and error text, so the monitoring and cost dashboards stay truthful over rows whose payloads are gone. **Windows are per-plan data** in `src/lib/retention.ts` (`PLAN_RETENTION`, same shape as `PLAN_QUOTA_LIMITS`; unknown/NULL plan collapses to FREE per ADR-0010, since "more than FREE" here means keeping data *longer*): FREE 7d/35d, STARTER 30d/90d, PRO 90d/365d, ENTERPRISE 365d/never. **The floor is the subtle part:** the runner meters the monthly quota by *counting* `Execution` rows in the current calendar month, so a delete window shorter than a month would remove rows still being counted and silently **refund quota** — paid capacity handed out on a timer. `QUOTA_SAFE_DELETE_FLOOR_DAYS` is 35 and a unit test asserts every plan honours it, so lowering a window below the quota window fails the build rather than leaking revenue quietly. Enforcement (`src/features/executions/server/retention.ts`) is **bounded** (page of ids per statement, ceiling per run, reports `truncated` and warns rather than locking the two largest tables) and **idempotent** (redaction only selects rows that still have a payload — `Prisma.DbNull`, not `JsonNull` — so a replayed Inngest step is a no-op). Non-terminal rows *are* pruned once past the window: no Inngest run lives 35 days, so a row still `RUNNING` at that age is a crashed run, and skipping it would leak exactly the runs that never complete. Daily `sweep-execution-history` cron at 03:45, off the AI cache sweep's 03:15. **Archival tier deliberately not built** and **partitioning deliberately deferred** behind a written trigger (~50M rows / ~50 GB, repeated `truncated` days, or autovacuum falling behind) — Prisma has no partitioned-table support, the PK would have to become `(id, startedAt)` maintained by raw SQL that `migrate diff` would fight, and it needs a partition-creation job whose failure mode is write errors on the busiest table. With retention enforced the table is *bounded*, which was the actual R8 risk. **No migration** — policy only. Tests: 27 unit (policy shape, the quota floor, plan collapse, cutoff arithmetic) + 9 integration against real Postgres (redaction keeps metrics, delete cascades, ENTERPRISE never deletes, one org's plan never governs another's rows, org-less legacy rows swept as FREE, idempotency, truncation-and-resume, stuck-`RUNNING` pruning). Corrected `data_model.md`, which pointed retention at `AF-M8-04` (the auth-email task).
 - ✅ **AF-M8-20** Tell the user how far back their execution history goes · 0.5d · *(added 2026-09-01, consequence of AF-M8-06)* — retention is per-plan, so a "last 90 days" view on FREE silently shows at most 35 days of runs and less IO than that. The monitoring, cost, and execution-list screens do not say so; a range the data cannot cover should name the plan's window rather than render a truthful-looking empty stretch. Needs `resolveRetention` surfaced through a procedure the client can read. **DONE 2026-09-01.** No procedure needed after all - `usage.plan` and `periodDays` were already on the monitoring dashboard's data, so this is presentation, not transport. `retentionNotice(periodDays, plan)` returns `null` when the range fits, which is the common case and the one where a banner is just noise. It distinguishes two states that need different sentences, because conflating them would be its own lie: **history truncated** (runs really are missing - "keeps run history for 35 days, so a 90 days range shows at most 35 days of runs") and **payloads-only truncated** (every run is present, but older ones have lost their recorded inputs and outputs - worth saying on a page people open in order to debug). History wins when both hold. Unknown or missing plan collapses to FREE, the same ADR-0010 rule the pruner uses: a workspace must never be told its history reaches further back than it does. 9 unit + 4 DOM tests.
 - ✅ **AF-M8-07** Alerting, runbooks for the top 5 failure modes, error budgets, status page · 3d · **DONE 2026-09-01** — **Status page + health endpoint (built).** `GET /api/health` (machine-readable, for an uptime monitor or load balancer) and `/status` (public, server-rendered, no session/tRPC/client JS — deliberately outside the `(dashboard)` group, because the moment it is needed is the moment the authenticated shell may not render). Two probes, each chosen to map to a runbook entry rather than to whatever is pingable: `database` (Postgres reachable) and `runner` (executions that started long ago and never reached a terminal status). **`runner` is the important one** — it detects the failure mode where every other surface looks healthy: the app serves, triggers fire, runs are accepted, and nothing finishes. Aggregation rules live in the isomorphic `src/lib/health.ts` so they are testable without a DB, and two of them are easy to get backwards and are pinned by tests: a probe that throws is `down` (never "unknown", never skipped — a health check that fails open reports green while the service burns), and an **empty check list is `down`** (no evidence of health is not evidence of health). `degraded` deliberately returns **HTTP 200**: a 503 would make a load balancer evict an instance that is still doing useful work, turning a partial outage into a total one. The endpoint is rate limited through the AF-M8-02 shared store (each probe runs real queries, so an open endpoint doing DB work is a free amplification primitive) and the body carries verdicts only — never an error string, which would name hosts, ports, and roles. **Caught while verifying in the browser:** the first render after boot reported a false **"Major outage"** because a cold Prisma connection blew the 2s probe budget; the DB probe now gets 5s, since a status page that cries wolf on every deploy is worse than none. **Runbooks (`docs/operations/runbooks.md`)** for five failure modes that this system can actually reach and that do not detect each other: F1 executions accepted but never completing, F2 database down / pool exhausted, F3 credentials failing to decrypt across the board, F4 AI provider outage or runaway spend, F5 webhook flood from one tenant. Symptom → confirm (with the actual SQL) → diagnose in order → mitigate, plus one rule per page: capture evidence before restarting, because in every one of these the state *is* the diagnosis. **SLOs and error budgets (`docs/operations/slos.md`)**: four SLIs over a 28-day window — availability 99.5%, execution success 99.0%, latency 95% under 60s, trigger fidelity 99.9% — with the budget framed as a decision rule ("do we ship or fix reliability") rather than a scoreboard. S2 excludes `CANCELLED` and `QUOTA_EXCEEDED` on purpose: a user cancelling is not a failure and a quota refusal is the system working, so neither should consume an engineering budget. Eight alert definitions, each naming the runbook entry it maps to — an alert with no runbook teaches people to ignore alerts. **Written down as NOT built, rather than implied:** nothing pages anyone today (no delivery, no external prober, so availability is currently unmeasured), no on-call rotation, no burn-rate tracking, trigger fidelity is uninstrumented, and — the most serious gap — restore has never been rehearsed, so there is no data-loss runbook. Filed as **AF-M8-21**. Tests: 13 unit + 6 integration. No migration.
-- ⬜ **AF-M8-21** Make the AF-M8-07 alerts actually reach a human · 1d · *(added 2026-09-01, the honest gap in AF-M8-07)* — `docs/operations/slos.md` §4 defines eight alerts and nothing delivers any of them, so today we would learn about most incidents from a customer. Smallest first step and by far the best value: point one external uptime monitor at `/api/health` — that alone lights up `health-down` and `runner-stalled`, the two **page**-severity alerts, and starts measuring S1 availability, which is currently unmeasured because a service cannot credibly report its own uptime. Then Sentry alert rules for `credential-decrypt-failures` (threshold deliberately requires ≥2 organizations — one tenant's credential failing is user error, across tenants it is our key). Burn-rate tracking and the S4 trigger-fidelity counter come after. An on-call rotation is a people decision, not a code one.
+- ✅ **AF-M8-21** Make the AF-M8-07 alerts actually reach a human · 1d · *(added 2026-09-01, the honest gap in AF-M8-07)* · **superseded — this is the same task as the AF-M8-21 recorded below, which closed it 2026-09-01. Two entries were opened under one id; kept here for the reasoning, closed there.** — `docs/operations/slos.md` §4 defines eight alerts and nothing delivers any of them, so today we would learn about most incidents from a customer. Smallest first step and by far the best value: point one external uptime monitor at `/api/health` — that alone lights up `health-down` and `runner-stalled`, the two **page**-severity alerts, and starts measuring S1 availability, which is currently unmeasured because a service cannot credibly report its own uptime. Then Sentry alert rules for `credential-decrypt-failures` (threshold deliberately requires ≥2 organizations — one tenant's credential failing is user error, across tenants it is our key). Burn-rate tracking and the S4 trigger-fidelity counter come after. An on-call rotation is a people decision, not a code one.
 - ✅ **AF-M8-08** Security review against `docs/architecture/security.md`; dependency audit; close all HIGH findings · 3d · **DONE 2026-09-01** — Reviewed every item in `security.md` §13 against the code rather than against the spec, and ticked a box only where the control was actually read. **Dependency audit:** 39 findings (3 CRITICAL, 18 HIGH) → **6, all LOW**. `npm audit fix` closed the two CRITICALs (`better-auth` basePath DoS, `handlebars` AST-confusion injection — the latter matters because ADR-0007 compiles user templates at runtime) plus 11 HIGHs, changing only the lockfile. Four transitive HIGHs whose only npm-suggested "fix" was a **downgrade** (`prisma` 7.9.1→6.12.0, `inngest-cli` 1.12.1→0.16.3) were instead closed with scoped `overrides`: `deepmerge-ts@^8.0.2`, `adm-zip@^0.6.0`, `postcss@^8.5.26`, and `undici@^6.28.0` under `@ai-sdk/provider-utils` (v5 has no fixed release; 6.28.0 is one major, not two). `better-auth`'s fix forced 1.3.26→1.7.2, which broke `@polar-sh/better-auth@1.1.9` (it imports `createAuthEndpoint` from `better-auth/plugins`, moved to `better-auth/api`); pinning back to a non-vulnerable 1.6.30 did **not** help — the export was already gone — so the Polar chain went to `@polar-sh/better-auth@1.8.4` + `@polar-sh/sdk@0.47.1`. Residual 6 LOW are all `@ai-sdk/*` (one `provider-utils` resource-consumption advisory), closable only by a major SDK bump → **AF-M8-19**. **Code findings, all fixed here:** the HIGH is **AF-M8-16** (unguarded redirect hops — SSRF); Sentry server/edge scrubbing is the same task; the integration suite's flakiness is **AF-M8-18**; a template-instantiation correctness bug found en route is **AF-M8-15**. **Left open and written down, not ticked:** DNS-rebinding TOCTOU (**AF-M8-17**), `npm audit` not enforced in CI, production session-cookie flags unverified (no deploy to inspect), backup/restore never rehearsed, no external pentest scheduled. Full suite **917/917 across 95 files**, tsc + biome clean.
-- ⬜ **AF-M8-15** Fix cascading id substitution in `rewriteNodeRefs` (template instantiation) · 0.25d · *(added 2026-09-01, found during AF-M8-08)* · **DONE 2026-09-01** — `rewriteNodeRefs` applied one `split`/`join` per mapping **over the accumulating output**, so an id it had just written could be matched again by a later mapping: with `a → "b111"` and `b → "z999"`, `$node.a.main.value` became `$node.z999111.main.value`. A mapped id that is a prefix of an unmapped one was corrupted the same way (`$node.abc` → `$node.n1bc`). Replaced with a single pass over a `$node.<id>` token pattern that resolves each whole id through the map, so a token is visited once and matched in full or not at all. This is the *actual* cause of the flakiness AF-M8-14 papered over by rewriting the assertion — the bug was in the code, not the test. 5 new unit tests using hand-built maps (deterministic, unlike going through `prepareTemplateGraph` and hoping for an unlucky cuid).
-- ⬜ **AF-M8-16** Re-check the SSRF guard on every redirect hop; scrub Sentry on server and edge · 1d · *(added 2026-09-01, the HIGH finding of AF-M8-08)* · **DONE 2026-09-01** — Two separate holes, both of them controls `security.md` already required and no code implemented. **(1) SSRF, HIGH.** `assertSafeEndpoint` validated exactly one URL — the first. All six call sites then handed it to `ky`, which lets `fetch` follow redirects (default up to 20), so a user-configured endpoint on an attacker-controlled host answering `302 Location: http://169.254.169.254/latest/meta-data/` reached cloud metadata with the guard none the wiser. §5 listed "re-check after every hop" as a requirement; the guard's own docstring recorded following redirects as accepted residual risk. Added `safeFetch`, which walks the chain itself with `redirect: "manual"`, re-runs `assertSafeEndpoint` per hop, caps at 5, and drops `authorization`/`cookie`/`proxy-authorization` on a cross-origin hop (a redirect was also a way to *harvest* the node's bearer token). It is passed to `ky` as its `fetch` option rather than wrapping `ky`, so each call site keeps its own timeout/retry/`throwHttpErrors` semantics — **ADR-0015**. Wired into `http.request`, `webhook.out`, `slack.send-message`, `discord.send-message`, `ai.compatible`, and knowledge URL ingestion. 12 new unit tests. **(2) Sentry.** §9 makes `beforeSend` redaction **[HARD]**; only the *browser* config had it. The server config — where credentials, webhook payloads, and node execution IO live — had no `beforeSend`, `sendDefaultPii: true` (which attaches `Authorization` and `Cookie` headers to every event, per the `@sentry/nextjs` advisory), and `vercelAIIntegration({ recordInputs: true, recordOutputs: true })` shipping customer prompts and completions to a third party. Edge had nothing at all. Added the shared `src/lib/sentry-scrub.ts` (redacts `extra`/`contexts`/`request.data`, drops headers and cookies outright, reduces `user` to an id), wired into all three runtimes, `sendDefaultPii: false`, AI recording off. 7 new unit tests.
+- ✅ **AF-M8-15** Fix cascading id substitution in `rewriteNodeRefs` (template instantiation) · 0.25d · *(added 2026-09-01, found during AF-M8-08)* · **DONE 2026-09-01** — `rewriteNodeRefs` applied one `split`/`join` per mapping **over the accumulating output**, so an id it had just written could be matched again by a later mapping: with `a → "b111"` and `b → "z999"`, `$node.a.main.value` became `$node.z999111.main.value`. A mapped id that is a prefix of an unmapped one was corrupted the same way (`$node.abc` → `$node.n1bc`). Replaced with a single pass over a `$node.<id>` token pattern that resolves each whole id through the map, so a token is visited once and matched in full or not at all. This is the *actual* cause of the flakiness AF-M8-14 papered over by rewriting the assertion — the bug was in the code, not the test. 5 new unit tests using hand-built maps (deterministic, unlike going through `prepareTemplateGraph` and hoping for an unlucky cuid).
+- ✅ **AF-M8-16** Re-check the SSRF guard on every redirect hop; scrub Sentry on server and edge · 1d · *(added 2026-09-01, the HIGH finding of AF-M8-08)* · **DONE 2026-09-01** — Two separate holes, both of them controls `security.md` already required and no code implemented. **(1) SSRF, HIGH.** `assertSafeEndpoint` validated exactly one URL — the first. All six call sites then handed it to `ky`, which lets `fetch` follow redirects (default up to 20), so a user-configured endpoint on an attacker-controlled host answering `302 Location: http://169.254.169.254/latest/meta-data/` reached cloud metadata with the guard none the wiser. §5 listed "re-check after every hop" as a requirement; the guard's own docstring recorded following redirects as accepted residual risk. Added `safeFetch`, which walks the chain itself with `redirect: "manual"`, re-runs `assertSafeEndpoint` per hop, caps at 5, and drops `authorization`/`cookie`/`proxy-authorization` on a cross-origin hop (a redirect was also a way to *harvest* the node's bearer token). It is passed to `ky` as its `fetch` option rather than wrapping `ky`, so each call site keeps its own timeout/retry/`throwHttpErrors` semantics — **ADR-0015**. Wired into `http.request`, `webhook.out`, `slack.send-message`, `discord.send-message`, `ai.compatible`, and knowledge URL ingestion. 12 new unit tests. **(2) Sentry.** §9 makes `beforeSend` redaction **[HARD]**; only the *browser* config had it. The server config — where credentials, webhook payloads, and node execution IO live — had no `beforeSend`, `sendDefaultPii: true` (which attaches `Authorization` and `Cookie` headers to every event, per the `@sentry/nextjs` advisory), and `vercelAIIntegration({ recordInputs: true, recordOutputs: true })` shipping customer prompts and completions to a third party. Edge had nothing at all. Added the shared `src/lib/sentry-scrub.ts` (redacts `extra`/`contexts`/`request.data`, drops headers and cookies outright, reduces `user` to an id), wired into all three runtimes, `sendDefaultPii: false`, AI recording off. 7 new unit tests.
 - ✅ **AF-M8-17** Close the DNS-rebinding TOCTOU in the egress guard · 1d · *(added 2026-09-01, found during AF-M8-08)* — `assertSafeEndpoint` resolves the hostname and then hands the **hostname** to `fetch`, which resolves it again. A record whose TTL expires in between can return a different address, so a host that answered public on the check can answer `127.0.0.1` on the request. Closing it needs the connection pinned to the address that was actually vetted — an `undici` custom dispatcher, or connecting to the checked IP with the `Host` header preserved (and SNI handled for TLS). Materially narrower than the redirect hole AF-M8-16 closed, which needed only a single `302`, but it defeats the entire IP blocklist when it lands. **DONE 2026-09-01 (ADR-0017).** `resolveSafeEndpoint` now returns the vetted addresses alongside the URL, and `pinnedDispatcher` hands undici a connector-level `lookup` that returns exactly those - there is no second resolution, so there is no window. `assertSafeEndpoint` stays as a thin wrapper returning just the URL, so none of the six node call sites changed. **Lookup override rather than rewriting the URL to an IP**: an IP URL breaks certificate validation (the cert is checked against the name in the URL) and serves the wrong site on a virtual-hosted origin. Overriding the lookup leaves SNI and the `Host` header carrying the hostname, so only the socket's destination is fixed - a test asserts the origin still sees the name, because that property is the whole reason for the design. The dispatcher also fails closed if asked about a host it was not built for, which should be unreachable since `safeFetch` re-vets at the top of every hop - which is exactly why it is asserted. **New direct dependency `undici@^7`**, justified in ADR-0017: nothing in the stack can pin a connection, undici *is* Node's fetch implementation so this makes the existing client configurable rather than adding a second HTTP stack, it was already installed transitively, and `^7` because undici 8 needs Node 22 while CI runs Node 20. **The failure mode this is tested against is not an exception** - it is a Node or undici version that ignores the dispatcher, resolves again, and looks exactly like success while protecting nothing. So the test pins `pinned.invalid` (RFC 6761, can never resolve) to a real local server: if the dispatcher is ever ignored, the lookup fails and CI goes red on whatever Node it runs. 3 new tests, 50 in the file. `security.md` §5 now has no open items.
-- ⬜ **AF-M8-18** Make the integration project actually run serially · 0.25d · *(added 2026-09-01, found during AF-M8-08)* · **DONE 2026-09-01** — Every integration suite `TRUNCATE`s the whole schema in `beforeEach` against one shared Postgres, so the project set `fileParallelism: false`. It did not hold: once the `unit` and `dom` projects ran alongside it under a plain `npm test`, files still interleaved and one suite's truncate landed between another's user insert and its organization insert — surfacing as `Foreign key constraint violated on member_userId_fkey`. **This is the failure AF-M8-02 recorded as a "pre-existing environment/DB-state issue" in the `api-keys`/`public-api` suites, and it is why a real regression could hide behind it.** Added an explicit `maxWorkers: 1` and `pool: "forks"` to the project. (`poolOptions` does not exist in vitest 4 — it is `maxWorkers`.) Full suite went from an intermittent 7–36 failures to **917/917 twice running**, and got faster: 295s → 157s.
+- ✅ **AF-M8-18** Make the integration project actually run serially · 0.25d · *(added 2026-09-01, found during AF-M8-08)* · **DONE 2026-09-01** — Every integration suite `TRUNCATE`s the whole schema in `beforeEach` against one shared Postgres, so the project set `fileParallelism: false`. It did not hold: once the `unit` and `dom` projects ran alongside it under a plain `npm test`, files still interleaved and one suite's truncate landed between another's user insert and its organization insert — surfacing as `Foreign key constraint violated on member_userId_fkey`. **This is the failure AF-M8-02 recorded as a "pre-existing environment/DB-state issue" in the `api-keys`/`public-api` suites, and it is why a real regression could hide behind it.** Added an explicit `maxWorkers: 1` and `pool: "forks"` to the project. (`poolOptions` does not exist in vitest 4 — it is `maxWorkers`.) Full suite went from an intermittent 7–36 failures to **917/917 twice running**, and got faster: 295s → 157s.
 - ⬜ **AF-M8-19** Upgrade the `@ai-sdk/*` chain past the remaining LOW advisories · 0.5d · *(added 2026-09-01, found during AF-M8-08)* — the 6 LOW findings left after the audit are all one advisory reachable through `@ai-sdk/provider-utils` (uncontrolled resource consumption) plus its dependents `@ai-sdk/{anthropic,google,openai,gateway}` and `ai`. npm's only fix is a **major** on each (`ai@7`, `@ai-sdk/openai@4`, …), which is an API migration across every AI node and the fallback chain, not an audit fix. Do it as a deliberate upgrade with the AI execute suites as the gate, not under a security deadline.
 - ✅ **AF-M8-09** Node reference + expression documentation site · 3d · **DONE 2026-09-01** — A public docs site inside the existing Next app at `/docs` (index), `/docs/nodes` (catalogue by category), `/docs/nodes/[type]` (one page per type, `generateStaticParams` from the registry), and `/docs/expressions`. **No new dependency** — a Docusaurus/Nextra install would have added a second toolchain and a second design system to a repo whose rule is to prefer the existing stack (AGENTS.md DON'T-12); these are Next routes using the app's own tokens, public and outside the `(dashboard)` group because the reference is what someone reads while deciding whether to sign up. **The node reference is derived from `nodeManifest` at render time, not written or generated.** Both alternatives drift: a hand-written page is stale the first time someone adds a config field, and a generated file is stale until somebody re-runs the generator — the `reference/nodes/<node>.md` plan in `docs/README.md` was the first of those, and is now marked superseded. Config fields come from `resolveConfigFields`, the *same* deriver that builds the editor's config form, so a documented field is by construction a field the editor renders rather than a second description of it (ADR-0001). Deprecated types are documented deliberately — a saved workflow can still contain one and still run it (ADR-0011), so someone reading a trace must be able to look it up — and carry a notice linking to their replacement. A schema the deriver cannot handle degrades to "not documented automatically" instead of rendering an empty table that would read as "takes no configuration"; a test asserts no node currently needs that path. **Expression reference grounded in the implementation, not in memory:** before writing it I added 7 tests pinning the behaviour the page promises, and they caught the page being wrong — the `$node` syntax is dot-bracket **without quotes** (`{{$node.[HTTP Request].field}}`), and quoting it looks for a key that literally contains the quotes. The page leads with the sharpest edge: `{{ }}` HTML-escapes, so a JSON body built that way breaks the first time a value contains a quote — use `{{{ }}}` or the `json` helper. It also states plainly that a missing path renders empty and does *not* fail (so a typo is silent), that interpolating an object yields `[object Object]`, and that the absence of `eval`/`new Function`/VM is the security control rather than an unfinished feature (ADR-0006). **Verified by loading every route:** `/docs`, `/docs/nodes`, `/docs/expressions`, a live type, a deprecated type (notice + replacement link render), and an unknown type (404). Tests: 12 unit for the reference model (every registered type documented and none invented, deprecated types included, credentials expose only `key`/`type`/`required`, no node falls back to undocumented, grouping loses nothing) + 7 template tests. No migration.
-- ⬜ **AF-M8-10** Beta launch checklist: billing, support, ToS, privacy policy, DPA · 2d
+- 🟡 **AF-M8-10** Beta launch checklist: billing, support, ToS, privacy policy, DPA · 2d · **code complete 2026-09-01; four items are operator/lawyer work** — `docs/operations/beta_launch_checklist.md` is the gate and `docs/operations/operator_actions.md` sorts every remaining item by who is blocking it. Shipped: the checklist itself, `docs/operations/support.md`, drafted `/terms`, `/privacy`, `/dpa` rendered from `src/config/legal.ts` (which refuses to render a policy at all until the legal entity is configured, so an unconfigured deployment cannot publish a page reading `[COMPANY_LEGAL_NAME]`), and the subprocessor list generated from the services the code actually calls. **Closed 2026-09-01:** item 4.7 — Terms/Privacy/DPA/Support are now linked from the landing footer and the policies from the signup form; item 5.3 — `/support` exists (`src/app/support/page.tsx`), which is what `supportEmail()` was written for and nothing had ever rendered. The signup link is a **notice, not a checkbox**: item 4.8 (recording acceptance) stores nothing yet, and a tick box that records nothing looks like consent was captured when no record exists. Also corrected the landing footer's hardcoded "All Systems Operational" badge, which asserted health as static text and so claimed the service was up most loudly at the moment it was down; it now links to `/status`. **Not closeable from the repository:** 4.5 lawyer review, 4.6 legal-entity env values, 1.7 live Polar product ids, 5.2 a monitored support inbox.
 - ✅ **AF-M8-11** Convert `Execution.costUsd` / `NodeExecution.costUsd` / `AiResponseCache.costUsd` from `Float` to `Decimal(12,6)` · 1d · *(added 2026-08-31, found during AF-M5-08)* · **DONE 2026-08-31** — migrated the three cost columns to `Decimal(12,6)` via expand-migrate-contract (add `*_new` Decimal column, backfill from the Float, drop + rename, all in one transaction) as `20260831140000_cost_usd_float_to_decimal`. Every Prisma read that previously returned a raw `number` for `costUsd` now returns `Decimal` — fixed all boundary sites: the per-node and execution-rollup writers in `src/inngest/functions.ts` (both success/failure aggregate paths `Number(...)`-convert), the `costs.summary` router (totals/byWorkflow/byModel/topRuns), the `executions.list`/`getOne` routers (shaped `costUsd` + per-node traces to `number`), and the AI cache read (`src/lib/ai/cache.ts`). The raw-SQL `savedUsd` query already casts `SUM(...)::double precision`, and the daily-series query casts `::double precision`, so both need no change. The client execution-detail component now uses a local `TraceRow` type (not the Prisma `NodeExecution` type, which carries `Decimal`) so `costUsd` stays a plain number across the wire. **No `Number()` happens at the UI layer** — the routers convert to plain numbers before superjson serialization. Tests: full unit suite (712) + integration (47) green, tsc + biome + `next build` clean. `docs/architecture/data_model.md` note corrected (was "As built it is Float").
-- ⬜ **AF-M8-13** Give `APPROVAL_REQUESTED` and `SYSTEM` notifications a producer · 1d · *(added 2026-08-31, found during AF-M7-08)* — AF-M7-08 shipped the builders, copy, icons, and dedupe keys for both, but neither is written today. For approvals the blocker is upstream and larger than notifications: **nothing in the app creates `ApprovalRequest` rows** — no approval node ships, so the AF-M6-09 approvals dashboard reads a table with no writer. Wiring the notification is a one-line `writeNotifications` call once that node exists; the real work is the node. For `SYSTEM`, decide the surface (an admin script, or an operator-only procedure) and add it. Until then `docs/architecture/api_contract.md` records both as producer-less rather than implying they fire.
-- [x] **AF-M8-12** Delete the deprecated `OPENAI` / `ANTHROPIC` / `GEMINI` node folders · 0.5d · *(added 2026-08-31, step 3 of AF-M5-09)* — **DONE 2026-09-01** — Verified `npm run migrate:legacy-ai-nodes` had zero rows to migrate, deleted the folders, removed registrations from `manifest.ts` and `registry.ts`, updated `node-config-panel.dom.test.tsx` to use a generic mock for testing deprecation notices, and removed the migration script. **Correction (2026-09-01, AF-M8-24).** The precondition ADR-0011 §3 sets is "no `Node` row of those types remains **in every environment**", and what was actually verified was the database this repo's `.env` points at — a scratch `test.ts` running the two queries through `dotenv/config`, added and removed in the same pair of commits. That endpoint (`ep-bold-mouse-ay14r501-pooler…neon.tech/neondb`) is genuinely **CLEAR**: 0 live nodes, 0 active versions, re-confirmed by the new `npm run verify:legacy-ai-nodes`. It is a hosted Neon instance rather than a laptop database, so it may well be the one the deployed app uses — but nothing in the repo establishes that, and the gap between "the DB in my .env" and "every environment" is exactly where this failure hides: there is no boot error, no warning, and the first symptom is a customer's live workflow failing with `UnknownNodeTypeError` at execution time. **Remaining step is one lookup:** compare the Vercel project's `DATABASE_URL` host against that endpoint, and re-run the verification against any that differs. **The escape hatch went with it.** The same commit deleted `scripts/migrate-legacy-ai-nodes.ts` and `src/nodes/ai/legacy-migration.ts`, so if any environment does hold rows there is now no migration in the tree to fix them. It restores cleanly from `a4ada53^` — its only import is `./llm/definition`, which still exists — so recovery does not mean bringing the deleted node folders back. Both the verification script's failure output and `operator_actions.md` §C1 name the commit and the two paths, so nobody has to reconstruct that under pressure.
+- 🟡 **AF-M8-13** Give `APPROVAL_REQUESTED` and `SYSTEM` notifications a producer · 1d · *(added 2026-08-31, found during AF-M7-08)* · **SYSTEM done 2026-09-01; approvals half deferred to `AF-P2-E`** — AF-M7-08 shipped the builders, copy, icons, and dedupe keys for both, but neither was written. **`SYSTEM` now has one:** `buildSystemNotification` + `systemDedupeKey` in `src/features/notifications/lib/build.ts`, driven by `npm run notify:system -- --id <id> --title "…" --message "…"` (`scripts/notify-system.ts`), which was the surface `docs/operations/support.md` §6 already documented and nothing implemented. A script rather than an admin console because there is no admin console, and a broadcast to every tenant should be a deliberate command. **Dry-run by default** — the blast radius is every workspace in the deployment and there is no unsend — and it reports how many workspaces would be told before it writes. The dedupe key is `system:<announcementId>:<orgId>`, per **workspace** rather than per announcement, because `Notification.dedupeKey` is unique across the whole table: keyed on the announcement alone the first workspace written would claim the key and `skipDuplicates` would silently swallow the rest of the fan-out. That also makes a half-finished broadcast safe to re-run. Argument parsing lives in `src/features/notifications/lib/announcement.ts` rather than the script so it is testable at all (the script runs `main()` on import), and is strict: an unknown flag throws instead of being ignored, because the flag a typo swallows is `--yes`. 13 parser + 7 builder unit tests; verified end-to-end as a dry run against the dev database. **The approvals half is not done and is not a notifications problem:** nothing in the app creates `ApprovalRequest` rows — no approval node ships, so the AF-M6-09 approvals dashboard reads a table with no writer. Wiring the notification is a one-line `writeNotifications` call once that node exists; the real work is the node, which is `AF-P2-E` scope. `docs/architecture/api_contract.md` still records `APPROVAL_REQUESTED` as producer-less.
+- ✅ **AF-M8-12** Delete the deprecated `OPENAI` / `ANTHROPIC` / `GEMINI` node folders · 0.5d · *(added 2026-08-31, step 3 of AF-M5-09)* — **DONE 2026-09-01** — Verified `npm run migrate:legacy-ai-nodes` had zero rows to migrate, deleted the folders, removed registrations from `manifest.ts` and `registry.ts`, updated `node-config-panel.dom.test.tsx` to use a generic mock for testing deprecation notices, and removed the migration script. **Correction (2026-09-01, AF-M8-24).** The precondition ADR-0011 §3 sets is "no `Node` row of those types remains **in every environment**", and what was actually verified was the database this repo's `.env` points at — a scratch `test.ts` running the two queries through `dotenv/config`, added and removed in the same pair of commits. That endpoint (`ep-bold-mouse-ay14r501-pooler…neon.tech/neondb`) is genuinely **CLEAR**: 0 live nodes, 0 active versions, re-confirmed by the new `npm run verify:legacy-ai-nodes`. It is a hosted Neon instance rather than a laptop database, so it may well be the one the deployed app uses — but nothing in the repo establishes that, and the gap between "the DB in my .env" and "every environment" is exactly where this failure hides: there is no boot error, no warning, and the first symptom is a customer's live workflow failing with `UnknownNodeTypeError` at execution time. **Remaining step is one lookup:** compare the Vercel project's `DATABASE_URL` host against that endpoint, and re-run the verification against any that differs. **The escape hatch went with it.** The same commit deleted `scripts/migrate-legacy-ai-nodes.ts` and `src/nodes/ai/legacy-migration.ts`, so if any environment does hold rows there is now no migration in the tree to fix them. It restores cleanly from `a4ada53^` — its only import is `./llm/definition`, which still exists — so recovery does not mean bringing the deleted node folders back. Both the verification script's failure output and `operator_actions.md` §C1 name the commit and the two paths, so nobody has to reconstruct that under pressure.
 - ✅ **AF-M8-14** Fix flaky `src/features/templates/server/instantiate.test.ts:116` template-instantiation test · 0.25d · *(renumbered 2026-09-01 — this shipped as a second **AF-M8-13**, colliding with the notification-producer task above; ids are not reused, so the later one moved. Superseded in substance by **AF-M8-15**, which fixed the code defect this task diagnosed as test brittleness.)* · *(added 2026-08-31, found during AF-M8-02 verification)* · **DONE 2026-08-31** — the `not.toContain("$node.a")` assertion failed nondeterministically whenever a freshly-rotated cuid happened to start with the letter `a` (the rewritten reference `$node.ax...main.value` contains the substring `$node.a`). Replaced it with two deterministic checks: the serialized data must contain `$node.${idMap.get("a")}.main.value` and must not contain the exact old token `$node.a.main.value` (a cuid is alphanumeric, so it can never collide with the literal `.main.value` suffix). Verified 15/15 isolated runs plus the full unit suite **780/780** green, biome clean. Default `npm test` is now flake-free.
 
 ---
 
-- ✅ **AF-M8-25** Replace Docker Desktop with Podman + a host-network test DB for the integration suite · 0.5d · *(added 2026-09-02)* · **DONE 2026-09-02** — Docker Desktop is unusable on this box (its Windows engine won't start, and the WSL VM could not pull images), and `docker run -p 5433:5432` failed with `netavark (exit code 1): nftables error`. Root cause: the WSL kernel has no loadable `nf_tables` module, so Podman's netavark cannot publish ports. **Podman replaced Docker Desktop** (`podman machine start` exposes the `npipe:////./pipe/docker_engine` pipe; the CLI is pointed at Podman via the `podman-machine-default` context — see the persistence note below). The recipe that works: containers run `--network host` with the port set at the app layer (`PGPORT=5433`), and Windows reaches them at `127.0.0.1` through `%USERPROFILE%\.wslconfig` `[experimental] hostAddressLoopback=true`. Verified against the host-network test DB: `npm run test:integration` → **13 files / 114 tests, 0 failing**. `test:db:down` needs no change. **Script aligned 2026-09-02:** `test:db:up` still published `-p 5433:5432` (same netavark failure on repeat runs), so it was rewritten to the host-network recipe (`--network host -e PGPORT=5433`) and the full `test:db:up` → `test:integration` → `test:db:down` cycle re-verified green — **13 files / 114 tests, 0 failing**. Documented where the workaround can be found: `docs/operations/environment_setup.md` (§5.1 callout + §10 troubleshooting row), `docs/operations/local_setup_guide.md` (§5 docker-CLI routing note + the "Running the integration suite (test database)" recipe + §8 troubleshooting rows + §9 checklist row), `docs/engineering/testing_strategy.md` §6.2. **Persistence resolved 2026-09-02:** no `setx`, no re-pointing of Docker Desktop's own context — the CLI's active context was switched to Podman's `podman-machine-default` (`docker context use podman-machine-default`, persisted in `~/.docker/config.json`), so every fresh terminal is already routed to the working machine; revert with `docker context use desktop-linux`.
 
 - ✅ **AF-M8-21** Configure alert delivery and external uptime monitors · 0.5d · *(added 2026-09-01)* · **DONE 2026-09-01** — Documented and finalized external polling configuration via /api/health (60s interval, two consecutive 5xx failures), JSON body assertions for 'degraded' status, Sentry alert for credential decryption failures, and documented the out-of-hours on-call reality.
 - ✅ **AF-M8-22** Fix flaky credential-leak assertion in `tests/integration/search-org-isolation.integration.test.ts` · 0.1d · *(added 2026-09-01, hit during AF-M8-13 verification)* · **DONE 2026-09-01** — `expect(serialized).not.toContain("iv")` over the JSON payload failed whenever a freshly generated cuid happened to contain those two letters; `cmtivfuqa…` does. **Third instance of the same defect class** after AF-M8-14 and AF-M8-15 — an over-broad substring assertion run against random cuids. Replaced with a walk of the keys present at every depth, which is what the assertion was always about: the claim is that no secret *field* is returned, not that the byte sequence "iv" never occurs anywhere in the payload. Added a `keys.size > 0` guard so the loop cannot pass vacuously if the result shape changes.
+- 🟡 **AF-M8-23** Make paying actually change the plan: Polar subscription webhooks → `Organization.plan` · 1d · *(added 2026-09-01 — the task existed only as a reference from `beta_launch_checklist.md` §1.4 and `operator_actions.md` B1; it was implemented in 2080cc2 and never recorded here)* · **code done 2026-09-01; needs operator configuration to work** — `Organization.plan` was written exactly once, `"FREE"` at creation, and never again, while the monthly run quota, the API/webhook rate-limit buckets and the execution retention windows all read that column. So a customer could complete checkout, be charged, and stay on FREE limits indefinitely — taking payment for something never delivered, and the most serious item on the launch checklist. `webhooks()` is now registered on the existing `polar()` plugin in `src/lib/auth.ts` for `subscription.active` / `.updated` / `.canceled` / `.revoked`, handled by `updatePlanFromWebhook` in `src/lib/auth-webhooks.ts` and audit-logged as `organization.update_plan` with `actorType: "SYSTEM"`. Idempotent **by outcome** rather than by event id — an organisation already on the target plan is skipped — so Polar's re-deliveries cost nothing and no schema change was needed to dedupe them. **Hardened 2026-09-01 (this entry):** the first cut hard-coded three product UUIDs in the source, which are one account's sandbox ids and map nothing on any other install, directly contradicting AF-M0-03's rule that Polar ids come from env; they now come from `POLAR_PRODUCT_ID_{STARTER,PRO,ENTERPRISE}`, with `POLAR_PRODUCT_ID` doubling as the Pro product so a single-product install needs no extra variable. `POLAR_WEBHOOK_SECRET` was read via `as string` and was absent from both the env schema and `.env.example`; it is now in both. Verified against the installed plugin that an unset secret makes it reject every delivery with 400 **before any handler runs** — so an unconfigured install has inert billing, not an endpoint that can be spoofed into granting a plan. Every refusal now logs instead of returning silently: an unmapped product id is an `error` (the cause is always configuration and the symptom is a paying customer on FREE), a missing customer or a customer owning nothing is a `warn`. 14 unit tests. **Known limitation, deliberately logged rather than hidden:** a Polar customer is a *user*, the checkout carries no organisation, and nothing links a subscription to a workspace — so one subscription applies to **every** organisation that user owns. That is a revenue leak on the upgrade path and over-broad on the downgrade path. Scoping it needs a product decision (is a subscription per-user or per-workspace?) and a checkout that carries the org; until then the fan-out emits a `warn`. **Blocked on the operator:** the live product-id → plan mapping, the webhook secret, and the failed-payment policy (item 1.6 — no `subscription.past_due` branch exists, so an unpaid month is currently free service).
+- ✅ **AF-M8-25** Replace Docker Desktop with Podman + a host-network test DB for the integration suite · 0.5d · *(added 2026-09-02)* · **DONE 2026-09-02** — Docker Desktop is unusable on this box (its Windows engine won't start, and the WSL VM could not pull images), and `docker run -p 5433:5432` failed with `netavark (exit code 1): nftables error`. Root cause: the WSL kernel has no loadable `nf_tables` module, so Podman's netavark cannot publish ports. **Podman replaced Docker Desktop** (`podman machine start` exposes the `npipe:////./pipe/docker_engine` pipe; the CLI is pointed at Podman via the `podman-machine-default` context — see the persistence note below). The recipe that works: containers run `--network host` with the port set at the app layer (`PGPORT=5433`), and Windows reaches them at `127.0.0.1` through `%USERPROFILE%\.wslconfig` `[experimental] hostAddressLoopback=true`. Verified against the host-network test DB: `npm run test:integration` → **13 files / 114 tests, 0 failing**. `test:db:down` needs no change. **Script aligned 2026-09-02:** `test:db:up` still published `-p 5433:5432` (same netavark failure on repeat runs), so it was rewritten to the host-network recipe (`--network host -e PGPORT=5433`) and the full `test:db:up` → `test:integration` → `test:db:down` cycle re-verified green — **13 files / 114 tests, 0 failing**. Documented where the workaround can be found: `docs/operations/environment_setup.md` (§5.1 callout + §10 troubleshooting row), `docs/operations/local_setup_guide.md` (§5 docker-CLI routing note + the "Running the integration suite (test database)" recipe + §8 troubleshooting rows + §9 checklist row), `docs/engineering/testing_strategy.md` §6.2. **Persistence resolved 2026-09-02:** no `setx`, no re-pointing of Docker Desktop's own context — the CLI's active context was switched to Podman's `podman-machine-default` (`docker context use podman-machine-default`, persisted in `~/.docker/config.json`), so every fresh terminal is already routed to the working machine; revert with `docker context use desktop-linux`.
 - ✅ **AF-M8-24** Finish the AF-M8-12 fallout: green typecheck, lint, and suite · 1d · *(added 2026-09-01, found while verifying Part 4)* · **DONE 2026-09-01** — AF-M8-12 deleted the retired AI node folders and left the branch red: **`tsc` and `biome` were both failing and 9 tests across 10 files were down**, so CI could not have caught a real regression. **The serious find was not test fallout.** `saveWorkflowInputSchema` — the `.input()` of the `saveGraph` mutation — hand-mirrors the registry, and comparing the two showed drift in *both* directions: `ANTHROPIC`/`GEMINI`/`OPENAI` still listed (resolving deleted types, which throws `UnknownNodeTypeError` at import and took the module down with it, which is what broke the two integration suites), and **`AI_LLM` and `AI_EXTRACT` missing entirely**. That second one is a live user-facing bug predating AF-M8-12: both shipped in M5, both sit undeprecated in the palette, both are what the retired trio was migrated *onto* — and **a canvas containing one could not be saved**, because input validation rejected it before the handler ran. The list stays hand-written (`makeNodeSchema` needs a literal type per entry or `z.discriminatedUnion` loses its discriminant), so the fix for drift is a test asserting the union and the registry agree in both directions, naming the offending types. **Four unit guards asserted a deprecated type EXISTS before checking anything**, so a completed retirement failed the suite — the tests punished the cleanup they were written to make safe. Each restated as the rule it guards (deprecated stays registered and executable per ADR-0011; never offered in the palette; never authored by a template — now also never *unregistered*), so each holds vacuously today and re-arms itself at the next deprecation. `credential-injection` went further: it resolved three node types by name, so it only ever guarded three nodes. It now walks every credential requirement in the catalogue — each names a type the credential registry defines, has a config key, and belongs to a resolvable node. The `server-only` guard was a hand-listed set of node folders that named three deleted directories and, worse, **failed open**: add a node, forget to list it, and the guard silently skipped it. It now walks `src/nodes`. Also fixed a **pre-existing** rate-limit flake (not AF-M8-12): the FREE bucket holds 60 tokens and refills at 1/s, and the test awaited 61 database-backed requests in turn, so under full-suite load it refilled faster than it drained — it passed alone and failed in the full run. Fired as a concurrent burst instead, which is both deterministic and a truer test of a token bucket. Fourth assertion-coupled-to-something-incidental fix this session. Result: **1012/1012**, and all four CI gates green — `tsc`, `biome`, `npm audit --audit-level=high`, `npm test`.
 
 ## Phase 2 epics (post-Beta — do not start early)
@@ -832,3 +833,429 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 
 ### ? AF-UI-03 � Make Sparkbars Thicker � 1d
 - [x] Adjust width and spacing in Sparkbars to render thicker lines.
+
+---
+
+## M9 — Reference-workflow parity · ~6 weeks (30d) · *(added 2026-09-01)*
+
+**Do not start before AF-M8 closes.** This milestone is sequenced immediately after
+M8 and before the Phase 2 epics. It is the first milestone whose goal is *not* a new
+product surface: it is to take three real, externally-authored automations and make
+AutoFlow run them **end to end, green, in CI, with no manual intervention**.
+
+**Source:** `C:\Users\Jerry\Desktop\PROJECT 2026\n8n-workflows\workflows` (2,061 n8n
+exports, 188 category folders).
+
+### 0. Why these three, and the reality check on the source library
+
+An audit of the whole library was run before picking (reproduce with a node script
+that parses each JSON and compares `connections` targets against `nodes[].name`):
+
+| Property | Count | Consequence |
+|---|---|---|
+| Workflows total | 2,061 | — |
+| `connections` **empty** | 694 | topology unrecoverable except by guessing from `position` |
+| `connections` **synthetic** (every edge rewritten to a generated `error-handler-<uuid>` node that does not exist in `nodes[]`) | 1,363 | topology destroyed; the file *looks* wired and is not |
+| `connections` **intact and referencing real nodes** | **4** | `workflows/Templates/9001–9004` |
+
+Many files have also had their node types flattened to `n8n-nodes-base.noOp`
+(all LangChain/AI nodes, most classifier nodes), so parameter fidelity is gone as
+well. **Any plan that claims to port an arbitrary file from this library is claiming
+to port a graph whose edges it invented.**
+
+The three picks are therefore taken from `workflows/Templates/`, the only subset with
+recoverable topology. They are also the only credential-free ones: they run against
+`httpbin.org` and `jsonplaceholder.typicode.com`, which means they can be executed
+for real in CI without anybody's Slack/Stripe/HubSpot account — exactly what
+`src/features/templates/catalog/harness.ts:30` currently says it *cannot* do
+("It does NOT dispatch the plan to Inngest").
+
+Between them they cover the three canonical automation shapes every business
+workflow in the library reduces to:
+
+| # | Source file | Shape | Real-world workflows in the library it generalizes |
+|---|---|---|---|
+| **W1** | `Templates/9001_Scalable_Webhook_Orchestrator_Webhook.json` | **Route** — sync API endpoint, n-way switch, per-branch work, one response | `Respondtowebhook/1466 (Multi Methods API Endpoint)`, `Http/1354 (Bitrix24 chatbot)`, `Webhook/0722 (SuiteCRM lead gen)`, `Form/1537 (contact-form classifier → 5 departments)` |
+| **W2** | `Templates/9003_FanOut_Broadcast_and_Merge_Webhook.json` | **Fan-out / merge** — delivery to N channels, consolidate, respond | `Webhook/0565`, `Slack/0008 (Stripe → HubSpot → 3 Slack outcomes)`, every multi-channel notify flow |
+| **W3** | `Templates/9002_Rapid_ETL_HTTP_Transform_Deliver_Manual.json` | **ETL fan-out** — pull a collection, transform, write one row per item | `Splitout/1412 (Trustpilot → Sheets)`, `Http/1111 (TheOddsAPI → Airtable)`, `Manual/1546 (TechCrunch scrape)`, `Code/1109 (YouTube → Airtable)` |
+
+`Templates/9004_AI_Summarizer_Template_Webhook.json` was considered and deliberately
+left out: AutoFlow already has `AI_LLM`, so it exercises nothing new. Add it as a
+fourth catalogue entry once M9 lands — it is then a ten-minute job.
+
+---
+
+### 1. Target graphs (what "equivalent" means, concretely)
+
+Authored as `TemplateSpec` entries in `src/features/templates/catalog/`, node ids as
+kebab slugs per `catalog/types.ts`.
+
+**W1 · `api-router-sync-response`** (domain `ops`)
+
+```
+WEBHOOK_TRIGGER  "Inbound"            path: template/scalable-orchestrator, sync
+  → SET          "Parse input"        action  = {{default webhook.body.action "ping"}}   : string
+                                      payload = {{{json webhook.body.payload}}}          : object
+  → SWITCH       "Route by action"    action == "ping"    → output "ping"
+                                      action == "process" → output "process"
+                                      fallback: none (unmatched ends the run cleanly)
+     ├─ ping    → SET  "Compose ping"    ok = true : boolean, message = "pong" : string
+     └─ process → HTTP_REQUEST "Service A"  POST https://httpbin.org/post
+                                            body {{{json payload}}}, retries 2, timeout 10s
+                → SET  "Compose result"   ok = true : boolean
+                                          data = {{{json serviceA.httpResponse.data.json}}} : object
+                                          source = "serviceA" : string
+  → RESPOND_TO_WEBHOOK "Respond"      200, application/json, body {{{json $json}}}
+```
+
+**W2 · `multi-channel-broadcast-merge`** (domain `ops`)
+
+```
+WEBHOOK_TRIGGER  "Inbound"            path: template/broadcast, sync
+  → SET          "Prepare message"    message = {{default webhook.body.message "Hello from AutoFlow"}}
+     ├→ HTTP_REQUEST "Broadcast A"    POST httpbin, {"text":"{{message}}","channel":"alpha"}, var respA
+     └→ HTTP_REQUEST "Broadcast B"    POST httpbin, {"text":"{{message}}","channel":"beta"},  var respB
+  → MERGE        "Merge results"      mode: byInput; input 0 ← A, input 1 ← B
+  → RESPOND_TO_WEBHOOK "Respond"      200, application/json, body {{{json $json}}}
+```
+
+**W3 · `api-etl-batch-deliver`** (domain `data`)
+
+```
+MANUAL_TRIGGER   "Run"
+  → HTTP_REQUEST "Fetch data"         GET https://jsonplaceholder.typicode.com/posts → var posts
+  → CODE         "Transform"          posts.httpResponse.data.slice(0,10)
+                                        .map(p => ({ id: p.id, title: p.title, userId: p.userId }))
+  → SPLIT_OUT    "Fan out"            field: items                    (10 downstream iterations)
+  → HTTP_REQUEST "Deliver"            POST httpbin, body {{{json $item}}}, retries 2
+  → AGGREGATE    "Collect"            → { delivered: 10, failed: 0, results: [...] }
+```
+
+**W3 fallback (decided up front, see AF-M9-14):** if bounded item fan-out slips, W3
+ships without `SPLIT_OUT`/`AGGREGATE` and delivers **one batched POST** carrying all
+ten records. That is a legitimate ETL shape and several library workflows do exactly
+that — but it must be recorded as a deviation in the template description, not
+quietly substituted.
+
+---
+
+### 2. Gap register
+
+Every row was verified against the code on 2026-09-01, not against a spec.
+`Closed by` names the task below that fixes it.
+
+| ID | Gap | Evidence | Blocks | Closed by |
+|---|---|---|---|---|
+| **G1** | **Named output ports never reach the graph — branching is dead in the UI.** Every action node renders one hardcoded source handle; the save boundary persists that handle id as `fromOutput`, so a branching node's `_outputPort` can never match an edge. | `src/features/executions/components/base-execution-node.tsx:86,91` (`target-1`/`source-1`), `src/features/triggers/components/base-trigger-node.tsx:94`, `src/components/node-selector.tsx:224,226`, `src/features/workflows/server/routers.ts:231,277` (`fromOutput: e.sourceHandle \|\| "main"`), `src/inngest/trace.ts:214,226` (`edge.fromOutput === outputPort`) | W1, and **every** existing CONDITION node | AF-M9-03 |
+| **G2** | No `SWITCH` / n-way router, and `NodeDefinition.outputs` is a **static** array — a node whose output count depends on its config cannot be declared. | `src/nodes/types.ts` (`outputs: PortDef[]`), `src/nodes/manifest.ts` | W1 | AF-M9-09 |
+| **G3** | **No "Respond to Webhook".** `?sync=true` polls the execution row and returns a fixed envelope `{success, executionId, error}` — the workflow's own output never reaches the caller. No status/header control; POST-only; 500 ms poll for up to 20 s. | `src/app/api/webhooks/[workflowId]/[path]/route.ts` | W1, W2 | AF-M9-10 |
+| **G4** | **`MERGE` has one input port** and reconstructs its result from the flat rolling context. `index: 1` (the second input) is inexpressible; `combineByPosition` has no analogue. | `src/nodes/core/merge/definition.ts:34`, `src/nodes/core/merge/execute.ts` | W2 | AF-M9-11 |
+| **G5** | **Branches are sequential and share one mutable bag.** The runner does `context = result` after each node, so a fan-out's second branch receives the *first* branch's output as its input. Not parallel, not isolated. | `src/inngest/functions.ts:417,594,595` | W2 | AF-M9-12 |
+| **G6** | **No items model.** `NodeRun` returns one `WorkflowContext`; the runner's `for` loop executes each node exactly once. A node that produces N rows cannot produce N downstream runs. (Decision D deferred this "until post-beta" — M9 *is* post-beta.) | `src/nodes/types.ts` (`NodeRun`), `src/inngest/functions.ts` node loop | W3 | AF-M9-14 |
+| **G7** | **No Code/Function node.** Nothing in `src/nodes/` executes user-supplied JS. This is n8n's most-used node and appears in roughly one in five library workflows. | `src/nodes/manifest.ts` | W3 | AF-M9-13 |
+| **G8** | **Expressions are Handlebars-only, string-valued, and HTML-escaped.** No `?.`, no `\|\|` default, no arithmetic, no object literals — W1/W2 use all four. `{{ $json }}` renders `[object Object]`. Default escaping corrupts any JSON body containing `&`, `"`, `<`. `SET` writes only strings, so `ok: true` persists as `"true"` and `payload: object` as `"[object Object]"`. | `src/features/executions/template.ts:95-102`, `src/nodes/core/set/execute.ts:30,33` | W1, W2, W3 | AF-M9-07, AF-M9-08 |
+| **G9** | **Enriched context leaks into node output and the trace.** The runner passes `enrichedContext` as `context`; every executor returns `{...context, …}`, so `$json`/`$node`/`$execution`/`$now` are persisted into `nodeOutputs`, `Execution.output` and every `NodeExecution.input/output` — and each hop re-nests the previous `$json`. Payload grows superlinearly with node count; AF-M8-06 retention caps get hit for the wrong reason. | `src/inngest/functions.ts:556,594,595`; `set/execute.ts:30`; `http/request/execute.ts:140` | all three | AF-M9-05 |
+| **G10** | **`Node.disabled` is persisted and never read.** Disabling a node on the canvas does nothing — it still executes. | `prisma/schema.prisma:319`, written by `saveGraph`, absent from `src/inngest/functions.ts` and `src/engine/validate.ts` | authoring the three graphs | AF-M9-04 |
+| **G11** | **Per-node run policy is undeclared magic.** The runner reads `data._timeoutMs` and `data._continueOnFail`, which appear in no `configSchema` and no UI, so the save boundary can drop them and no user can set them. All three source workflows set `retryOnFail: true, maxRetries: 2` per node. | `src/inngest/functions.ts:61,71` | W1, W2, W3 | AF-M9-06 |
+| **G12** | **Nothing anywhere executes a graph.** `executeWorkflow` is referenced only by `src/inngest/functions.ts` and `src/app/api/inngest/route.ts`. There is no `@inngest/test` dependency and no engine integration test. The template harness deliberately stops at planning. | repo-wide grep; `src/features/templates/catalog/harness.ts:30` | proving *any* of this | **AF-M9-01** |
+| **G13** | **Egress guard blocks all private IPs with no test escape.** 127/8 is unconditionally blocked and there is no allowlist or env override, so an integration test cannot point an `HTTP_REQUEST` node at a local fixture server — leaving "hit httpbin.org from CI" as the only option, which is flaky and makes the suite network-dependent. | `src/features/executions/components/http-request/egress-guard.ts:63,71` | CI determinism | AF-M9-02 |
+| **G14** | **Webhook payload shape mismatch.** The receiver nests everything under `initialData.webhook.{body,headers,query,method}`; every n8n template writes `$json.body`. Without a documented mapping, ported expressions silently resolve to empty strings — Handlebars does not error on a missing path. | `src/app/api/webhooks/[workflowId]/[path]/route.ts`, `src/features/executions/template.ts` | W1, W2 | AF-M9-07 |
+| **G15** | **One trigger per workflow.** `checkTriggers` errors on `triggers.length > 1`. Fine for all three picks; recorded because `Http/1111` and many scheduled library workflows use two triggers. | `src/engine/validate.ts:120-142` | *(none of the three)* | not in scope — recorded only |
+
+**Two of these are shipping defects, not missing features.** G1 means every CONDITION
+node built in the editor today marks its entire downstream `SKIPPED`; the unit tests
+in `src/inngest/trace.test.ts` pass because they construct edges with correct port ids
+by hand, which the product never does. G9 silently inflates every stored execution
+payload. Both should be fixed even if the rest of M9 is descoped.
+
+---
+
+### 3. Tasks
+
+#### Phase 0 — make "it runs" provable *(nothing else in M9 is verifiable until this lands)*
+
+### ⬜ AF-M9-01 · Engine execution harness: run a whole graph in a test · 2d
+G12. There is no way today to assert that a graph executes — only that it *plans*.
+Add `@inngest/test` (`InngestTestEngine`) and a helper that takes a `TemplateGraph`,
+seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
+`Execution` plus its ordered `NodeExecution` rows.
+
+**Depends on:** —
+**Acceptance**
+- [ ] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org.
+- [ ] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
+- [ ] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
+- [ ] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03.
+- [ ] Runs inside the existing `integration` vitest project (serial, `maxWorkers: 1`) — no new project, no new CI service.
+- [ ] `docs/engineering/testing_strategy.md` gains a §"Engine execution tests" saying when one is mandatory.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
+G13. Let the engine reach a fixture HTTP server on `127.0.0.1` **only** under an
+explicit env flag, so the acceptance suite is deterministic and offline.
+
+**Depends on:** AF-M9-01
+**Acceptance**
+- [ ] `ALLOW_LOOPBACK_EGRESS=1` (parsed in `src/lib/env.ts`, default off) permits `127.0.0.1`/`::1` **and nothing else** — 10/8, 172.16/12, 192.168/16, 169.254/16 and CGNAT stay blocked under the flag.
+- [ ] The flag is refused when `NODE_ENV === "production"`: the app fails to boot with a clear message rather than starting permissive.
+- [ ] Unit tests: flag off → loopback blocked; flag on → loopback allowed and the metadata IP still blocked; production + flag → boot refused.
+- [ ] `docs/architecture/security.md` §SSRF records the exception and why it cannot widen.
+- [ ] `.env.example` documents it as test-only.
+- [ ] progress.md updated
+
+#### Phase 1 — fix the graph contract
+
+### ⬜ AF-M9-03 · Render one handle per declared port; persist real port ids · 2.5d
+**G1 — the highest-value fix in this milestone.** Node components render one
+hardcoded `source-1`/`target-1` pair, `saveGraph` stores that string as `fromOutput`,
+and `markTakenEdges` compares it against `"true"`/`"false"`. Branching is therefore
+inert for every graph a user builds. Templates authored with `sourceHandle: "true"`
+(e.g. `catalog/ops.ts` `uptime-check-alert`) execute correctly but cannot survive a
+round trip through the editor.
+
+**Depends on:** AF-M9-01
+**Acceptance**
+- [ ] `BaseExecutionNode` / `BaseTriggerNode` render one `<BaseHandle>` per entry in the node's `definition.inputs` / `definition.outputs`, with `id` equal to the `PortDef.id`, labelled and vertically distributed.
+- [ ] `node-selector.tsx` appends edges using the source node's **first declared output id**, not the literal `"source-1"`.
+- [ ] `saveGraph` and `test-run.ts` keep `e.sourceHandle || "main"` but now receive real port ids; a saved CONDITION edge persists `fromOutput = "true"` / `"false"`.
+- [ ] **Data migration for existing rows:** rewrite `Connection.fromOutput = 'source-1'` → the source node type's first declared output id, and `toInput = 'target-1'` → its first declared input id. Idempotent, logs a count, leaves anything it cannot resolve untouched and reports it.
+- [ ] The AF-M9-01 red regression test goes green: a CONDITION routes to exactly one branch and the other branch's nodes are `SKIPPED` with the branch reason.
+- [ ] `dom` test: a node with three declared outputs renders three distinct handles carrying the declared ids.
+- [ ] `docs/architecture/node_sdk.md` states that the handle id **is** the `PortDef.id`, and that this is a persisted contract.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-04 · Honour `Node.disabled` · 0.5d
+G10. The column exists, the editor writes it, and the engine ignores it.
+
+**Depends on:** AF-M9-01
+**Acceptance**
+- [ ] The runner excludes disabled nodes from the execution plan and writes a `SKIPPED` `NodeExecution` with `skipReason: "Node is disabled"` — skipped visibly, never silently dropped.
+- [ ] A disabled node **passes its input through** to its successors (n8n semantics) rather than severing the branch; if a different semantics is chosen, the choice is recorded in `docs/architecture/execution_engine.md`.
+- [ ] `validate()` does not report "required input not connected" for a port whose only upstream node is disabled.
+- [ ] Engine test: disabling a middle node leaves the run `SUCCESS`, that node `SKIPPED`, and the downstream node receiving the upstream payload.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-05 · Stop leaking `$json`/`$node` into node output and traces · 1d
+G9. `enrichedContext` is handed to executors as `context`, and executors spread it
+into their return value, so template scaffolding is persisted and re-nested at every
+hop.
+
+**Depends on:** AF-M9-01
+**Acceptance**
+- [ ] The runner passes the plain accumulated context to `execute()` and builds the enriched view **only** where a template is compiled — `NodeRunParams` gains `resolve(template: string): string` (or a separate `templateContext` field) and `context` stays clean.
+- [ ] Every executor currently doing `compileTemplate(x)(context)` is migrated; a static check (extend `registry.test.ts`) fails if an executor returns a key starting with `$`.
+- [ ] Engine test: after a 4-node run, no `NodeExecution.output` and no `Execution.output` contains `$json`, `$node`, `$execution`, `$workflow` or `$now`.
+- [ ] Engine test: total stored output for a 6-node linear graph is within 2× the largest single node output (today it compounds).
+- [ ] `docs/architecture/execution_engine.md` corrected — it currently describes the rolling context without noting the leak.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d
+G11. `_timeoutMs` and `_continueOnFail` are read from `data` but declared nowhere.
+
+**Depends on:** AF-M9-03
+**Acceptance**
+- [ ] A shared `runPolicySchema` (`maxAttempts` 1–5, `backoffMs`, `timeoutMs`, `continueOnFail`) is merged into every node's `configSchema` under a reserved `_run` key, replacing the two loose underscore fields.
+- [ ] `buildExecutionPlan` reads `_run`, falling back to `definition.defaultRetry` → `definition.timeoutMs` → the engine defaults, in that order.
+- [ ] A one-time migration rewrites any persisted `_timeoutMs` / `_continueOnFail` into `_run`. Grep first: if zero rows exist, say so and skip the migration rather than shipping dead code.
+- [ ] The config panel exposes the four fields in a collapsed "Run settings" section on every node.
+- [ ] Engine tests: a node with `maxAttempts: 3` against a flaky fixture succeeds on attempt 3 and records `attempt` correctly; `continueOnFail: true` lets the run finish `SUCCESS` with that node `FAILED`.
+- [ ] `docs/architecture/node_sdk.md` documents `_run` as reserved.
+- [ ] progress.md updated
+
+#### Phase 2 — expression and Set fidelity
+
+### ⬜ AF-M9-07 · Expression helpers, raw output, and the `webhook.*` mapping · 2d
+G8, G14. ADR-0007 keeps expressions on sandboxed Handlebars; that stands. What is
+missing is the helper set that makes real templates portable, and a written mapping
+from n8n's `$json.body` to AutoFlow's `webhook.body`.
+
+**Depends on:** —
+**Acceptance**
+- [ ] Helpers registered centrally in `src/features/executions/template.ts`, each unit-tested including its failure path: `default a b`, `get obj "a.b.0.c"`, `json v` (already present — keep), `eq/ne/gt/gte/lt/lte`, `and/or/not`, `add/sub/mul/div`, `len`, `upper/lower`, `formatDate`.
+- [ ] `{{{triple-stache}}}` and the `json` helper are documented as **the** way to emit unescaped JSON, and every node that builds a JSON body validates that the compiled result parses (the HTTP node already does — extend to `WEBHOOK_OUT` and the new nodes).
+- [ ] A template referencing an unknown top-level root (e.g. `$json.body` when only `webhook` exists) produces a **validation warning at save time**, so a ported expression fails loudly instead of resolving to `""`.
+- [ ] `docs/nodes/` and `/docs/expressions` gain an "n8n → AutoFlow expression map": `$json.body.x` → `{{webhook.body.x}}`, `$json.x` → `{{x}}`, `$node["N"].json.x` → `{{$node.N.x}}`, `{{ a || b }}` → `{{default a b}}`, `{{ a?.b }}` → `{{get a "b"}}`, `{{ n/100 }}` → `{{div n 100}}`.
+- [ ] ADR-0007 amended (not superseded) with the helper set and the escaping rule.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-08 · Typed `SET` assignments · 1d
+G8. `SET` writes the compiled string, so a boolean becomes `"true"` and an object
+becomes `"[object Object]"`. W1 and W2 both assign booleans and objects.
+
+**Depends on:** AF-M9-07
+**Acceptance**
+- [ ] `mappings[].type` ∈ `string | number | boolean | object | array`, default `string` — existing configs keep working unchanged.
+- [ ] Non-string types parse the compiled output and **throw a `NonRetriableError` naming the field** when it does not parse. Never coerce silently.
+- [ ] `setNestedValue` no longer aliases nested upstream objects — today `{ ...context }` is shallow, so a nested write mutates the upstream node's recorded output.
+- [ ] The config panel exposes the type selector per mapping.
+- [ ] Unit tests: each type round-trips; a malformed object throws with the field name; a nested write does not mutate the upstream output.
+- [ ] progress.md updated
+
+#### Phase 3 — the missing nodes and the missing scheduler behaviour
+
+### ⬜ AF-M9-09 · `SWITCH` node with config-driven outputs · 2d
+G2. Requires `NodeDefinition.outputs` to become derivable from config.
+
+**Depends on:** AF-M9-03
+**Acceptance**
+- [ ] `NodeDefinition` gains an optional `resolveOutputs(config): PortDef[]`; when absent the static `outputs` array is used. The editor, `validate()`, and the runner all resolve ports through one shared helper — no third code path.
+- [ ] `SWITCH` (`LOGIC`): ordered rules `[{ outputKey, left, operator, right }]`, max 10, plus `fallback: "none" | "extra"`. Emits `_outputPort = <outputKey>`; with `fallback: "none"` and no match it emits no port, so the whole downstream is `SKIPPED` and the run still ends `SUCCESS`.
+- [ ] Renaming an `outputKey` does **not** silently detach edges: `validate()` raises an error naming the orphaned edge.
+- [ ] Engine tests: each of three rules routes to exactly its own branch; `fallback: none` with no match ends `SUCCESS` with everything downstream `SKIPPED` under a readable `skipReason`.
+- [ ] `/docs/nodes/SWITCH` generated from the registry via the existing `generateStaticParams` path.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-10 · `RESPOND_TO_WEBHOOK` node + real synchronous webhook responses · 2.5d
+G3. `?sync=true` returns a fixed envelope and 500 ms-polls for up to 20 s.
+
+**Depends on:** AF-M9-05
+**Acceptance**
+- [ ] `RESPOND_TO_WEBHOOK` (`ACTION`): `statusCode` (100–599, default 200), `contentType`, `body` (template), `headers` (record). Writes the response onto the execution — new nullable `Execution.response Json?` via an additive migration — and marks the run "responded".
+- [ ] The webhook route in sync mode returns that response verbatim: status, content type, headers, body. Header names are allowlisted (no `Set-Cookie`, no hop-by-hop) and the body is size-capped.
+- [ ] A sync run that finishes **without** reaching a respond node keeps today's `{success, executionId}` envelope — the existing contract does not break.
+- [ ] `validate()` warns when a `RESPOND_TO_WEBHOOK` sits in a graph with no webhook trigger, and when two respond nodes are reachable on the same path.
+- [ ] The 500 ms poll loop is replaced with an Inngest realtime subscription or a Postgres `LISTEN`, keeping the 20 s hard timeout. If neither is workable inside the M9 window the poll may stay — but the reason is written into this task, not left implicit.
+- [ ] The route accepts `GET`/`PUT`/`PATCH`/`DELETE` as well as `POST`, with the method surfaced as `webhook.method` (W1's real-world generalizations are multi-method endpoints).
+- [ ] Integration tests: sync POST → 200 with the composed body; a 404-composing branch returns 404; a run with no respond node still returns the legacy envelope; an oversized body is rejected, not truncated.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-11 · `MERGE` v2 — real multi-input ports · 2d
+G4. One input port today, with the result reconstructed from the flat bag.
+
+**Depends on:** AF-M9-03, AF-M9-12
+**Acceptance**
+- [ ] `MERGE` declares `inputCount` (2–5) via `resolveInputs(config)`, rendering `input-0…input-n`.
+- [ ] Modes: `byInput` (`{ input0, input1, … }` — the W2 shape), `append`, `mergeByKey`. The existing single-input `append`/`mergeByKey`/`combine` behaviour is preserved for saved nodes via `definition.migrate` from `version: 1`.
+- [ ] An input port with no arriving branch resolves to `null`, **not** to a missing key — a skipped branch must be distinguishable from an empty one.
+- [ ] Engine tests: two branches merge byInput in declared port order regardless of topological order; one branch skipped yields `{ input0: {...}, input1: null }`; a `version: 1` saved MERGE still produces its old output.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-12 · Branch isolation: resolve each node's input from its incoming edges · 3d
+G5, and the structural precondition for AF-M9-11. Today the runner keeps one
+`context` variable and overwrites it after every node, so in `A → (B, C) → D`, node C
+receives B's output and D receives only C's.
+
+**Depends on:** AF-M9-05
+**Acceptance**
+- [ ] The runner keeps `nodeOutputs` (already present) as the source of truth and builds each node's input from its **incoming edges**: one incoming edge → that node's output; several into one port → merged left-to-right in deterministic edge order; several ports → keyed by port id.
+- [ ] The flat rolling context is retained **as an additional read-only view**, so every existing template and every seeded catalogue template keeps resolving. This is a compatibility guarantee with an engine test per existing catalogue template proving it.
+- [ ] Execution stays sequential in topological order. **Concurrency is explicitly out of scope** — the deliverable is isolation, not parallelism. Say so in the task record so nobody reads "fan-out" as "parallel".
+- [ ] Engine tests: in `A → (B, C) → D`, C's input is A's output (not B's); D receives both; a node with two incoming edges into one port merges deterministically across repeated runs.
+- [ ] ADR-0019 records per-node input resolution, what it supersedes in `docs/architecture/execution_engine.md`, and the compatibility view.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-13 · `CODE` node — sandboxed, no network, hard caps · 3d
+G7. The most-used node in the source library, and the one with real blast radius:
+this is arbitrary tenant JS running on our worker.
+
+**Depends on:** AF-M9-05
+**Acceptance**
+- [ ] Runs in `node:vm` inside a **`worker_threads` worker** with `resourceLimits`, or an equivalent isolate. Not bare `vm` on the main thread — `vm` alone stops neither `while(true)` nor an OOM.
+- [ ] No `require`, no `import`, no `process`, no `fetch`, no timers outliving the call, no filesystem. Only the resolved input, a frozen `$json`, and pure helpers.
+- [ ] Hard caps, configurable per node within engine ceilings: wall clock (default 5 s, max 30 s), heap (default 64 MB), output size (default 1 MB). Every breach is a `NonRetriableError` naming the limit — never a silent truncation.
+- [ ] The node returns either an object or an array; an array is stored under `items` so `SPLIT_OUT` can consume it.
+- [ ] Errors surface the user's line number in `NodeExecution.error` — a code node that fails opaquely is unusable.
+- [ ] CPU time is recorded on the `NodeExecution` so AF-M7-04 can meter it later. Not billed in M9.
+- [ ] Security tests: an infinite loop is killed at the cap; an allocation bomb is killed; `process.env` is `undefined`; a network attempt fails; prototype-pollution attempts do not escape.
+- [ ] ADR-0020 records the sandbox choice and what it explicitly does **not** defend against.
+- [ ] `docs/architecture/security.md` gains a Code-node section.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-14 · Bounded item fan-out: `SPLIT_OUT` → segment iteration → `AGGREGATE` · 4d · **highest risk**
+G6. Decision D deferred loops/fan-out "until post-beta"; M9 is post-beta, and this
+expires that deferral **for one bounded case only** — a single, non-nested iteration
+between an explicit start and an explicit end. Full n8n items semantics stay out.
+
+**Depends on:** AF-M9-12
+**Acceptance**
+- [ ] `SPLIT_OUT` (`TRANSFORM`) reads an array at a configured path and opens an iteration segment; `AGGREGATE` (`TRANSFORM`) closes it and returns `{ items, count, failed }`.
+- [ ] `validate()` enforces the shape at save time: every `SPLIT_OUT` has exactly one matching reachable `AGGREGATE`; segments do not nest; no edge crosses a segment boundary. All three are errors, not warnings.
+- [ ] The runner executes the segment once per item with `$item` and `$itemIndex` in scope, sequentially, honouring per-node retry and `continueOnFail` inside the segment.
+- [ ] **Hard cap** on items per segment (default 100, engine ceiling 1000). Exceeding it fails the run with a clear message — never a partial run reported as success.
+- [ ] Traces stay legible: one `NodeExecution` per node per item carrying `itemIndex`, with the executions UI grouping them. A 10-item × 2-node segment must not read as 20 unrelated rows.
+- [ ] The interaction with AF-M8-06 retention and AF-M7-04 quotas is stated: a 100-item segment writes 100× the node rows, and whether that counts as one execution or many for quota is an explicit decision recorded here.
+- [ ] Engine tests: 10 items → 10 iterations and `AGGREGATE` collects 10; one failing item with `continueOnFail` yields 9 succeeded + 1 in `failed`; 101 items against a cap of 100 fails cleanly; a nested segment is rejected at save.
+- [ ] ADR-0021 records the bounded design and, explicitly, what is still unsupported: nesting, parallel items, `splitInBatches` resumption, `Wait` inside a segment.
+- [ ] **Fallback, decided before starting:** if this is not green by the end of week 5, W3 ships batched (one POST for all ten records), the deviation is written into the template description and into this task, and `SPLIT_OUT`/`AGGREGATE` move to Phase 2. Slipping the milestone to save this task is the wrong trade.
+- [ ] progress.md updated
+
+#### Phase 4 — ship them and prove them
+
+### ⬜ AF-M9-15 · Author the three templates in the catalogue · 1.5d
+The delivery vehicle already exists — `src/features/templates/catalog/` plus
+`npm run seed:templates`, gated by `catalog/harness.ts`. Nothing new is needed; the
+templates simply have to pass the existing gate.
+
+**Depends on:** AF-M9-09, AF-M9-10, AF-M9-11, AF-M9-13 *(AF-M9-14 only for W3's fan-out form)*
+**Acceptance**
+- [ ] `api-router-sync-response` (ops), `multi-channel-broadcast-merge` (ops), `api-etl-batch-deliver` (data) added, matching §1 exactly.
+- [ ] Each `description` names the demo endpoint it calls, states that it needs **no credentials**, and says what to swap for production use.
+- [ ] `checkCatalog` passes: no secret-shaped literals, no cuids, slug/node-id patterns, per-node config schemas, reachability.
+- [ ] Each carries a source-attribution comment naming the exact library file it derives from and any deliberate deviation.
+- [ ] `npm run seed:templates` dry run is clean and the domain-coverage test still holds.
+- [ ] Instantiating each from the gallery produces a workflow that opens in the editor, renders every branch handle, and **saves back byte-identically** — the G1 round-trip proof.
+- [ ] progress.md updated
+
+### ⬜ AF-M9-16 · End-to-end acceptance: the three run green in CI · 1.5d
+The point of the milestone. Not "the plan compiles" — the graphs execute.
+
+**Depends on:** AF-M9-01, AF-M9-02, AF-M9-15
+**Acceptance**
+- [ ] A local fixture HTTP server, started by the integration global setup (no new CI service), mimics `httpbin.org/post` (echoes JSON under `json`) and `jsonplaceholder.typicode.com/posts` (100 fixed records). Reached via `ALLOW_LOOPBACK_EGRESS=1`. **No test in this suite touches the public internet.**
+- [ ] W1: `action: "ping"` → 200 `{ok:true,message:"pong"}` with the `process` branch `SKIPPED`. `action: "process"` → 200 `{ok:true,source:"serviceA",data:{...}}` with the `ping` branch `SKIPPED`. An unknown action → run `SUCCESS`, everything after the switch `SKIPPED`, legacy envelope returned.
+- [ ] W2: both broadcasts execute; the merge output carries `input0` and `input1` in declared port order; the response carries both. With Broadcast B forced to fail under `continueOnFail: true`, the merge yields `input1: null` and the response still returns 200.
+- [ ] W3: 10 deliveries and `AGGREGATE` reports `{count: 10, failed: 0}` — or, under the AF-M9-14 fallback, one batched POST carrying 10 records, with the deviation asserted explicitly so the test cannot silently pass the weaker shape.
+- [ ] Every run asserts terminal status `SUCCESS`, zero `FAILED` node rows, an `Execution.output` free of `$`-prefixed keys (AF-M9-05), and a recorded `durationMs`.
+- [ ] The three specs run from the **seeded catalogue rows**, not from inline fixtures — so a template that drifts from what the gallery ships breaks the build.
+- [ ] CI wires `ALLOW_LOOPBACK_EGRESS=1` for the integration job only.
+- [ ] `docs/planning/progress.md` records the milestone complete, with the three run ids.
+
+---
+
+### 4. Sequencing, and what to cut if time runs out
+
+```
+AF-M9-01 ─┬─ AF-M9-03 ─┬─ AF-M9-06
+          │            ├─ AF-M9-09 ─┐
+          ├─ AF-M9-04  │            │
+          ├─ AF-M9-02 ─┼────────────┤
+          └─ AF-M9-05 ─┼─ AF-M9-10 ─┤
+                       ├─ AF-M9-12 ─┼─ AF-M9-11 ─┤
+                       └─ AF-M9-13 ─┼────────────┼─ AF-M9-15 ─ AF-M9-16
+AF-M9-07 ─ AF-M9-08 ────────────────┘            │
+                        AF-M9-14 ────────────────┘
+```
+
+- **Weeks 1–2:** Phase 0 + Phase 1 (01, 02, 03, 04, 05, 06). This half fixes **existing** defects and is worth doing whatever happens to the rest.
+- **Weeks 3–4:** 07, 08, 09, 10, 12, 11.
+- **Weeks 5–6:** 13, 14, 15, 16.
+
+**Descope order, first to go:** AF-M9-14 (fall back to a batched W3) → AF-M9-13 (drop
+W3's `CODE` node, do the transform in `SET`, accept a weaker W3) → AF-M9-11 (ship W2
+on the existing single-input MERGE and record the deviation). **Never descope
+AF-M9-01, AF-M9-03, or AF-M9-05** — they close shipping defects, and without AF-M9-01
+nothing in this milestone can honestly be reported as done.
+
+### 5. Decisions this milestone must record
+
+| ADR | Subject | Task |
+|---|---|---|
+| 0018 | Declared ports are the handle identity; `fromOutput`/`toInput` are a persisted contract | AF-M9-03 |
+| 0019 | Per-node input resolution replaces the single rolling context (compat view retained) | AF-M9-12 |
+| 0020 | Sandbox choice for the Code node, and its stated non-goals | AF-M9-13 |
+| 0021 | Bounded item fan-out; the narrow expiry of Decision D | AF-M9-14 |
+| — | ADR-0007 **amended** (not superseded) with the helper set and the escaping rule | AF-M9-07 |
+
+### 6. Verification recipe
+
+```bash
+npm run lint && npm run build
+npm test
+npm run test:db:up && npm run test:integration && npm run test:db:down
+npm run seed:templates
+npm run seed:templates -- --yes
+```
+
+`AF-M9-16` is the milestone's definition of done: the three graphs execute to
+`SUCCESS` from seeded catalogue rows, against a local fixture server, in CI, with no
+network access and no credentials.

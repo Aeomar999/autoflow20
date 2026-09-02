@@ -51,6 +51,26 @@ export function approvalDedupeKey(approvalRequestId: string): string {
   return `approval:${approvalRequestId}`;
 }
 
+/**
+ * Keyed on the announcement id AND the workspace (AF-M8-13).
+ *
+ * `Notification.dedupeKey` is unique across the whole table, not per
+ * organisation, so a broadcast needs one key per recipient — otherwise the
+ * first workspace written would claim the key and `skipDuplicates` would
+ * silently swallow every other workspace in the fan-out.
+ *
+ * Scoping it this way is also what makes a half-finished broadcast safe to
+ * re-run: workspaces already told collide and are skipped, the rest are
+ * written. Re-using an id after correcting the wording is therefore a no-op
+ * for anyone who already has it, which is the intended behaviour.
+ */
+export function systemDedupeKey(
+  announcementId: string,
+  organizationId: string,
+): string {
+  return `system:${announcementId}:${organizationId}`;
+}
+
 export function buildExecutionNotification(params: {
   executionId: string;
   workflowId: string;
@@ -145,6 +165,33 @@ export function buildApprovalNotification(params: {
     dedupeKey: approvalDedupeKey(params.approvalRequestId),
     workflowId: params.workflowId,
     executionId: params.executionId,
+    credentialId: null,
+  };
+}
+
+/**
+ * An operator announcement — maintenance, an incident update, a deprecation
+ * (AF-M8-13).
+ *
+ * `href` is optional and defaults to none: most announcements have nowhere in
+ * the app to go, and a notification that navigates to the dashboard for no
+ * reason is worse than one that does not navigate at all.
+ */
+export function buildSystemNotification(params: {
+  announcementId: string;
+  organizationId: string;
+  title: string;
+  message: string;
+  href?: string | null;
+}): NotificationDraft {
+  return {
+    type: "SYSTEM",
+    title: params.title,
+    message: params.message,
+    href: params.href ?? null,
+    dedupeKey: systemDedupeKey(params.announcementId, params.organizationId),
+    workflowId: null,
+    executionId: null,
     credentialId: null,
   };
 }

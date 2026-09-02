@@ -20,7 +20,9 @@
     "format": "biome format --write",
     "inngest:dev": "inngest-cli dev",
     "dev:all": "dotenv -- mprocs",
-    "verify:legacy-ai-nodes": "tsx --conditions=react-server scripts/verify-legacy-ai-nodes.ts"
+    "verify:legacy-ai-nodes": "tsx --conditions=react-server scripts/verify-legacy-ai-nodes.ts",
+    "notify:system": "tsx --conditions=react-server scripts/notify-system.ts",
+    "load-test": "tsx scripts/load-test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.23",
