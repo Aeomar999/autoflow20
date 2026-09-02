@@ -1,6 +1,6 @@
 # Operator actions — what only you can do
 
-**Status:** Built (2026-09-01, after AF-M8-06/07/08/09/10/13). **Revised 2026-09-01** after AF-M8-23, the AF-M8-05 harness, and the AF-M8-13 `SYSTEM` producer landed — B1 and C2 changed from "blocked on you, then me" to configuration you can finish alone.
+**Status:** Built 2026-09-01. **Revised 2026-09-02** — the operator configured billing and created the uptime monitor, closing B1 and B2. Two blockers stand: **B3** (restore never rehearsed) and **B4** (legal review *and* the still-unset entity configuration).
 **Read before:** deciding what to work on next, or asking why a task is still open.
 **Companions:** `docs/operations/beta_launch_checklist.md` (the gate), `docs/planning/tasks.md` (the backlog).
 
@@ -16,15 +16,23 @@ If an item is 🟢 and you want it, just say so.
 
 ---
 
-## Part 1 — The four beta blockers
+## Part 1 — The beta blockers
 
 These are the go/no-go items from the launch checklist. Nothing else on this page stops a beta.
 
+**As of 2026-09-02, two of the original four are closed** (B1 billing, B2 alerting) and **two stand: B3 (restore never rehearsed) and B4 (legal)**. B4 has grown a second half that is pure configuration and independent of the lawyer: `NEXT_PUBLIC_LEGAL_*` and `NEXT_PUBLIC_SUPPORT_EMAIL` are all still unset, so `/terms`, `/privacy` and `/dpa` refuse to render their policies at all and `/support` shows no address.
+
 ---
 
-### B1. Payment does not change the plan · `AF-M8-23` · 🔴 YOU
+### B1. ~~Payment does not change the plan~~ · `AF-M8-23` · ✅ DONE 2026-09-02
 
-**Severity: highest.** A customer can complete checkout, be charged, and stay on FREE limits forever.
+> **Closed 2026-09-02.** The code shipped in `4d06247`; the operator configured it on 2026-09-02. Verified from the repository by resolving the plan map — `ensureEnv()` passes, `POLAR_WEBHOOK_SECRET` is set, and the three product ids are distinct valid UUIDs mapping to STARTER, PRO and ENTERPRISE.
+>
+> **One thing is still unproven:** no test purchase has been made, so nothing confirms the Polar dashboard endpoint points at the right URL or subscribes to the four events. The "How you verify it worked" SQL below is the ten minutes that would close that. **Step 5 (failed payment) remains open** and is tracked as checklist 1.6.
+>
+> The steps below are kept as reference for re-configuring or for a second environment.
+
+**Severity when open: highest.** A customer could complete checkout, be charged, and stay on FREE limits forever.
 
 **Status changed (2026-09-01): the code is built. This is now configuration.**
 
@@ -94,9 +102,15 @@ SELECT action, before, after, "createdAt" FROM "AuditLog"
 
 ---
 
-### B2. Nothing pages anyone · `AF-M8-21` · 🔴 YOU
+### B2. ~~Nothing pages anyone~~ · `AF-M8-21` / `AF-M8-26` · ✅ DONE 2026-09-02
 
-**Severity: high.** Eight alerts are defined in `docs/operations/slos.md` §4 and *nothing delivers any of them*. Today an outage is discovered by a customer telling you.
+> **Closed 2026-09-02** — the operator created the uptime monitor. **This is the one closed blocker the repository cannot check**, so it is worth proving rather than assuming: point the monitor at a deliberately failing URL, or take the service down, and confirm something actually reaches a phone. An alert nobody has seen fire is indistinguishable from no alert.
+>
+> Check the `degraded` body assertion specifically — it fails silently if the monitor does not support JSON assertions, and it is the only thing covering a partial outage. **The human side (item four below) is still undecided:** there is no on-call rotation.
+>
+> The settings below are kept as reference.
+
+**Severity when open: high.** Eight alerts are defined in `docs/operations/slos.md` §4 and nothing delivered any of them; an outage was discovered by a customer telling you.
 
 **Why only you.** Alert delivery needs an account and a phone number. There is no code change that makes a laptop ring.
 
@@ -341,7 +355,7 @@ Everything above that is a decision rather than a task, in one place:
 
 | # | Decision | Blocks |
 |---|---|---|
-| 1 | Polar product id → plan mapping — now just env values, not a conversation | `AF-M8-23` (B1) |
+| 1 | ~~Polar product id → plan mapping~~ — ✅ configured 2026-09-02 | `AF-M8-23` (B1) |
 | 2 | What a failed payment does: immediate downgrade, grace period (how long?), or none | Checklist 1.6 (B1 step 5) |
 | 3 | Who is on call, at what hours, and the escalation if unanswered | `AF-M8-21` (B2) |
 | 4 | ~~The concurrency target~~ — **proposed and recorded**: 100 req/s. Accept it or replace it | `AF-M8-05` (C2) |
@@ -351,5 +365,6 @@ Everything above that is a decision rather than a task, in one place:
 | 8 | Liability cap, transfer mechanism, and the other four clauses for counsel | `B4` |
 | 9 | **Is a subscription per-user or per-workspace?** Today one subscription upgrades every workspace its buyer owns | Checklist 1.8 |
 | 10 | Whether to record Terms acceptance at signup before beta | Checklist 4.8 |
+| 11 | **The legal entity values** — `NEXT_PUBLIC_LEGAL_*` and `NEXT_PUBLIC_SUPPORT_EMAIL` are still unset, so the policy pages and `/support` will not render. Configuration, not drafting, and independent of counsel | Checklist 4.6 / 5.2 (B4) |
 
 **If you only do one thing:** confirm the `CREDENTIAL_MASTER_KEY` is escrowed somewhere independent of the app host (B3). It takes five minutes, and it is the only item here whose failure mode is permanent, silent, and total.

@@ -17,19 +17,21 @@ Status below reflects the code as of **2026-09-01**, verified by reading it rath
 | 1.1 | Checkout flow reaches the payment provider | ✅ Polar checkout + portal wired through the auth plugin |
 | 1.2 | Plans defined with limits as data | ✅ `PLAN_QUOTA_LIMITS`, `PLAN_BUCKETS`, `PLAN_RETENTION` |
 | 1.3 | Quota enforced in the runner | ✅ AF-M7-04, hard-fails with `QUOTA_EXCEEDED` |
-| 1.4 | **Paying actually upgrades the workspace** | 🟡 **Built (AF-M8-23) — inert until 1.7 is configured** |
-| 1.5 | Downgrade / cancellation returns the workspace to FREE | 🟡 Built (AF-M8-23), same configuration dependency |
+| 1.4 | **Paying actually upgrades the workspace** | ✅ Built (AF-M8-23) and configured 2026-09-02 |
+| 1.5 | Downgrade / cancellation returns the workspace to FREE | ✅ Built (AF-M8-23) and configured 2026-09-02 |
 | 1.6 | Failed payment has a defined consequence | 🔴 Not built — no `subscription.past_due` branch |
-| 1.7 | **Product ids and webhook secret configured for the live account** | 🔴 **BLOCKER — operator task** |
+| 1.7 | **Product ids and webhook secret configured for the live account** | ✅ Done 2026-09-02 — verified: `ensureEnv()` passes, 3 distinct product ids, STARTER/PRO/ENTERPRISE all mapped, secret present |
 | 1.8 | One subscription is scoped to one workspace | 🔴 Not built — see below |
 
-### 1.4 was the one that mattered, and it is now a configuration item
+### 1.4 was the one that mattered, and it is now closed
 
 `Organization.plan` used to be written exactly once — `"FREE"`, at creation — and never again, while the monthly run quota, the API and webhook rate-limit buckets and the retention windows all read that column. A customer could complete checkout, be charged, and stay on FREE limits indefinitely.
 
 **AF-M8-23 built the missing path**: `webhooks()` on the Polar plugin handles `subscription.active` / `.updated` / `.canceled` / `.revoked`, writes the plan, and audit-logs it. It is idempotent, so Polar's re-deliveries are free.
 
-**It does nothing until you configure it**, which is why 1.7 is now the blocker rather than 1.4. Without `POLAR_WEBHOOK_SECRET` the plugin rejects every delivery with 400 — deliberately: an unsigned body must never grant a plan — and without `POLAR_PRODUCT_ID_*` an arriving product id maps to nothing and is refused with a logged error rather than silently granting FREE. Both are one env change; the steps are in `operator_actions.md` B1.
+**Configured 2026-09-02.** `POLAR_WEBHOOK_SECRET` is set and all three `POLAR_PRODUCT_ID_*` values are distinct valid UUIDs mapping to STARTER, PRO and ENTERPRISE; `ensureEnv()` passes, so the app boots with this configuration. Verified by reading the resolved plan map, not by trusting that the variables are non-empty.
+
+**Still unverified end to end:** nobody has actually bought a subscription against this configuration. The remaining risk is not the code or the variables but whether the endpoint in the Polar dashboard points at the right URL and is subscribed to the four events. Confirm with a real test purchase before relying on it — `operator_actions.md` B1 has the SQL.
 
 ### 1.8 — one subscription currently upgrades every workspace its buyer owns
 
@@ -65,12 +67,12 @@ The handler logs a warning when it fans out, so this is visible rather than sile
 | 3.2 | Runbooks for the top failure modes | ✅ AF-M8-07 |
 | 3.3 | SLOs and error budgets defined | ✅ AF-M8-07 |
 | 3.4 | Retention enforced, tables bounded | ✅ AF-M8-06 |
-| 3.5 | **Alerts reach a human** | 🔴 **BLOCKER — configuration documented (AF-M8-21), monitor not created** |
+| 3.5 | **Alerts reach a human** | ✅ Monitor created by the operator 2026-09-02 (AF-M8-21 / AF-M8-26). Not verifiable from the repository — see below |
 | 3.6 | **Backup and restore rehearsed** | 🔴 **BLOCKER — never tested** |
 | 3.7 | Load tested to a concurrency target | 🟡 Target + harness built (AF-M8-05); **no run performed** |
 | 3.8 | On-call rotation | 🔴 Does not exist |
 
-**3.5** — AF-M8-21 settled *what* to configure: interval, failure condition, the `degraded` body assertion, and the Sentry rule. It did not create the monitor, because that needs an account. Until one exists, an outage is still discovered by a customer telling us. Ten minutes of work; `operator_actions.md` B2 has the exact settings.
+**3.5** — AF-M8-21 settled *what* to configure and AF-M8-26 recorded it; the operator created the monitor on 2026-09-02. **This is the one closed item on this page that the repository cannot check**, so it is worth proving rather than assuming: take the service down (or point the monitor at a deliberately failing URL) and confirm something actually reaches a phone. An alert nobody has ever seen fire is the same as no alert. The `degraded` body assertion in particular fails silently if the monitor does not support JSON assertions — confirm that one specifically.
 
 **3.6** — a backup that has never been restored is a hypothesis. This is a blocker because the failure it guards against is unrecoverable, and it is the one gap on this page with no partial credit.
 
@@ -128,13 +130,16 @@ NEXT_PUBLIC_SUPPORT_EMAIL
 
 ## 6. Go / no-go
 
+**Two of the original four cleared on 2026-09-02** — 1.7 (billing configured, verified) and 3.5 (uptime monitor created). Two stand, and one new one has taken their place.
+
 Do not open to external users while any of these stands:
 
-1. **1.7 — billing is built but not configured.** The webhook path exists; without the product ids and the signing secret it rejects every delivery, and the symptom is identical to having no webhook at all: a charged customer on FREE limits. **This is now ten minutes of configuration, not engineering** — which makes shipping without it harder to excuse, not easier.
-2. **3.5 — no alerting.** An outage is found by a customer. Also ten minutes; the settings are written down.
-3. **3.6 — restore never rehearsed.** Data loss would be unrecoverable. The only item here with no partial credit.
-4. **4.5 — policies not lawyer-reviewed.** Publishing them as-is misrepresents an unreviewed draft as a binding document.
+1. **3.6 — restore never rehearsed.** Data loss would be unrecoverable. The only item on this page with no partial credit, and now the most serious thing outstanding.
+2. **4.5 — policies not lawyer-reviewed.** Publishing them as-is misrepresents an unreviewed draft as a binding document.
+3. **4.6 — the legal entity is still unconfigured.** `NEXT_PUBLIC_LEGAL_*` and `NEXT_PUBLIC_SUPPORT_EMAIL` are all unset, so `/terms`, `/privacy` and `/dpa` **do not render their policies at all** — they show what is missing — and `/support` shows no address. A beta whose Terms page refuses to display is not a beta you can open. This is env configuration, not drafting, and it is independent of 4.5.
 
-Everything else on this page is a real gap that can be carried into beta with its risk understood and written down. These four cannot.
+**Prove the two that just closed rather than assuming them.** Neither was verified end to end: nobody has made a test purchase against the new Polar configuration, and no alert has ever been seen to fire. Both are the kind of thing that reads as done and turns out not to be at the worst moment — a real test purchase and a deliberately-failed health check are each ten minutes.
+
+Everything else on this page is a real gap that can be carried into beta with its risk understood and written down. These cannot.
 
 **Carried knowingly, if you choose to:** 1.6 (an unpaid month is currently free service), 1.8 (one subscription covers every workspace its buyer owns), 3.7 (no measured capacity), 4.8 (no record of terms acceptance), 3.8 and 2.10. Each is a decision, not an oversight — but it is only a decision if you make it before launch rather than after the first incident.

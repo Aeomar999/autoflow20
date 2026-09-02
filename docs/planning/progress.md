@@ -269,3 +269,9 @@ When you complete a task:
 | 2026-09-02 | **AF-M8-13 (rework)**: Replaced the script-only SYSTEM producer with `system-notifier.ts`, ported from the parallel `af-m8-23-polar-plan` branch where the better implementation had been written independently. The script's direct `prisma.notification.createMany` bypassed `writeNotifications` — the documented single write path — so the replay guard was being re-implemented instead of reused. Now batched (200/statement), targetable by organization, with a tested `previewSystemBroadcast` behind the dry run. 13 integration tests. | M8 |
 
 | 2026-09-02 | **Verification**: full suite green on `af-m8-12-delete-legacy-ai-nodes` — tsc, biome, 955 unit+dom, **127 integration**, production build. Integration had never been run before; the test database now comes up under Podman with `--pull=never` and the host-network recipe. | M8 |
+
+| 2026-09-02 | **Removed `/test-kpi`** — a scratch page of hardcoded e-commerce figures that was shipping in the production build. 52 static pages → 51. `KpiCard` kept but now has no caller. | M8 |
+
+| 2026-09-02 | **AF-M8-23 closed**: operator configured `POLAR_WEBHOOK_SECRET` and the three `POLAR_PRODUCT_ID_*` values. Verified by resolving the plan map — `ensureEnv()` passes, 3 distinct UUIDs, all three plans mapped. No test purchase made yet, so the dashboard endpoint itself is still unproven. Checklist 1.4/1.5/1.7 closed. | M8 |
+
+| 2026-09-02 | **AF-M8-26**: renumbered from the second, colliding **AF-M8-21** entry (same collision class as AF-M8-14). AF-M8-21 is the problem and the plan; AF-M8-26 is the delivery. Operator created the uptime monitor 2026-09-02, closing checklist 3.5 — not verifiable from the repository, and no alert has been seen to fire yet. | M8 |
