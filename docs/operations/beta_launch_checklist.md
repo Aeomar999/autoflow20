@@ -45,7 +45,7 @@ The handler logs a warning when it fans out, so this is visible rather than sile
 
 | # | Item | Status |
 |---|---|---|
-| 2.1 | `npm audit` clean at HIGH+ | ✅ AF-M8-08 (6 LOW remain — AF-M8-19) |
+| 2.1 | `npm audit` clean | ✅ **0 vulnerabilities at any severity** — the 6 LOW cleared by AF-M8-19 |
 | 2.2 | Credentials encrypted, no plaintext read path | ✅ AF-M3-02/04, proven by test |
 | 2.3 | Cross-tenant isolation suite green | ✅ AF-M8-08 / AF-M8-18 |
 | 2.4 | SSRF guard including redirect hops | ✅ AF-M8-16 |

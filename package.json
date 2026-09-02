@@ -25,9 +25,9 @@
     "load-test": "tsx scripts/load-test.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.23",
-    "@ai-sdk/google": "^2.0.17",
-    "@ai-sdk/openai": "^2.0.44",
+    "@ai-sdk/anthropic": "^3.0.116",
+    "@ai-sdk/google": "^3.0.120",
+    "@ai-sdk/openai": "^3.0.106",
     "@hookform/resolvers": "^5.2.2",
     "@inngest/realtime": "^0.4.4",
     "@paralleldrive/cuid2": "^2.2.2",
@@ -67,7 +67,7 @@
     "@trpc/server": "^11.6.0",
     "@trpc/tanstack-react-query": "^11.6.0",
     "@xyflow/react": "^12.8.6",
-    "ai": "^5.0.60",
+    "ai": "^6.0.275",
     "better-auth": "^1.7.2",
     "class-variance-authority": "^0.7.1",
     "client-only": "^0.0.1",
@@ -136,9 +136,6 @@
     "vitest": "^4.1.11"
   },
   "overrides": {
-    "@ai-sdk/provider-utils": {
-      "undici": "^6.28.0"
-    },
     "inngest-cli": {
       "adm-zip": "^0.6.0"
     },

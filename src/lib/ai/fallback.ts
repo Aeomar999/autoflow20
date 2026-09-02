@@ -72,14 +72,52 @@ export interface CandidateContext {
   languageModel: LanguageModel;
 }
 
+/** The token counts this codebase meters on. Deliberately narrow. */
+export interface RunUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+}
+
 export interface FallbackRunResult<T> {
   value: T;
-  usage?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    promptTokens?: number;
-    completionTokens?: number;
-  };
+  usage?: RunUsage;
+}
+
+/**
+ * Lift the token counts off an AI SDK result (AF-M8-19).
+ *
+ * AI SDK v6 widened `usage` from a flat map of numbers into an object that
+ * also carries nested `inputTokenDetails` / `outputTokenDetails`. The call
+ * sites used to cast the whole thing to `Record<string, number>`, which v6
+ * makes untrue - and passing it through unchanged would start persisting new
+ * nested provider data into every AI node's output context and into the
+ * trace. Lifting only the counts keeps the stored shape identical to v5.
+ *
+ * Reads defensively rather than by cast: `usage` is provider-shaped data
+ * crossing a version boundary, and a count that is missing or non-numeric
+ * should meter as absent, not as `NaN`.
+ */
+export function pickRunUsage(result: unknown): RunUsage | undefined {
+  if (!result || typeof result !== "object") return undefined;
+  const usage = (result as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object") return undefined;
+
+  const source = usage as Record<string, unknown>;
+  const picked: RunUsage = {};
+  for (const key of [
+    "inputTokens",
+    "outputTokens",
+    "promptTokens",
+    "completionTokens",
+  ] as const) {
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      picked[key] = value;
+    }
+  }
+  return Object.keys(picked).length > 0 ? picked : undefined;
 }
 
 export interface FallbackAttempt {

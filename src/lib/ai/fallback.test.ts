@@ -13,6 +13,7 @@ import {
   type CandidateContext,
   executeWithFallback,
   parseModelChain,
+  pickRunUsage,
   resolveCandidate,
   splitModelId,
 } from "./fallback";
@@ -303,5 +304,65 @@ describe("executeWithFallback response cache (AF-M5-07)", () => {
     ).rejects.toThrow(/provider outage/);
 
     expect(writeAiCache).not.toHaveBeenCalled();
+  });
+});
+
+describe("pickRunUsage (AF-M8-19)", () => {
+  it("lifts the v6 flat token counts", () => {
+    expect(
+      pickRunUsage({ usage: { inputTokens: 120, outputTokens: 45 } }),
+    ).toEqual({ inputTokens: 120, outputTokens: 45 });
+  });
+
+  it("still reads the older prompt/completion names", () => {
+    // The fallback meter accepts either pair; a provider that reports the old
+    // names must not silently meter as zero.
+    expect(
+      pickRunUsage({ usage: { promptTokens: 10, completionTokens: 3 } }),
+    ).toEqual({ promptTokens: 10, completionTokens: 3 });
+  });
+
+  it("drops v6's nested token details", () => {
+    // This is the whole point: v6 widened `usage` beyond a flat map of
+    // numbers, and passing it through would persist new nested provider data
+    // into every AI node's output context and into the trace.
+    const picked = pickRunUsage({
+      usage: {
+        inputTokens: 7,
+        outputTokens: 2,
+        inputTokenDetails: { cacheReadTokens: 5, noCacheTokens: 2 },
+        outputTokenDetails: { reasoningTokens: 1 },
+        raw: { anything: true },
+      },
+    });
+
+    expect(picked).toEqual({ inputTokens: 7, outputTokens: 2 });
+  });
+
+  it("ignores counts that are not finite numbers", () => {
+    // Provider-shaped data crossing a version boundary: a missing or broken
+    // count must meter as absent rather than as NaN.
+    expect(
+      pickRunUsage({
+        usage: { inputTokens: Number.NaN, outputTokens: "12", promptTokens: 4 },
+      }),
+    ).toEqual({ promptTokens: 4 });
+  });
+
+  it("returns undefined when there is nothing to meter", () => {
+    expect(pickRunUsage(undefined)).toBeUndefined();
+    expect(pickRunUsage(null)).toBeUndefined();
+    expect(pickRunUsage("nope")).toBeUndefined();
+    expect(pickRunUsage({})).toBeUndefined();
+    expect(pickRunUsage({ usage: null })).toBeUndefined();
+    expect(pickRunUsage({ usage: {} })).toBeUndefined();
+    expect(pickRunUsage({ usage: { inputTokenDetails: {} } })).toBeUndefined();
+  });
+
+  it("keeps a genuine zero rather than discarding it", () => {
+    // 0 output tokens is a real measurement, not a missing one.
+    expect(
+      pickRunUsage({ usage: { inputTokens: 9, outputTokens: 0 } }),
+    ).toEqual({ inputTokens: 9, outputTokens: 0 });
   });
 });

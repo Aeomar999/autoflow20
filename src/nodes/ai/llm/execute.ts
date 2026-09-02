@@ -4,7 +4,11 @@ import { NonRetriableError } from "inngest";
 import { compileTemplate } from "@/features/executions/template";
 import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
 import { buildAiCacheKey, normalizeCacheTtlSeconds } from "@/lib/ai/cache";
-import { executeWithFallback, parseModelChain } from "@/lib/ai/fallback";
+import {
+  executeWithFallback,
+  parseModelChain,
+  pickRunUsage,
+} from "@/lib/ai/fallback";
 import type { NodeRun } from "@/nodes/types";
 import { definition, type LlmData } from "./definition";
 
@@ -98,7 +102,7 @@ export const execute: NodeRun<LlmData> = async ({
           },
         );
         const object = (result as { object?: unknown }).object ?? null;
-        const resUsage = (result as { usage?: Record<string, number> }).usage;
+        const resUsage = pickRunUsage(result);
         return {
           value: JSON.stringify(object, null, 2),
           usage: resUsage,
@@ -129,7 +133,7 @@ export const execute: NodeRun<LlmData> = async ({
           "AI Chat node: model returned an empty response",
         );
       }
-      const resUsage = (result as { usage?: Record<string, number> }).usage;
+      const resUsage = pickRunUsage(result);
       return {
         value: resText,
         usage: resUsage,

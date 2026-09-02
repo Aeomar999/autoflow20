@@ -275,3 +275,5 @@ When you complete a task:
 | 2026-09-02 | **AF-M8-23 closed**: operator configured `POLAR_WEBHOOK_SECRET` and the three `POLAR_PRODUCT_ID_*` values. Verified by resolving the plan map — `ensureEnv()` passes, 3 distinct UUIDs, all three plans mapped. No test purchase made yet, so the dashboard endpoint itself is still unproven. Checklist 1.4/1.5/1.7 closed. | M8 |
 
 | 2026-09-02 | **AF-M8-26**: renumbered from the second, colliding **AF-M8-21** entry (same collision class as AF-M8-14). AF-M8-21 is the problem and the plan; AF-M8-26 is the delivery. Operator created the uptime monitor 2026-09-02, closing checklist 3.5 — not verifiable from the repository, and no alert has been seen to fire yet. | M8 |
+
+| 2026-09-02 | **AF-M8-19 done**: upgraded to `ai@6` + `@ai-sdk/{openai,anthropic,google}@3` — one major, not the two `npm audit fix --force` proposed. All six LOW advisories cleared: **0 vulnerabilities**. The only forced code change was v6's widened `usage` shape; added `pickRunUsage` so the persisted trace shape stays identical to v5. Removed the now-redundant `provider-utils → undici` override. | M8 |
