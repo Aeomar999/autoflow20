@@ -29,6 +29,26 @@ export const emailSenderSchema = z.string().refine(
   { message: "must be an email address or `Name <email@host>`" },
 );
 
+/**
+ * An optional variable that `.env.example` ships as `""`.
+ *
+ * `z.uuid().optional()` accepts `undefined` but rejects the empty string, so
+ * `cp .env.example .env` — the documented quick start — produced an install
+ * that refused to boot with "POLAR_PRODUCT_ID: must be a UUID". Blank means
+ * "not configured", the same as absent, so it is normalised to `undefined`
+ * before the inner schema sees it.
+ *
+ * Same defect class as AF-M8-15, where `RESEND_FROM_EMAIL` rejected the exact
+ * value `.env.example` shipped. A schema that a correctly-copied template
+ * cannot satisfy is a bug in the schema.
+ */
+const blankAsUnset = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    schema.optional(),
+  );
+
 const serverEnvSchema = z.object({
   DATABASE_URL: z.url("must be a valid Postgres connection URL"),
   BETTER_AUTH_SECRET: z.string().min(32, "must be at least 32 characters"),
@@ -52,7 +72,7 @@ const serverEnvSchema = z.object({
 
   POLAR_ACCESS_TOKEN: z.string().optional(),
   POLAR_SUCCESS_URL: z.url("must be a valid absolute URL").optional(),
-  POLAR_PRODUCT_ID: z.uuid("must be a UUID").optional(),
+  POLAR_PRODUCT_ID: blankAsUnset(z.uuid("must be a UUID")),
   POLAR_PRODUCT_SLUG: z.string().min(1).optional(),
 
   // AF-M8-23: the subscription webhooks that write `Organization.plan`.
@@ -60,10 +80,10 @@ const serverEnvSchema = z.object({
   // install without billing configured still runs. When the secret is unset
   // the webhook handler is registered without one and Polar's deliveries fail
   // signature verification, so billing is inert rather than unauthenticated.
-  POLAR_WEBHOOK_SECRET: z.string().min(1).optional(),
-  POLAR_PRODUCT_ID_STARTER: z.uuid("must be a UUID").optional(),
-  POLAR_PRODUCT_ID_PRO: z.uuid("must be a UUID").optional(),
-  POLAR_PRODUCT_ID_ENTERPRISE: z.uuid("must be a UUID").optional(),
+  POLAR_WEBHOOK_SECRET: blankAsUnset(z.string().min(1)),
+  POLAR_PRODUCT_ID_STARTER: blankAsUnset(z.uuid("must be a UUID")),
+  POLAR_PRODUCT_ID_PRO: blankAsUnset(z.uuid("must be a UUID")),
+  POLAR_PRODUCT_ID_ENTERPRISE: blankAsUnset(z.uuid("must be a UUID")),
 
   INNGEST_EVENT_KEY: z.string().optional(),
   INNGEST_SIGNING_KEY: z.string().optional(),
@@ -81,6 +101,12 @@ const serverEnvSchema = z.object({
   RESEND_API_KEY: z.string().min(1).optional(),
   RESEND_FROM_EMAIL: emailSenderSchema.optional(),
 });
+
+/**
+ * Exported for `env.test.ts`, which parses the real `.env.example` against it.
+ * Not for application use - call `ensureEnv()` instead, which caches.
+ */
+export const serverEnvSchemaForTests = serverEnvSchema;
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
