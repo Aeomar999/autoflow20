@@ -1007,26 +1007,79 @@ seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
 
 **Depends on:** —
 **Acceptance**
-- [ ] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org.
-- [ ] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
-- [ ] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
-- [ ] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03.
-- [ ] Runs inside the existing `integration` vitest project (serial, `maxWorkers: 1`) — no new project, no new CI service.
-- [ ] `docs/engineering/testing_strategy.md` gains a §"Engine execution tests" saying when one is mandatory.
-- [ ] progress.md updated
+- [x] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org.
+- [x] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
+- [x] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
+- [x] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03.
+- [x] Runs inside the existing `integration` vitest project (serial, `maxWorkers: 1`) — no new project, no new CI service.
+- [x] `docs/engineering/testing_strategy.md` gains a §"Engine execution tests" saying when one is mandatory.
+- [x] progress.md updated
 
-### ⬜ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
+**DONE (2026-09-02, AF-M9-01):** shipped as `tests/integration/engine/run-graph.ts` +
+`run-graph.test.ts` — **no `@inngest/test` dependency**. The task's first premise
+(read `InngestTestEngine`) was dropped in favour of a **memoless fake `step`** whose
+`run` executes each callback inline with no replay and no memoisation: the AF-M8-27
+cancellation integration test proved this pattern drives the real
+`executeWorkflowHandler` against real Postgres, and it skips the `@inngest/test`
+package entirely — one less test-only dependency. `runGraph` seeds a fixture org +
+user + workflow + execution via Prisma, converts the day-spec's planning-era
+`TemplateGraph.edges` connection shape into the executor's `{ fromNodeId, toNodeId,
+fromOutput, toInput }` form, and returns `{ execution, nodeExecutions }` asserted on
+**real DB rows**. **Two defects surfaced while making the suites honest.** (1) The
+`$json` context is a self-referential object (`buildTemplateContext` sets
+`$json: accumulatedContext`), so the fake `step.run` had to deep-clone via
+`JSON.parse(JSON.stringify(value))` — mirroring Inngest step-serialization semantics —
+or `serializedBytes` threw `Converting circular structure to JSON`. (2) The quota
+suite initially seeded 100 executions into an org the test itself created while
+`runGraph` seeded a **fresh** org, so the quota gate saw `current=0` and let the run
+through → the test passed for the wrong reason. `runGraph` now accepts
+`orgId`/`userId`/`workflowId` overrides and the quota suite passes its own org so the
+run shares it with the seeded quota rows; it also ungates the global `E2E_SERVER=1`
+bypass for that one run (restored in `finally`) so the gate actually evaluates.
+**Four suites, all green:** linear 3-node → `SUCCESS`; failing SET node without
+`continueOnFail` → downstream `SKIPPED`; quota exceeded → terminal `QUOTA_EXCEEDED`
+with zero node rows and no retry; and the **G1 regression** — a CONDITION whose edges
+carry the editor's real `source-1` handle ids leaves its whole downstream `SKIPPED`
+when it should be `SUCCESS` (the assertion documents the bug and must flip in
+AF-M9-03), proving `markTakenEdges` compares `edge.fromOutput` against the CONDITION's
+`_outputPort` of `"true"`/`"false"` and never matches the canvas's `"source-1"`.
+Suites truncate fixture tables in `beforeEach` and run inside the existing
+`integration` project (`maxWorkers: 1`). Gates clean: `run-graph.test.ts` 4/4,
+`npx biome check .`, `npx tsc --noEmit`, `npm run build`.
+
+### ✅ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
 G13. Let the engine reach a fixture HTTP server on `127.0.0.1` **only** under an
 explicit env flag, so the acceptance suite is deterministic and offline.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] `ALLOW_LOOPBACK_EGRESS=1` (parsed in `src/lib/env.ts`, default off) permits `127.0.0.1`/`::1` **and nothing else** — 10/8, 172.16/12, 192.168/16, 169.254/16 and CGNAT stay blocked under the flag.
-- [ ] The flag is refused when `NODE_ENV === "production"`: the app fails to boot with a clear message rather than starting permissive.
-- [ ] Unit tests: flag off → loopback blocked; flag on → loopback allowed and the metadata IP still blocked; production + flag → boot refused.
-- [ ] `docs/architecture/security.md` §SSRF records the exception and why it cannot widen.
-- [ ] `.env.example` documents it as test-only.
-- [ ] progress.md updated
+- [x] `ALLOW_LOOPBACK_EGRESS=1` (parsed in `src/lib/env.ts`, default off) permits `127.0.0.1`/`::1` **and nothing else** — 10/8, 172.16/12, 192.168/16, 169.254/16 and CGNAT stay blocked under the flag.
+- [x] The flag is refused when `NODE_ENV === "production"`: the app fails to boot with a clear message rather than starting permissive.
+- [x] Unit tests: flag off → loopback blocked; flag on → loopback allowed and the metadata IP still blocked; production + flag → boot refused.
+- [x] `docs/architecture/security.md` §SSRF records the exception and why it cannot widen.
+- [x] `.env.example` documents it as test-only.
+- [x] progress.md updated
+
+**DONE (2026-09-02, AF-M9-02):** the flag is parsed in `src/lib/env.ts`
+(`ALLOW_LOOPBACK_EGRESS` accepted as a schema field; `allowLoopbackEgress()`
+reads it raw so it works under `SKIP_ENV_VALIDATION` — the test runner where
+the acceptance suite lives). It permits exactly loopback and nothing else:
+`isBlockedIp`/`isBlockedIpv4` in `egress-guard.ts` take an `allowLoopback`
+option that unwinds only the `127/8` and `::1` branches, while `169.254/16`
+(must stay blocked — cloud metadata, `169.254.169.254`), `10/8`, `172.16/12`,
+`192.168/16`, `100.64/10` CGNAT, and unique-local IPv6 remain on the blocklist.
+`resolveSafeEndpoint` reads `allowLoopbackEgress()` once per call and threads
+the decision into `isBlockedIp`, so both the `assertSafeEndpoint` call sites and
+`safeFetch`'s per-redirect-hop re-vetting inherit it, and the flag flips without
+a restart. **Production refusal is enforced in two places**: `allowLoopbackEgress()`
+itself throws a clear "test-only flag … forbidden in production" error, and
+`ensureEnv()` calls it at boot so a misconfigured deploy refuses to start before
+any request runs. **Tests:** egress-guard suite covers flag-off (loopback
+blocked), flag-on (loopback + `localhost` allowed), metadata/private/CGNAT still
+blocked under the flag, IPv4-mapped loopback, and the end-to-end wiring
+(off rejects `127.0.0.1`, on accepts it, metadata still rejected); env suite
+covers the production refusal and the `=== "1"` exactness. All green alongside
+the existing 59 egress-guard tests.
 
 #### Phase 1 — fix the graph contract
 

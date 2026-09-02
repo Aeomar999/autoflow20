@@ -3,6 +3,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { NonRetriableError } from "inngest";
 import { Agent } from "undici";
+import { allowLoopbackEgress } from "@/lib/env";
 
 /** Default outbound request timeout (AF-A-02). */
 export const DEFAULT_HTTP_TIMEOUT_MS = 10_000;
@@ -17,12 +18,19 @@ const MIN_HTTP_TIMEOUT_MS = 250;
  * True when `ip` must not be reachable from workflow HTTP nodes:
  * loopback, private, link-local (incl. cloud metadata), unspecified,
  * CGNAT, and their IPv6 equivalents / IPv4-mapped forms.
+ *
+ * `opts.allowLoopback` (AF-M9-02) widens ONLY loopback (`127/8`, `::1`) for
+ * the test-only `ALLOW_LOOPBACK_EGRESS` flag. Every other blocked range —
+ * private, link-local/metadata, CGNAT, unique-local IPv6 — stays blocked.
  */
-export const isBlockedIp = (ip: string): boolean => {
+export const isBlockedIp = (
+  ip: string,
+  opts: { allowLoopback?: boolean } = {},
+): boolean => {
   const version = isIP(ip);
 
   if (version === 4) {
-    return isBlockedIpv4(ip);
+    return isBlockedIpv4(ip, opts);
   }
 
   if (version === 6) {
@@ -30,14 +38,15 @@ export const isBlockedIp = (ip: string): boolean => {
     // Unwrap IPv4-mapped IPv6 (e.g. ::ffff:192.168.0.1) before checking.
     const mapped = candidate.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (mapped) {
-      return isBlockedIpv4(mapped[1]);
+      return isBlockedIpv4(mapped[1], opts);
     }
     const expanded = expandIpv6(candidate);
-    if (
-      expanded === "0000:0000:0000:0000:0000:0000:0000:0000" || // :: unspecified
-      expanded === "0000:0000:0000:0000:0000:0000:0000:0001" // ::1 loopback
-    ) {
-      return true;
+    if (expanded === "0000:0000:0000:0000:0000:0000:0000:0000") {
+      return true; // :: unspecified — always blocked
+    }
+    if (expanded === "0000:0000:0000:0000:0000:0000:0000:0001") {
+      // ::1 loopback — allowed only under the test-only loopback flag.
+      return !opts.allowLoopback;
     }
     // Unique local fc00::/7 and link-local fe80::/10.
     return /^f[cd]/.test(candidate) || /^fe[89ab]/.test(candidate);
@@ -60,15 +69,21 @@ const ipv4ToInt = (ip: string): number => {
   );
 };
 
-const isBlockedIpv4 = (ip: string): boolean => {
+const isBlockedIpv4 = (
+  ip: string,
+  opts: { allowLoopback?: boolean },
+): boolean => {
   const value = ipv4ToInt(ip);
   if (value < 0) {
     return true; // unparseable — fail closed
   }
+  // 127/8 loopback — allowed only under the test-only loopback flag.
+  if ((value & 0xff000000) === 0x7f000000) {
+    return !opts.allowLoopback;
+  }
   const blockedPrefixes: Array<[number, number]> = [
     [0x00000000, 8], // 0.0.0.0/8 "this network"
     [0x0a000000, 8], // 10/8 private
-    [0x7f000000, 8], // 127/8 loopback
     [0xa9fe0000, 16], // 169.254/16 link-local (incl. 169.254.169.254 metadata)
     [0xac100000, 12], // 172.16/12 private
     [0xc0a80000, 16], // 192.168/16 private
@@ -140,9 +155,13 @@ export const resolveSafeEndpoint = async (
     );
   }
 
+  // AF-M9-02: the test-only loopback flag widens exactly loopback. Reading it
+  // here (per call) costs nothing and lets a test run a loopback target server.
+  const allowLoopback = allowLoopbackEgress();
+
   if (
     addresses.length === 0 ||
-    addresses.some(({ address }) => isBlockedIp(address))
+    addresses.some(({ address }) => isBlockedIp(address, { allowLoopback }))
   ) {
     throw new NonRetriableError(
       `HTTP Request node: endpoint host "${url.hostname}" resolves to a blocked (private/metadata) address`,

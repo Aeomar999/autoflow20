@@ -100,6 +100,11 @@ const serverEnvSchema = z.object({
   // silently.
   RESEND_API_KEY: z.string().min(1).optional(),
   RESEND_FROM_EMAIL: emailSenderSchema.optional(),
+
+  // AF-M9-02: test-only loopback egress allowance for the engine's acceptance
+  // suite. Optional at boot (defaults to off = fail closed); see
+  // `allowLoopbackEgress()` for the production refusal.
+  ALLOW_LOOPBACK_EGRESS: z.string().optional(),
 });
 
 /**
@@ -138,6 +143,9 @@ export const ensureEnv = (): ServerEnv => {
   }
 
   cached = result.data;
+  // AF-M9-02: refuse to boot a production deploy that sets the test-only
+  // loopback egress flag before any request runs (fail fast, not permissive).
+  allowLoopbackEgress();
   return cached;
 };
 
@@ -176,3 +184,28 @@ export const polarWebhookSecret = process.env.POLAR_WEBHOOK_SECRET;
 export const resendApiKey = process.env.RESEND_API_KEY;
 export const resendFromEmail =
   process.env.RESEND_FROM_EMAIL ?? "AutoFlow <onboarding@resend.dev>";
+
+/**
+ * Test-only egress flag (AF-M9-02).
+ *
+ * `ALLOW_LOOPBACK_EGRESS=1` lets the workflow HTTP nodes reach `127.0.0.1` /
+ * `::1` (and any hostname that resolves there, e.g. `localhost`), so the
+ * engine's acceptance suite can run a loopback webhook/target server without
+ * the SSRF guard rejecting every request. It is read raw (not via the schema)
+ * so it works under `SKIP_ENV_VALIDATION` (the test runner), and it is
+ * **refused in production**: the flag widens the egress surface, so a
+ * misconfigured deploy must fail to boot rather than run permissive.
+ *
+ * The flag only widens loopback — the metadata ranges (`169.254/16`, +
+ * `169.254.169.254`), private ranges (`10/8`, `172.16/12`, `192.168/16`),
+ * CGNAT (`100.64/10`), and unique-local IPv6 all stay blocked regardless.
+ */
+export const allowLoopbackEgress = (): boolean => {
+  const enabled = process.env.ALLOW_LOOPBACK_EGRESS === "1";
+  if (enabled && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AutoFlow cannot start: ALLOW_LOOPBACK_EGRESS=1 is a test-only flag and is forbidden in production. Unset it before deploying.",
+    );
+  }
+  return enabled;
+};
