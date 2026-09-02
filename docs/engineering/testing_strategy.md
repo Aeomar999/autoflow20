@@ -58,6 +58,32 @@ Non-negotiable per `docs/engineering/engineering_rules.md` §11. A PR touching t
 | **Logger redaction** | nested secret, secret inside an array, secret in an error cause |
 | **SSRF guard** | loopback · link-local · private ranges · redirect-to-blocked · DNS-resolves-to-blocked |
 
+### 3.5 Engine — execution tests (whole-graph runs)
+
+A **whole-graph integration test is mandatory when a change alters how a graph
+_executes_ end to end** — the runner loop, data passing between nodes, skip
+semantics, quota termination, cancellation, retry, or the condition/edge wiring
+through `markTakenEdges`. These are the cases unit tests cannot reach because
+the failure appears only across multiple nodes and real `Execution` /
+`NodeExecution` rows.
+
+The harness is `tests/integration/engine/run-graph.ts` (`runGraph`, AF-M9-01):
+it takes a `TemplateGraph`, seeds a fixture org + workflow + execution, fakes a
+**memoless** `step` (each callback runs inline — no replay, no memoisation, and
+the `$json` context is deep-cloned to mirror Inngest step serialization), drives
+`executeWorkflowHandler` directly, and returns the terminal `Execution` plus its
+ordered `NodeExecution` rows — asserted on **real DB rows**, not mocks.
+
+Write one when the PR ships an engine behaviour that changes an `Execution`
+status, a `NodeExecution` status/`skipReason`/`order`, `Execution.output`, or
+which nodes run. A regression that documents a known engine bug ships inside
+this section too, red (asserting the buggy outcome) and must flip green when the
+fix lands — see the AF-M9-03 G1 CONDITION-edge case.
+
+Every `runGraph` suite seeds its own org and must clean up after itself (the
+suites truncate the fixture tables in `beforeEach`); they are **serial** and run
+inside the existing `integration` vitest project (`maxWorkers: 1`).
+
 ---
 
 ## 4. What not to test

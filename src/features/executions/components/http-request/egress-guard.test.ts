@@ -116,6 +116,100 @@ describe("assertSafeEndpoint", () => {
   });
 });
 
+/**
+ * AF-M9-02: the test-only `ALLOW_LOOPBACK_EGRESS` flag lets the engine's
+ * acceptance suite run a loopback webhook/target server. It widens ONLY
+ * loopback (`127/8`, `::1`) — metadata (`169.254.169.254`), private, and
+ * CGNAT ranges stay blocked under the flag.
+ */
+describe("isBlockedIp — ALLOW_LOOPBACK_EGRESS", () => {
+  it("blocks loopback by default (flag unset/off)", () => {
+    expect(isBlockedIp("127.0.0.1")).toBe(true);
+    expect(isBlockedIp("::1")).toBe(true);
+    expect(isBlockedIp("::ffff:127.0.0.1")).toBe(true);
+  });
+
+  it("still blocks loopback even when allowed is not requested", () => {
+    expect(isBlockedIp("127.0.0.1", { allowLoopback: false })).toBe(true);
+  });
+
+  it("allows loopback when allowLoopback is requested", () => {
+    expect(isBlockedIp("127.0.0.1", { allowLoopback: true })).toBe(false);
+    expect(isBlockedIp("127.8.4.2", { allowLoopback: true })).toBe(false);
+    expect(isBlockedIp("::1", { allowLoopback: true })).toBe(false);
+    expect(isBlockedIp("::ffff:127.0.0.1", { allowLoopback: true })).toBe(
+      false,
+    );
+  });
+
+  it("keeps metadata, private, and CGNAT blocked under the flag", () => {
+    const opts = { allowLoopback: true };
+    expect(isBlockedIp("169.254.169.254", opts)).toBe(true);
+    expect(isBlockedIp("169.254.0.1", opts)).toBe(true);
+    expect(isBlockedIp("10.1.2.3", opts)).toBe(true);
+    expect(isBlockedIp("192.168.1.1", opts)).toBe(true);
+    expect(isBlockedIp("172.16.0.1", opts)).toBe(true);
+    expect(isBlockedIp("100.64.0.1", opts)).toBe(true);
+    expect(isBlockedIp("::ffff:192.168.0.1", opts)).toBe(true);
+    expect(isBlockedIp("fde7::1", opts)).toBe(true);
+  });
+});
+
+/**
+ * The flag is read from the environment inside `resolveSafeEndpoint`, so
+ * these exercise the wiring end to end: flag off rejects loopback, flag on
+ * accepts it while still rejecting metadata.
+ */
+describe("assertSafeEndpoint — loopback egress flag wiring", () => {
+  const flag = "ALLOW_LOOPBACK_EGRESS";
+
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("rejects loopback endpoints when the flag is off", async () => {
+    vi.stubEnv(flag, "");
+    await expect(assertSafeEndpoint("http://127.0.0.1/x")).rejects.toThrow(
+      /blocked/,
+    );
+  });
+
+  it("accepts a loopback endpoint when the flag is on", async () => {
+    vi.stubEnv(flag, "1");
+    const url = await assertSafeEndpoint("http://127.0.0.1:5433/");
+    expect(url.hostname).toBe("127.0.0.1");
+  });
+
+  it("still rejects the cloud metadata endpoint when the flag is on", async () => {
+    vi.stubEnv(flag, "1");
+    await expect(
+      assertSafeEndpoint("http://169.254.169.254/latest/meta-data"),
+    ).rejects.toThrow(/blocked/);
+  });
+
+  it("still rejects private ranges when the flag is on", async () => {
+    vi.stubEnv(flag, "1");
+    await expect(assertSafeEndpoint("http://192.168.1.1/x")).rejects.toThrow(
+      /blocked/,
+    );
+  });
+
+  it("reads the flag per call, so it flips without a restart", async () => {
+    vi.stubEnv(flag, "1");
+    await expect(
+      assertSafeEndpoint("http://127.0.0.1/x"),
+    ).resolves.toBeTruthy();
+    vi.stubEnv(flag, "0");
+    await expect(assertSafeEndpoint("http://127.0.0.1/x")).rejects.toThrow(
+      /blocked/,
+    );
+  });
+});
+
 describe("resolveTimeoutMs", () => {
   it("defaults when unset or invalid", () => {
     expect(resolveTimeoutMs()).toBe(DEFAULT_HTTP_TIMEOUT_MS);
