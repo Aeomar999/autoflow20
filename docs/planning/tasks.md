@@ -1007,13 +1007,45 @@ seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
 
 **Depends on:** —
 **Acceptance**
-- [ ] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org.
-- [ ] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
-- [ ] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
-- [ ] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03.
-- [ ] Runs inside the existing `integration` vitest project (serial, `maxWorkers: 1`) — no new project, no new CI service.
-- [ ] `docs/engineering/testing_strategy.md` gains a §"Engine execution tests" saying when one is mandatory.
-- [ ] progress.md updated
+- [x] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org.
+- [x] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
+- [x] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
+- [x] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03.
+- [x] Runs inside the existing `integration` vitest project (serial, `maxWorkers: 1`) — no new project, no new CI service.
+- [x] `docs/engineering/testing_strategy.md` gains a §"Engine execution tests" saying when one is mandatory.
+- [x] progress.md updated
+
+**DONE (2026-09-02, AF-M9-01):** shipped as `tests/integration/engine/run-graph.ts` +
+`run-graph.test.ts` — **no `@inngest/test` dependency**. The task's first premise
+(read `InngestTestEngine`) was dropped in favour of a **memoless fake `step`** whose
+`run` executes each callback inline with no replay and no memoisation: the AF-M8-27
+cancellation integration test proved this pattern drives the real
+`executeWorkflowHandler` against real Postgres, and it skips the `@inngest/test`
+package entirely — one less test-only dependency. `runGraph` seeds a fixture org +
+user + workflow + execution via Prisma, converts the day-spec's planning-era
+`TemplateGraph.edges` connection shape into the executor's `{ fromNodeId, toNodeId,
+fromOutput, toInput }` form, and returns `{ execution, nodeExecutions }` asserted on
+**real DB rows**. **Two defects surfaced while making the suites honest.** (1) The
+`$json` context is a self-referential object (`buildTemplateContext` sets
+`$json: accumulatedContext`), so the fake `step.run` had to deep-clone via
+`JSON.parse(JSON.stringify(value))` — mirroring Inngest step-serialization semantics —
+or `serializedBytes` threw `Converting circular structure to JSON`. (2) The quota
+suite initially seeded 100 executions into an org the test itself created while
+`runGraph` seeded a **fresh** org, so the quota gate saw `current=0` and let the run
+through → the test passed for the wrong reason. `runGraph` now accepts
+`orgId`/`userId`/`workflowId` overrides and the quota suite passes its own org so the
+run shares it with the seeded quota rows; it also ungates the global `E2E_SERVER=1`
+bypass for that one run (restored in `finally`) so the gate actually evaluates.
+**Four suites, all green:** linear 3-node → `SUCCESS`; failing SET node without
+`continueOnFail` → downstream `SKIPPED`; quota exceeded → terminal `QUOTA_EXCEEDED`
+with zero node rows and no retry; and the **G1 regression** — a CONDITION whose edges
+carry the editor's real `source-1` handle ids leaves its whole downstream `SKIPPED`
+when it should be `SUCCESS` (the assertion documents the bug and must flip in
+AF-M9-03), proving `markTakenEdges` compares `edge.fromOutput` against the CONDITION's
+`_outputPort` of `"true"`/`"false"` and never matches the canvas's `"source-1"`.
+Suites truncate fixture tables in `beforeEach` and run inside the existing
+`integration` project (`maxWorkers: 1`). Gates clean: `run-graph.test.ts` 4/4,
+`npx biome check .`, `npx tsc --noEmit`, `npm run build`.
 
 ### ⬜ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
 G13. Let the engine reach a fixture HTTP server on `127.0.0.1` **only** under an
