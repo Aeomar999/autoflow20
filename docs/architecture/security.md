@@ -130,6 +130,8 @@ Blocked by default:
 
 Enterprise allowlisting of internal ranges is a per-organization setting, off by default, audit-logged when enabled.
 
+**Test-only loopback allowance (AF-M9-02):** `ALLOW_LOOPBACK_EGRESS=1` — parsed in `src/lib/env.ts`, off by default — lets the workflow HTTP nodes reach `127.0.0.1` / `::1` (and hostnames like `localhost` that resolve there) so the engine's acceptance suite can run a loopback webhook/target server. It widens **only loopback**: the metadata ranges (`169.254/16`, + `169.254.169.254`), private ranges (`10/8`, `172.16/12`, `192.168/16`), CGNAT (`100.64/10`), and unique-local IPv6 stay blocked under the flag. **The flag is refused in production** — `allowLoopbackEgress()` (and `ensureEnv()` at boot) throw a clear error when it is set with `NODE_ENV=production`, so a misconfigured deploy fails to boot rather than run permissive.
+
 ---
 
 ## 6. Executing user-supplied content

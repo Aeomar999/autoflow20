@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { emailSenderSchema, serverEnvSchemaForTests } from "./env";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  allowLoopbackEgress,
+  emailSenderSchema,
+  serverEnvSchemaForTests,
+} from "./env";
 
 /**
  * AF-M8-15: `RESEND_FROM_EMAIL` carries an RFC 5322 sender, which may be a bare
@@ -98,5 +102,45 @@ describe("`.env.example` satisfies its own schema", () => {
     ]) {
       expect(shippedValues.get(key)).toBe("");
     }
+  });
+});
+
+/**
+ * AF-M9-02: `ALLOW_LOOPBACK_EGRESS` is a test-only egress flag. It defaults
+ * off, and a production deploy that sets it must refuse to run rather than
+ * start permissive.
+ */
+describe("allowLoopbackEgress", () => {
+  const flag = "ALLOW_LOOPBACK_EGRESS";
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("defaults to off (fail closed)", () => {
+    vi.stubEnv(flag, "");
+    expect(allowLoopbackEgress()).toBe(false);
+  });
+
+  it("is enabled only by the value 1", () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv(flag, "1");
+    expect(allowLoopbackEgress()).toBe(true);
+    vi.stubEnv(flag, "0");
+    expect(allowLoopbackEgress()).toBe(false);
+    vi.stubEnv(flag, "true");
+    expect(allowLoopbackEgress()).toBe(false);
+  });
+
+  it("refuses to enable in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(flag, "1");
+    expect(() => allowLoopbackEgress()).toThrow(/test-only flag/);
+  });
+
+  it("does not refuse when the flag is absent in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(flag, undefined);
+    expect(allowLoopbackEgress()).toBe(false);
   });
 });

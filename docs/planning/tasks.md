@@ -1047,18 +1047,39 @@ Suites truncate fixture tables in `beforeEach` and run inside the existing
 `integration` project (`maxWorkers: 1`). Gates clean: `run-graph.test.ts` 4/4,
 `npx biome check .`, `npx tsc --noEmit`, `npm run build`.
 
-### ⬜ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
+### ✅ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
 G13. Let the engine reach a fixture HTTP server on `127.0.0.1` **only** under an
 explicit env flag, so the acceptance suite is deterministic and offline.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] `ALLOW_LOOPBACK_EGRESS=1` (parsed in `src/lib/env.ts`, default off) permits `127.0.0.1`/`::1` **and nothing else** — 10/8, 172.16/12, 192.168/16, 169.254/16 and CGNAT stay blocked under the flag.
-- [ ] The flag is refused when `NODE_ENV === "production"`: the app fails to boot with a clear message rather than starting permissive.
-- [ ] Unit tests: flag off → loopback blocked; flag on → loopback allowed and the metadata IP still blocked; production + flag → boot refused.
-- [ ] `docs/architecture/security.md` §SSRF records the exception and why it cannot widen.
-- [ ] `.env.example` documents it as test-only.
-- [ ] progress.md updated
+- [x] `ALLOW_LOOPBACK_EGRESS=1` (parsed in `src/lib/env.ts`, default off) permits `127.0.0.1`/`::1` **and nothing else** — 10/8, 172.16/12, 192.168/16, 169.254/16 and CGNAT stay blocked under the flag.
+- [x] The flag is refused when `NODE_ENV === "production"`: the app fails to boot with a clear message rather than starting permissive.
+- [x] Unit tests: flag off → loopback blocked; flag on → loopback allowed and the metadata IP still blocked; production + flag → boot refused.
+- [x] `docs/architecture/security.md` §SSRF records the exception and why it cannot widen.
+- [x] `.env.example` documents it as test-only.
+- [x] progress.md updated
+
+**DONE (2026-09-02, AF-M9-02):** the flag is parsed in `src/lib/env.ts`
+(`ALLOW_LOOPBACK_EGRESS` accepted as a schema field; `allowLoopbackEgress()`
+reads it raw so it works under `SKIP_ENV_VALIDATION` — the test runner where
+the acceptance suite lives). It permits exactly loopback and nothing else:
+`isBlockedIp`/`isBlockedIpv4` in `egress-guard.ts` take an `allowLoopback`
+option that unwinds only the `127/8` and `::1` branches, while `169.254/16`
+(must stay blocked — cloud metadata, `169.254.169.254`), `10/8`, `172.16/12`,
+`192.168/16`, `100.64/10` CGNAT, and unique-local IPv6 remain on the blocklist.
+`resolveSafeEndpoint` reads `allowLoopbackEgress()` once per call and threads
+the decision into `isBlockedIp`, so both the `assertSafeEndpoint` call sites and
+`safeFetch`'s per-redirect-hop re-vetting inherit it, and the flag flips without
+a restart. **Production refusal is enforced in two places**: `allowLoopbackEgress()`
+itself throws a clear "test-only flag … forbidden in production" error, and
+`ensureEnv()` calls it at boot so a misconfigured deploy refuses to start before
+any request runs. **Tests:** egress-guard suite covers flag-off (loopback
+blocked), flag-on (loopback + `localhost` allowed), metadata/private/CGNAT still
+blocked under the flag, IPv4-mapped loopback, and the end-to-end wiring
+(off rejects `127.0.0.1`, on accepts it, metadata still rejected); env suite
+covers the production refusal and the `=== "1"` exactness. All green alongside
+the existing 59 egress-guard tests.
 
 #### Phase 1 — fix the graph contract
 
