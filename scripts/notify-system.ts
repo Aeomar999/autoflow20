@@ -21,6 +21,8 @@
  *
  *   Add --yes to actually write; without it this only reports what it would do.
  *   Add --href /status to give the notification somewhere to go.
+ *   Add --org <id> (repeatable) to reach only named workspaces; omit it to
+ *   reach every workspace, which is the normal case for maintenance.
  *
  * Dry-run by default: the blast radius is every workspace in the deployment,
  * and there is no unsend.
@@ -60,13 +62,23 @@ async function main(): Promise<void> {
     console.log(`Announcement : ${args.id}`);
     console.log(`Title        : ${args.title}`);
     console.log(`Message      : ${args.message}`);
-    console.log(`Link         : ${args.href ?? "(none)"}\n`);
+    console.log(`Link         : ${args.href ?? "(none)"}`);
+    console.log(
+      `Audience     : ${
+        args.organizationIds
+          ? `${args.organizationIds.length} named workspace(s)`
+          : "all workspaces"
+      }\n`,
+    );
 
     const announcement = {
       announcementId: args.id,
       title: args.title,
       message: args.message,
       href: args.href,
+      ...(args.organizationIds
+        ? { organizationIds: args.organizationIds }
+        : {}),
     };
 
     if (!args.confirmed) {

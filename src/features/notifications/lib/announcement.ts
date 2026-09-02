@@ -14,11 +14,19 @@ export interface AnnouncementArgs {
   title: string;
   message: string;
   href: string | null;
+  /**
+   * Organisations to restrict the broadcast to, from repeated `--org`.
+   * `null` means every workspace, which is the normal case.
+   */
+  organizationIds: string[] | null;
   /** `--yes` was passed. Without it the caller must not write anything. */
   confirmed: boolean;
 }
 
-const VALUE_FLAGS = ["id", "title", "message", "href"] as const;
+const VALUE_FLAGS = ["id", "title", "message", "href", "org"] as const;
+
+/** `--org` may be given more than once; every other value flag may not. */
+const REPEATABLE_FLAGS = new Set<string>(["org"]);
 
 /**
  * Announcement ids are restricted to characters that survive being pasted
@@ -36,6 +44,7 @@ export const ANNOUNCEMENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i;
  */
 export function parseAnnouncementArgs(argv: string[]): AnnouncementArgs {
   const values = new Map<string, string>();
+  const organizationIds: string[] = [];
   let confirmed = false;
 
   for (let index = 0; index < argv.length; index++) {
@@ -59,6 +68,17 @@ export function parseAnnouncementArgs(argv: string[]): AnnouncementArgs {
     // the run into a dry one.
     if (value === undefined || value.startsWith("--")) {
       throw new Error(`--${name} needs a value.`);
+    }
+
+    if (REPEATABLE_FLAGS.has(name)) {
+      organizationIds.push(value.trim());
+      continue;
+    }
+    // A value flag given twice is a mistake worth surfacing: the second
+    // would silently win, and for --id that changes who has already been
+    // told.
+    if (values.has(name)) {
+      throw new Error(`--${name} was given more than once.`);
     }
     values.set(name, value);
   }
@@ -84,6 +104,7 @@ export function parseAnnouncementArgs(argv: string[]): AnnouncementArgs {
     title: (values.get("title") as string).trim(),
     message: (values.get("message") as string).trim(),
     href: values.get("href")?.trim() || null,
+    organizationIds: organizationIds.length > 0 ? organizationIds : null,
     confirmed,
   };
 }

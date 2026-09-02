@@ -262,3 +262,99 @@ describe("notification type labels", () => {
     }
   });
 });
+
+/**
+ * AF-M8-13: `SYSTEM` had an icon, a colour, and a label but no builder and no
+ * dedupe key - so unlike `APPROVAL_REQUESTED` it was not "ready to wire", it
+ * did not exist. These cover the half of the task that is not blocked upstream.
+ */
+describe("systemDedupeKey", () => {
+  it("keys on the announcement id and the organization", () => {
+    expect(systemDedupeKey("maint-2026-09-14", "org_1")).toBe(
+      "system:maint-2026-09-14:org_1",
+    );
+  });
+
+  it("is stable across calls, so a re-run collides and is skipped", () => {
+    expect(systemDedupeKey("incident-42", "org_1")).toBe(
+      systemDedupeKey("incident-42", "org_1"),
+    );
+  });
+
+  it("separates different announcements", () => {
+    expect(systemDedupeKey("a", "org_1")).not.toBe(
+      systemDedupeKey("b", "org_1"),
+    );
+  });
+
+  it("separates the same announcement across organizations", () => {
+    // `Notification.dedupeKey` is globally @unique, not unique per org. Every
+    // other producer embeds a globally-unique row id and so gets per-org
+    // uniqueness for free; a system announcement has no owning row, so without
+    // the org id here a broadcast reaches exactly one workspace and is
+    // silently skipped for all the others.
+    expect(systemDedupeKey("maint", "org_1")).not.toBe(
+      systemDedupeKey("maint", "org_2"),
+    );
+  });
+
+  it("does not collide with another type's key space", () => {
+    expect(systemDedupeKey("x", "org_1")).not.toBe(approvalDedupeKey("x"));
+    expect(systemDedupeKey("x", "org_1")).not.toBe(
+      executionDedupeKey("x", "EXECUTION_FAILED"),
+    );
+  });
+});
+
+describe("buildSystemNotification", () => {
+  const draft = buildSystemNotification({
+    announcementId: "maint-2026-09-14",
+    organizationId: "org_1",
+    title: "Scheduled maintenance on 14 September",
+    message: "Runs will queue for about 20 minutes from 02:00 UTC.",
+  });
+
+  it("passes the operator's copy through verbatim", () => {
+    expect(draft.title).toBe("Scheduled maintenance on 14 September");
+    expect(draft.message).toBe(
+      "Runs will queue for about 20 minutes from 02:00 UTC.",
+    );
+  });
+
+  it("is a SYSTEM notification keyed on the announcement and org", () => {
+    expect(draft.type).toBe("SYSTEM");
+    expect(draft.dedupeKey).toBe("system:maint-2026-09-14:org_1");
+  });
+
+  it("carries no originating row, because there is none", () => {
+    expect(draft.workflowId).toBeNull();
+    expect(draft.executionId).toBeNull();
+    expect(draft.credentialId).toBeNull();
+  });
+
+  it("defaults href to null and keeps one when given", () => {
+    expect(draft.href).toBeNull();
+    expect(
+      buildSystemNotification({
+        announcementId: "x",
+        organizationId: "org_1",
+        title: "t",
+        message: "m",
+        href: "/status",
+      }).href,
+    ).toBe("/status");
+  });
+
+  it("keeps the key stable when the copy is corrected", () => {
+    // Re-sending with fixed wording must still reach people who never saw the
+    // first one; it must not be silently skipped because the text changed.
+    const corrected = buildSystemNotification({
+      announcementId: "maint-2026-09-14",
+      organizationId: "org_1",
+      title: "Scheduled maintenance on 14 September (updated)",
+      message: "Now 30 minutes.",
+    });
+
+    expect(corrected.dedupeKey).toBe(draft.dedupeKey);
+  });
+});

@@ -17,6 +17,7 @@ describe("parseAnnouncementArgs", () => {
       title: "Scheduled maintenance",
       message: "Runs may be delayed between 02:00 and 03:00 UTC.",
       href: null,
+      organizationIds: null,
       confirmed: false,
     });
   });
@@ -117,5 +118,32 @@ describe("parseAnnouncementArgs", () => {
           .id,
       ).toBe(id);
     }
+  });
+  it("targets no workspace in particular without --org", () => {
+    expect(parseAnnouncementArgs(REQUIRED).organizationIds).toBeNull();
+  });
+
+  it("collects repeated --org values", () => {
+    // Ported from the send-system-notification script that PR #46 replaced;
+    // dropping it in the merge would have silently removed the ability to
+    // announce to a subset of workspaces.
+    expect(
+      parseAnnouncementArgs([...REQUIRED, "--org", "org_a", "--org", "org_b"])
+        .organizationIds,
+    ).toEqual(["org_a", "org_b"]);
+  });
+
+  it("accepts a single --org", () => {
+    expect(
+      parseAnnouncementArgs([...REQUIRED, "--org", "org_a"]).organizationIds,
+    ).toEqual(["org_a"]);
+  });
+
+  it("rejects a value flag given twice", () => {
+    // The second would silently win, and for --id that changes who has
+    // already been told.
+    expect(() =>
+      parseAnnouncementArgs([...REQUIRED, "--title", "Second title"]),
+    ).toThrow(/--title was given more than once/);
   });
 });
