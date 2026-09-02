@@ -845,18 +845,18 @@ These tasks are appended in clean UTF-8; the surrounding M7 block predates this 
 
 
 
-### ? AF-UI-01 � Create KpiCard Component � 1d
+### ✅ AF-UI-01 · Create KpiCard Component · 1d
 - [x] Create KpiCard component matching the provided UI design.
 - [x] Create test page at /test-kpi. — **removed 2026-09-02**: it was a scratch page of hardcoded e-commerce figures (`TOTAL REVENUE`, `NEW CUSTOMERS`, `CONVERSION RATE`) that shipped in the production build. `KpiCard` itself is kept, but is now referenced by nothing.
 - [x] Walkthrough created.
 
 
-### ? AF-UI-02 � Style Executions Chart like Sales Trend � 1d
+### ✅ AF-UI-02 · Style Executions Chart like Sales Trend · 1d
 - [x] Group metrics into successful and failed/other.
 - [x] Rewrite ExecutionsOverTimeChart to use dark theme matching the Sales Trend design.
 
 
-### ? AF-UI-03 � Make Sparkbars Thicker � 1d
+### ✅ AF-UI-03 · Make Sparkbars Thicker · 1d
 - [x] Adjust width and spacing in Sparkbars to render thicker lines.
 
 ---
