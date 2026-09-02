@@ -220,6 +220,49 @@ podman start autoflow-db             # if listed but exited
 Test-NetConnection localhost -Port 5432   # TcpTestSucceeded : True
 ```
 
+**`docker` CLI routing note (fixed 2026-09-02).** The installed `docker` CLI
+is pointed at the Podman machine permanently by switching the active context
+— a one-time change persisted in `~/.docker/config.json` that applies to
+every fresh terminal:
+
+```powershell
+docker context use podman-machine-default   # active context -> Podman machine
+docker ps                                   # should list autoflow-db
+```
+
+The old default `desktop-linux` context targets Docker Desktop's engine pipe
+(`dockerDesktopLinuxEngine`), which does not exist on this machine; switch
+back with `docker context use desktop-linux` if Docker Desktop is ever
+repaired. (Before this fix, the same routing needed the per-session
+`$env:DOCKER_HOST = "npipe:////./pipe/docker_engine"`, the pipe `podman machine start` prints.)
+
+---
+
+### Running the integration suite (test database)
+
+The suite needs a throwaway Postgres on `127.0.0.1:5433`. `npm run test:db:up`
+publishes the port with podman, and podman's netavark cannot do that on this
+machine (`nftables error`; the WSL kernel ships no loadable `nf_tables`
+module). As of 2026-09-02 the script uses `--network host` + `PGPORT=5433`
+instead, which is the pattern every container that works here — including
+`autoflow-db` — uses: the port is set inside the container and reached from
+Windows through the `.wslconfig` `hostAddressLoopback` bridge:
+
+```powershell
+# docker CLI is already routed to Podman via the podman-machine-default context (§5)
+docker rm -f autoflow-test-db          # if a stale one exists
+npm run test:db:up                     # = docker run -d --name autoflow-test-db --network host `
+                                       #     -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres `
+                                       #     -e POSTGRES_DB=autoflow_test -e PGPORT=5433 pgvector/pgvector:pg16
+$env:TEST_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5433/autoflow_test"
+npm run test:integration
+npm run test:db:down                   # when done
+```
+
+Verified green here on 2026-09-02: **13 files / 114 tests, 0 failing**
+(cross-tenant isolation, public REST routes, API-key surface). `test:db:down`
+needs no change.
+
 ---
 
 ## 6. Database management
@@ -296,6 +339,8 @@ Only relevant when deploying; local `inngest-cli dev` ignores them. Leave empty.
 | `Cannot find module '@/generated/prisma'` (types) | Client not regenerated after pull/schema change | `npx prisma generate`, restart TS server in editor |
 | Port 3000 already in use | Zombie node process | `Get-Process node \| Stop-Process -Force` |
 | `npx prisma dev` fails with `EBUSY ... durable-streams.sqlite` | Stale lock/sidecar files (`-wal`/`-shm`) from a crashed previous run | Close other terminals, delete `%LOCALAPPDATA%\prisma-dev-nodejs\Data\durable-streams\default\*`, retry. Note: this project doesn't need `prisma dev` at all — its database is the Podman Postgres; `prisma dev` only spins up Prisma's separate built-in local Postgres simulator |
+| `docker` CLI: can't find pipe `dockerDesktopLinuxEngine` | Docker Desktop context is the default but that engine is not installed/working here | `docker context use podman-machine-default` — see §5 |
+| `docker run -p ...` → `netavark ... nftables error` | WSL kernel lacks `nf_tables`; port publishing cannot work on this machine | `--network host` + `PGPORT` — see the "Running the integration suite" recipe above |
 
 ---
 
@@ -309,4 +354,5 @@ Only relevant when deploying; local `inngest-cli dev` ignores them. Leave empty.
 | `npm run lint` | clean (biome, 217 files) |
 | `npx tsc --noEmit` | clean |
 | `npm test` | **78/78 passing** |
+| `npm run test:integration` | **13 files / 114 tests passing** (verified 2026-09-02, via the §5 host-network test-DB recipe) |
 | Live boot `npm run dev` → `GET http://localhost:3000` | HTTP 200; `/workflows` → 307 → `/login` → 200 |

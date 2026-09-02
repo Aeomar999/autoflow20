@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:integration": "vitest run --project integration",
-    "test:db:up": "docker run -d --name autoflow-test-db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=autoflow_test -p 5433:5432 pgvector/pgvector:pg16",
+    "test:db:up": "docker run -d --name autoflow-test-db --network host -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=autoflow_test -e PGPORT=5433 pgvector/pgvector:pg16",
     "test:db:down": "docker rm -f autoflow-test-db",
     "ngrok:dev": "node scripts/ngrok-dev.mjs",
     "migrate:credentials": "tsx scripts/migrate-credentials.ts",

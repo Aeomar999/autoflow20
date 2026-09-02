@@ -188,6 +188,13 @@ podman run --name autoflow-db -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=autoflow -p 5432:5432 -d docker.io/library/postgres:16
 ```
 
+> **On Jerry's Windows/Podman box these `-p` recipes will not run.** The WSL
+> kernel ships no loadable `nf_tables`, so podman's netavark cannot publish
+> ports; the working pattern there is `--network host` with the port set via
+> `PGPORT`, reached from Windows through the `.wslconfig` `hostAddressLoopback`
+> bridge. Machine-specific variants and the root cause are in
+> [`local_setup_guide.md`](./local_setup_guide.md).
+
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/autoflow?schema=public"
 ```
@@ -499,6 +506,7 @@ Postgres service container.
 | Empty list where data should be | prefetch/query failed | server log; rerun with `LOG_LEVEL=debug` |
 | **"Invalid origin" on sign-up/sign-in** | Better Auth matches the request `Origin` against `baseURL`; a deployed app whose `BETTER_AUTH_URL` still says localhost rejects every request | set `BETTER_AUTH_URL` to the real deployment URL — see §10.1 |
 | **Vercel deploy fails but the build succeeded** | Vercel blocks deploys on vulnerable dependencies, and names only one at a time | read the **last line** of the build log — see §10.2 |
+| `docker run -p` fails with `netavark ... nftables error` | Windows/Podman box: WSL kernel has no `nf_tables`, so port publishing cannot work | use `--network host` + `PGPORT`; recipes in `docs/operations/local_setup_guide.md` |
 
 ### 10.1 "Invalid origin" on sign-up
 
