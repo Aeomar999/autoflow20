@@ -28,13 +28,22 @@ export const LandingFooter = () => {
               credential isolation, and observable node traces.
             </p>
 
-            {/* Live Operational Status */}
-            <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-border/80 bg-muted/40 px-3 py-1.5 font-mono text-[11px] text-muted-foreground w-fit">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>All Systems Operational</span>
+            {/*
+              Links to /status rather than asserting health. This badge used to
+              read "All Systems Operational" as static text, which is a claim
+              the footer cannot make - it is hardcoded, so it says the service
+              is up most loudly at the exact moment it is down. /status reads
+              the same health check the uptime monitor does (AF-M8-07).
+            */}
+            <Link
+              href="/status"
+              className="mt-2 inline-flex w-fit items-center gap-2 rounded-lg border border-border/80 bg-muted/40 px-3 py-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <span className="size-2 rounded-full bg-emerald-500" />
+              <span>Service status</span>
               <span className="text-border">·</span>
               <span>v0.4.0</span>
-            </div>
+            </Link>
           </div>
 
           {/* Links Columns */}
@@ -164,10 +173,39 @@ export const LandingFooter = () => {
           </div>
         </div>
 
-        {/* Bottom Bar */}
+        {/*
+          Bottom Bar. Terms, Privacy and DPA are reachable from every page that
+          renders this footer - checklist item 4.7. A policy nobody can find is
+          not published, and "linked from the footer" is the baseline every
+          privacy regime assumes.
+        */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-6 sm:flex-row text-[11px]">
           <p>© {new Date().getFullYear()} AutoFlow. All rights reserved.</p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <Link
+              href="/terms"
+              className="hover:text-foreground transition-colors"
+            >
+              Terms
+            </Link>
+            <Link
+              href="/privacy"
+              className="hover:text-foreground transition-colors"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/dpa"
+              className="hover:text-foreground transition-colors"
+            >
+              DPA
+            </Link>
+            <Link
+              href="/support"
+              className="hover:text-foreground transition-colors"
+            >
+              Support
+            </Link>
             <Link
               href="/login"
               className="hover:text-foreground transition-colors"

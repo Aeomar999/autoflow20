@@ -13,6 +13,16 @@ verified walkthrough of Jerry's Windows/Podman setup, see
 > (`src/lib/env.ts`, `src/lib/auth.ts`, `src/lib/polar.ts`, `next.config.ts`,
 > `sentry.*.config.ts`, `package.json`, webhook routes). Where a variable is
 > optional it really is optional; where a value is hardcoded that is stated.
+>
+> **Re-reconciled 2026-09-02 (AF-M0-08).** Section 4.2 had drifted thirteen
+> variables behind `.env.example` — the Resend pair (AF-M8-04), the Polar
+> webhook secret and per-plan product ids (AF-M8-23), and the legal/support
+> block (AF-M8-10) — all now listed. The quick start also still ran
+> `npm run migrate:legacy-ai-nodes`, a script AF-M8-12 deleted; it now runs
+> the read-only `verify:legacy-ai-nodes` check that replaced it. Checked
+> mechanically by diffing the variable names in `.env.example` against this
+> document, so the two cannot silently drift apart again without that diff
+> showing it.
 
 ## Table of contents
 
@@ -99,10 +109,11 @@ docker run --name autoflow-db -e POSTGRES_PASSWORD=postgres \
 npm run migrate:credentials
 npx prisma migrate deploy     # apply all migrations
 npx prisma generate           # client -> src/generated/prisma
-# ONLY on a database that still holds OPENAI / ANTHROPIC / GEMINI nodes
-# (AF-M5-09): move them onto AI_LLM. Safe to run any time AFTER the schema is
-# up to date; no-ops when none remain. Dry-runs by default; add -- --yes.
-npm run migrate:legacy-ai-nodes
+# Read-only check (AF-M8-12): confirms no OPENAI / ANTHROPIC / GEMINI nodes
+# remain. Those node types were deleted from the registry, so a persisted node
+# still holding one fails its whole graph at execution time. Exits non-zero if
+# any are found; the recovery is in docs/operations/operator_actions.md C1.
+npm run verify:legacy-ai-nodes
 # Populate the template gallery (AF-M7-02). Idempotent, keyed on slug, and
 # safe to re-run after every pull — that is how catalogue edits reach the DB.
 # Dry-runs by default; add -- --yes to write.
@@ -148,7 +159,7 @@ tables are the source of truth for meaning and requiredness.
 | `POLAR_SUCCESS_URL` | checkout plugin | server-side post-checkout redirect |
 | `POLAR_PRODUCT_ID` | `polarProductId` export | Pro product UUID; unset = empty products list, app still boots |
 | `POLAR_PRODUCT_SLUG` | `polarProductSlug` export | server-side slug override |
-| `ENCRYPTION_KEY` | 64 hex chars | `scripts/migrate-credentials.ts` | **legacy** pre-AF-M3-02 key (Cryptr); required only to convert old credential rows — the vault uses `CREDENTIAL_MASTER_KEY` |
+| `ENCRYPTION_KEY` | `scripts/migrate-credentials.ts` | **legacy** pre-AF-M3-02 Cryptr key, 64 hex chars; required only to convert old credential rows — the vault itself uses `CREDENTIAL_MASTER_KEY` |
 | `NEXT_PUBLIC_POLAR_PRODUCT_SLUG` | client checkout buttons | slug for sidebar/upgrade-modal checkout; falls back to `"pro"` |
 | `INNGEST_EVENT_KEY` | SDK convention | production event ingestion only |
 | `INNGEST_SIGNING_KEY` | SDK convention | verifies inbound Inngest requests (required on cloud) |
@@ -157,6 +168,26 @@ tables are the source of truth for meaning and requiredness.
 | `NGROK_URL` | `ngrok:dev` script | reserved static domain for section 7 |
 | `LOG_LEVEL` | `src/lib/logger.ts` | debug/info/warn/error, default info |
 | `ENGINE_RETRIES` | `src/inngest/config.ts` | engine retry count 0-20, default 3 |
+| `RESEND_API_KEY` | `src/lib/email.ts` (AF-M8-04) | transactional auth email; password reset and email verification **fail loudly** when unset rather than pretending to send |
+| `RESEND_FROM_EMAIL` | `resendFromEmail` export | verified sender, bare address or `Name <addr@host>`; defaults to Resend's test sender |
+| `POLAR_WEBHOOK_SECRET` | `src/lib/auth.ts` (AF-M8-23) | signs the subscription webhooks that write `Organization.plan`. Unset = every delivery rejected with 400, so **paying customers silently stay on FREE** |
+| `POLAR_PRODUCT_ID_STARTER` | `resolvePlanMap` | product UUID granting STARTER |
+| `POLAR_PRODUCT_ID_PRO` | `resolvePlanMap` | product UUID granting PRO; falls back to `POLAR_PRODUCT_ID` for single-product installs |
+| `POLAR_PRODUCT_ID_ENTERPRISE` | `resolvePlanMap` | product UUID granting ENTERPRISE |
+| `NEXT_PUBLIC_LEGAL_ENTITY_NAME` | `src/config/legal.ts` (AF-M8-10) | registered company name |
+| `NEXT_PUBLIC_LEGAL_JURISDICTION` | `src/config/legal.ts` | governing law and venue |
+| `NEXT_PUBLIC_LEGAL_ADDRESS` | `src/config/legal.ts` | registered address, one line |
+| `NEXT_PUBLIC_LEGAL_CONTACT_EMAIL` | `src/config/legal.ts` | contact for legal notices |
+| `NEXT_PUBLIC_LEGAL_PRIVACY_EMAIL` | `src/config/legal.ts` | data-protection contact; falls back to the contact address |
+| `NEXT_PUBLIC_LEGAL_EFFECTIVE_DATE` | `src/config/legal.ts` | ISO date shown on the policies |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | `/support` page | support address; unset = the page says so instead of rendering a broken `mailto:` |
+
+**The legal block is all-or-nothing.** `/terms`, `/privacy` and `/dpa` refuse
+to render their policy body until every `NEXT_PUBLIC_LEGAL_*` value above is
+set, showing what is missing instead. That is deliberate: a privacy policy
+displaying `[COMPANY_LEGAL_NAME]` reads as a real policy to a user and as
+negligence to a regulator. Setting them does **not** make the drafts
+publishable — see `docs/operations/beta_launch_checklist.md` §4.
 
 **Test tooling** (not read by application code): `TEST_DATABASE_URL` points the
 `integration` vitest project at its own Postgres — contract and local Docker
@@ -187,6 +218,13 @@ docker run --name autoflow-db -e POSTGRES_PASSWORD=postgres \
 podman run --name autoflow-db -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=autoflow -p 5432:5432 -d docker.io/library/postgres:16
 ```
+
+> **On Jerry's Windows/Podman box these `-p` recipes will not run.** The WSL
+> kernel ships no loadable `nf_tables`, so podman's netavark cannot publish
+> ports; the working pattern there is `--network host` with the port set via
+> `PGPORT`, reached from Windows through the `.wslconfig` `hostAddressLoopback`
+> bridge. Machine-specific variants and the root cause are in
+> [`local_setup_guide.md`](./local_setup_guide.md).
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/autoflow?schema=public"
@@ -499,6 +537,7 @@ Postgres service container.
 | Empty list where data should be | prefetch/query failed | server log; rerun with `LOG_LEVEL=debug` |
 | **"Invalid origin" on sign-up/sign-in** | Better Auth matches the request `Origin` against `baseURL`; a deployed app whose `BETTER_AUTH_URL` still says localhost rejects every request | set `BETTER_AUTH_URL` to the real deployment URL — see §10.1 |
 | **Vercel deploy fails but the build succeeded** | Vercel blocks deploys on vulnerable dependencies, and names only one at a time | read the **last line** of the build log — see §10.2 |
+| `docker run -p` fails with `netavark ... nftables error` | Windows/Podman box: WSL kernel has no `nf_tables`, so port publishing cannot work | use `--network host` + `PGPORT`; recipes in `docs/operations/local_setup_guide.md` |
 
 ### 10.1 "Invalid origin" on sign-up
 

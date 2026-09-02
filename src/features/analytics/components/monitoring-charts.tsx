@@ -16,7 +16,6 @@ import {
   Panel,
   PanelBody,
   PanelEmpty,
-  PanelFooter,
   PanelHeader,
   PanelTitle,
 } from "@/components/dashboard/panel";
@@ -55,7 +54,7 @@ const STATUS_LABELS: Record<(typeof CHARTED_STATUSES)[number], string> = {
   CANCELLED: "Cancelled",
 };
 
-const chartConfig = Object.fromEntries(
+const _chartConfig = Object.fromEntries(
   CHARTED_STATUSES.map((status) => [
     status,
     { label: STATUS_LABELS[status], color: STATUS_COLORS[status] },
@@ -237,83 +236,95 @@ export function ExecutionsOverTimeChart({
       </div>
 
       <div className="p-5 pt-2">
-        <ChartContainer config={customConfig} className="h-[280px] w-full">
-          <BarChart data={chartData} margin={{ left: 4, right: 4, top: 20 }}>
-            <defs>
-              <pattern
-                id={GHOST_PATTERN_ID}
-                width={CELL}
-                height={CELL}
-                patternUnits="userSpaceOnUse"
-              >
-                <rect
-                  width={CELL - GAP}
-                  height={CELL - GAP}
-                  rx={1}
-                  fill="#ffffff"
-                  opacity={0.03}
-                />
-              </pattern>
-            </defs>
-            <CartesianGrid
-              vertical={false}
-              strokeDasharray="2 4"
-              stroke="#ffffff"
-              strokeOpacity={0.05}
-            />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={12}
-              minTickGap={24}
-              tickFormatter={formatDayLabel}
-              stroke="#ffffff"
-              strokeOpacity={0.3}
-              fontSize={10}
-              fontWeight={500}
-            />
-            <YAxis
-              axisLine={false}
-              width={40}
-              tickSize={2}
-              tickLine={{
-                stroke: "rgba(255,255,255,0.1)",
-                strokeWidth: 2,
-                strokeLinecap: "round",
-              }}
-              allowDecimals={false}
-              tickFormatter={formatCount}
-              stroke="#ffffff"
-              strokeOpacity={0.3}
-              fontSize={10}
-              fontWeight={500}
-            />
-            <ChartTooltip
-              cursor={<MosaicCursor />}
-              content={
-                <ChartTooltipContent
-                  className="bg-[#2a2c35] border-white/10 text-white rounded-lg shadow-xl"
-                  labelFormatter={(label) => formatDayLabel(String(label))}
-                />
-              }
-            />
+        {total === 0 ? (
+          // AF-M8-24: a workspace with no runs used to get axes and gridlines
+          // drawn around nothing, which reads as a broken chart rather than an
+          // empty one. Every sibling panel on this dashboard explains its own
+          // emptiness ("No runs to measure yet", "No node has failed in this
+          // window."); this one lost that when the chart was restyled.
+          <div className="flex h-[280px] w-full items-center justify-center text-sm text-white/40">
+            No executions in this window — the last{" "}
+            {periodDays === 1 ? "day" : `${periodDays} days`}.
+          </div>
+        ) : (
+          <ChartContainer config={customConfig} className="h-[280px] w-full">
+            <BarChart data={chartData} margin={{ left: 4, right: 4, top: 20 }}>
+              <defs>
+                <pattern
+                  id={GHOST_PATTERN_ID}
+                  width={CELL}
+                  height={CELL}
+                  patternUnits="userSpaceOnUse"
+                >
+                  <rect
+                    width={CELL - GAP}
+                    height={CELL - GAP}
+                    rx={1}
+                    fill="#ffffff"
+                    opacity={0.03}
+                  />
+                </pattern>
+              </defs>
+              <CartesianGrid
+                vertical={false}
+                strokeDasharray="2 4"
+                stroke="#ffffff"
+                strokeOpacity={0.05}
+              />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={12}
+                minTickGap={24}
+                tickFormatter={formatDayLabel}
+                stroke="#ffffff"
+                strokeOpacity={0.3}
+                fontSize={10}
+                fontWeight={500}
+              />
+              <YAxis
+                axisLine={false}
+                width={40}
+                tickSize={2}
+                tickLine={{
+                  stroke: "rgba(255,255,255,0.1)",
+                  strokeWidth: 2,
+                  strokeLinecap: "round",
+                }}
+                allowDecimals={false}
+                tickFormatter={formatCount}
+                stroke="#ffffff"
+                strokeOpacity={0.3}
+                fontSize={10}
+                fontWeight={500}
+              />
+              <ChartTooltip
+                cursor={<MosaicCursor />}
+                content={
+                  <ChartTooltipContent
+                    className="bg-[#2a2c35] border-white/10 text-white rounded-lg shadow-xl"
+                    labelFormatter={(label) => formatDayLabel(String(label))}
+                  />
+                }
+              />
 
-            <Bar
-              dataKey="successful"
-              stackId="runs"
-              fill="#f97316"
-              shape={<MosaicBar />}
-              background={{ fill: `url(#${GHOST_PATTERN_ID})` }}
-            />
-            <Bar
-              dataKey="failed"
-              stackId="runs"
-              fill="#4b5563"
-              shape={<MosaicBar />}
-            />
-          </BarChart>
-        </ChartContainer>
+              <Bar
+                dataKey="successful"
+                stackId="runs"
+                fill="#f97316"
+                shape={<MosaicBar />}
+                background={{ fill: `url(#${GHOST_PATTERN_ID})` }}
+              />
+              <Bar
+                dataKey="failed"
+                stackId="runs"
+                fill="#4b5563"
+                shape={<MosaicBar />}
+              />
+            </BarChart>
+          </ChartContainer>
+        )}
       </div>
     </div>
   );

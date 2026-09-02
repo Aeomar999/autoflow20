@@ -61,3 +61,4 @@ Each with the reason it lost.
 | [0014](0014-resend-for-auth-email.md) | Resend for transactional auth email | Accepted |
 | [0015](0015-guarded-fetch-for-redirects.md) | The SSRF guard owns redirect following, via a `fetch` given to the client | Accepted |
 | [0016](0016-execution-retention-over-partitioning.md) | Two-stage execution retention now; partitioning deferred behind a trigger | Accepted |
+| [0017](0017-pinned-address-egress.md) | Egress connects to the address the guard vetted, via undici | Accepted |

@@ -38,6 +38,27 @@ function makeNodeSchema(type: string, data: z.ZodTypeAny) {
 
 const configOf = (type: string) => nodeRegistry.resolve(type).configSchema;
 
+/**
+ * The saveable node types.
+ *
+ * Hand-written rather than derived, because `makeNodeSchema` needs a LITERAL
+ * type per entry for `z.discriminatedUnion` to keep its discriminant - mapping
+ * over the manifest would collapse every `z.literal(type)` to
+ * `ZodLiteral<string>` and lose that. The cost of hand-writing it is drift,
+ * and drift here is not cosmetic:
+ *
+ * - A registered type missing from this list **cannot be saved**. That was the
+ *   state of `AI_LLM` and `AI_EXTRACT` until AF-M8-24: both shipped in M5,
+ *   both sat in the palette, and neither could be persisted, because this
+ *   input schema rejected them before the handler ran.
+ * - A deleted type still listed here throws `UnknownNodeTypeError` at import,
+ *   which is what AF-M8-12 did to `ANTHROPIC`/`GEMINI`/`OPENAI`.
+ *
+ * `schemas.test.ts` therefore asserts this list matches the registry exactly,
+ * so either kind of drift fails the build with a message naming the type
+ * instead of surfacing as a save that mysteriously does not work.
+ */
+
 export const updateNodeSchemas = [
   makeNodeSchema("INITIAL", configOf("MANUAL_TRIGGER")),
   makeNodeSchema("MANUAL_TRIGGER", configOf("MANUAL_TRIGGER")),
@@ -49,9 +70,6 @@ export const updateNodeSchemas = [
   makeNodeSchema("GOOGLE_FORM_TRIGGER", configOf("GOOGLE_FORM_TRIGGER")),
   makeNodeSchema("STRIPE_TRIGGER", configOf("STRIPE_TRIGGER")),
   makeNodeSchema("HTTP_REQUEST", configOf("HTTP_REQUEST")),
-  makeNodeSchema("ANTHROPIC", configOf("ANTHROPIC")),
-  makeNodeSchema("GEMINI", configOf("GEMINI")),
-  makeNodeSchema("OPENAI", configOf("OPENAI")),
   makeNodeSchema("DISCORD", configOf("DISCORD")),
   makeNodeSchema("SLACK", configOf("SLACK")),
   makeNodeSchema("EMAIL_SEND", configOf("EMAIL_SEND")),
@@ -62,6 +80,8 @@ export const updateNodeSchemas = [
   makeNodeSchema("POSTGRES_QUERY", configOf("POSTGRES_QUERY")),
   makeNodeSchema("OPENAI_COMPATIBLE_CHAT", configOf("OPENAI_COMPATIBLE_CHAT")),
   makeNodeSchema("AI_RETRIEVE", configOf("AI_RETRIEVE")),
+  makeNodeSchema("AI_LLM", configOf("AI_LLM")),
+  makeNodeSchema("AI_EXTRACT", configOf("AI_EXTRACT")),
 ] as const;
 
 export const saveWorkflowInputSchema = z.object({

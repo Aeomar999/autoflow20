@@ -4,7 +4,11 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { resolveTrustedOrigins } from "@/lib/auth-origins";
 import prisma from "@/lib/db";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
-import { polarProductId, polarProductSlug } from "@/lib/env";
+import {
+  polarProductId,
+  polarProductSlug,
+  polarWebhookSecret,
+} from "@/lib/env";
 import { updatePlanFromWebhook } from "./auth-webhooks";
 import { polarClient } from "./polar";
 
@@ -74,7 +78,11 @@ export const auth = betterAuth({
         }),
         portal(),
         webhooks({
-          secret: process.env.POLAR_WEBHOOK_SECRET as string,
+          // AF-M8-23. Typed as required by the plugin but checked at runtime:
+          // with no secret every delivery is rejected with 400 before a
+          // handler runs, so an unconfigured install cannot be spoofed into
+          // granting a plan.
+          secret: polarWebhookSecret as string,
           onSubscriptionActive: async (payload) =>
             updatePlanFromWebhook(
               payload.data.customer?.externalId,

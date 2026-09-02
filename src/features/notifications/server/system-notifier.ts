@@ -3,7 +3,7 @@ import "server-only";
 import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
 
-import { buildSystemNotification } from "../lib/build";
+import { buildSystemNotification, systemDedupeKey } from "../lib/build";
 import { writeNotifications } from "./notify";
 
 /**
@@ -19,7 +19,7 @@ import { writeNotifications } from "./notify";
  * this task, for an action performed a handful of times a year. A script runs
  * with database credentials, which the operator already holds, and adds no new
  * authenticated surface. It matches the existing `scripts/` pattern
- * (`migrate-credentials`, `migrate-legacy-ai-nodes`, `seed-templates`),
+ * (`migrate-credentials`, `verify-legacy-ai-nodes`, `seed-templates`),
  * including dry-run-by-default.
  *
  * The logic lives here rather than in the script so it can be tested against a
@@ -53,8 +53,72 @@ export interface SystemAnnouncementResult {
   skipped: number;
 }
 
+export interface SystemAnnouncementPreview {
+  /** Organizations the announcement would be addressed to. */
+  targeted: number;
+  /** Organizations that would receive it. */
+  pending: number;
+  /** Organizations that already have it, and would be skipped. */
+  skipped: number;
+}
+
 /** Organizations written per statement, so one broadcast is not one huge write. */
 export const SYSTEM_BROADCAST_BATCH_SIZE = 200;
+
+/** Ids of every organization this announcement is addressed to, in a stable order. */
+const resolveTargets = async (
+  announcement: SystemAnnouncement,
+): Promise<string[]> => {
+  const organizations = await prisma.organization.findMany({
+    where: announcement.organizationIds
+      ? { id: { in: announcement.organizationIds } }
+      : undefined,
+    select: { id: true },
+    orderBy: { id: "asc" },
+  });
+  return organizations.map((organization) => organization.id);
+};
+
+/**
+ * What a broadcast would do, without doing it.
+ *
+ * This is the dry run, and it lives here rather than in the calling script for
+ * the same reason the write path does: the operator decides whether to send
+ * based on these numbers, so they need to be tested against a real database
+ * rather than assembled ad hoc at the call site.
+ *
+ * Reads in the same batches as the write, so previewing a broadcast to a large
+ * fleet does not become one enormous `IN` list.
+ */
+export const previewSystemBroadcast = async (
+  announcement: SystemAnnouncement,
+): Promise<SystemAnnouncementPreview> => {
+  const targets = await resolveTargets(announcement);
+
+  let skipped = 0;
+  for (
+    let offset = 0;
+    offset < targets.length;
+    offset += SYSTEM_BROADCAST_BATCH_SIZE
+  ) {
+    const batch = targets.slice(offset, offset + SYSTEM_BROADCAST_BATCH_SIZE);
+    skipped += await prisma.notification.count({
+      where: {
+        dedupeKey: {
+          in: batch.map((organizationId) =>
+            systemDedupeKey(announcement.announcementId, organizationId),
+          ),
+        },
+      },
+    });
+  }
+
+  return {
+    targeted: targets.length,
+    pending: targets.length - skipped,
+    skipped,
+  };
+};
 
 /**
  * Send one announcement to every targeted organization.
@@ -66,37 +130,32 @@ export const SYSTEM_BROADCAST_BATCH_SIZE = 200;
  * Each organization is written separately because `Notification` is
  * org-scoped and `writeNotifications` takes one org - the batching here is
  * about bounding the loop, not about a single multi-tenant insert.
+ *
+ * Everything goes through `writeNotifications` rather than a direct
+ * `createMany`, so the replay guard and the never-break-the-caller rule stay
+ * enforced in one place instead of being re-implemented per producer.
  */
 export const broadcastSystemNotification = async (
   announcement: SystemAnnouncement,
 ): Promise<SystemAnnouncementResult> => {
-  const organizations = await prisma.organization.findMany({
-    where: announcement.organizationIds
-      ? { id: { in: announcement.organizationIds } }
-      : undefined,
-    select: { id: true },
-    orderBy: { id: "asc" },
-  });
+  const targets = await resolveTargets(announcement);
 
   let written = 0;
 
   for (
     let offset = 0;
-    offset < organizations.length;
+    offset < targets.length;
     offset += SYSTEM_BROADCAST_BATCH_SIZE
   ) {
-    const batch = organizations.slice(
-      offset,
-      offset + SYSTEM_BROADCAST_BATCH_SIZE,
-    );
+    const batch = targets.slice(offset, offset + SYSTEM_BROADCAST_BATCH_SIZE);
 
-    for (const organization of batch) {
+    for (const organizationId of batch) {
       // The draft is built per organization because the dedupe key contains
       // the organization id - see `systemDedupeKey`.
-      written += await writeNotifications(organization.id, [
+      written += await writeNotifications(organizationId, [
         buildSystemNotification({
           announcementId: announcement.announcementId,
-          organizationId: organization.id,
+          organizationId,
           title: announcement.title,
           message: announcement.message,
           href: announcement.href ?? null,
@@ -106,9 +165,9 @@ export const broadcastSystemNotification = async (
   }
 
   const result: SystemAnnouncementResult = {
-    targeted: organizations.length,
+    targeted: targets.length,
     written,
-    skipped: organizations.length - written,
+    skipped: targets.length - written,
   };
 
   logger.info("system announcement broadcast", {

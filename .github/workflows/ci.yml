@@ -12,6 +12,12 @@ jobs:
       SKIP_ENV_VALIDATION: "1"
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/autoflow_test
       BETTER_AUTH_SECRET: ci-not-a-real-secret
+      # AF-M0-06: without this the `integration` project skips itself and CI
+      # goes green having run none of it - the suites that prove cross-tenant
+      # isolation, the public REST surface, and API-key auth. The service
+      # container below is the only database in the job, so pointing the test
+      # DB at it is safe: there is no dev or production data to truncate.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/autoflow_test
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -39,7 +45,26 @@ jobs:
         run: npx tsc --noEmit
       - name: Lint (Biome)
         run: npm run lint
-      - name: Unit tests
+      - name: Dependency audit
+        # AF-M8-08 took this from 39 findings (3 critical, 18 high) to 6 LOW.
+        # Without a gate it silently rots back: an advisory published against
+        # an already-installed version regresses the tree with no code change,
+        # so nothing else in this pipeline would ever notice.
+        #
+        # HIGH+ only, matching the bar security.md states ("HIGH/CRITICAL
+        # blocks merge"). `--audit-level=high` still REPORTS low and moderate
+        # findings, it just does not fail on them.
+        #
+        # The tree is currently clean at every severity - AF-M8-19 cleared the
+        # last 6 LOW advisories in the @ai-sdk chain. The threshold stays at
+        # HIGH because that is the documented policy, not because anything LOW
+        # is outstanding; raising it to `low` is a policy change, not a fix.
+        run: npm audit --audit-level=high
+      - name: Tests (unit, dom, integration)
+        # `npm test` is `vitest run`, which runs all three projects. The
+        # integration project needs TEST_DATABASE_URL (set at the job level) or
+        # every suite in it skips itself and this step passes having proven
+        # nothing about the database-backed behaviour.
         run: npm test
       - name: Build
         # `next build` OOM'd on 1893abf at Node's ~2 GB default heap and then

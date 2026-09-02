@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { broadcastSystemNotification } from "@/features/notifications/server/system-notifier";
+import {
+  broadcastSystemNotification,
+  previewSystemBroadcast,
+} from "@/features/notifications/server/system-notifier";
 import prisma from "@/lib/db";
 
 /**
@@ -127,6 +130,59 @@ describe.runIf(hasDb)("system announcements (AF-M8-13)", () => {
       targeted: 0,
       written: 0,
       skipped: 0,
+    });
+  });
+
+  /**
+   * The dry run is what the operator decides on before sending, so its numbers
+   * have to match what a real send would do - and it must not write.
+   */
+  describe("previewSystemBroadcast", () => {
+    it("predicts a first send without writing anything", async () => {
+      const preview = await previewSystemBroadcast(announcement);
+
+      expect(preview).toEqual({ targeted: 2, pending: 2, skipped: 0 });
+      expect(await prisma.notification.count()).toBe(0);
+    });
+
+    it("predicts exactly what the send then does", async () => {
+      const preview = await previewSystemBroadcast(announcement);
+      const sent = await broadcastSystemNotification(announcement);
+
+      expect(sent.written).toBe(preview.pending);
+      expect(sent.targeted).toBe(preview.targeted);
+    });
+
+    it("reports nothing pending once everyone has it", async () => {
+      await broadcastSystemNotification(announcement);
+
+      expect(await previewSystemBroadcast(announcement)).toEqual({
+        targeted: 2,
+        pending: 0,
+        skipped: 2,
+      });
+    });
+
+    it("counts only the workspaces that missed a partial broadcast", async () => {
+      await broadcastSystemNotification({
+        ...announcement,
+        organizationIds: [orgA],
+      });
+
+      expect(await previewSystemBroadcast(announcement)).toEqual({
+        targeted: 2,
+        pending: 1,
+        skipped: 1,
+      });
+    });
+
+    it("honours an organization filter", async () => {
+      expect(
+        await previewSystemBroadcast({
+          ...announcement,
+          organizationIds: [orgA],
+        }),
+      ).toEqual({ targeted: 1, pending: 1, skipped: 0 });
     });
   });
 });

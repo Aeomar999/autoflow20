@@ -1,6 +1,8 @@
+import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { NonRetriableError } from "inngest";
+import { Agent } from "undici";
 
 /** Default outbound request timeout (AF-A-02). */
 export const DEFAULT_HTTP_TIMEOUT_MS = 10_000;
@@ -101,10 +103,13 @@ export const expandIpv6 = (addr: string): string => {
  * http(s) only, no embedded credentials, and every address the hostname
  * resolves to must be publicly routable. Throws NonRetriableError otherwise.
  *
- * Residual risk (documented): a DNS rebinding or a redirect from the
- * target host can still land on a private IP between check and request.
+ * Returns the vetted addresses alongside the URL so the caller can connect to
+ * one of *those* rather than resolving the hostname a second time - see
+ * `pinnedDispatcher` and ADR-0017. Redirect hops are handled by `safeFetch`.
  */
-export const assertSafeEndpoint = async (raw: string): Promise<URL> => {
+export const resolveSafeEndpoint = async (
+  raw: string,
+): Promise<{ url: URL; addresses: LookupAddress[] }> => {
   let url: URL;
   try {
     url = new URL(raw);
@@ -126,7 +131,7 @@ export const assertSafeEndpoint = async (raw: string): Promise<URL> => {
     );
   }
 
-  let addresses: { address: string }[];
+  let addresses: LookupAddress[];
   try {
     addresses = await lookup(url.hostname, { all: true });
   } catch {
@@ -144,8 +149,59 @@ export const assertSafeEndpoint = async (raw: string): Promise<URL> => {
     );
   }
 
-  return url;
+  return { url, addresses };
 };
+
+/**
+ * Validate an endpoint and return just the URL.
+ *
+ * The shape every node call site uses. `safeFetch` uses
+ * `resolveSafeEndpoint` instead, because it needs the vetted addresses in
+ * order to pin the connection to them.
+ */
+export const assertSafeEndpoint = async (raw: string): Promise<URL> =>
+  (await resolveSafeEndpoint(raw)).url;
+
+/**
+ * A dispatcher that connects only to addresses we already vetted (AF-M8-17).
+ *
+ * `resolveSafeEndpoint` resolves a hostname and checks every address it maps
+ * to. Handing the *hostname* to `fetch` then throws that work away: fetch
+ * resolves it again, and a record whose TTL expired in between can answer
+ * differently the second time. That is DNS rebinding - the guard says
+ * "93.184.216.34, public, fine" and the socket opens to 127.0.0.1.
+ *
+ * undici lets the connector's DNS lookup be replaced, so this returns the
+ * addresses that were actually vetted instead of asking a resolver again.
+ * Everything else about the connection is untouched: the TLS SNI and the
+ * `Host` header still carry the hostname, so certificate validation and
+ * virtual hosting work exactly as before - which is why this is a `lookup`
+ * override rather than rewriting the URL to an IP.
+ *
+ * The lookup also refuses a hostname it was not built for. A dispatcher is
+ * per-request, so being asked about a different host means a redirect got this
+ * far without being re-vetted, and failing closed is the only safe answer.
+ */
+export const pinnedDispatcher = (
+  hostname: string,
+  addresses: LookupAddress[],
+): Agent =>
+  new Agent({
+    connect: {
+      lookup(host, _options, callback) {
+        if (host !== hostname) {
+          callback(
+            new Error(
+              `egress guard: refusing to connect to un-vetted host "${host}"`,
+            ),
+            [],
+          );
+          return;
+        }
+        callback(null, addresses);
+      },
+    },
+  });
 
 /** Hops allowed in a single redirect chain before the request is abandoned. */
 export const MAX_REDIRECT_HOPS = 5;
@@ -217,7 +273,25 @@ export const safeFetch = async (
   let request = new Request(input, init);
 
   for (let hop = 0; ; hop += 1) {
-    const response = await globalThis.fetch(request, { redirect: "manual" });
+    // Resolve and vet HERE, then connect to exactly what was vetted. Doing the
+    // resolution inside this loop is the point: a check performed anywhere
+    // else is a check the connection can drift away from (AF-M8-17).
+    const { url, addresses } = await resolveSafeEndpoint(request.url);
+    const dispatcher = pinnedDispatcher(url.hostname, addresses);
+
+    // `dispatcher` is undici's, not part of the standard RequestInit.
+    const response = await globalThis.fetch(request, {
+      redirect: "manual",
+      dispatcher,
+    } as RequestInit & { dispatcher: Agent });
+
+    // Graceful: undici lets enqueued requests - including the streaming body
+    // of the response just returned - finish before the sockets go. Not
+    // awaited, because the caller has yet to read that body.
+    void dispatcher.close().catch(() => {
+      // A dispatcher failing to close is a socket-lifecycle detail, not
+      // something the caller's request outcome should depend on.
+    });
 
     if (!REDIRECT_STATUSES.has(response.status)) {
       return response;
@@ -244,8 +318,8 @@ export const safeFetch = async (
       );
     }
 
-    // The guard, on every hop - this is the whole point of the wrapper.
-    await assertSafeEndpoint(next.toString());
+    // Vetted at the top of the next iteration, which both re-runs the guard
+    // and pins the connection to what it just approved.
     request = buildRedirectRequest(request, next, response.status);
   }
 };

@@ -444,22 +444,33 @@ describe.runIf(hasDb)("Public REST API v1 (AF-M8-01)", () => {
 
   describe("rate limiting", () => {
     it("returns 429 + Retry-After once a FREE-plan key exhausts its bucket", async () => {
-      const cap = 60; // FREE bucket capacity
-      let status = 0;
-      let lastErrorCode = "";
-      for (let i = 0; i <= cap; i++) {
-        const res = await listWorkflows(
-          api("/api/v1/workflows", { token: freeKey }),
-        );
-        status = res.status;
-        if (status === 429) {
-          lastErrorCode = (await res.json()).error.code;
-          expect(res.headers.get("retry-after")).toBeTruthy();
-          break;
-        }
-      }
-      expect(status).toBe(429);
-      expect(lastErrorCode).toBe("TOO_MANY_REQUESTS");
+      const cap = 60; // FREE bucket capacity, refilling at 1 token/second.
+
+      // AF-M8-24: fire the burst concurrently. This used to await each request
+      // in turn, which made it a race between the loop and the refill: every
+      // request costs a database round trip, 61 of them take well over a
+      // second under full-suite load, and the bucket regains a token every
+      // second - so the loop could refill faster than it drained and never see
+      // a 429. It passed alone and failed in the full run, which is the worst
+      // way for a test to fail.
+      //
+      // Issuing them at once is also a truer test: a token bucket exists to
+      // absorb a burst, so the burst is what should be measured.
+      const responses = await Promise.all(
+        Array.from({ length: cap + 5 }, () =>
+          listWorkflows(api("/api/v1/workflows", { token: freeKey })),
+        ),
+      );
+
+      const limited = responses.filter((res) => res.status === 429);
+      expect(
+        limited.length,
+        `expected the FREE bucket (capacity ${cap}) to reject part of a ${cap + 5}-request burst`,
+      ).toBeGreaterThan(0);
+
+      const rejected = limited[0];
+      expect(rejected.headers.get("retry-after")).toBeTruthy();
+      expect((await rejected.json()).error.code).toBe("TOO_MANY_REQUESTS");
     });
   });
 });

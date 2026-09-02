@@ -181,13 +181,18 @@ export function buildApprovalNotification(params: {
 }
 
 /**
- * An operator announcement: maintenance, an incident, a deprecation.
+ * An operator announcement: maintenance, an incident update, a deprecation
+ * (AF-M8-13).
  *
  * Unlike every other notification type this one has no originating row, so it
  * carries no `workflowId`, `executionId`, or `credentialId`. The copy is the
  * operator's, verbatim - this builder deliberately does not template or
  * decorate it, because an announcement that says something other than what the
  * operator typed is worse than no announcement.
+ *
+ * `href` is optional and defaults to none: most announcements have nowhere in
+ * the app to go, and a notification that navigates to the dashboard for no
+ * reason is worse than one that does not navigate at all.
  */
 export function buildSystemNotification(params: {
   announcementId: string;

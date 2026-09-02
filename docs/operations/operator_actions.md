@@ -1,6 +1,6 @@
 # Operator actions — what only you can do
 
-**Status:** Built (2026-09-01, after AF-M8-06/07/08/09/10/13).
+**Status:** Built 2026-09-01. **Revised 2026-09-02** — the operator configured billing and created the uptime monitor, closing B1 and B2. Two blockers stand: **B3** (restore never rehearsed) and **B4** (legal review *and* the still-unset entity configuration).
 **Read before:** deciding what to work on next, or asking why a task is still open.
 **Companions:** `docs/operations/beta_launch_checklist.md` (the gate), `docs/planning/tasks.md` (the backlog).
 
@@ -16,44 +16,71 @@ If an item is 🟢 and you want it, just say so.
 
 ---
 
-## Part 1 — The four beta blockers
+## Part 1 — The beta blockers
 
 These are the go/no-go items from the launch checklist. Nothing else on this page stops a beta.
 
+**As of 2026-09-02, two of the original four are closed** (B1 billing, B2 alerting) and **two stand: B3 (restore never rehearsed) and B4 (legal)**. B4 has grown a second half that is pure configuration and independent of the lawyer: `NEXT_PUBLIC_LEGAL_*` and `NEXT_PUBLIC_SUPPORT_EMAIL` are all still unset, so `/terms`, `/privacy` and `/dpa` refuse to render their policies at all and `/support` shows no address.
+
 ---
 
-### B1. Payment does not change the plan · `AF-M8-23` · 🟡 YOU, then me
+### B1. ~~Payment does not change the plan~~ · `AF-M8-23` · ✅ DONE 2026-09-02
 
-**Severity: highest.** A customer can complete checkout, be charged, and stay on FREE limits forever.
+> **Closed 2026-09-02.** The code shipped in `4d06247`; the operator configured it on 2026-09-02. Verified from the repository by resolving the plan map — `ensureEnv()` passes, `POLAR_WEBHOOK_SECRET` is set, and the three product ids are distinct valid UUIDs mapping to STARTER, PRO and ENTERPRISE.
+>
+> **One thing is still unproven:** no test purchase has been made, so nothing confirms the Polar dashboard endpoint points at the right URL or subscribes to the four events. The "How you verify it worked" SQL below is the ten minutes that would close that. **Step 5 (failed payment) remains open** and is tracked as checklist 1.6.
+>
+> The steps below are kept as reference for re-configuring or for a second environment.
 
-**Why it is broken.** `Organization.plan` is written exactly once — `"FREE"`, when the organisation is created — and never again. `organization.update` changes only `name` and `slug`. There is no Polar webhook route and no `POLAR_WEBHOOK_SECRET`. Quota, rate-limit buckets, and retention windows all read that column, so nothing about a paid subscription reaches the running system.
+**Severity when open: highest.** A customer could complete checkout, be charged, and stay on FREE limits forever.
 
-**What only you can do**
+**Status changed (2026-09-01): the code is built. This is now configuration.**
 
-1. **In the Polar dashboard**, create a webhook endpoint pointing at the app:
-   ```
-   https://<your-domain>/api/auth/polar/webhooks
-   ```
-   Verified against the installed plugin: `@polar-sh/better-auth@1.8.4` registers a `POST` endpoint at `/polar/webhooks`, and this app mounts Better Auth's catch-all at `/api/auth`, giving the path above. It only exists once I add the `webhooks()` helper in step 4's follow-up — so create the endpoint in Polar, but expect deliveries to fail until that ships.
+`webhooks()` is registered on the Polar plugin in `src/lib/auth.ts`, handling `subscription.active` / `.updated` / `.canceled` / `.revoked` through `updatePlanFromWebhook` in `src/lib/auth-webhooks.ts`. It writes `Organization.plan`, audit-logs the change, and is idempotent — an organisation already on the target plan is skipped, so Polar's re-deliveries cost nothing.
 
-2. **Copy the signing secret** it gives you into the environment as `POLAR_WEBHOOK_SECRET`. Do not paste it into a ticket, a commit, or this file.
+**It does nothing at all until you complete the four steps below.** Unconfigured, the symptom is *identical* to having no webhook: a charged customer on FREE limits. Do not assume it works because it exists.
 
-3. **Subscribe the endpoint to these events**, at minimum:
-   `subscription.active`, `subscription.updated`, `subscription.canceled`, `subscription.revoked`.
+**Step 1 — create the webhook endpoint in Polar**
 
-4. **Tell me the product → plan mapping.** Polar product ids are account-specific and I cannot see your dashboard. I need, for each paid tier:
-   ```
-   <polar_product_id>  ->  STARTER | PRO | ENTERPRISE
-   ```
+```
+https://<your-domain>/api/auth/polar/webhooks
+```
 
-5. **Decide what a failed payment does.** This is a product decision, not an engineering one, and the absence of a branch should not decide it by default:
-   - *Immediate downgrade* — honest, but hostile mid-month, and it will silently start failing a customer's live automations on quota.
-   - *Grace period* — pick a length (7 days is common) and what the customer sees during it.
-   - *No downgrade until the period ends* — friendliest, and means an unpaid month is free service.
+Verified against the installed plugin: `@polar-sh/better-auth@1.8.4` registers a `POST` endpoint at `/polar/webhooks`, and this app mounts Better Auth's catch-all at `/api/auth`. The route exists now, so deliveries will be accepted as soon as step 2 is done.
 
-**What I do once I have 2, 4, and 5**
+**Step 2 — set the signing secret**
 
-Add the `webhooks()` helper to the existing `polar()` plugin in `src/lib/auth.ts`, mapping `subscription.active` → the purchased plan and cancellation/revocation/expiry → `FREE`. Idempotent per webhook event id, because payment providers re-deliver. Audit-logged like every other mutation of an organisation. Integration tests covering upgrade, downgrade, replay, and an unknown product id (which must **not** silently grant a plan).
+Copy the secret Polar shows you into the environment as `POLAR_WEBHOOK_SECRET`. Do not paste it into a ticket, a commit, or this file.
+
+Until it is set, the plugin **rejects every delivery with 400 before any handler runs**. That is deliberate — an unsigned body must never grant a plan — but it means an unconfigured install silently keeps paying customers on FREE.
+
+**Step 3 — subscribe the endpoint to these events**
+
+`subscription.active`, `subscription.updated`, `subscription.canceled`, `subscription.revoked`.
+
+**Step 4 — map your products to plans**
+
+Polar product ids are account-specific and cannot be read from here. Set whichever apply:
+
+```
+POLAR_PRODUCT_ID_STARTER=<uuid>
+POLAR_PRODUCT_ID_PRO=<uuid>
+POLAR_PRODUCT_ID_ENTERPRISE=<uuid>
+```
+
+If you sell a single product, the existing `POLAR_PRODUCT_ID` is treated as the Pro product and you need add nothing.
+
+A product id that arrives with no mapping **grants nothing** and logs an error naming the id — deliberately, because the alternative is quietly handing out a plan on a typo. Search the logs for `no plan mapping` if an upgrade does not land.
+
+**Step 5 — decide what a failed payment does** · 🟡 *then me*
+
+Still a product decision, and still unbuilt. There is no `subscription.past_due` branch, so **an unpaid month is currently free service**. The options:
+
+- *Immediate downgrade* — honest, but hostile mid-month, and it will start failing a customer's live automations on quota.
+- *Grace period* — pick a length (7 days is common) and what the customer sees during it.
+- *No downgrade until the period ends* — friendliest, and what happens today by omission.
+
+Tell me which and I will build it. The absence of a branch should not decide this by default.
 
 **How you verify it worked**
 
@@ -63,15 +90,27 @@ Buy a subscription on a test workspace, then:
 SELECT id, name, plan FROM "organization" WHERE id = '<org_id>';
 ```
 
-It should read the purchased plan, not `FREE`. Then cancel and confirm it returns to `FREE`.
+It should read the purchased plan, not `FREE`. Then cancel and confirm it returns to `FREE`. Check for an audit row too — the change is recorded as `organization.update_plan`:
 
-**Until it ships:** support treats "I paid but I'm still limited" as **correct and expected**, escalates, and a manual `UPDATE` is the only remedy (`docs/operations/support.md` §4).
+```sql
+SELECT action, before, after, "createdAt" FROM "AuditLog"
+ WHERE "organizationId" = '<org_id>' AND action = 'organization.update_plan'
+ ORDER BY "createdAt" DESC LIMIT 5;
+```
+
+**Known limitation you should decide about** — one subscription applies to **every workspace its buyer owns**. A Polar customer is a *user*, the checkout carries no organisation, and nothing links a subscription to a workspace. A user who owns three workspaces and buys once gets the plan on all three. The handler logs a warning when it fans out, so it is visible, but closing it needs a decision — *is a subscription per-user or per-workspace?* — and a checkout that carries the workspace. See decision 9.
 
 ---
 
-### B2. Nothing pages anyone · `AF-M8-21` · 🔴 YOU
+### B2. ~~Nothing pages anyone~~ · `AF-M8-21` / `AF-M8-26` · ✅ DONE 2026-09-02
 
-**Severity: high.** Eight alerts are defined in `docs/operations/slos.md` §4 and *nothing delivers any of them*. Today an outage is discovered by a customer telling you.
+> **Closed 2026-09-02** — the operator created the uptime monitor. **This is the one closed blocker the repository cannot check**, so it is worth proving rather than assuming: point the monitor at a deliberately failing URL, or take the service down, and confirm something actually reaches a phone. An alert nobody has seen fire is indistinguishable from no alert.
+>
+> Check the `degraded` body assertion specifically — it fails silently if the monitor does not support JSON assertions, and it is the only thing covering a partial outage. **The human side (item four below) is still undecided:** there is no on-call rotation.
+>
+> The settings below are kept as reference.
+
+**Severity when open: high.** Eight alerts are defined in `docs/operations/slos.md` §4 and nothing delivered any of them; an outage was discovered by a customer telling you.
 
 **Why only you.** Alert delivery needs an account and a phone number. There is no code change that makes a laptop ring.
 
@@ -173,63 +212,80 @@ NEXT_PUBLIC_SUPPORT_EMAIL
 
 ---
 
-### C1. Delete the deprecated AI node folders · `AF-M8-12` · 🔴 YOU
+### C1. The deprecated AI node folders are already deleted · `AF-M8-12` · 🔴 YOU
 
-**Blocked by design, and the design is right.** Removing a node registration while a saved workflow still holds that type makes `validate()` throw `UnknownNodeTypeError` and fails the whole graph **at execution time, on a customer's live workflow**. So this cannot be unblocked from the repo — it needs the migration to have run in *every* environment.
+**Status changed.** This was "blocked until the migration has run everywhere". The folders were deleted in `a4ada53` before that was established across environments, so the remaining question is no longer *may we delete* but *was it safe*.
 
-**Do this in each environment (production last)**
+**Why it matters.** A persisted node holding a type the registry no longer knows makes `validate()` throw `UnknownNodeTypeError` and fails the whole graph **at execution time, on a live workflow** (ADR-0011 §3). There is no startup error and no warning - the first symptom is a customer's automation failing.
+
+**What has been checked**
 
 ```bash
-# 1. Dry run. Prints every node it would change, and every model substitution.
-npm run migrate:legacy-ai-nodes
-
-# 2. Read the output. Model substitution is a real behaviour change:
-#    gpt-4 -> openai:gpt-4o, claude-sonnet-4-5 -> anthropic:claude-3-5-sonnet,
-#    gemini-2.0-flash -> google:gemini-1.5-flash.
-#    The old hard-coded models are not in the provider registry and cannot be
-#    priced, so each maps to the nearest registered model of the same provider.
-
-# 3. Apply.
-npm run migrate:legacy-ai-nodes -- --yes
+npm run verify:legacy-ai-nodes
 ```
 
-**Then verify — both queries must return zero rows, in every environment:**
+Read-only: two SELECTs, no writes, safe to point at production. It prints the database it is checking, because the failure mode here is verifying a laptop and believing you verified production. Exits non-zero if anything is found, so it can gate a deploy.
 
-```sql
--- 1. No live node still holds a deprecated type.
-SELECT type, count(*) FROM "Node"
-WHERE type IN ('OPENAI', 'ANTHROPIC', 'GEMINI')
-GROUP BY type;
+Run against `ep-bold-mouse-ay14r501-pooler.c-5.us-east-2.aws.neon.tech/neondb` (whatever this repo's `.env` points at) on 2026-09-01:
 
--- 2. No ACTIVE published version references one in its snapshot.
---    (Historical versions and execution snapshots keep the old ids by design —
---     a published version records what it was. Only the active one matters.)
-SELECT w.id, w.name
-FROM "Workflow" w
-JOIN "WorkflowVersion" v ON v.id = w."activeVersionId"
-WHERE v."graphSnapshot"::text ~ '"type"\s*:\s*"(OPENAI|ANTHROPIC|GEMINI)"';
+```
+Live nodes holding a retired type : 0
+Active versions referencing one   : 0
+CLEAR
 ```
 
-**Tell me when both are empty everywhere** and I will delete the three folders and their registry entries. See ADR-0011 §3.
+**What is still unverified — and it is one lookup**
+
+That is the database in this repo's `.env`. It is a hosted Neon instance, not a local one, so it may well be the same database the deployed app uses — but nothing here can confirm that. Open the Vercel project's environment variables and compare the `DATABASE_URL` host against the endpoint above:
+
+- **Same endpoint** → production is verified, and `AF-M8-12` is genuinely clear.
+- **Different endpoint** → run the command again with that URL before merging:
+  ```bash
+  DATABASE_URL='<the-vercel-one>' npm run verify:legacy-ai-nodes
+  ```
+
+Repeat for any other environment (staging, preview branches with their own database).
+
+**If it ever comes back NOT CLEAR**
+
+The migration that rewrote those nodes onto `AI_LLM` was deleted in the same commit, so the escape hatch is not in the tree:
+
+```bash
+git show a4ada53^:src/nodes/ai/legacy-migration.ts > src/nodes/ai/legacy-migration.ts
+git show a4ada53^:scripts/migrate-legacy-ai-nodes.ts > scripts/migrate-legacy-ai-nodes.ts
+```
+
+It only imports `./llm/definition`, which still exists, so it restores cleanly without bringing back the deleted node folders. Re-add the `migrate:legacy-ai-nodes` npm script, run it (dry-run first, `-- --yes` to apply), then re-run the verification. Model substitution is a real behaviour change and is printed per node: `gpt-4` → `openai:gpt-4o`, `claude-sonnet-4-5` → `anthropic:claude-3-5-sonnet`, `gemini-2.0-flash` → `google:gemini-1.5-flash`.
 
 ---
 
-### C2. Load test to the concurrency target · `AF-M8-05` · 🟡 YOU, then me
+### C2. Load test to the concurrency target · `AF-M8-05` · 🔴 YOU
 
-**Blocked on a number that does not exist.** "Load test to the concurrency target" is the task, and **no concurrency target is documented anywhere in the repository.** I checked the implementation plan, the architecture overview, and the planning docs.
+**Status changed (2026-09-01): the target and the harness now exist. What is missing is somewhere to run it.**
 
-**Decide two things**
+The task was unstartable because no concurrency target was documented anywhere. One is now written down, and derived rather than guessed — `docs/operations/load_test.md`:
 
-1. **The target.** What should this survive at beta? Useful framing rather than a guess:
-   - *Concurrent workflow executions in flight* — the number that actually stresses the engine, the database connection pool, and Inngest concurrency.
-   - *Sustained trigger rate* — webhooks or API runs per second.
-   - *p95 execution latency budget* — the SLO in `slos.md` says 95% of runs under 60s; a load test should show where that breaks.
+> **100 req/s sustained for 5 minutes from 50 clients, zero 5xx, p95 under 1s.**
 
-   If you have no real number, say so and I will pick a defensible one (something like 50 concurrent executions and 20 triggers/second), record it in an ADR with the reasoning, and measure against it. **A recorded target you can argue with beats an unrecorded one you cannot.**
+That is precisely **one PRO tenant saturating the bucket you already sell them** (`PLAN_BUCKETS.PRO` refills at 100/s), with the error budget taken from the existing S1 availability SLO. The argument is simple: if a single paying customer at their published rate limit can degrade the service, the rate limit is a fiction and the plan is oversold. Disagree with the number if you like — that is what writing it down is for.
 
-2. **Where it runs.** A load test against a laptop measures the laptop. Options, in descending order of usefulness: a staging environment matching production; production during a quiet window (risky, and it will write real execution rows that consume real quota); or local Docker, which finds algorithmic problems and connection-pool limits but tells you nothing about real capacity. Tell me which, and whether a test workspace exists that I can point load at.
+**What only you can do: provide an environment and a key.**
 
-🟢 **What I do once I have both:** build the harness, run it, and fix what it finds — that last part is usually the bulk of the work.
+1. **A deployed environment that is not production.** A load test against a laptop measures the laptop, and the `run` profile starts *real* workflow executions.
+2. **An API key** in that environment with the `workflows:read` scope (add `workflows:execute` for the run profile), created through the `apiKeys` tRPC router as an org admin.
+3. **A workspace on the plan you are testing.** A FREE workspace sheds almost everything at 1 token/second, so it measures the rate limiter rather than the service.
+
+Then:
+
+```bash
+npm run load-test -- --url https://staging.example.com --key af_xxx --concurrency 50 --duration 300
+```
+
+Start with the `read` profile. Cheap requests saturate **connections** before CPU, and connection-pool exhaustion is the failure this deployment is most likely to have. The exit code is the verdict, and **429 counts as a pass** — a saturated service shedding load with 429 is behaving correctly; counting it as an error would hide the 5xx that matter.
+
+🟢 **What I do once it has run:** fix what it finds, which is usually the bulk of the work. Send me the output — the status distribution and the first body per failing status are the parts that matter.
+
+**Until then:** no capacity claim is supportable. §5 of `load_test.md` has an empty results table on purpose.
 
 ---
 
@@ -253,7 +309,9 @@ Set `NEXT_PUBLIC_SUPPORT_EMAIL` and make sure a human reads it. `docs/operations
 
 ### D1. `APPROVAL_REQUESTED` notifications · part of `AF-M8-13`
 
-Genuinely blocked upstream, and re-verified: the approvals router exposes `list` and `respond` only — both operate on rows that must already exist — and every `approvalRequest.create` in the repo is generated Prisma code. **Nothing creates approval requests** because no approval node ships.
+**The `SYSTEM` half of AF-M8-13 shipped on 2026-09-01** — `npm run notify:system` broadcasts an announcement to every workspace, dry-run by default (`support.md` §6). That was the half that had a surface to build.
+
+The approvals half is genuinely blocked upstream, and re-verified: the approvals router exposes `list` and `respond` only — both operate on rows that must already exist — and every `approvalRequest.create` in the repo is generated Prisma code. **Nothing creates approval requests** because no approval node ships.
 
 The blocker is the approval node itself (`AF-P2-E`, a Phase 2 epic). Building the notification producer now would be a call site with nothing to call it. The builder and dedupe key are already in place, so wiring is one line the day that node lands.
 
@@ -267,17 +325,27 @@ They are LOW, and the exit criterion for `AF-M8-08` was no HIGH findings — so 
 
 ---
 
-## Part 4 — Not blocked on you at all 🟢
+## Part 4 — Done since this page was written 🟢
 
-Listed so you know these are not waiting on you. Say the word on any of them:
+Everything that was listed here as "not waiting on you" has landed:
+
+| Item | Outcome |
+|---|---|
+| `AF-M8-17` | ✅ Closed. Pinned-address dispatcher — ADR-0017. |
+| `AF-M8-20` | ✅ Closed. A range wider than the plan's retention now says so. |
+| `npm audit` in CI | ✅ `npm audit --audit-level=high` runs in `.github/workflows/ci.yml` and fails the build. |
+| The failing dom test | ✅ Green. The whole unit + dom suite passes (955 tests). |
+| Checklist 4.7 | ✅ Terms/Privacy/DPA/Support linked from the landing footer; the policies linked from signup. |
+| `AF-M8-13` (SYSTEM half) | ✅ `npm run notify:system` — the surface `support.md` §6 documented and nothing implemented. |
+| Checklist 5.3 | ✅ `/support` exists and is linked from the footer. |
+
+**Still 🟢 and genuinely mine, not yours:**
 
 | Item | What it is |
 |---|---|
-| `AF-M8-17` | Close the DNS-rebinding TOCTOU in the egress guard — needs a pinned-address dispatcher. The remaining ⬜ in `security.md` §5. |
-| `AF-M8-20` | Tell users their execution history window is plan-dependent. A "last 90 days" view on FREE silently shows at most 35. |
-| **`npm audit` in CI** | CI runs tsc, lint, test, and build but not `npm audit`. Adding `npm audit --audit-level=high` is a few lines and stops the audit from silently rotting. |
-| **The failing dom test** | `monitoring-dashboard.dom.test.tsx` asserts copy no component renders. It fails on `main` too. It is another session's UI work, so I left it — tell me if you want it fixed. |
-| Checklist 4.7 / 4.8 | Link the policies from signup and the footer, and record acceptance at signup. Waiting on B4, not on effort. |
+| Checklist 4.8 | Record acceptance of the Terms at signup. Signup *links* them now, but stores nothing — so there is no record of who agreed to what. A schema change plus a write; say the word. |
+| Checklist 1.6 | The failed-payment branch, once you have made decision 2. |
+| `KpiCard` | ✅ `/test-kpi` deleted 2026-09-02 — a scratch page of hardcoded e-commerce figures that was shipping in the production build. It was the component's only caller, so `KpiCard` (AF-UI-01) is now referenced by nothing. Kept rather than deleted, since it was built to a design and the dashboard may still want it; say the word if it should go too. |
 
 ---
 
@@ -287,13 +355,16 @@ Everything above that is a decision rather than a task, in one place:
 
 | # | Decision | Blocks |
 |---|---|---|
-| 1 | Polar product id → plan mapping | `AF-M8-23` (B1) |
-| 2 | What a failed payment does: immediate downgrade, grace period (how long?), or none | `AF-M8-23` (B1) |
+| 1 | ~~Polar product id → plan mapping~~ — ✅ configured 2026-09-02 | `AF-M8-23` (B1) |
+| 2 | What a failed payment does: immediate downgrade, grace period (how long?), or none | Checklist 1.6 (B1 step 5) |
 | 3 | Who is on call, at what hours, and the escalation if unanswered | `AF-M8-21` (B2) |
-| 4 | The concurrency target, or "you pick and record it" | `AF-M8-05` (C2) |
-| 5 | Where the load test runs | `AF-M8-05` (C2) |
+| 4 | ~~The concurrency target~~ — **proposed and recorded**: 100 req/s. Accept it or replace it | `AF-M8-05` (C2) |
+| 5 | Where the load test runs, and an API key for it | `AF-M8-05` (C2) |
 | 6 | Whether to pull the approval node (`AF-P2-E`) into beta | `AF-M8-13` approvals half |
 | 7 | Whether to take the `@ai-sdk` major upgrades now | `AF-M8-19` |
 | 8 | Liability cap, transfer mechanism, and the other four clauses for counsel | `B4` |
+| 9 | **Is a subscription per-user or per-workspace?** Today one subscription upgrades every workspace its buyer owns | Checklist 1.8 |
+| 10 | Whether to record Terms acceptance at signup before beta | Checklist 4.8 |
+| 11 | **The legal entity values** — `NEXT_PUBLIC_LEGAL_*` and `NEXT_PUBLIC_SUPPORT_EMAIL` are still unset, so the policy pages and `/support` will not render. Configuration, not drafting, and independent of counsel | Checklist 4.6 / 5.2 (B4) |
 
 **If you only do one thing:** confirm the `CREDENTIAL_MASTER_KEY` is escrowed somewhere independent of the app host (B3). It takes five minutes, and it is the only item here whose failure mode is permanent, silent, and total.

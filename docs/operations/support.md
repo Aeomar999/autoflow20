@@ -54,13 +54,24 @@ Start from the execution trace, every time. It records each node's resolved inpu
 
 **Read this before answering anything about plans.**
 
-Payment does not currently change a workspace's plan. `Organization.plan` is set to `FREE` at creation and never updated; there is no webhook applying a successful subscription. A customer who has paid is still on FREE limits — quota, rate limits, and retention all read that column.
+**AF-M8-23 shipped the webhook that applies a subscription to `Organization.plan`.** It only works if the deployment is configured: `POLAR_WEBHOOK_SECRET` plus the `POLAR_PRODUCT_ID_*` mapping. Unconfigured, the symptom is identical to having no webhook at all — a charged customer on FREE limits — so **check the configuration before answering, do not assume it is working**.
 
-Until **AF-M8-23** ships:
+When someone reports "I paid but I'm still limited":
 
-- Treat any "I paid but I'm still limited" report as **true and expected**, not as a misunderstanding.
-- Do not tell a customer to wait for it to propagate. Nothing will propagate.
-- Escalate immediately; a manual plan change in the database is the only remedy, and it should be recorded.
+1. **Check whether the plan actually applied.**
+   ```sql
+   SELECT id, name, plan FROM "organization" WHERE id = '<org_id>';
+   ```
+2. **If it still says `FREE`, look for the reason in the logs before escalating.** The handler is deliberately loud about every refusal:
+   - `Polar webhook names a product with no plan mapping` — the product id is missing from `POLAR_PRODUCT_ID_*`. Configuration, fixable in minutes.
+   - `Polar webhook customer owns no organisation` — they bought under a user who is not an OWNER of the workspace they are asking about.
+   - Nothing at all in the logs — the delivery never arrived or failed signature verification. Check the endpoint in the Polar dashboard.
+3. **A manual `UPDATE` is still the remedy for the customer in front of you**, and it should be recorded — but it is now a workaround for a specific misconfiguration, not the permanent state of the system. Fix the cause too.
+
+**Known and expected**, so do not treat either as a bug report:
+
+- A customer who owns several workspaces sees the plan on **all** of them from one subscription (checklist 1.8).
+- A failed payment does **not** downgrade anyone; there is no `past_due` branch (checklist 1.6). An unpaid month is currently free service.
 
 ---
 
@@ -83,6 +94,10 @@ npm run notify:system -- --id maint-2026-09-14 --title "..." --message "..."
 
 Dry-run by default; add `--yes` to send. Idempotent per workspace, so a half-finished broadcast is safe to run again. Keep the same `--id` when correcting wording — a new id announces it a second time to everyone who already read it.
 
+Add `--href /status` to give it somewhere to go. Add `--org <id>` (repeatable) to reach only named workspaces instead of every tenant — useful for telling one customer about something that only affects them. The dry run prints how many workspaces it would reach and how many already have it, so **read that count before adding `--yes`** — without `--org` the blast radius is every tenant and there is no unsend.
+
+On Windows, run it from PowerShell rather than Git Bash: Git Bash rewrites a leading-slash argument like `/status` into a Windows path.
+
 ---
 
 ## 7. What we do not have
@@ -91,6 +106,7 @@ Written down so nobody promises it:
 
 - No on-call rotation and no out-of-hours coverage.
 - No ticketing system, SLAs, or response-time commitments.
-- No in-app support entry point — the address has to be found on the site.
 - No status-page incident history; `/status` reports the current moment only.
 - No admin console. Anything an operator must do is a script or a database query.
+- No record of who accepted the Terms and when — signup links them but stores nothing (checklist 4.8).
+- No measured capacity. If a customer asks what load AutoFlow handles, the honest answer is that it has not been tested (`load_test.md` §5).

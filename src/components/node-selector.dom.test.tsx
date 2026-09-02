@@ -66,8 +66,11 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
   });
 
   it("never offers a deprecated node type (AF-M5-09)", () => {
+    // Latent by design since AF-M8-12 retired the last deprecated types: the
+    // population is empty today, and requiring it to be non-empty would make
+    // a completed retirement fail the palette suite. The invariant still
+    // stands and re-arms itself the next time a type is deprecated.
     const retired = nodeManifest.filter((node) => node.deprecated);
-    expect(retired.length).toBeGreaterThan(0);
 
     render(
       <Provider store={store}>
