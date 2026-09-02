@@ -67,7 +67,7 @@ The React Flow editor (`src/components/initial-node.tsx`, `src/components/react-
 ---
 
 ### ✅ AF-M0-03 · Externalize Polar configuration · 0.5d · DONE 2026-08-24
-**Reality (2026-08-22):** previously marked shipped (PR #23) — not done. `POLAR_SUCCESS_URL` is read only server-side (`src/lib/auth.ts:37`), so the client-side bug may be N/A; product-ID literals and the `"pro"` slug still need checking. No `src/lib/env.ts` exists.
+**Reality (2026-08-22):** previously marked shipped (PR #23) — not done. `POLAR_SUCCESS_URL` is read only server-side (`src/lib/auth.ts:37`), so the client-side bug may be N/A; product-ID literals and the `"pro"` slug still need checking. No `src/lib/env.ts` exists. *(Addendum 2026-09-02: `POLAR_SUCCESS_URL` was later removed entirely — the successUrl is now a relative path resolved against the request host, see AF-M0-10 note.)*
 
 **Acceptance**
 - [x] `POLAR_PRODUCT_ID`, `POLAR_PRODUCT_SLUG`, `NEXT_PUBLIC_POLAR_PRODUCT_ID`, `NEXT_PUBLIC_POLAR_SUCCESS_URL` in env; no literals in source. *(Implemented via `src/lib/env.ts`: `POLAR_PRODUCT_ID` + `POLAR_PRODUCT_SLUG` server-side, `NEXT_PUBLIC_POLAR_PRODUCT_SLUG` for the two client checkout calls. Residuals, intentional: `NEXT_PUBLIC_POLAR_PRODUCT_ID`/`NEXT_PUBLIC_POLAR_SUCCESS_URL` omitted — nothing in the client reads a product ID or success URL; the `"pro"` dev fallback lives once in `env.ts` (same single-point pattern as `publicAppUrl`). When `POLAR_PRODUCT_ID` is unset the checkout products list stays empty and the app still boots.)*
@@ -162,6 +162,10 @@ Wiring that up surfaced a second, worse problem: skipping is opt-in per suite (`
 - [x] Refetches customer state on mount — invalidates the `["subscription"]` React Query cache that `useSubscription`/the sidebar read, so the upgrade button flips without a reload.
 - [x] `.env.example` default updated to the real route (`{CHECKOUT_ID}` substitution supported by the plugin); duplicate `POLAR_SUCCESS_URL` block removed.
 - [x] Update `.env` guidance in `polar_setup.md` §4.
+
+**Env var visibility decision (2026-09-02)** — `NEXT_PUBLIC_` prefix policy, recorded so Vercel's "remove the public prefix" warning isn't re-litigated:
+- `NEXT_PUBLIC_APP_URL` **MUST stay public.** Read at runtime in the browser by two `"use client"` trigger dialogs (`src/features/triggers/components/stripe-trigger/dialog.tsx:35`, `google-form-trigger/dialog.tsx:36`) to build the user-facing webhook URL. Removing the prefix makes it `undefined` in the browser and both dialogs fall back to `http://localhost:3000` — a regression into the localhost bug class. Vercel's warning for this variable is a false positive; leave it public and ignore the banner. Also consumed server-side by `src/lib/auth.ts` and `src/lib/auth-origins.ts` as a trusted origin.
+- `NEXT_PUBLIC_POLAR_SUCCESS_URL` and `POLAR_SUCCESS_URL` are **both removed**. The checkout `successUrl` in `src/lib/auth.ts` is now a **relative path** (`/workflows/billing/success`) that the Polar plugin resolves against the request's own host (`new URL(successUrl, ctx.request.url)`). This eliminates the env var entirely and removes the bug class where a stale absolute value (e.g. `http://localhost:3000`) is baked into Polar's hosted checkout and redirects a paying customer to the wrong host. No per-environment success-url config is needed or should be re-added.
 
 ---
 

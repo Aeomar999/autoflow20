@@ -9,8 +9,9 @@ import { Panel, PanelBody } from "@/components/dashboard/panel";
 import { Button } from "@/components/ui/button";
 
 /**
- * Post-checkout landing page (AF-M0-10). POLAR_SUCCESS_URL targets this route;
- * the Better Auth checkout plugin substitutes `{CHECKOUT_ID}` in the URL.
+ * Post-checkout landing page (AF-M0-10). The Polar checkout plugin redirects
+ * here via the relative `successUrl` set in src/lib/auth.ts, which it resolves
+ * against the request's own host; it substitutes `{CHECKOUT_ID}` in the URL.
  *
  * The sidebar reads subscription state from the ["subscription"] React Query
  * cache (useSubscription), so invalidate it on mount and the upgrade button

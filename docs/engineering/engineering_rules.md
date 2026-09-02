@@ -84,7 +84,7 @@ Rules:
 
 - **[HARD]** `"use client"` at the lowest possible level. Do not mark a page client just to use one hook.
 - **[HARD]** Server-only modules (`db`, `auth`, `crypto`, node `execute`) carry `import "server-only"`.
-- **[HARD]** Env vars read in client components must be `NEXT_PUBLIC_`-prefixed. (Existing violation: `POLAR_SUCCESS_URL` in `app-sidebar.tsx` is `undefined` in the browser.)
+- **[HARD]** Env vars read in client components must be `NEXT_PUBLIC_`-prefixed. (The two client checkout calls in `app-sidebar.tsx` / `upgrade-modal.tsx` use `authClient.checkout({ slug })` with `NEXT_PUBLIC_POLAR_PRODUCT_SLUG`; the post-checkout `successUrl` is a relative path resolved server-side in `src/lib/auth.ts` — no per-environment success URL exists.)
 - **[DEFAULT]** Server-side prefetch + `HydrateClient` + `useSuspenseQuery` is the standard data pattern. Follow the existing workflows feature.
 - **[DEFAULT]** Every Suspense boundary has a matching ErrorBoundary. A loading state without an error state is half a feature.
 - Memoize React Flow node components (`memo`) — the canvas re-renders aggressively.

@@ -73,7 +73,13 @@ export const auth = betterAuth({
               ? [{ productId: polarProductId, slug: polarProductSlug }]
               : []),
           ],
-          successUrl: process.env.POLAR_SUCCESS_URL,
+          // Relative so the plugin resolves it against the request's own host
+          // (new URL(successUrl, ctx.request.url)). This removes the
+          // POLAR_SUCCESS_URL env var and the class of bug where a stale
+          // absolute value (e.g. http://localhost:3000) is baked into Polar's
+          // hosted checkout and the customer is redirected to the wrong host
+          // after paying. Relative => production resolves to production.
+          successUrl: "/workflows/billing/success",
           authenticatedUsersOnly: true,
         }),
         portal(),
