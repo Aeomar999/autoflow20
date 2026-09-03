@@ -231,3 +231,182 @@ describe("compileTemplate — escaping and missing values (AF-M8-09 reference)",
     expect(compileTemplate("{{payload}}")(context)).toBe("[object Object]");
   });
 });
+
+// ---------------------------------------------------------------------------
+// AF-M9-07 — expression helper set (default, get, comparisons, logic, math,
+// len, upper/lower, formatDate). Each happy path and each failure path.
+// ---------------------------------------------------------------------------
+
+const exprCtx = {
+  name: "Ada",
+  score: 87,
+  price: 120,
+  ratio: 0.25,
+  items: ["a", "b", "c"],
+  nested: { deep: { value: 42 }, arr: [{ x: 10 }, { x: 20 }] },
+  emptyStr: "",
+  tags: { a: 1, b: 2, c: 3 },
+};
+
+describe("expression helpers — default", () => {
+  it("returns a when it has a value", () => {
+    expect(compileTemplate('{{default name "n/a"}}')(exprCtx)).toBe("Ada");
+  });
+
+  it("falls back to b for nullish / empty-string a", () => {
+    expect(compileTemplate('{{default emptyStr "n/a"}}')(exprCtx)).toBe("n/a");
+    expect(compileTemplate('{{default missing "n/a"}}')(exprCtx)).toBe("n/a");
+  });
+
+  it("keeps 0 and false as values (not treated as blank)", () => {
+    expect(compileTemplate("{{default zero 5}}")({ zero: 0 })).toBe("0");
+    expect(compileTemplate("{{default flag true}}")({ flag: false })).toBe(
+      "false",
+    );
+  });
+});
+
+describe("expression helpers — get", () => {
+  it("resolves a dotted path", () => {
+    expect(compileTemplate('{{get nested "deep.value"}}')(exprCtx)).toBe("42");
+  });
+
+  it("resolves through array indices", () => {
+    expect(compileTemplate('{{get nested "arr.1.x"}}')(exprCtx)).toBe("20");
+  });
+
+  it("returns empty string for a missing segment, not a throw", () => {
+    expect(compileTemplate('[{{get nested "deep.missing"}}]')(exprCtx)).toBe(
+      "[]",
+    );
+  });
+
+  it("throws a structural error for a non-string path", () => {
+    expect(() => compileTemplate("{{get nested}}")(exprCtx)).toThrow();
+    expect(() => compileTemplate("{{get nested}}")(exprCtx)).toThrow(
+      /expected a non-empty string path/,
+    );
+  });
+
+  it("ignores prototype/inherited segments", () => {
+    expect(compileTemplate('[{{get obj "constructor"}}]')({ obj: {} })).toBe(
+      "[]",
+    );
+  });
+});
+
+describe("expression helpers — comparisons", () => {
+  it("eq / ne", () => {
+    expect(compileTemplate("{{eq score 87}}")(exprCtx)).toBe("true");
+    expect(compileTemplate("{{eq score 88}}")(exprCtx)).toBe("false");
+    expect(compileTemplate("{{ne score 88}}")(exprCtx)).toBe("true");
+  });
+
+  it("gt / gte / lt / lte on numbers", () => {
+    expect(compileTemplate("{{gt score 80}}")(exprCtx)).toBe("true");
+    expect(compileTemplate("{{gte score 87}}")(exprCtx)).toBe("true");
+    expect(compileTemplate("{{lt score 90}}")(exprCtx)).toBe("true");
+    expect(compileTemplate("{{lte score 87}}")(exprCtx)).toBe("true");
+    expect(compileTemplate("{{gt score 87}}")(exprCtx)).toBe("false");
+  });
+
+  it("compares strings lexicographically when not numeric", () => {
+    expect(compileTemplate('{{lt name "Bob"}}')(exprCtx)).toBe("true");
+  });
+});
+
+describe("expression helpers — and / or / not", () => {
+  it("and requires all truthy", () => {
+    expect(compileTemplate('{{and true 1 "x"}}')({})).toBe("true");
+    expect(compileTemplate('{{and true 0 "x"}}')({})).toBe("false");
+  });
+
+  it("or requires one truthy", () => {
+    expect(compileTemplate('{{or false 0 "x"}}')({})).toBe("true");
+    expect(compileTemplate('{{or false 0 ""}}')({})).toBe("false");
+  });
+
+  it("not negates", () => {
+    expect(compileTemplate("{{not false}}")({})).toBe("true");
+    expect(compileTemplate("{{not true}}")({})).toBe("false");
+  });
+});
+
+describe("expression helpers — arithmetic", () => {
+  it("add / sub / mul / div", () => {
+    expect(compileTemplate("{{add price 30}}")(exprCtx)).toBe("150");
+    expect(compileTemplate("{{sub price 20}}")(exprCtx)).toBe("100");
+    expect(compileTemplate("{{mul ratio 100}}")(exprCtx)).toBe("25");
+    expect(compileTemplate("{{div 100 ratio}}")(exprCtx)).toBe("400");
+  });
+
+  it("coerces numeric strings", () => {
+    expect(compileTemplate('{{add "10" "5"}}')({})).toBe("15");
+  });
+
+  it("throws a non-retriable-style error for non-numeric input", () => {
+    expect(() => compileTemplate("{{add name 1}}")(exprCtx)).toThrow(
+      /expected a number/,
+    );
+  });
+
+  it("throws on division by zero, never silently Infinity", () => {
+    expect(() => compileTemplate("{{div 1 0}}")({})).toThrow(
+      /division by zero/,
+    );
+  });
+});
+
+describe("expression helpers — len", () => {
+  it("counts string chars, array items, and object keys", () => {
+    expect(compileTemplate("{{len name}}")(exprCtx)).toBe("3");
+    expect(compileTemplate("{{len items}}")(exprCtx)).toBe("3");
+    expect(compileTemplate("{{len tags}}")(exprCtx)).toBe("3");
+  });
+
+  it("treats a missing value as length 0", () => {
+    expect(compileTemplate("{{len missing}}")(exprCtx)).toBe("0");
+  });
+});
+
+describe("expression helpers — upper / lower", () => {
+  it("casts strings", () => {
+    expect(compileTemplate("{{upper name}}")(exprCtx)).toBe("ADA");
+    expect(compileTemplate("{{lower name}}")(exprCtx)).toBe("ada");
+  });
+
+  it("throws for non-string input", () => {
+    expect(() => compileTemplate("{{upper score}}")(exprCtx)).toThrow(
+      /expected a string/,
+    );
+    expect(() => compileTemplate("{{lower score}}")(exprCtx)).toThrow(
+      /expected a string/,
+    );
+  });
+});
+
+describe("expression helpers — formatDate", () => {
+  it("formats an ISO string with a pattern", () => {
+    expect(
+      compileTemplate('{{formatDate "2026-09-03T10:00:00.000Z" "yyyy-MM-dd"}}')(
+        {},
+      ),
+    ).toBe("2026-09-03");
+  });
+
+  it("formats a numeric epoch-seconds timestamp by default pattern", () => {
+    // 2026-09-03T00:00:00Z
+    const rendered = compileTemplate("{{formatDate 1788451200}}")({});
+    expect(rendered).toMatch(/^2026-09-03 /);
+  });
+
+  it("returns empty string for a missing value", () => {
+    expect(compileTemplate('[{{formatDate missing "yyyy"}}]')({})).toBe("[]");
+  });
+
+  it("throws for an unparseable date", () => {
+    expect(() =>
+      compileTemplate('{{formatDate "not-a-date" "yyyy"}}')({}),
+    ).toThrow(/could not parse/);
+  });
+});

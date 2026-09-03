@@ -621,3 +621,288 @@ describe("validate — run policy", () => {
     expect(configErrors).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Template root inference (AF-M9-07)
+// ---------------------------------------------------------------------------
+
+describe("validate — template root inference", () => {
+  it("does not warn on a template under an always-present meta root", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{$json.body.x}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("does not warn on a data root produced by a node's variableName", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", { variableName: "res" }),
+        makeNode("n2", "HTTP_REQUEST", "Report", {
+          endpoint: "https://example.com/{{res.httpResponse.data}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("does not treat helper callees as roots", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: 'https://example.com/{{default name "n/a"}}',
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    // Only the genuinely-unknown data arg `name` is flagged, never `default`.
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('unknown root "name"');
+  });
+
+  it("accepts webhook-trigger context roots via the webhook.* mapping", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "WEBHOOK_TRIGGER", "In"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{webhook.body.userId}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("warns on a stale n8n root that the graph cannot produce", () => {
+    // `$json.body` is n8n's idiom; AutoFlow's accumulated context has no
+    // top-level `body` key, so it must be caught at save time — the acceptance
+    // case for AF-M9-07.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "WEBHOOK_TRIGGER", "In"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{body.userId}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].nodeId).toBe("n1");
+    expect(warnings[0].message).toContain('unknown root "body"');
+    expect(warnings[0].message).toContain("webhook.body");
+  });
+
+  it("collects roots from nested config bags (e.g. SET mappings)", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "WEBHOOK_TRIGGER", "In"),
+        makeNode("n1", "SET", "Map", {
+          mappings: [{ key: "displayName", value: "{{webhook.body.name}}" }],
+        }),
+        makeNode("n2", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{staleField.path}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('unknown root "staleField"');
+  });
+
+  it("lets SET mapping keys be valid downstream roots", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "WEBHOOK_TRIGGER", "In"),
+        makeNode("n1", "SET", "Map", {
+          mappings: [
+            { key: "user.name", value: "{{webhook.body.name}}" },
+            { key: "displayName", value: "{{webhook.body.name}}" },
+          ],
+        }),
+        makeNode("n2", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{user.name.upper}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("does not warn on templates that carry no data-root reference", () => {
+    // A helper call with only literal arguments references no data root, so it
+    // must not trigger an unknown-root warning.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{default 5 7}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("does not warn on templates on a disabled node (AF-M9-04 parity)", () => {
+    // `disabled` is a node-level field, not part of the config bag; a disabled
+    // node's half-written template is the same "cannot run, cannot fail" case
+    // the run-policy skip covers.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "WEBHOOK_TRIGGER", "In"),
+        {
+          id: "n1",
+          type: "HTTP_REQUEST",
+          name: "Off",
+          data: { endpoint: "https://example.com/{{totallyWrong.x}}" },
+          disabled: true,
+        },
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("ignores an unparseable template rather than warning on roots", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{#busted",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("accepts the schedule root from a scheduled trigger", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "SCHEDULE_TRIGGER", "Every 5m"),
+        makeNode("n1", "HTTP_REQUEST", "Alert", {
+          endpoint: "https://example.com/check?at={{schedule.timestamp}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("accepts the googleForm root from a google-form trigger", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "GOOGLE_FORM_TRIGGER", "Form"),
+        makeNode("n1", "SET", "Map", {
+          mappings: [
+            { key: "row_email", value: "{{googleForm.respondentEmail}}" },
+            { key: "row_answers", value: "{{googleForm.responses}}" },
+          ],
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("accepts the stripe root from a stripe trigger", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "STRIPE_TRIGGER", "Payment"),
+        makeNode("n1", "HTTP_REQUEST", "Log", {
+          endpoint: "https://example.com/{{stripe.raw.amount}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("accepts a manual trigger's flat-spread JSON payload keys", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start", {
+          payload:
+            '{"title":"Checkout latency spike","severity":"SEV2","notes":"p95 up"}',
+        }),
+        makeNode("n1", "SET", "Map", {
+          mappings: [
+            { key: "incident_title", value: "{{title}}" },
+            { key: "incident_severity", value: "{{severity}}" },
+            { key: "incident_notes", value: "{{notes}}" },
+          ],
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("does not treat an unparseable manual payload as producing roots", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start", { payload: "not-json{{{" }),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com/{{madeUp.field}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('unknown root "madeUp"');
+  });
+});
