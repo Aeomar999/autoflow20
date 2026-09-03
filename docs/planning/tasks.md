@@ -1995,15 +1995,41 @@ The extractor already exists for the knowledge base; expose it to graphs.
 - [x] Output is capped and the cap is reported via `truncated`, never silently applied.
 - [x] progress.md updated
 
-### ⬜ AF-M10-12 · `HTML_TO_PDF` node · 1d
+### ✅ AF-M10-12 · `HTML_TO_PDF` node · 1d · **DONE 2026-09-03**
 #28 renders an attorney-ready report.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] Takes templated HTML, returns a `FileRef`. Rendering runs with no network access and no JS execution from the input document — a test asserts an embedded `<script>` and a remote `<img>` neither execute nor fetch.
-- [ ] Page size, orientation and margins configurable; output size-capped.
-- [ ] Renderer choice and its footprint recorded in the task's DONE note — a headless browser is a deployment decision, not an implementation detail.
-- [ ] progress.md updated
+- [x] Takes templated HTML, returns a `FileRef`. Rendering runs with no network access and no JS execution from the input document — a test asserts an embedded `<script>` and a remote `<img>` neither execute nor fetch.
+- [x] Page size, orientation and margins configurable; output size-capped.
+- [x] Renderer choice and its footprint recorded in the task's DONE note — a headless browser is a deployment decision, not an implementation detail.
+- [x] progress.md updated
+
+
+**DONE note — renderer choice.** Not a headless browser. `jsdom` →
+`html-to-pdfmake` → `pdfmake`, **~27 MB installed, pure JavaScript, no
+binaries**, versus ~300 MB of Chromium that would have to exist in the runtime
+image — which on Vercel it does not, so a browser would have meant a second
+deployment target for one node.
+
+The bigger reason is that the safety properties become structural instead of
+configured. jsdom is constructed without `runScripts` (nothing executes) and
+without `resources` (nothing is fetched); pdfmake's `setUrlAccessPolicy` denies
+every URL and `setLocalAccessPolicy` allows only the fourteen PDF standard font
+names. With a browser, "no network, no JS" is request interception plus a
+disabled JS context — configuration, which fails open.
+
+Two layers, deliberately: the DOM is sanitized first (scripts, iframes, link,
+style, on* attributes and any `<img>` that is not already a `data:` URI are
+removed) so a stray remote image degrades to a missing image rather than
+aborting the render, and the deny policies remain underneath so a miss in
+sanitization still cannot fetch.
+
+**What it costs:** CSS support is `html-to-pdfmake`'s — headings, paragraphs,
+lists, tables, inline styles, basic text formatting. Floats, flexbox, grid and
+page-break control are not honoured. Adequate for a generated report (#28's
+shape); not adequate for rendering an arbitrary web page. The node's
+description says so.
 
 ### ⬜ AF-M10-13 · External vector store for `AI_RETRIEVE` (Pinecone) · 1.5d
 H12. #23 needs a caller-supplied index.

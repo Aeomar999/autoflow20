@@ -21,6 +21,7 @@ import { definition as discordSendMessage } from "./discord/send-message/definit
 import { definition as emailSend } from "./email/send/definition";
 import { definition as filesDownload } from "./files/download/definition";
 import { definition as filesExtractText } from "./files/extract-text/definition";
+import { definition as filesHtmlToPdf } from "./files/html-to-pdf/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
@@ -64,6 +65,7 @@ export const nodeManifest: NodeDefinition[] = [
   httpHttpRequest,
   filesDownload,
   filesExtractText,
+  filesHtmlToPdf,
   aiCompatible,
   aiExtract,
   aiLlm,

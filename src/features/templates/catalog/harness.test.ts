@@ -25,10 +25,10 @@ import {
 /**
  * 21 from AF-M7-02, the three AF-M9-15 reference-parity templates, and three
  * M10 templates demonstrating the Phase A primitives: file archive
- * (`FILE_DOWNLOAD`), once-only sync (`FILTER` + `DEDUPE`), and morning digest
- * (`EXTRACT_DOCUMENT_TEXT` + `WAIT`).
+ * (`FILE_DOWNLOAD`), once-only sync (`FILTER` + `DEDUPE`), morning digest
+ * (`EXTRACT_DOCUMENT_TEXT` + `WAIT`) and contract review (`HTML_TO_PDF`).
  */
-const EXPECTED_TEMPLATE_COUNT = 27;
+const EXPECTED_TEMPLATE_COUNT = 28;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {

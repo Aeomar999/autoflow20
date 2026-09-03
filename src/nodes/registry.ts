@@ -22,6 +22,7 @@ import discordSendMessage from "./discord/send-message";
 import emailSend from "./email/send";
 import filesDownload from "./files/download";
 import filesExtractText from "./files/extract-text";
+import filesHtmlToPdf from "./files/html-to-pdf";
 import formsGoogleForm from "./forms/google-form";
 import googleSheetsAppend from "./google-sheets/append";
 import httpHttpRequest from "./http/request";
@@ -189,6 +190,7 @@ export const nodeRegistry = createNodeRegistry(
     httpHttpRequest,
     filesDownload,
     filesExtractText,
+    filesHtmlToPdf,
     aiCompatible,
     aiExtract,
     aiLlm,
