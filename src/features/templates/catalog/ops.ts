@@ -851,4 +851,119 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "spend-request-approval-gate",
+    name: "Spend request with an approval gate",
+    description:
+      "Takes a spend request from a hosted form, routes anything over the threshold to a named approver by email, and only records approved requests. The approver does not need an AutoFlow account: the email carries single-use, expiring links, and clicking one opens a confirmation page rather than approving on the spot — mail scanners follow links, and an approval a scanner granted is worse than no gate at all. Requests under the threshold skip the gate entirely. Supply an SMTP credential, a sender address, the approver's address, and the endpoint that records the decision.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["approval", "human-in-the-loop", "spend", "form", "gate", "email"],
+    graph: {
+      nodes: [
+        {
+          id: "request",
+          type: "FORM_TRIGGER",
+          name: "Spend request",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Request spend approval",
+            description:
+              "Requests over the threshold go to a manager. Under it, they are recorded immediately.",
+            submitLabel: "Submit request",
+            successMessage: "Submitted. You will hear back by email.",
+            fields: [
+              {
+                name: "requester",
+                label: "Your email",
+                type: "email",
+                required: true,
+              },
+              {
+                name: "amount",
+                label: "Amount (GBP)",
+                type: "number",
+                required: true,
+              },
+              {
+                name: "reason",
+                label: "What is it for?",
+                type: "textarea",
+                required: true,
+                maxLength: 2000,
+              },
+            ],
+          },
+        },
+        {
+          id: "needs-approval",
+          type: "CONDITION",
+          name: "Over the threshold?",
+          position: { x: 280, y: 0 },
+          data: {
+            left: "{{form.fields.amount}}",
+            operator: "gt",
+            right: "1000",
+          },
+        },
+        {
+          id: "gate",
+          type: "APPROVAL",
+          name: "Manager approval",
+          position: { x: 560, y: -80 },
+          data: {
+            variableName: "approval",
+            channel: "email",
+            approvers: "manager@example.com",
+            from: "automation@example.com",
+            subject: "Spend approval needed: GBP {{form.fields.amount}}",
+            prompt:
+              "{{form.fields.requester}} is requesting GBP {{form.fields.amount}}.\n\nReason: {{form.fields.reason}}",
+            // One working day. A request nobody answered by then routes to the
+            // rejected branch with the reason recorded, rather than holding
+            // the run open indefinitely.
+            timeoutSeconds: 86400,
+          },
+        },
+        {
+          id: "record-approved",
+          type: "HTTP_REQUEST",
+          name: "Record it",
+          position: { x: 860, y: -80 },
+          data: {
+            variableName: "recorded",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"requester":"{{form.fields.requester}}","amount":"{{form.fields.amount}}","approvedBy":"{{approval.respondedBy}}","note":"{{approval.comment}}"}',
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "record-small",
+          type: "HTTP_REQUEST",
+          name: "Record without approval",
+          position: { x: 860, y: 120 },
+          data: {
+            variableName: "recorded",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"requester":"{{form.fields.requester}}","amount":"{{form.fields.amount}}","approvedBy":"under-threshold"}',
+            failOnNon2xx: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "request", target: "needs-approval" },
+        { source: "needs-approval", sourceHandle: "true", target: "gate" },
+        {
+          source: "needs-approval",
+          sourceHandle: "false",
+          target: "record-small",
+        },
+        { source: "gate", sourceHandle: "approved", target: "record-approved" },
+      ],
+    },
+  },
 ];

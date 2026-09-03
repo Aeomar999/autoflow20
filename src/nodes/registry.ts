@@ -5,6 +5,7 @@ import aiLlm from "./ai/llm";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
 import coreAggregate from "./core/aggregate";
+import coreApproval from "./core/approval";
 import coreCode from "./core/code";
 import coreCondition from "./core/condition";
 import coreDedupe from "./core/dedupe";
@@ -181,6 +182,7 @@ export const nodeRegistry = createNodeRegistry(
     coreFilter,
     coreDedupe,
     coreWait,
+    coreApproval,
     coreRespondToWebhook,
     formsGoogleForm,
     formsHostedForm,

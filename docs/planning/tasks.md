@@ -1961,18 +1961,18 @@ H8. #27 pauses until 15 minutes before a meeting.
 - [x] Cancellation (AF-M8-27) interrupts a sleeping run.
 - [x] progress.md updated
 
-### ⬜ AF-M10-09 · `APPROVAL` node — send and wait · 2d
+### ✅ AF-M10-09 · `APPROVAL` node — send and wait · 2d · **DONE 2026-09-03**
 H8. #30 emails an approver and blocks on the answer. `src/features/approvals` has
 the dashboard and the `ApprovalRequest` model; this binds them to the graph.
 
 **Depends on:** AF-M10-08
 **Acceptance**
-- [ ] The node creates an `ApprovalRequest` row, sends the request over a configured channel (Gmail/SMTP now; Slack once AF-M10-17 lands), and waits on an Inngest event.
-- [ ] Two outputs, `approved` and `rejected`, resolved through the AF-M9-09 `resolveOutputs` contract; a timeout routes to `rejected` with a recorded `skipReason`.
-- [ ] Approval links carry a single-use, expiring, org-scoped token; replay of a used token is rejected and audited. A test covers replay.
-- [ ] The approver's decision, identity and timestamp land in `AuditLog`.
-- [ ] Existing dashboard approvals and graph approvals share one model and one list — not two parallel systems.
-- [ ] progress.md updated
+- [x] The node creates an `ApprovalRequest` row, sends the request over a configured channel (Gmail/SMTP now; Slack once AF-M10-17 lands), and waits on an Inngest event.
+- [x] Two outputs, `approved` and `rejected`, resolved through the AF-M9-09 `resolveOutputs` contract; a timeout routes to `rejected` with a recorded `skipReason`.
+- [x] Approval links carry a single-use, expiring, org-scoped token; replay of a used token is rejected and audited. A test covers replay.
+- [x] The approver's decision, identity and timestamp land in `AuditLog`.
+- [x] Existing dashboard approvals and graph approvals share one model and one list — not two parallel systems.
+- [x] progress.md updated
 
 ### ✅ AF-M10-10 · `FILTER` and `DEDUPE` nodes · 1d · **DONE 2026-09-03**
 H15. Four automations mean "skip what we already handled".

@@ -4,6 +4,7 @@ import { definition as aiLlm } from "./ai/llm/definition";
 import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
 import { definition as coreAggregate } from "./core/aggregate/definition";
+import { definition as coreApproval } from "./core/approval/definition";
 import { definition as coreCode } from "./core/code/definition";
 import { definition as coreCondition } from "./core/condition/definition";
 import { definition as coreDedupe } from "./core/dedupe/definition";
@@ -56,6 +57,7 @@ export const nodeManifest: NodeDefinition[] = [
   coreFilter,
   coreDedupe,
   coreWait,
+  coreApproval,
   coreRespondToWebhook,
   formsGoogleForm,
   formsHostedForm,

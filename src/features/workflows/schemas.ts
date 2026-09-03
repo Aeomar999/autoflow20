@@ -149,6 +149,7 @@ export const updateNodeSchemas = [
   makeNodeSchema("FILTER", configOf("FILTER")),
   makeNodeSchema("DEDUPE", configOf("DEDUPE")),
   makeNodeSchema("WAIT", configOf("WAIT")),
+  makeNodeSchema("APPROVAL", configOf("APPROVAL")),
   makeNodeSchema("HTML_TO_PDF", configOf("HTML_TO_PDF")),
   makeNodeSchema("DISCORD", configOf("DISCORD")),
   makeNodeSchema("SLACK", configOf("SLACK")),
