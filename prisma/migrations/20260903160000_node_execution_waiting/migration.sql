@@ -1,0 +1,15 @@
+-- AF-M10-08. A node parked in a WAIT needs a status of its own.
+--
+-- Automation #27 pauses until fifteen minutes before a meeting; an APPROVAL
+-- (AF-M10-09) blocks until a human answers. Both are RUNNING today, which is
+-- indistinguishable from "stuck" in the run list and in the trace — and a run
+-- legitimately parked for six days reading as hung is how an operator learns
+-- to ignore the status column.
+--
+-- Additive enum value. Postgres has allowed ADD VALUE inside a transaction
+-- since 12, and every existing row keeps its exact status: nothing is
+-- backfilled, because nothing was previously waiting.
+--
+-- Ordered after RUNNING so the enum reads in lifecycle order for anyone
+-- inspecting the type directly.
+ALTER TYPE "NodeExecutionStatus" ADD VALUE IF NOT EXISTS 'WAITING' AFTER 'RUNNING';

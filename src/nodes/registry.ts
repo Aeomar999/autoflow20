@@ -7,6 +7,8 @@ import airtableCreateRecord from "./airtable/create-record";
 import coreAggregate from "./core/aggregate";
 import coreCode from "./core/code";
 import coreCondition from "./core/condition";
+import coreDedupe from "./core/dedupe";
+import coreFilter from "./core/filter";
 import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
 import coreRespondToWebhook from "./core/respond-to-webhook";
@@ -14,10 +16,12 @@ import coreScheduleTrigger from "./core/schedule-trigger";
 import coreSet from "./core/set";
 import coreSplitOut from "./core/split-out";
 import coreSwitch from "./core/switch";
+import coreWait from "./core/wait";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
 import emailSend from "./email/send";
 import filesDownload from "./files/download";
+import filesExtractText from "./files/extract-text";
 import formsGoogleForm from "./forms/google-form";
 import googleSheetsAppend from "./google-sheets/append";
 import httpHttpRequest from "./http/request";
@@ -172,6 +176,9 @@ export const nodeRegistry = createNodeRegistry(
     coreSwitch,
     coreSplitOut,
     coreAggregate,
+    coreFilter,
+    coreDedupe,
+    coreWait,
     coreRespondToWebhook,
     formsGoogleForm,
     googleSheetsAppend,
@@ -181,6 +188,7 @@ export const nodeRegistry = createNodeRegistry(
     postgresQuery,
     httpHttpRequest,
     filesDownload,
+    filesExtractText,
     aiCompatible,
     aiExtract,
     aiLlm,

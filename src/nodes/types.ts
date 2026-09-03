@@ -157,6 +157,25 @@ export interface NodeRunParams<TData = Record<string, unknown>> {
   /** Raw node config (validated at the save boundary by the type's configSchema). */
   data: TData;
   nodeId: string;
+  /**
+   * Workflow the run belongs to (AF-M10-10). Needed by nodes that keep state
+   * across runs — `DEDUPE` scopes its seen-key window to
+   * `(workflowId, nodeId)`, the same key the polling framework uses. Optional
+   * for the same reason `organizationId` is: a legacy replay may not carry
+   * one, and a node that needs it must fail loudly rather than guess.
+   */
+  workflowId?: string;
+  /**
+   * The run this invocation belongs to (AF-M10-08).
+   *
+   * Needed by nodes that must reason about their own run rather than only
+   * about their data: `WAIT` marks its trace row `WAITING` and re-checks for
+   * cancellation between sleep chunks, and `APPROVAL` links its
+   * `ApprovalRequest` to the execution. Optional for the same reason
+   * `organizationId` is — a node that needs it fails loudly rather than
+   * guessing.
+   */
+  executionId?: string;
   userId: string;
   /**
    * Tenant that owns the run. Every tenant-scoped read or write an executor
@@ -198,6 +217,17 @@ export interface NodeRunParams<TData = Record<string, unknown>> {
    * trace, so plaintext cannot reach `NodeExecution.input/output`.
    */
   credentials?: Record<string, CredentialSecret>;
+  /**
+   * The fan-out item this invocation is for (AF-M9-14), when the node is
+   * inside a `SPLIT_OUT`/`AGGREGATE` segment.
+   *
+   * Templates already see `$item`/`$itemIndex` through `resolve`. This is the
+   * same information as a *value*, for the nodes whose behaviour changes
+   * rather than whose text does: `FILTER` and `DEDUPE` act on the current item
+   * inside a segment and on an array outside one, and inferring which by
+   * probing the resolver would be guesswork.
+   */
+  item?: { value: unknown; index: number };
 }
 
 export type NodeRun<TData = Record<string, unknown>> = (

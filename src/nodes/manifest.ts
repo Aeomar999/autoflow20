@@ -6,6 +6,8 @@ import { definition as airtableCreateRecord } from "./airtable/create-record/def
 import { definition as coreAggregate } from "./core/aggregate/definition";
 import { definition as coreCode } from "./core/code/definition";
 import { definition as coreCondition } from "./core/condition/definition";
+import { definition as coreDedupe } from "./core/dedupe/definition";
+import { definition as coreFilter } from "./core/filter/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
 import { definition as coreMerge } from "./core/merge/definition";
 import { definition as coreRespondToWebhook } from "./core/respond-to-webhook/definition";
@@ -13,10 +15,12 @@ import { definition as coreScheduleTrigger } from "./core/schedule-trigger/defin
 import { definition as coreSet } from "./core/set/definition";
 import { definition as coreSplitOut } from "./core/split-out/definition";
 import { definition as coreSwitch } from "./core/switch/definition";
+import { definition as coreWait } from "./core/wait/definition";
 import { definition as coreWebhookTrigger } from "./core/webhook-trigger/definition";
 import { definition as discordSendMessage } from "./discord/send-message/definition";
 import { definition as emailSend } from "./email/send/definition";
 import { definition as filesDownload } from "./files/download/definition";
+import { definition as filesExtractText } from "./files/extract-text/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
@@ -47,6 +51,9 @@ export const nodeManifest: NodeDefinition[] = [
   coreSwitch,
   coreSplitOut,
   coreAggregate,
+  coreFilter,
+  coreDedupe,
+  coreWait,
   coreRespondToWebhook,
   formsGoogleForm,
   googleSheetsAppend,
@@ -56,6 +63,7 @@ export const nodeManifest: NodeDefinition[] = [
   postgresQuery,
   httpHttpRequest,
   filesDownload,
+  filesExtractText,
   aiCompatible,
   aiExtract,
   aiLlm,

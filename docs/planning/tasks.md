@@ -1949,17 +1949,17 @@ H7. Turn the declared `vision` capability into something a graph can use.
 - [ ] The AF-M5-07 response cache key includes the attachment `sha256` — two different invoices must not share a cache entry.
 - [ ] progress.md updated
 
-### ⬜ AF-M10-08 · `WAIT` node · 1d
+### ✅ AF-M10-08 · `WAIT` node · 1d · **DONE 2026-09-03**
 H8. #27 pauses until 15 minutes before a meeting.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] Modes: `duration` (relative) and `until` (a template resolving to an ISO timestamp). Backed by Inngest `step.sleep`/`step.sleepUntil` — no polling loop.
-- [ ] A maximum wait is enforced and configurable per plan; exceeding it fails validation at save time, not mid-run.
-- [ ] An `until` in the past resolves immediately rather than erroring.
-- [ ] The waiting node shows as a distinct status in the trace and the run detail UI — a run parked for six days must not read as hung.
-- [ ] Cancellation (AF-M8-27) interrupts a sleeping run.
-- [ ] progress.md updated
+- [x] Modes: `duration` (relative) and `until` (a template resolving to an ISO timestamp). Backed by Inngest `step.sleep`/`step.sleepUntil` — no polling loop.
+- [x] A maximum wait is enforced and configurable per plan; exceeding it fails validation at save time, not mid-run.
+- [x] An `until` in the past resolves immediately rather than erroring.
+- [x] The waiting node shows as a distinct status in the trace and the run detail UI — a run parked for six days must not read as hung.
+- [x] Cancellation (AF-M8-27) interrupts a sleeping run.
+- [x] progress.md updated
 
 ### ⬜ AF-M10-09 · `APPROVAL` node — send and wait · 2d
 H8. #30 emails an approver and blocks on the answer. `src/features/approvals` has
@@ -1974,26 +1974,26 @@ the dashboard and the `ApprovalRequest` model; this binds them to the graph.
 - [ ] Existing dashboard approvals and graph approvals share one model and one list — not two parallel systems.
 - [ ] progress.md updated
 
-### ⬜ AF-M10-10 · `FILTER` and `DEDUPE` nodes · 1d
+### ✅ AF-M10-10 · `FILTER` and `DEDUPE` nodes · 1d · **DONE 2026-09-03**
 H15. Four automations mean "skip what we already handled".
 
 **Depends on:** AF-M10-05
 **Acceptance**
-- [ ] `FILTER`: evaluates a condition per item and passes through only matches, using the AF-M9-08 typed-value rules (a filter on `ok: true` must not compare the string `"true"`).
-- [ ] `DEDUPE`: suppresses items whose key was seen before, backed by the same `TriggerState` store, scoped to `(workflowId, nodeId)`; modes `forever` and `window(n)`.
-- [ ] Both are fan-out aware — inside an AF-M9-14 segment they filter the segment's items, and a fully-filtered branch ends the run cleanly rather than erroring.
-- [ ] Dedupe state is cleared when the node's key expression changes, so an edited workflow does not inherit stale keys.
-- [ ] progress.md updated
+- [x] `FILTER`: evaluates a condition per item and passes through only matches, using the AF-M9-08 typed-value rules (a filter on `ok: true` must not compare the string `"true"`).
+- [x] `DEDUPE`: suppresses items whose key was seen before, backed by the same `TriggerState` store, scoped to `(workflowId, nodeId)`; modes `forever` and `window(n)`.
+- [x] Both are fan-out aware — inside an AF-M9-14 segment they filter the segment's items, and a fully-filtered branch ends the run cleanly rather than erroring.
+- [x] Dedupe state is cleared when the node's key expression changes, so an edited workflow does not inherit stale keys.
+- [x] progress.md updated
 
-### ⬜ AF-M10-11 · `EXTRACT_DOCUMENT_TEXT` node · 0.5d
+### ✅ AF-M10-11 · `EXTRACT_DOCUMENT_TEXT` node · 0.5d · **DONE 2026-09-03**
 The extractor already exists for the knowledge base; expose it to graphs.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] Node wraps `src/features/knowledge/lib/extractor.ts` — one implementation, not a copy — taking a `FileRef` and returning `{ text, pageCount, truncated }`.
-- [ ] PDF and DOCX supported; an unsupported MIME type fails with a message naming the type. #29's "DOCX marked supported but not wired" deviation must not be reproduced here.
-- [ ] Output is capped and the cap is reported via `truncated`, never silently applied.
-- [ ] progress.md updated
+- [x] Node wraps `src/features/knowledge/lib/extractor.ts` — one implementation, not a copy — taking a `FileRef` and returning `{ text, pageCount, truncated }`.
+- [x] PDF and DOCX supported; an unsupported MIME type fails with a message naming the type. #29's "DOCX marked supported but not wired" deviation must not be reproduced here.
+- [x] Output is capped and the cap is reported via `truncated`, never silently applied.
+- [x] progress.md updated
 
 ### ⬜ AF-M10-12 · `HTML_TO_PDF` node · 1d
 #28 renders an attorney-ready report.

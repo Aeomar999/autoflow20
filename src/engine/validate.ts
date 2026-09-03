@@ -3,6 +3,7 @@ import {
   EXPRESSION_HELPERS,
   getTemplateRoots,
 } from "@/features/executions/template";
+import { MAX_WAIT_SECONDS } from "@/nodes/core/wait/definition";
 import { outputPorts } from "@/nodes/ports";
 import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
@@ -119,6 +120,7 @@ export function validate(
   checkDisconnected(nodes, connections, errors);
   checkSegments(nodes, connections, errors);
   checkRespondNodes(nodes, connections, errors);
+  checkWaitBounds(nodes, errors);
 
   // --- Registry-dependent checks (server only) ---
 
@@ -272,6 +274,39 @@ function checkTriggers(nodes: GraphNode[], errors: ValidationError[]): void {
       severity: "warning",
       message: `Workflow's only trigger "${triggers[0].name}" is disabled. No events will start this workflow until it is enabled.`,
     });
+  }
+}
+
+/**
+ * A `WAIT` may not exceed the platform's maximum (AF-M10-08).
+ *
+ * Enforced at SAVE time, as an error, because the alternative is finding out
+ * mid-run: a workflow that fails three days into a six-day wait has already
+ * burned three days, and the author is not watching. The `until` mode cannot
+ * be checked here — its target is computed at run time — so the executor
+ * carries the same ceiling and fails before sleeping.
+ */
+function checkWaitBounds(nodes: GraphNode[], errors: ValidationError[]): void {
+  for (const node of nodes) {
+    if (node.type !== "WAIT") continue;
+
+    const data = (node.data ?? {}) as {
+      mode?: unknown;
+      seconds?: unknown;
+    };
+    const mode = data.mode === "until" ? "until" : "duration";
+    if (mode !== "duration") continue;
+
+    const seconds = typeof data.seconds === "number" ? data.seconds : undefined;
+    if (seconds === undefined) continue;
+
+    if (seconds > MAX_WAIT_SECONDS) {
+      errors.push({
+        nodeId: node.id,
+        severity: "error",
+        message: `Wait "${node.name}" is set to ${Math.round(seconds / 86_400)} days, beyond the ${MAX_WAIT_SECONDS / 86_400}-day maximum. Shorten the wait, or split the workflow.`,
+      });
+    }
   }
 }
 

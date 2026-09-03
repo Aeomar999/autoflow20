@@ -421,6 +421,10 @@ model Execution {
 
 enum NodeExecutionStatus {
   RUNNING
+  /// AF-M10-08: parked in a WAIT (or an APPROVAL) and not consuming anything.
+  /// Distinct from RUNNING because a run legitimately parked for six days must
+  /// not read as hung to whoever is looking at the trace.
+  WAITING
   SUCCESS
   FAILED
   SKIPPED

@@ -23,10 +23,12 @@ import {
  */
 
 /**
- * 21 from AF-M7-02, the three AF-M9-15 reference-parity templates, and the
- * AF-M10-06 file-archive template that demonstrates `FILE_DOWNLOAD`.
+ * 21 from AF-M7-02, the three AF-M9-15 reference-parity templates, and three
+ * M10 templates demonstrating the Phase A primitives: file archive
+ * (`FILE_DOWNLOAD`), once-only sync (`FILTER` + `DEDUPE`), and morning digest
+ * (`EXTRACT_DOCUMENT_TEXT` + `WAIT`).
  */
-const EXPECTED_TEMPLATE_COUNT = 25;
+const EXPECTED_TEMPLATE_COUNT = 27;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
