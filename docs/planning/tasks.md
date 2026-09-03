@@ -1401,16 +1401,16 @@ this is arbitrary tenant JS running on our worker.
 
 **Depends on:** AF-M9-05
 **Acceptance**
-- [ ] Runs in `node:vm` inside a **`worker_threads` worker** with `resourceLimits`, or an equivalent isolate. Not bare `vm` on the main thread — `vm` alone stops neither `while(true)` nor an OOM.
-- [ ] No `require`, no `import`, no `process`, no `fetch`, no timers outliving the call, no filesystem. Only the resolved input, a frozen `$json`, and pure helpers.
-- [ ] Hard caps, configurable per node within engine ceilings: wall clock (default 5 s, max 30 s), heap (default 64 MB), output size (default 1 MB). Every breach is a `NonRetriableError` naming the limit — never a silent truncation.
-- [ ] The node returns either an object or an array; an array is stored under `items` so `SPLIT_OUT` can consume it.
-- [ ] Errors surface the user's line number in `NodeExecution.error` — a code node that fails opaquely is unusable.
-- [ ] CPU time is recorded on the `NodeExecution` so AF-M7-04 can meter it later. Not billed in M9.
-- [ ] Security tests: an infinite loop is killed at the cap; an allocation bomb is killed; `process.env` is `undefined`; a network attempt fails; prototype-pollution attempts do not escape.
-- [ ] ADR-0020 records the sandbox choice and what it explicitly does **not** defend against.
-- [ ] `docs/architecture/security.md` gains a Code-node section.
-- [ ] progress.md updated
+- [x] Runs in `node:vm` inside a **`worker_threads` worker** with `resourceLimits`, or an equivalent isolate. Not bare `vm` on the main thread — `vm` alone stops neither `while(true)` nor an OOM.
+- [x] No `require`, no `import`, no `process`, no `fetch`, no timers outliving the call, no filesystem. Only the resolved input, a frozen `$json`, and pure helpers.
+- [x] Hard caps, configurable per node within engine ceilings: wall clock (default 5 s, max 30 s), heap (default 64 MB), output size (default 1 MB). Every breach is a `NonRetriableError` naming the limit — never a silent truncation.
+- [x] The node returns either an object or an array; an array is stored under `items` so `SPLIT_OUT` can consume it.
+- [x] Errors surface the user's line number in `NodeExecution.error` — a code node that fails opaquely is unusable.
+- [ ] CPU time is recorded on the `NodeExecution` so AF-M7-04 can meter it later. Not billed in M9. *(Deferred — `worker.resourceLimits` gives no accurate CPU readout; wall-clock `durationMs` is already in the trace. Documented follow-up.)*
+- [x] Security tests: an infinite loop is killed at the cap; an allocation bomb is killed; `process.env` is `undefined`; a network attempt fails; prototype-pollution attempts do not escape.
+- [x] ADR-0020 records the sandbox choice and what it explicitly does **not** defend against.
+- [x] `docs/architecture/security.md` gains a Code-node section.
+- [x] progress.md updated
 
 ### ⬜ AF-M9-14 · Bounded item fan-out: `SPLIT_OUT` → segment iteration → `AGGREGATE` · 4d · **highest risk**
 G6. Decision D deferred loops/fan-out "until post-beta"; M9 is post-beta, and this
