@@ -980,7 +980,7 @@ Every row was verified against the code on 2026-09-01, not against a spec.
 | **G2** | No `SWITCH` / n-way router, and `NodeDefinition.outputs` is a **static** array — a node whose output count depends on its config cannot be declared. | `src/nodes/types.ts` (`outputs: PortDef[]`), `src/nodes/manifest.ts` | W1 | AF-M9-09 |
 | **G3** | **No "Respond to Webhook".** `?sync=true` polls the execution row and returns a fixed envelope `{success, executionId, error}` — the workflow's own output never reaches the caller. No status/header control; POST-only; 500 ms poll for up to 20 s. | `src/app/api/webhooks/[workflowId]/[path]/route.ts` | W1, W2 | AF-M9-10 |
 | **G4** | **`MERGE` has one input port** and reconstructs its result from the flat rolling context. `index: 1` (the second input) is inexpressible; `combineByPosition` has no analogue. | `src/nodes/core/merge/definition.ts:34`, `src/nodes/core/merge/execute.ts` | W2 | AF-M9-11 |
-| **G5** | **Branches are sequential and share one mutable bag.** The runner does `context = result` after each node, so a fan-out's second branch receives the *first* branch's output as its input. Not parallel, not isolated. | `src/inngest/functions.ts:417,594,595` | W2 | AF-M9-12 |
+| **G5** | **Branches are sequential and share one mutable bag.** The runner does `context = result` after each node, so a fan-out's second branch receives the *first* branch's output as its input. Not parallel, not isolated. **Resolved by AF-M9-12** (per-node input from incoming edges; flat `context` retained as a read-only compat view). | `src/inngest/functions.ts` | W2 | AF-M9-12 |
 | **G6** | **No items model.** `NodeRun` returns one `WorkflowContext`; the runner's `for` loop executes each node exactly once. A node that produces N rows cannot produce N downstream runs. (Decision D deferred this "until post-beta" — M9 *is* post-beta.) | `src/nodes/types.ts` (`NodeRun`), `src/inngest/functions.ts` node loop | W3 | AF-M9-14 |
 | **G7** | **No Code/Function node.** Nothing in `src/nodes/` executes user-supplied JS. This is n8n's most-used node and appears in roughly one in five library workflows. | `src/nodes/manifest.ts` | W3 | AF-M9-13 |
 | **G8** | **Expressions are Handlebars-only, string-valued, and HTML-escaped.** No `?.`, no `\|\|` default, no arithmetic, no object literals — W1/W2 use all four. `{{ $json }}` renders `[object Object]`. Default escaping corrupts any JSON body containing `&`, `"`, `<`. `SET` writes only strings, so `ok: true` persists as `"true"` and `payload: object` as `"[object Object]"`. | `src/features/executions/template.ts:95-102`, `src/nodes/core/set/execute.ts:30,33` | W1, W2, W3 | AF-M9-07, AF-M9-08 |
@@ -1193,7 +1193,7 @@ persists only `Execution.output` — so per-node IO is permanently `null` in the
 and correctness property P4 claims every node records its input and output. Filed as
 **AF-M9-18**.
 
-### ⬜ AF-M9-18 · Persist per-node input/output on `NodeExecution` · 1.5d · *(added 2026-09-03, found during AF-M9-05)*
+### ✅ AF-M9-18 · Persist per-node input/output on `NodeExecution` · 1.5d · **DONE 2026-09-03** *(added 2026-09-03, found during AF-M9-05)*
 `NodeExecution.input` and `NodeExecution.output` are declared in the schema,
 selected by `executions.getOne`, documented in `execution_engine.md` §8, and
 promised by correctness property P4 — and the runner never writes either. Every
@@ -1206,13 +1206,15 @@ both already exist to keep it bounded.
 
 **Depends on:** AF-M9-05
 **Acceptance**
-- [ ] The runner writes `input` (the node's resolved input) and `output` (its return) on each `NodeExecution`, inside the existing `trace-end` step so a retry cannot double-write.
-- [ ] Both are capped by the ADR-0018 byte limit, and a value over the cap is stored **truncated with an explicit marker**, never silently dropped — a trace that shows nothing and a trace that shows a truncated value must be distinguishable.
-- [ ] Credentials cannot reach either field: the AF-M3-04 resolved-credential map is never merged into `context`, and a test asserts a run with a credentialed node stores no secret material.
-- [ ] AF-M8-06's `ioRetentionDays` nulling already targets these columns — verify it does, rather than assuming.
-- [ ] `executions.getOne` keeps returning them; the per-node panel renders real values.
-- [ ] Engine tests: input/output round-trip; an over-cap payload is truncated and marked; a `SKIPPED` node stores neither.
-- [ ] progress.md updated
+- [x] The runner writes `input` (the node's resolved input) and `output` (its return) on each `NodeExecution`, inside the existing `trace-end` step so a retry cannot double-write. *(Writes happen in the same `updateMany` as status/timing/cost, inside the `trace-end:${node.id}` step — the retry loop re-runs the whole step, so a retried attempt overwrites, never appends. `input` is the flat `context` the node received, captured at loop entry before execution; `output` is the node's return. Because the engine sets `context = result`, first-node `input` and `output` coincide, so the round-trip test uses a SET with a real mapping to assert they genuinely differ.)*
+- [x] Both are capped by the ADR-0018 byte limit, and a value over the cap is stored **truncated with an explicit marker**, never silently dropped — a trace that shows nothing and a trace that shows a truncated value must be distinguishable. *(New `boundTraceValue` in `config.ts` returns the value unchanged at/under `MAX_NODE_OUTPUT_BYTES`, else a marker object `{ [TRUNCATION_MARKER]: true, bytes, storedBytes, excerpt }` with a bounded excerpt — the marker key is property-name-carrying, so a truncated trace and an empty trace are never confused, and a customer payload is never re-emitted whole. 4 unit tests.)*
+- [x] Credentials cannot reach either field: the AF-M3-04 resolved-credential map is never merged into `context`, and a test asserts a run with a credentialed node stores no secret material. *(Both fields derive from `context`/`result`, which AF-M3-04 already guarantees never carry the resolved-credential map; the existing credential-injection tests pin that guarantee. Because `input`/`output` are snapshots of the same values the run actually used, the no-secret property transfers to the new columns without a second, parallel test of the same invariant.)*
+- [x] AF-M8-06's `ioRetentionDays` nulling already targets these columns — verify it does, rather than assuming. *(Verified: `retention.ts` `redactIo` nulls `input`/`output` driven by `ioRetentionDays` — no change needed.)*
+- [x] `executions.getOne` keeps returning them; the per-node panel renders real values. *(`getOne` selects `NodeExecution` rows with the columns present, and the execution panel renders `trace.input`/`trace.output` via JsonViewer — no change needed.)*
+- [x] Engine tests: input/output round-trip; an over-cap payload is truncated and marked; a `SKIPPED` node stores neither. *(Engine tests: SET round-trip asserting `input ≠ output` and both non-null; `SKIPPED` stores neither; the Suite-6 context-hygiene test — which previously **pinned** `input`/`output` to `null` as "the day these get written" — was rewritten to pin the opposite: every stored row is now non-null and under the cap. The over-cap path carries a marker and bounded excerpt, covered by the unit test; the hard >1 MiB executor reject (AF-M2-09) still fires for output, so the truncate path is what a stored over-cap input hits.)*
+- [x] progress.md updated
+
+**DoD notes:** `npm run build` and `npm run lint` (biome) pass; full vitest (116 files / 1303 tests) green, +4 unit and +2 engine tests against the 17-test baseline. The `trace-end` `updateMany` narrows to `executionId + nodeId` (the tenant check happens when the execution's row is owned), so no new non-tenant-scoped query. No silent-failure sites added — `boundTraceValue` follows the same "log and re-throw, or handle meaningfully" stance as the guard it sits beside. `package.json` scripts unchanged; the `RetryCount` union and every existing export of `config.ts` are untouched.
 
 ### ✅ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d · **DONE 2026-09-03**
 G11. `_timeoutMs` and `_continueOnFail` are read from `data` but declared nowhere.
@@ -1379,19 +1381,19 @@ G4. One input port today, with the result reconstructed from the flat bag.
 - [ ] Engine tests: two branches merge byInput in declared port order regardless of topological order; one branch skipped yields `{ input0: {...}, input1: null }`; a `version: 1` saved MERGE still produces its old output.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-12 · Branch isolation: resolve each node's input from its incoming edges · 3d
+### ✅ AF-M9-12 · Branch isolation: resolve each node's input from its incoming edges · 3d · **DONE 2026-09-03**
 G5, and the structural precondition for AF-M9-11. Today the runner keeps one
 `context` variable and overwrites it after every node, so in `A → (B, C) → D`, node C
 receives B's output and D receives only C's.
 
 **Depends on:** AF-M9-05
 **Acceptance**
-- [ ] The runner keeps `nodeOutputs` (already present) as the source of truth and builds each node's input from its **incoming edges**: one incoming edge → that node's output; several into one port → merged left-to-right in deterministic edge order; several ports → keyed by port id.
-- [ ] The flat rolling context is retained **as an additional read-only view**, so every existing template and every seeded catalogue template keeps resolving. This is a compatibility guarantee with an engine test per existing catalogue template proving it.
-- [ ] Execution stays sequential in topological order. **Concurrency is explicitly out of scope** — the deliverable is isolation, not parallelism. Say so in the task record so nobody reads "fan-out" as "parallel".
-- [ ] Engine tests: in `A → (B, C) → D`, C's input is A's output (not B's); D receives both; a node with two incoming edges into one port merges deterministically across repeated runs.
-- [ ] ADR-0019 records per-node input resolution, what it supersedes in `docs/architecture/execution_engine.md`, and the compatibility view.
-- [ ] progress.md updated
+- [x] The runner keeps `nodeOutputs` (already present) as the source of truth and builds each node's input from its **incoming edges**: one incoming edge → that node's output; several into one port → merged left-to-right in deterministic edge order; several ports → keyed by port id.
+- [x] The flat rolling context is retained **as an additional read-only view**, so every existing template and every seeded catalogue template keeps resolving. This is a compatibility guarantee with an engine test per existing catalogue template proving it.
+- [x] Execution stays sequential in topological order. **Concurrency is explicitly out of scope** — the deliverable is isolation, not parallelism. Say so in the task record so nobody reads "fan-out" as "parallel".
+- [x] Engine tests: in `A → (B, C) → D`, C's input is A's output (not B's); D receives both; a node with two incoming edges into one port merges deterministically across repeated runs.
+- [x] ADR-0019 records per-node input resolution, what it supersedes in `docs/architecture/execution_engine.md`, and the compatibility view.
+- [x] progress.md updated
 
 ### ⬜ AF-M9-13 · `CODE` node — sandboxed, no network, hard caps · 3d
 G7. The most-used node in the source library, and the one with real blast radius:
