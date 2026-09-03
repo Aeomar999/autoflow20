@@ -1334,4 +1334,198 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       });
     });
   });
+
+  // ------------------------------------------------------------------
+  // Suite N — Bounded item fan-out (AF-M9-14, ADR-0021)
+  // ------------------------------------------------------------------
+  describe("bounded item fan-out (AF-M9-14)", () => {
+    function fanGraph(opts: {
+      items: unknown[];
+      cap?: number;
+      /** Index whose item should fail the interior node. */
+      failItemIndex?: number;
+    }): TemplateGraph {
+      const interiorMappings: Array<{
+        key: string;
+        value: string;
+        type: "string" | "number";
+      }> = [{ key: "note", value: "{{ $item }}", type: "string" }];
+      if (opts.failItemIndex !== undefined) {
+        interiorMappings.push({
+          key: "probe",
+          value: "{{ $item }}",
+          type: "number",
+        });
+      }
+
+      return {
+        nodes: [
+          {
+            id: "t",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "seed",
+            name: "Seed",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [
+                {
+                  key: "items",
+                  value: JSON.stringify(opts.items),
+                  type: "array",
+                },
+              ],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "split",
+            name: "Split",
+            type: "SPLIT_OUT",
+            position: { x: 0, y: 0 },
+            data: {
+              path: "items",
+              maxItems: opts.cap ?? 100,
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "echo",
+            name: "Echo",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: interiorMappings,
+              _run: {
+                timeoutMs: 1000,
+                ...(opts.failItemIndex !== undefined
+                  ? { continueOnFail: true, maxAttempts: 1 }
+                  : {}),
+              },
+            },
+          },
+          {
+            id: "agg",
+            name: "Agg",
+            type: "AGGREGATE",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "done",
+            name: "Done",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+        ],
+        edges: [
+          {
+            source: "t",
+            target: "seed",
+            sourceHandle: "main",
+            targetHandle: "main",
+          },
+          {
+            source: "seed",
+            target: "split",
+            sourceHandle: "main",
+            targetHandle: "main",
+          },
+          {
+            source: "split",
+            target: "echo",
+            sourceHandle: "main",
+            targetHandle: "main",
+          },
+          {
+            source: "echo",
+            target: "agg",
+            sourceHandle: "main",
+            targetHandle: "main",
+          },
+          {
+            source: "agg",
+            target: "done",
+            sourceHandle: "main",
+            targetHandle: "main",
+          },
+        ],
+      };
+    }
+
+    it("runs SPLIT_OUT once, the interior node once per item, and closes AGGREGATE", async () => {
+      const items = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+      const { execution, nodeExecutions } = await runGraph(fanGraph({ items }));
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const split = nodeExecutions.filter((n) => n.nodeName === "Split");
+      expect(split).toHaveLength(1);
+      expect(split[0].itemIndex).toBeNull();
+
+      const echo = nodeExecutions.filter((n) => n.nodeName === "Echo");
+      expect(echo).toHaveLength(10);
+      expect(echo.map((n) => n.itemIndex)).toEqual([
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+      ]);
+      for (const row of echo) {
+        expect(row.status).toBe(NodeExecutionStatus.SUCCESS);
+      }
+
+      const agg = nodeExecutions.filter((n) => n.nodeName === "Agg");
+      expect(agg).toHaveLength(1);
+      expect(agg[0].itemIndex).toBeNull();
+      expect(agg[0].status).toBe(NodeExecutionStatus.SUCCESS);
+      const out = agg[0].output as {
+        items: Array<{ note: string }>;
+        count: number;
+        failed: number[];
+      } | null;
+      expect(out?.count).toBe(10);
+      expect(out?.failed).toEqual([]);
+      expect(out?.items?.map((i) => i.note)).toEqual(items);
+    });
+
+    it("a failing item under continueOnFail is counted in AGGREGATE.failed but the run finishes", async () => {
+      const { execution, nodeExecutions } = await runGraph(
+        fanGraph({ items: [1, "oops", 3], failItemIndex: 1 }),
+      );
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const echo = nodeExecutions.filter((n) => n.nodeName === "Echo");
+      expect(echo).toHaveLength(3);
+      const failing = echo.find((n) => n.itemIndex === 1);
+      expect(failing?.status).toBe(NodeExecutionStatus.FAILED);
+      const ok = echo.filter((n) => n.itemIndex !== 1 && n.nodeName === "Echo");
+      for (const row of ok) {
+        expect(row.status).toBe(NodeExecutionStatus.SUCCESS);
+      }
+
+      const agg = nodeExecutions.find((n) => n.nodeName === "Agg");
+      const out = agg?.output as {
+        items: unknown[];
+        count: number;
+        failed: number[];
+      } | null;
+      expect(out?.count).toBe(3);
+      expect(out?.failed).toEqual([1]);
+      expect(out?.items).toHaveLength(2);
+    });
+
+    it("fails the run cleanly when items exceed the per-segment cap", async () => {
+      const items = Array.from({ length: 101 }, (_, i) => i);
+      // Cap of 100 with 101 items -> the whole run must fail with a
+      // NonRetriableError, never truncate into a half-fanned success.
+      await expect(runGraph(fanGraph({ items, cap: 100 }))).rejects.toThrow(
+        /exceeding its 100-item cap/,
+      );
+    });
+  });
 });

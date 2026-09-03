@@ -431,7 +431,17 @@ export type TemplateContext = Record<string, unknown> & {
   $execution: { id: string };
   $workflow: { id: string };
   $now: string;
+  $item?: unknown;
+  $itemIndex?: number;
 };
+
+/**
+ * Per-item fan-out scope (AF-M9-14, ADR-0021). When present, `$item` and
+ * `$itemIndex` are merged into the enriched template context at the highest
+ * precedence, so a segment interior node's templates resolve against the
+ * current item. Absent for top-level (non fan-out) nodes.
+ */
+export type ItemFanoutScope = { $item: unknown; $itemIndex: number };
 
 /**
  * Thrown when a template expression references a path that cannot be
@@ -477,6 +487,8 @@ export const compileTemplate = (source: string): SafeTemplate => {
  * @param nodeOutputs - per-node output map; the engine maintains this
  *   alongside `accumulatedContext`.
  * @param meta - execution/workflow identifiers.
+ * @param itemScope - optional fan-out scope (AF-M9-14) adding `$item` /
+ *   `$itemIndex` at the highest precedence for a segment interior node.
  * @returns a new object with `$json`, `$node`, `$execution`,
  *   `$workflow`, and `$now` added on top of `accumulatedContext`.
  */
@@ -484,9 +496,11 @@ export const buildTemplateContext = (
   accumulatedContext: Record<string, unknown>,
   nodeOutputs: NodeOutputMap,
   meta: TemplateMeta,
+  itemScope?: ItemFanoutScope,
 ): TemplateContext => {
   return {
     ...accumulatedContext,
+    ...itemScope,
     $json: accumulatedContext,
     $node: nodeOutputs,
     $execution: { id: meta.executionId },
@@ -515,7 +529,13 @@ export const makeResolver = (
   accumulatedContext: Record<string, unknown>,
   nodeOutputs: NodeOutputMap,
   meta: TemplateMeta,
+  itemScope?: ItemFanoutScope,
 ): TemplateResolver => {
-  const enriched = buildTemplateContext(accumulatedContext, nodeOutputs, meta);
+  const enriched = buildTemplateContext(
+    accumulatedContext,
+    nodeOutputs,
+    meta,
+    itemScope,
+  );
   return (template: string) => compileTemplate(template)(enriched);
 };

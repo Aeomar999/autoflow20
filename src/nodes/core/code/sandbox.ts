@@ -19,6 +19,16 @@ import {
  * `process`/`fetch`/timers/filesystem/network, and no reachable parent
  * `Object.prototype`.
  *
+ * Security: the sandboxed program must NEVER observe a host-realm object.
+ * Cross-realm leaks are the canonical `node:vm` escape — a host object carries
+ * its `constructor` chain back to the worker thread's `Function`, so
+ * `x.constructor.constructor("return process")()` yields the worker's `process`
+ * (full env, filesystem, arbitrary commands). To avoid this the input is passed
+ * to the worker as a JSON string and materialized (`JSON.parse`) INSIDE the vm
+ * context, so the user's code only ever reaches vm-realm objects whose
+ * intrinsics cannot name the host. See `execute.test.ts`'s adversarial escape
+ * cases.
+ *
  * Every cap breach is a loud error naming the limit; there is no silent
  * truncation anywhere.
  */
@@ -74,8 +84,10 @@ export function resolveCaps(caps?: Partial<CodeCaps>): CodeCaps {
 /**
  * The inline Worker source. Runs entirely in the worker thread. It wraps the
  * user's body as `(async function(input){ … })`, creates a fresh vm context
- * with no host bindings (only `input` injected), executes it, and posts either
- * `{ ok:true, value }` or `{ ok:false, message, userLineNumber }`.
+ * with no host bindings, materializes the input INSIDE the vm realm (see the
+ * module doc for why — host-realm injection is the vm escape), executes it,
+ * and posts either `{ ok:true, value }` or
+ * `{ ok:false, message, userLineNumber }`.
  *
  * The user's body is passed via `workerData` (not string-inlined), so this
  * template is static and `PREFIX_LINES` is computable here once. The wrapper
@@ -89,10 +101,15 @@ const WORKER_SOURCE = [
   `const PREFIX = "(input) => {\\n";`,
   `(async () => {`,
   `  try {`,
+  `    const context = vm.createContext({});`,
+  // Materialize the input in the vm realm. workerData.inputJson is a JSON
+  // string; evaluating the literal inside the context produces a graph of
+  // vm-realm objects, so `input.constructor` is the vm's Object, not the
+  // worker's — closing the cross-realm escape.
+  `    const input = vm.runInContext("(" + workerData.inputJson + ")", context);`,
   `    const script = new vm.Script(PREFIX + workerData.code + "\\n}", { filename: "code.js" });`,
-  `    const context = vm.createContext({ input: workerData.input });`,
   `    const fn = script.runInContext(context);`,
-  `    const value = await fn(context.input);`,
+  `    const value = await fn(input);`,
   `    parentPort.postMessage({ ok: true, value });`,
   `  } catch (err) {`,
   `    const e = err instanceof Error ? err : new Error(String(err));`,
@@ -107,6 +124,12 @@ const WORKER_SOURCE = [
 /**
  * Run user code to completion inside the sandboxed Worker.
  *
+ * `input` is serialized to JSON before crossing into the worker so the vm
+ * context can rebuild it in its own realm (no host-realm reference leaks into
+ * the sandbox — see the module doc). A value that cannot be serialized (e.g. a
+ * BigInt or a cyclic graph, which a correct upstream node never produces) fails
+ * loudly rather than being silently dropped.
+ *
  * @throws {CodeExecutionError} for any user-code failure, timeout, heap
  *   breach, or output-cap breach — every one names the limit that was hit.
  */
@@ -115,6 +138,15 @@ export function runUserCode(
   input: unknown,
   caps: CodeCaps,
 ): Promise<unknown> {
+  let inputJson: string;
+  try {
+    inputJson = JSON.stringify(input);
+  } catch {
+    throw new CodeExecutionError(
+      "Code node: the node input contains a value that cannot be serialized (BigInt or a circular reference)",
+    );
+  }
+
   return new Promise<unknown>((resolve, reject) => {
     const worker = new Worker(WORKER_SOURCE, {
       eval: true,
@@ -122,7 +154,11 @@ export function runUserCode(
         maxOldGenerationSizeMb: caps.heapMb,
         maxYoungGenerationSizeMb: Math.max(16, Math.round(caps.heapMb / 4)),
       },
-      workerData: { code, input },
+      workerData: {
+        code,
+        // A string, so the vm context materializes it in its own realm.
+        inputJson,
+      },
     });
 
     let settled = false;

@@ -975,3 +975,116 @@ describe("validate — template root inference", () => {
     expect(warnings[0].message).toContain('unknown root "madeUp"');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fan-out segment shape (AF-M9-14, ADR-0021)
+// ---------------------------------------------------------------------------
+
+describe("validate — fan-out segment shape (AF-M9-14)", () => {
+  const SEGMENT_ERROR = /fan-out|AGGREGATE|SPLIT_OUT|nested|Crossing edge/i;
+
+  it("accepts a single well-formed SPLIT_OUT → interior → AGGREGATE segment", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("s1", "SPLIT_OUT", "Split"),
+        makeNode("i1", "SET", "Interior"),
+        makeNode("a1", "AGGREGATE", "Aggregate"),
+        makeNode("d1", "SET", "Done"),
+      ],
+      connections: [
+        makeEdge("t1", "s1"),
+        makeEdge("s1", "i1"),
+        makeEdge("i1", "a1"),
+        makeEdge("a1", "d1"),
+      ],
+    };
+    const errors = errorsOf(validate(graph)).filter((e) =>
+      SEGMENT_ERROR.test(e.message),
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects a SPLIT_OUT with no closing AGGREGATE", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("s1", "SPLIT_OUT", "Split"),
+        makeNode("d1", "SET", "Done"),
+      ],
+      connections: [makeEdge("t1", "s1"), makeEdge("s1", "d1")],
+    };
+    const errors = errorsOf(validate(graph)).filter((e) =>
+      e.message.includes("has no closing"),
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('SPLIT_OUT "Split" has no closing');
+  });
+
+  it("rejects a SPLIT_OUT reaching multiple AGGREGATEs", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("s1", "SPLIT_OUT", "Split"),
+        makeNode("a1", "AGGREGATE", "Agg1"),
+        makeNode("a2", "AGGREGATE", "Agg2"),
+      ],
+      connections: [
+        makeEdge("t1", "s1"),
+        makeEdge("s1", "a1"),
+        makeEdge("s1", "a2"),
+      ],
+    };
+    const errors = errorsOf(validate(graph)).filter((e) =>
+      e.message.includes("reaches 2"),
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("reaches 2 AGGREGATE");
+  });
+
+  it("rejects a nested fan-out segment", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("s1", "SPLIT_OUT", "Outer Split"),
+        makeNode("s2", "SPLIT_OUT", "Inner Split"),
+        makeNode("a2", "AGGREGATE", "Inner Aggregate"),
+        makeNode("a1", "AGGREGATE", "Outer Aggregate"),
+      ],
+      connections: [
+        makeEdge("t1", "s1"),
+        makeEdge("s1", "s2"),
+        makeEdge("s2", "a2"),
+        makeEdge("a2", "a1"),
+      ],
+    };
+    const errors = errorsOf(validate(graph)).filter((e) =>
+      e.message.includes("Nested fan-out"),
+    );
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it("rejects an edge crossing a segment boundary from an interior node", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("s1", "SPLIT_OUT", "Split"),
+        makeNode("i1", "SET", "Interior"),
+        makeNode("a1", "AGGREGATE", "Aggregate"),
+        makeNode("d1", "SET", "Outside"),
+      ],
+      connections: [
+        makeEdge("t1", "s1"),
+        makeEdge("s1", "i1"),
+        makeEdge("i1", "a1"),
+        // Interior node connects outside the envelope -> crossing.
+        makeEdge("i1", "d1"),
+      ],
+    };
+    const errors = errorsOf(validate(graph)).filter((e) =>
+      e.message.includes("Crossing edge"),
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('"Interior" → "Outside"');
+  });
+});

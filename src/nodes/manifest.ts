@@ -3,12 +3,14 @@ import { definition as aiExtract } from "./ai/extract/definition";
 import { definition as aiLlm } from "./ai/llm/definition";
 import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
+import { definition as coreAggregate } from "./core/aggregate/definition";
 import { definition as coreCode } from "./core/code/definition";
 import { definition as coreCondition } from "./core/condition/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
 import { definition as coreMerge } from "./core/merge/definition";
 import { definition as coreScheduleTrigger } from "./core/schedule-trigger/definition";
 import { definition as coreSet } from "./core/set/definition";
+import { definition as coreSplitOut } from "./core/split-out/definition";
 import { definition as coreSwitch } from "./core/switch/definition";
 import { definition as coreWebhookTrigger } from "./core/webhook-trigger/definition";
 import { definition as discordSendMessage } from "./discord/send-message/definition";
@@ -41,6 +43,8 @@ export const nodeManifest: NodeDefinition[] = [
   coreCondition,
   coreMerge,
   coreSwitch,
+  coreSplitOut,
+  coreAggregate,
   formsGoogleForm,
   googleSheetsAppend,
   airtableCreateRecord,

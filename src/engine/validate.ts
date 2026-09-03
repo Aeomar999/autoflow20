@@ -7,6 +7,19 @@ import { outputPorts } from "@/nodes/ports";
 import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
 /**
+ * Fan-out segment node type ids (AF-M9-14, ADR-0021). These are permanent,
+ * stable type strings persisted in `Node.type` — never rename. SPLIT_OUT opens
+ * a bounded fan-out segment, AGGREGATE closes it.
+ */
+export const SPLIT_OUT_TYPE = "SPLIT_OUT";
+export const AGGREGATE_TYPE = "AGGREGATE";
+
+const FAN_OUT_BOUNDARY_TYPES: ReadonlySet<string> = new Set([
+  SPLIT_OUT_TYPE,
+  AGGREGATE_TYPE,
+]);
+
+/**
  * Shared graph validator (AF-M2-02). One implementation, three call sites:
  *   1. Canvas linting (AF-M1-07) — client-side with the catalogue adapter
  *      (`src/features/editor/lib/validation.ts`)
@@ -104,6 +117,7 @@ export function validate(
   checkTriggers(nodes, errors);
   checkRequiredInputs(nodes, connections, registry, errors);
   checkDisconnected(nodes, connections, errors);
+  checkSegments(nodes, connections, errors);
 
   // --- Registry-dependent checks (server only) ---
 
@@ -389,6 +403,232 @@ function checkDisconnected(
 }
 
 // ---------------------------------------------------------------------------
+// Fan-out segment shape (AF-M9-14, ADR-0021)
+// ---------------------------------------------------------------------------
+
+/** All nodes reachable from `start` following directed edges. */
+function reachableFrom(
+  start: string,
+  nodes: GraphNode[],
+  connections: GraphConnection[],
+): Set<string> {
+  const out = new Set<string>([start]);
+  const adj = new Map<string, string[]>();
+  for (const n of nodes) adj.set(n.id, []);
+  for (const c of connections) {
+    const list = adj.get(c.fromNodeId);
+    if (list) list.push(c.toNodeId);
+  }
+  const queue = [start];
+  let head = 0;
+  while (head < queue.length) {
+    for (const next of adj.get(queue[head]) ?? []) {
+      if (!out.has(next)) {
+        out.add(next);
+        queue.push(next);
+      }
+    }
+    head++;
+  }
+  return out;
+}
+
+/**
+ * Validate fan-out segment shape (AF-M9-14, ADR-0021). All checks are
+ * "error" severity: a malformed segment must block the run, never silently
+ * mis-execute or partially deliver the W3 batch.
+ *
+ * Rules enforced:
+ *  1. Pairing — every SPLIT_OUT must reach exactly one AGGREGATE that reaches
+ *     it back, and vice versa (1:1, symmetric).
+ *  2. No nesting — no SPLIT_OUT/AGGREGATE may sit strictly between another
+ *     pair.
+ *  3. No crossing — the only legal edges touching a segment are SPLIT_OUT →
+ *     first interior node, interior→interior, and last interior → AGGREGATE
+ *     (plus SPLIT_OUT → AGGREGATE for an empty interior). Any other edge that
+ *     enters or leaves the interior is an error.
+ *
+ * "interior(S, A)" = nodes (excluding S and A) reachable from S that also
+ * reach A.
+ */
+function checkSegments(
+  nodes: GraphNode[],
+  connections: GraphConnection[],
+  errors: ValidationError[],
+): void {
+  if (nodes.length === 0) return;
+
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const splits = nodes.filter((n) => n.type === SPLIT_OUT_TYPE);
+  const aggregates = nodes.filter((n) => n.type === AGGREGATE_TYPE);
+  if (splits.length === 0 && aggregates.length === 0) return;
+
+  // --- 1. Pairing via mutual reachability -----------------------------
+  const splitToAgg = new Map<string, string[]>();
+  const aggToSplit = new Map<string, string[]>();
+
+  for (const s of splits) {
+    const fwd = reachableFrom(s.id, nodes, connections);
+    const aggs = aggregates.filter((a) => fwd.has(a.id));
+    splitToAgg.set(
+      s.id,
+      aggs.map((a) => a.id),
+    );
+  }
+  for (const a of aggregates) {
+    // Invert the split→aggregate reachability above: an AGGREGATE is paired
+    // with every SPLIT_OUT whose forward reachability includes it. Mutual
+    // reachability (paired below) keeps the pairing symmetric and unique.
+    aggToSplit.set(
+      a.id,
+      splits
+        .filter((s) => (splitToAgg.get(s.id) ?? []).includes(a.id))
+        .map((s) => s.id),
+    );
+  }
+
+  for (const s of splits) {
+    const paired = splitToAgg.get(s.id) ?? [];
+    if (paired.length === 0) {
+      errors.push({
+        nodeId: s.id,
+        severity: "error",
+        message: `${SPLIT_OUT_TYPE} "${s.name}" has no closing ${AGGREGATE_TYPE} node. Add an AGGREGATE to close its fan-out segment, or remove the SPLIT_OUT.`,
+      });
+    } else if (paired.length > 1) {
+      errors.push({
+        nodeId: s.id,
+        severity: "error",
+        message: `${SPLIT_OUT_TYPE} "${s.name}" reaches ${paired.length} ${AGGREGATE_TYPE} nodes. A fan-out segment must close with exactly one AGGREGATE.`,
+      });
+    }
+  }
+  for (const a of aggregates) {
+    const paired = aggToSplit.get(a.id) ?? [];
+    if (paired.length === 0) {
+      errors.push({
+        nodeId: a.id,
+        severity: "error",
+        message: `${AGGREGATE_TYPE} "${a.name}" has no opening ${SPLIT_OUT_TYPE} node. Add a SPLIT_OUT to open its fan-out segment, or remove the AGGREGATE.`,
+      });
+    } else if (paired.length > 1) {
+      errors.push({
+        nodeId: a.id,
+        severity: "error",
+        message: `${AGGREGATE_TYPE} "${a.name}" is reached by ${paired.length} ${SPLIT_OUT_TYPE} nodes. A fan-out segment must open with exactly one SPLIT_OUT.`,
+      });
+    }
+  }
+
+  // --- 2/3. Per valid pair, check nesting + crossing ------------------
+  // A pair is "candidate" when both sides exist and are uniquely paired; we
+  // still run structural checks once per (s, a) edge reachable, guarded to
+  // avoid duplicate errors when pairing already failed.
+  const pairedPairs: Array<[string, string]> = [];
+  for (const s of splits) {
+    const aggs = splitToAgg.get(s.id) ?? [];
+    for (const aId of aggs) {
+      const back = aggToSplit.get(aId) ?? [];
+      if (back.includes(s.id)) {
+        pairedPairs.push([s.id, aId]);
+      }
+    }
+  }
+  // Deduplicate reverse-duplicated pairs.
+  const seenPairs = new Set<string>();
+  const uniquePairs: Array<[string, string]> = [];
+  for (const [s, a] of pairedPairs) {
+    const key = `${s}|${a}`;
+    if (seenPairs.has(key)) continue;
+    seenPairs.add(key);
+    uniquePairs.push([s, a]);
+  }
+  if (uniquePairs.length === 0) return;
+
+  for (const [sId, aId] of uniquePairs) {
+    const interior = new Set<string>();
+    const sReach = reachableFrom(sId, nodes, connections);
+    const parents = parentMap(nodes, connections);
+    for (const n of nodes) {
+      if (n.id === sId || n.id === aId) continue;
+      if (!sReach.has(n.id)) continue;
+      if (reachesTarget(n.id, aId, parents)) {
+        interior.add(n.id);
+      }
+    }
+
+    const sNode = byId.get(sId);
+    const aNode = byId.get(aId);
+
+    // Nesting: any other boundary node inside the interior.
+    for (const insideId of interior) {
+      const insideType = byId.get(insideId)?.type;
+      if (FAN_OUT_BOUNDARY_TYPES.has(insideType ?? "")) {
+        errors.push({
+          nodeId: insideId,
+          severity: "error",
+          message: `Nested fan-out: nodes between "${sNode?.name}" and "${aNode?.name}" contain another ${insideType}. Segments cannot be nested — flatten it.`,
+        });
+      }
+    }
+
+    // Crossing: edges involving an interior node (or the split/aggregate)
+    // that leave the segment envelope {interior ∪ {S, A}}.
+    const envelope = new Set<string>([...interior, sId, aId]);
+    const interiorOnly = interior; // excludes S and A
+
+    for (const c of connections) {
+      const crosses =
+        (interiorOnly.has(c.fromNodeId) && !envelope.has(c.toNodeId)) ||
+        (interiorOnly.has(c.toNodeId) && !envelope.has(c.fromNodeId));
+      if (crosses) {
+        const fromName = byId.get(c.fromNodeId)?.name ?? c.fromNodeId;
+        const toName = byId.get(c.toNodeId)?.name ?? c.toNodeId;
+        errors.push({
+          nodeId: interiorOnly.has(c.fromNodeId) ? c.fromNodeId : c.toNodeId,
+          severity: "error",
+          message: `Crossing edge in fan-out segment: "${fromName}" → "${toName}" connects a segment interior node to a node outside the segment. The interior of a SPLIT_OUT/AGGREGATE segment cannot connect to nodes outside it.`,
+        });
+      }
+    }
+  }
+}
+
+function parentMap(
+  nodes: GraphNode[],
+  connections: GraphConnection[],
+): Map<string, string[]> {
+  const parents = new Map<string, string[]>();
+  for (const n of nodes) parents.set(n.id, []);
+  for (const c of connections) {
+    parents.get(c.toNodeId)?.push(c.fromNodeId);
+  }
+  return parents;
+}
+
+/** True when `target` is reachable from `start` via reverse-BFS on parents. */
+function reachesTarget(
+  start: string,
+  target: string,
+  parents: Map<string, string[]>,
+): boolean {
+  const seen = new Set<string>([target]);
+  const queue = [target];
+  let head = 0;
+  while (head < queue.length) {
+    const current = queue[head++];
+    if (current === start) return true;
+    for (const parent of parents.get(current) ?? []) {
+      if (!seen.has(parent)) {
+        seen.add(parent);
+        queue.push(parent);
+      }
+    }
+  }
+  return seen.has(start);
+}
+
+// ---------------------------------------------------------------------------
 // Template root inference (AF-M9-07)
 // ---------------------------------------------------------------------------
 
@@ -402,6 +642,11 @@ const ALWAYS_PRESENT_ROOTS: readonly string[] = [
   "$execution",
   "$workflow",
   "$now",
+  // Fan-out segment scope (AF-M9-14): $item / $itemIndex exist for every
+  // interior node of a segment; always-present so a valid in-segment
+  // reference is never flagged as an unknown root.
+  "$item",
+  "$itemIndex",
 ];
 
 /**

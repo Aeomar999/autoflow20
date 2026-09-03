@@ -1408,27 +1408,28 @@ this is arbitrary tenant JS running on our worker.
 - [x] Errors surface the user's line number in `NodeExecution.error` — a code node that fails opaquely is unusable.
 - [ ] CPU time is recorded on the `NodeExecution` so AF-M7-04 can meter it later. Not billed in M9. *(Deferred — `worker.resourceLimits` gives no accurate CPU readout; wall-clock `durationMs` is already in the trace. Documented follow-up.)*
 - [x] Security tests: an infinite loop is killed at the cap; an allocation bomb is killed; `process.env` is `undefined`; a network attempt fails; prototype-pollution attempts do not escape.
+- [x] **Sandbox escape found and fixed (AF-M9-13 follow-up, 2026-09-03).** The initial implementation injected a host-realm `input` object (deserialized from `workerData`) into the vm context, which let `input.constructor.constructor("return process")()` reach the worker thread's real `process` (env, filesystem, arbitrary commands). Fixed by passing the input as a JSON string and materializing it inside the vm realm; an adversarial regression test pumps `constructor.constructor("return process")()` through the input, literals, and `JSON.parse` and asserts containment. ADR-0020 §2a, `security.md` §6.
 - [x] ADR-0020 records the sandbox choice and what it explicitly does **not** defend against.
 - [x] `docs/architecture/security.md` gains a Code-node section.
 - [x] progress.md updated
 
-### ⬜ AF-M9-14 · Bounded item fan-out: `SPLIT_OUT` → segment iteration → `AGGREGATE` · 4d · **highest risk**
+### ✅ AF-M9-14 · Bounded item fan-out: `SPLIT_OUT` → segment iteration → `AGGREGATE` · 4d · **highest risk**
 G6. Decision D deferred loops/fan-out "until post-beta"; M9 is post-beta, and this
 expires that deferral **for one bounded case only** — a single, non-nested iteration
 between an explicit start and an explicit end. Full n8n items semantics stay out.
 
 **Depends on:** AF-M9-12
 **Acceptance**
-- [ ] `SPLIT_OUT` (`TRANSFORM`) reads an array at a configured path and opens an iteration segment; `AGGREGATE` (`TRANSFORM`) closes it and returns `{ items, count, failed }`.
-- [ ] `validate()` enforces the shape at save time: every `SPLIT_OUT` has exactly one matching reachable `AGGREGATE`; segments do not nest; no edge crosses a segment boundary. All three are errors, not warnings.
-- [ ] The runner executes the segment once per item with `$item` and `$itemIndex` in scope, sequentially, honouring per-node retry and `continueOnFail` inside the segment.
-- [ ] **Hard cap** on items per segment (default 100, engine ceiling 1000). Exceeding it fails the run with a clear message — never a partial run reported as success.
-- [ ] Traces stay legible: one `NodeExecution` per node per item carrying `itemIndex`, with the executions UI grouping them. A 10-item × 2-node segment must not read as 20 unrelated rows.
-- [ ] The interaction with AF-M8-06 retention and AF-M7-04 quotas is stated: a 100-item segment writes 100× the node rows, and whether that counts as one execution or many for quota is an explicit decision recorded here.
-- [ ] Engine tests: 10 items → 10 iterations and `AGGREGATE` collects 10; one failing item with `continueOnFail` yields 9 succeeded + 1 in `failed`; 101 items against a cap of 100 fails cleanly; a nested segment is rejected at save.
-- [ ] ADR-0021 records the bounded design and, explicitly, what is still unsupported: nesting, parallel items, `splitInBatches` resumption, `Wait` inside a segment.
-- [ ] **Fallback, decided before starting:** if this is not green by the end of week 5, W3 ships batched (one POST for all ten records), the deviation is written into the template description and into this task, and `SPLIT_OUT`/`AGGREGATE` move to Phase 2. Slipping the milestone to save this task is the wrong trade.
-- [ ] progress.md updated
+- [x] `SPLIT_OUT` (`TRANSFORM`) reads an array at a configured path and opens an iteration segment; `AGGREGATE` (`TRANSFORM`) closes it and returns `{ items, count, failed }`.
+- [x] `validate()` enforces the shape at save time: every `SPLIT_OUT` has exactly one matching reachable `AGGREGATE`; segments do not nest; no edge crosses a segment boundary. All three are errors, not warnings.
+- [x] The runner executes the segment once per item with `$item` and `$itemIndex` in scope, sequentially, honouring per-node retry and `continueOnFail` inside the segment.
+- [x] **Hard cap** on items per segment (default 100, engine ceiling 1000). Exceeding it fails the run with a clear message — never a partial run reported as success.
+- [x] Traces stay legible: one `NodeExecution` per node per item carrying `itemIndex`, with the executions UI grouping them. A 10-item × 2-node segment must not read as 20 unrelated rows.
+- [x] The interaction with AF-M8-06 retention and AF-M7-04 quotas is stated: a 100-item segment writes 100× the node rows, and whether that counts as one execution or many for quota is an explicit decision recorded here.
+- [x] Engine tests: 10 items → 10 iterations and `AGGREGATE` collects 10; one failing item with `continueOnFail` yields 9 succeeded + 1 in `failed`; 101 items against a cap of 100 fails cleanly; a nested segment is rejected at save.
+- [x] ADR-0021 records the bounded design and, explicitly, what is still unsupported: nesting, parallel items, `splitInBatches` resumption, `Wait` inside a segment.
+- [x] **Fallback, decided before starting:** if this is not green by the end of week 5, W3 ships batched (one POST for all ten records), the deviation is written into the template description and into this task, and `SPLIT_OUT`/`AGGREGATE` move to Phase 2. Slipping the milestone to save this task is the wrong trade.
+- [x] progress.md updated
 
 #### Phase 4 — ship them and prove them
 
