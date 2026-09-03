@@ -26,6 +26,10 @@ import { definition as filesHtmlToPdf } from "./files/html-to-pdf/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as formsHostedForm } from "./forms/hosted-form/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
+import { definition as googleSheetsRead } from "./google-sheets/read/definition";
+import { definition as googleSheetsTrigger } from "./google-sheets/trigger/definition";
+import { definition as googleSheetsUpdate } from "./google-sheets/update/definition";
+import { definition as googleSheetsUpsert } from "./google-sheets/upsert/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
 import { definition as hubspotCreateContact } from "./hubspot/create-contact/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
@@ -62,6 +66,10 @@ export const nodeManifest: NodeDefinition[] = [
   formsGoogleForm,
   formsHostedForm,
   googleSheetsAppend,
+  googleSheetsRead,
+  googleSheetsUpdate,
+  googleSheetsUpsert,
+  googleSheetsTrigger,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

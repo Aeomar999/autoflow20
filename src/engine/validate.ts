@@ -870,6 +870,13 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   GOOGLE_FORM_TRIGGER: ["googleForm"],
   STRIPE_TRIGGER: ["stripe"],
   FORM_TRIGGER: ["form"],
+  /**
+   * Polling triggers (AF-M10-05) seed `trigger` — which the sweep always adds,
+   * carrying `nodeId`/`itemId`/`polledAt` — plus whatever the poller's item
+   * data spreads flat. The spread is per-connector, so each polling trigger
+   * names its own roots here rather than the sweep guessing them.
+   */
+  SHEETS_TRIGGER: ["trigger", "row", "sheet"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */

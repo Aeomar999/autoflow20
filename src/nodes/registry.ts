@@ -27,6 +27,10 @@ import filesHtmlToPdf from "./files/html-to-pdf";
 import formsGoogleForm from "./forms/google-form";
 import formsHostedForm from "./forms/hosted-form";
 import googleSheetsAppend from "./google-sheets/append";
+import googleSheetsRead from "./google-sheets/read";
+import googleSheetsTrigger from "./google-sheets/trigger";
+import googleSheetsUpdate from "./google-sheets/update";
+import googleSheetsUpsert from "./google-sheets/upsert";
 import httpHttpRequest from "./http/request";
 import hubspotCreateContact from "./hubspot/create-contact";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
@@ -187,6 +191,10 @@ export const nodeRegistry = createNodeRegistry(
     formsGoogleForm,
     formsHostedForm,
     googleSheetsAppend,
+    googleSheetsRead,
+    googleSheetsUpdate,
+    googleSheetsUpsert,
+    googleSheetsTrigger,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

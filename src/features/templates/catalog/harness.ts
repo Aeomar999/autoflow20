@@ -411,14 +411,26 @@ export function checkTemplate(spec: TemplateSpec): TemplateCheckResult {
 }
 
 /**
- * How many credentials the user must bind before this template can run.
+ * How many credentials the user must **connect** before this template can run.
+ *
  * Optional requirements (every AI provider key, which the node falls back
  * from) are excluded: the gallery's "fewest credentials" sort is a promise
  * about setup effort, and counting optional keys would break that promise.
+ *
+ * **Distinct types, not bindings** (corrected in AF-M10-15). This used to
+ * count every credential *field* in the graph, which was indistinguishable
+ * while no template used two nodes of the same service. M10's families break
+ * that: a Sheets template reads a row and writes it back, and both nodes want
+ * the same `google.sheets` credential. The user connects Google once and picks
+ * it from a dropdown twice, so counting two overstates the setup effort the
+ * number exists to describe — and would have pushed every realistic
+ * multi-step template over the one-credential onboarding bar for no reason a
+ * user would recognise.
  */
 export function countRequiredCredentials(spec: TemplateSpec): number {
   const nodes = spec.graph.nodes.filter((node) => nodeRegistry.has(node.type));
-  return collectPendingCredentials(nodes).filter((c) => !c.optional).length;
+  const required = collectPendingCredentials(nodes).filter((c) => !c.optional);
+  return new Set(required.map((c) => c.credentialType)).size;
 }
 
 /** Run every check across the whole catalogue, including cross-template ones. */

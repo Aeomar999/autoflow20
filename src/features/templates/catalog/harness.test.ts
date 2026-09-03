@@ -27,9 +27,10 @@ import {
  * M10 templates demonstrating the Phase A primitives: file archive
  * (`FILE_DOWNLOAD`), once-only sync (`FILTER` + `DEDUPE`), morning digest
  * (`EXTRACT_DOCUMENT_TEXT` + `WAIT`), contract review (`HTML_TO_PDF`) and
- * intake triage (`FORM_TRIGGER`) and a spend gate (`APPROVAL`).
+ * intake triage (`FORM_TRIGGER`), a spend gate (`APPROVAL`) and two Sheets
+ * flows (`SHEETS_TRIGGER`/`READ`/`UPDATE`/`UPSERT`).
  */
-const EXPECTED_TEMPLATE_COUNT = 30;
+const EXPECTED_TEMPLATE_COUNT = 32;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
@@ -189,10 +190,23 @@ describe("template catalogue", () => {
   });
 
   it("declares exactly the credential placeholders the install surfaces", () => {
+    // AF-M10-15: `credentialCount` counts distinct credential TYPES — what the
+    // user must connect — while the install surfaces one placeholder per node
+    // FIELD. A template whose two Sheets nodes share one credential has two
+    // placeholders and one connection, so the row's number is the size of the
+    // placeholder set's type set, not its length.
     for (const template of templateCatalog) {
       const prepared = prepareTemplateGraph(template.graph);
       const required = prepared.pendingCredentials.filter((c) => !c.optional);
-      expect(required).toHaveLength(toSeedRow(template).credentialCount);
+      const distinctTypes = new Set(required.map((c) => c.credentialType));
+
+      expect(
+        distinctTypes.size,
+        `${template.slug}: seed row disagrees with the install placeholders`,
+      ).toBe(toSeedRow(template).credentialCount);
+
+      // Every placeholder still has to correspond to a real requirement.
+      expect(required.length).toBeGreaterThanOrEqual(distinctTypes.size);
     }
   });
 
