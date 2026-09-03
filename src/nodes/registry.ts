@@ -4,12 +4,14 @@ import aiExtract from "./ai/extract";
 import aiLlm from "./ai/llm";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
+import coreAggregate from "./core/aggregate";
 import coreCode from "./core/code";
 import coreCondition from "./core/condition";
 import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
 import coreScheduleTrigger from "./core/schedule-trigger";
 import coreSet from "./core/set";
+import coreSplitOut from "./core/split-out";
 import coreSwitch from "./core/switch";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
@@ -166,6 +168,8 @@ export const nodeRegistry = createNodeRegistry(
     coreCondition,
     coreMerge,
     coreSwitch,
+    coreSplitOut,
+    coreAggregate,
     formsGoogleForm,
     googleSheetsAppend,
     airtableCreateRecord,
