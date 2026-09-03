@@ -143,6 +143,7 @@ export const updateNodeSchemas = [
   makeNodeSchema("GOOGLE_FORM_TRIGGER", configOf("GOOGLE_FORM_TRIGGER")),
   makeNodeSchema("STRIPE_TRIGGER", configOf("STRIPE_TRIGGER")),
   makeNodeSchema("HTTP_REQUEST", configOf("HTTP_REQUEST")),
+  makeNodeSchema("FILE_DOWNLOAD", configOf("FILE_DOWNLOAD")),
   makeNodeSchema("DISCORD", configOf("DISCORD")),
   makeNodeSchema("SLACK", configOf("SLACK")),
   makeNodeSchema("EMAIL_SEND", configOf("EMAIL_SEND")),

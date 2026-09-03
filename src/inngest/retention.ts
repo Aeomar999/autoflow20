@@ -1,4 +1,7 @@
-import { sweepExecutionRetention } from "@/features/executions/server/retention";
+import {
+  sweepExecutionRetention,
+  sweepOrphanedFiles,
+} from "@/features/executions/server/retention";
 import { logger } from "@/lib/logger";
 import { inngest } from "./client";
 
@@ -26,6 +29,13 @@ export const sweepExecutionHistory = inngest.createFunction(
       sweepExecutionRetention(),
     );
 
+    // AF-M10-06: files whose run is gone were deleted with it, above. This
+    // catches the ones that never had a run — an abandoned form upload has no
+    // execution to inherit a lifetime from, so it carries an explicit one.
+    const files = await step.run("sweep-orphaned-files", async () =>
+      sweepOrphanedFiles(),
+    );
+
     if (result.truncated) {
       // Not an error: the ceiling exists so one sweep cannot lock the two
       // largest tables for an unbounded time. It is worth seeing, because a
@@ -37,6 +47,6 @@ export const sweepExecutionHistory = inngest.createFunction(
       );
     }
 
-    return result;
+    return { ...result, ...files };
   },
 );

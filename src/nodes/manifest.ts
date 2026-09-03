@@ -16,6 +16,7 @@ import { definition as coreSwitch } from "./core/switch/definition";
 import { definition as coreWebhookTrigger } from "./core/webhook-trigger/definition";
 import { definition as discordSendMessage } from "./discord/send-message/definition";
 import { definition as emailSend } from "./email/send/definition";
+import { definition as filesDownload } from "./files/download/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
@@ -54,6 +55,7 @@ export const nodeManifest: NodeDefinition[] = [
   paymentsStripeTrigger,
   postgresQuery,
   httpHttpRequest,
+  filesDownload,
   aiCompatible,
   aiExtract,
   aiLlm,

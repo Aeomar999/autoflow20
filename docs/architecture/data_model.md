@@ -456,6 +456,45 @@ model Notification {
 - Indexes serve the only two reads: `(organizationId, createdAt DESC)` for the
   list and `(organizationId, readAt)` for the bell's unread count.
 
+### 2.11 Trigger state and run files — M10
+
+Two models added by M10, both additive and both owned entirely by their
+framework rather than by the nodes that benefit from them.
+
+#### `TriggerState` (AF-M10-05, ADR-0024)
+
+One row per `(workflowId, nodeId)`, org-scoped, cascading from both parents.
+
+| Column | Why it exists |
+|---|---|
+| `cursor Json?` | Opaque, poller-defined resume point (a timestamp, a page token, a row number). Persisted verbatim. |
+| `lastSeenIds String[]` | The last 500 dispatched item ids. Providers answer "changed since T" inclusively, so consecutive polls overlap; without the window the overlap dispatches twice. |
+| `lastPolledAt` | Interval scheduling. Null means never polled, which is what makes the first poll suppress dispatch rather than replay history. |
+| `failureCount`, `lastError`, `nextPollAt` | Exponential backoff. One broken credential must not be retried every minute for a month. |
+| `keyFingerprint` | Hash of the config fields that define what an item *is*. When it changes the id window is cleared, because the stored ids answer a question the node no longer asks. |
+
+A poller never writes this table. It returns `{ items, cursor }`; dispatch,
+dedupe, cursor persistence and backoff are the framework's.
+
+#### `StoredFile` (AF-M10-06, ADR-0025)
+
+The row a `FileRef` points at. Bytes live in the blob store; this is the
+metadata, the tenancy, and the lifetime.
+
+| Column | Why it exists |
+|---|---|
+| `organizationId` | Every read is checked against it. A `FileRef` is a plain object in a run context — a `CODE` node could mint one — so the id alone is not authorization. |
+| `executionId` | Ties blob lifetime to AF-M8-06 execution retention. **`ON DELETE SET NULL`, not `CASCADE`** — see below. |
+| `expiresAt` | For files with no run to inherit a lifetime from (an intake-form upload arriving before the run exists). 48 hours. |
+| `size`, `sha256` | Quota is summed from `size` rather than kept in a counter. `sha256` is on the reference so the AF-M5-07 response cache can key on attachment content (AF-M10-07). |
+| `storageKey`, `backend` | The object's address and which implementation wrote it, so a migrated install can still read old rows. |
+
+**The `SET NULL` is deliberate and worth stating.** `CASCADE` is the obvious
+choice, it looks tidier, and it silently leaks storage forever: the row is the
+only record of the object's key, so deleting it with the execution makes the
+database forget a file that is still occupying storage and being paid for. The
+retention sweep instead deletes a run's blobs *before* deleting the run.
+
 ### 2.10 Later
 
 | Model | Milestone | Purpose |

@@ -1907,35 +1907,35 @@ callback cannot express.
 - [x] `oauth.test.ts` covers each provider's authorize-URL construction, the extras capture, and Intuit's rotating-refresh path.
 - [x] progress.md updated
 
-### ⬜ AF-M10-05 · Polling trigger framework + `TriggerState` · 3d
+### ✅ AF-M10-05 · Polling trigger framework + `TriggerState` · 3d · **DONE 2026-09-03**
 H5. The largest single unlock in the milestone — 18 of 35 automations begin with
 "when a new X appears". Build the framework once; individual pollers become
 ~40-line adapters in Phase B.
 
 **Depends on:** AF-M10-01
 **Acceptance**
-- [ ] `TriggerState` model added: `(workflowId, nodeId)` unique, `cursor Json`, `lastPolledAt`, `lastSeenIds String[]`, org-scoped. Migration written and applied.
-- [ ] A `PollingTrigger` interface in the node SDK: `poll(ctx: { cursor, credentials, config }) => { items: unknown[]; cursor: unknown }`. A poller returns items; the framework owns dispatch, dedupe and cursor persistence — an adapter never writes `TriggerState` itself.
-- [ ] The `evaluate-schedules` Inngest job is extended (not duplicated) to sweep polling triggers on each workflow's configured interval, honouring `Node.disabled` exactly as AF-M9-17 does for schedule triggers.
-- [ ] **At-least-once with dedupe:** each returned item carries a stable id; ids seen in the previous window are suppressed, so a retried poll cannot double-dispatch. A test drives two consecutive polls returning an overlapping window and asserts exactly one run per item.
-- [ ] Backoff on provider failure, and a per-workflow poll budget so one broken credential cannot spend the whole sweep.
-- [ ] First poll of a newly-activated trigger establishes the cursor **without** dispatching history — a test asserts a workflow activated against a 500-row sheet dispatches zero runs, not 500.
-- [ ] `docs/architecture/execution_engine.md` §Triggers documents the contract; ADR written (see §5).
-- [ ] progress.md updated
+- [x] `TriggerState` model added: `(workflowId, nodeId)` unique, `cursor Json`, `lastPolledAt`, `lastSeenIds String[]`, org-scoped. Migration written and applied.
+- [x] A `PollingTrigger` interface in the node SDK: `poll(ctx: { cursor, credentials, config }) => { items: unknown[]; cursor: unknown }`. A poller returns items; the framework owns dispatch, dedupe and cursor persistence — an adapter never writes `TriggerState` itself.
+- [x] The `evaluate-schedules` Inngest job is extended (not duplicated) to sweep polling triggers on each workflow's configured interval, honouring `Node.disabled` exactly as AF-M9-17 does for schedule triggers.
+- [x] **At-least-once with dedupe:** each returned item carries a stable id; ids seen in the previous window are suppressed, so a retried poll cannot double-dispatch. A test drives two consecutive polls returning an overlapping window and asserts exactly one run per item.
+- [x] Backoff on provider failure, and a per-workflow poll budget so one broken credential cannot spend the whole sweep.
+- [x] First poll of a newly-activated trigger establishes the cursor **without** dispatching history — a test asserts a workflow activated against a 500-row sheet dispatches zero runs, not 500.
+- [x] `docs/architecture/execution_engine.md` §Triggers documents the contract; ADR written (see §5).
+- [x] progress.md updated
 
-### ⬜ AF-M10-06 · Binary payloads: `FileRef` + blob store · 3d
+### ✅ AF-M10-06 · Binary payloads: `FileRef` + blob store · 3d · **DONE 2026-09-03**
 H6. 12 automations move a PDF, image or video between nodes. Passing bytes through
 `WorkflowContext` is not an option — ADR-0018 caps per-node output.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] A `FileRef` shape (`{ $file: { id, filename, mimeType, size, sha256 } }`) is what travels in the context; **bytes never do**. A test asserts a 5 MB download leaves `NodeExecution.output` under the ADR-0018 cap.
-- [ ] Blob storage behind one interface with two implementations: local filesystem (dev/CI) and S3-compatible (staging/prod), selected by env. No provider SDK leaks past the interface.
-- [ ] Org-scoped keys, a per-org quota checked before write, and a TTL sweep that deletes blobs whose execution has passed the AF-M8-06 retention window.
-- [ ] `FILE_DOWNLOAD` (URL → `FileRef`, egress-guarded, size-capped) and `FILE_UPLOAD` helpers available to executors; a node opts in by declaring it accepts/produces `FileRef`.
-- [ ] Reading a `FileRef` requires the same org as the run — a cross-tenant read is a test case, not a comment.
-- [ ] ADR written (see §5); `docs/architecture/data_model.md` updated.
-- [ ] progress.md updated
+- [x] A `FileRef` shape (`{ $file: { id, filename, mimeType, size, sha256 } }`) is what travels in the context; **bytes never do**. A test asserts a 5 MB download leaves `NodeExecution.output` under the ADR-0018 cap.
+- [x] Blob storage behind one interface with two implementations: local filesystem (dev/CI) and S3-compatible (staging/prod), selected by env. No provider SDK leaks past the interface.
+- [x] Org-scoped keys, a per-org quota checked before write, and a TTL sweep that deletes blobs whose execution has passed the AF-M8-06 retention window.
+- [x] `FILE_DOWNLOAD` (URL → `FileRef`, egress-guarded, size-capped) and `FILE_UPLOAD` helpers available to executors; a node opts in by declaring it accepts/produces `FileRef`.
+- [x] Reading a `FileRef` requires the same org as the run — a cross-tenant read is a test case, not a comment.
+- [x] ADR written (see §5); `docs/architecture/data_model.md` updated.
+- [x] progress.md updated
 
 ### ⬜ AF-M10-07 · Multimodal input for `AI_LLM` / `AI_EXTRACT` · 1.5d
 H7. Turn the declared `vision` capability into something a graph can use.

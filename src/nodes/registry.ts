@@ -17,6 +17,7 @@ import coreSwitch from "./core/switch";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
 import emailSend from "./email/send";
+import filesDownload from "./files/download";
 import formsGoogleForm from "./forms/google-form";
 import googleSheetsAppend from "./google-sheets/append";
 import httpHttpRequest from "./http/request";
@@ -179,6 +180,7 @@ export const nodeRegistry = createNodeRegistry(
     paymentsStripeTrigger,
     postgresQuery,
     httpHttpRequest,
+    filesDownload,
     aiCompatible,
     aiExtract,
     aiLlm,

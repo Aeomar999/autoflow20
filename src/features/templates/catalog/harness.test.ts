@@ -22,8 +22,11 @@ import {
  * `seed:templates` runs the same harness before it writes.
  */
 
-/** 21 from AF-M7-02, plus the three AF-M9-15 reference-parity templates. */
-const EXPECTED_TEMPLATE_COUNT = 24;
+/**
+ * 21 from AF-M7-02, the three AF-M9-15 reference-parity templates, and the
+ * AF-M10-06 file-archive template that demonstrates `FILE_DOWNLOAD`.
+ */
+const EXPECTED_TEMPLATE_COUNT = 25;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {

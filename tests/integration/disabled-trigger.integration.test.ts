@@ -136,10 +136,15 @@ describe.runIf(hasDb)("disabled trigger does not dispatch (AF-M9-17)", () => {
       where: { id: wfId },
       select: {
         id: true,
+        organizationId: true,
         activeVersion: { select: { graphSnapshot: true } },
       },
     }) as unknown as Promise<
-      Array<{ id: string; activeVersion: { graphSnapshot: unknown } | null }>
+      Array<{
+        id: string;
+        organizationId: string;
+        activeVersion: { graphSnapshot: unknown } | null;
+      }>
     >;
 
   describe("webhook route", () => {

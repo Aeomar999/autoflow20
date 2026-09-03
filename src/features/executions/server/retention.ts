@@ -1,4 +1,9 @@
 import "server-only";
+import {
+  type BlobStore,
+  resolveBlobStore,
+} from "@/features/files/server/blob-store";
+import { deleteFiles } from "@/features/files/server/file-service";
 import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
@@ -38,6 +43,12 @@ export interface RetentionSweepOptions {
   now?: Date;
   batchSize?: number;
   maxBatches?: number;
+  /**
+   * Blob store the run's files live in (AF-M10-06). Injected so a test can
+   * point the sweep at a temp directory; production resolves the configured
+   * one. Same reason `resolveNodeCredentials` takes its row loader.
+   */
+  store?: BlobStore;
 }
 
 export interface RetentionSweepResult {
@@ -163,6 +174,7 @@ const deleteExpired = async (
   cutoff: Date,
   batchSize: number,
   maxBatches: number,
+  store?: BlobStore,
 ): Promise<{ deleted: number; more: boolean }> => {
   let deleted = 0;
 
@@ -181,8 +193,26 @@ const deleteExpired = async (
       return { deleted, more: false };
     }
 
+    // AF-M10-06: delete the run's blobs BEFORE the run itself. `StoredFile`
+    // is `ON DELETE SET NULL` on `executionId` — deliberately, so a row
+    // outlives its execution rather than vanishing with it — which means
+    // deleting the execution first would orphan the file rows and leave the
+    // bytes paid for and unreachable. Doing it here ties blob lifetime to the
+    // AF-M8-06 retention window with no second sweep to keep in step.
+    const expiredIds = expired.map((row) => row.id);
+    const blobs = await prisma.storedFile.findMany({
+      where: { executionId: { in: expiredIds } },
+      select: { id: true },
+    });
+    if (blobs.length > 0) {
+      await deleteFiles(
+        blobs.map((blob) => blob.id),
+        store ?? resolveBlobStore(),
+      );
+    }
+
     const { count } = await prisma.execution.deleteMany({
-      where: { id: { in: expired.map((row) => row.id) } },
+      where: { id: { in: expiredIds } },
     });
     deleted += count;
 
@@ -221,6 +251,7 @@ export const applyRetentionPolicy = async (
       deleteCutoff,
       batchSize,
       maxBatches,
+      options.store,
     );
     result = {
       ...result,
@@ -265,6 +296,41 @@ const add = (
  * NULL - rows predating the AF-M7-pre-1 org backfill - are swept under FREE,
  * matching ADR-0010's rule that an unknown plan is never granted more.
  */
+/**
+ * Delete files whose explicit lifetime has passed (AF-M10-06).
+ *
+ * Most files inherit their lifetime from a run and are deleted by the stage
+ * above. This covers the ones that never had a run to inherit from: an intake
+ * form upload where the submitter abandoned the flow, or a download whose run
+ * failed before the execution row existed. Without it those bytes are billed
+ * forever and nothing ever looks for them.
+ *
+ * Bounded and idempotent like every other stage — the rows are gone, so a
+ * replay is a no-op.
+ */
+export const sweepOrphanedFiles = async (
+  options: { now?: Date; batchSize?: number; store?: BlobStore } = {},
+): Promise<{ deletedFiles: number }> => {
+  const now = options.now ?? new Date();
+  const batchSize = options.batchSize ?? RETENTION_BATCH_SIZE;
+
+  const expired = await prisma.storedFile.findMany({
+    where: { executionId: null, expiresAt: { not: null, lt: now } },
+    select: { id: true },
+    take: batchSize,
+  });
+
+  if (expired.length === 0) {
+    return { deletedFiles: 0 };
+  }
+
+  const deletedFiles = await deleteFiles(
+    expired.map((row) => row.id),
+    options.store ?? resolveBlobStore(),
+  );
+  return { deletedFiles };
+};
+
 export const sweepExecutionRetention = async (
   options: RetentionSweepOptions = {},
 ): Promise<RetentionSweepResult> => {

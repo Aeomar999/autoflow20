@@ -204,6 +204,63 @@ export type NodeRun<TData = Record<string, unknown>> = (
   params: NodeRunParams<TData>,
 ) => Promise<WorkflowContext>;
 
+// ---------------------------------------------------------------------------
+// Polling triggers (AF-M10-05, ADR-0024).
+//
+// "When a new X appears" is the opening of 18 of the 35 reference automations.
+// A poller's whole job is: given where we left off, what is new? It returns
+// items and a resume point. It does NOT dispatch runs, does NOT deduplicate,
+// and does NOT touch `TriggerState` — the framework owns all three, so those
+// decisions have one implementation instead of one per connector.
+// ---------------------------------------------------------------------------
+
+export interface PollItem {
+  /**
+   * Stable identity of this item, unique within this trigger and durable
+   * across polls. A row's sheet id, a message id, a file id — never an array
+   * index, which changes the moment anything is inserted.
+   */
+  id: string;
+  /** Payload handed to the run as its trigger data. */
+  data: unknown;
+}
+
+export interface PollContext<TConfig = Record<string, unknown>> {
+  /** Validated node config. */
+  config: TConfig;
+  /** Resolved credentials, keyed as in `NodeRunParams.credentials`. */
+  credentials?: Record<string, CredentialSecret>;
+  /** Whatever this poller returned as `cursor` last time; undefined on the first poll. */
+  cursor: unknown;
+  /**
+   * True on the very first poll after a trigger is activated.
+   *
+   * A poller may use it to fetch a cheaper "just tell me where the end is"
+   * response. It does NOT have to: the framework suppresses dispatch on the
+   * first poll regardless, so activating a workflow against a 500-row sheet
+   * starts 0 runs, not 500.
+   */
+  isFirstPoll: boolean;
+  /** Upper bound on items to return. Returning more is trimmed by the framework. */
+  limit: number;
+}
+
+export interface PollResult {
+  items: PollItem[];
+  /** Resume point for the next poll. Persisted verbatim; must be JSON-serializable. */
+  cursor: unknown;
+}
+
+export interface PollingTrigger<TConfig = unknown> {
+  /**
+   * How often this trigger is swept, in seconds, when the node's config does
+   * not say. Floored by the framework's minimum so a connector cannot ask to
+   * be polled faster than the sweep runs.
+   */
+  defaultIntervalSeconds?: number;
+  poll(ctx: PollContext<TConfig>): Promise<PollResult>;
+}
+
 /** A full registration: isomorphic metadata + server implementation.
  * Flattened so a node's `index.ts` can be `{ ...definition, execute }`.
  * Method-syntax on `execute` keeps parameter checking bivariant, so nodes
@@ -211,4 +268,14 @@ export type NodeRun<TData = Record<string, unknown>> = (
 export interface NodeRegistration<TConfig = unknown>
   extends NodeDefinition<TConfig> {
   execute(params: NodeRunParams): Promise<WorkflowContext>;
+  /**
+   * (AF-M10-05) Present on TRIGGER nodes that discover work by polling. The
+   * sweep in `evaluate-schedules` finds them through the registry rather than
+   * a hard-coded list, so a new poller is a node folder and nothing else.
+   *
+   * A polling trigger still has an `execute` — it is what runs when the
+   * dispatched run reaches the trigger node — but that executor does no
+   * fetching; the item is already in the run's initial data.
+   */
+  polling?: PollingTrigger<TConfig>;
 }

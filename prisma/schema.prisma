@@ -42,7 +42,7 @@ model User {
   auditLogs        AuditLog[]
   approvedRequests ApprovalRequest[]
   knowledgeSources KnowledgeSource[]
-  apiKeys       ApiKey[]
+  apiKeys          ApiKey[]
 
   @@unique([email])
   @@map("user")
@@ -117,6 +117,8 @@ model Organization {
   aiResponseCache  AiResponseCache[]
   notifications    Notification[]
   apiKeys          ApiKey[]
+  triggerStates    TriggerState[]
+  storedFiles      StoredFile[]
 
   @@map("organization")
 }
@@ -250,21 +252,21 @@ model Credential {
 // are stored - the full `af_...` secret is shown once at creation and never
 // persisted. `scopes` is a comma-joined string set (open set - never an enum).
 model ApiKey {
-  id             String   @id @default(cuid())
-  name           String
-  prefix         String   @unique
-  hash           String   @unique
-  scopes         String   @default("")
-  createdAt      DateTime @default(now())
-  lastUsedAt     DateTime?
-  expiresAt      DateTime?
-  revokedAt      DateTime?
+  id         String    @id @default(cuid())
+  name       String
+  prefix     String    @unique
+  hash       String    @unique
+  scopes     String    @default("")
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  createdById    String?
-  createdBy      User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@map("api_key")
@@ -297,6 +299,7 @@ model Workflow {
   versions         WorkflowVersion[] @relation("WorkflowVersions")
   approvalRequests ApprovalRequest[]
   notifications    Notification[]
+  triggerStates    TriggerState[]
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -400,19 +403,20 @@ model Execution {
 
   nodeExecutions   NodeExecution[]
   approvalRequests ApprovalRequest[]
+  storedFiles      StoredFile[]
 
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([workflowId, startedAt(sort: Desc)])
-  @@index([organizationId])
-  @@index([status])
   /// AF-M8-01: caller-supplied idempotency key deduping POST /run retries.
   /// Postgres treats NULLs as distinct in unique indexes, so rows created
   /// without an idempotency key are unaffected; rows sharing (workflowId,
   /// idempotencyKey) collide as intended.
   idempotencyKey String?
+
   @@unique([workflowId, idempotencyKey])
+  @@index([workflowId, startedAt(sort: Desc)])
+  @@index([organizationId])
+  @@index([status])
 }
 
 enum NodeExecutionStatus {
@@ -666,4 +670,127 @@ model Notification {
    * The bell's unread count.
    */
   @@index([organizationId, readAt])
+}
+
+/**
+ * Per-trigger cursor state (AF-M10-05, ADR-0024).
+ * 18 of the M10 automations begin with "when a new X appears". Answering that
+ * needs somewhere to remember what "already appeared" means, and nothing in
+ * the schema could express it — `evaluate-schedules` dispatched whole
+ * workflows on a cron and kept nothing.
+ * One row per (workflow, node). The framework owns every field here: a poller
+ * returns items and a cursor and never writes this table, so "did we already
+ * dispatch this?" has exactly one implementation instead of one per connector.
+ * Also backs the DEDUPE node (AF-M10-10), which is the same question asked
+ * mid-graph rather than at the trigger.
+ */
+model TriggerState {
+  id String @id @default(cuid())
+
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  /**
+   * Node id within the workflow's published graph.
+   */
+  nodeId     String
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /**
+   * Opaque, poller-defined resume point (a timestamp, a page token, a row number).
+   */
+  cursor Json?
+
+  /**
+   * Ids dispatched in recent windows, newest last, bounded by the framework.
+   * A provider that returns an overlapping window on the next poll (most do —
+   * "modified since" is inclusive) must not produce a second run for an item
+   * already handled.
+   */
+  lastSeenIds String[] @default([])
+
+  lastPolledAt DateTime?
+
+  /**
+   * Consecutive provider failures, and the earliest time the next poll may
+   * run. One broken credential must not spend the whole sweep every minute.
+   */
+  failureCount Int       @default(0)
+  lastError    String?
+  nextPollAt   DateTime?
+
+  /**
+   * Hash of the node config that defines what an item's identity IS. When it
+   * changes, the stored ids describe a different question and are cleared —
+   * an edited workflow must not inherit stale keys (AF-M10-10).
+   */
+  keyFingerprint String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workflowId, nodeId])
+  @@index([organizationId])
+  @@index([nextPollAt])
+}
+
+/**
+ * A binary payload referenced from a run (AF-M10-06, ADR-0025).
+ * 12 of the M10 automations move a PDF, an image or a video between nodes.
+ * `WorkflowContext` is JSON serialized into `NodeExecution.output` under the
+ * ADR-0018 byte cap, so the bytes cannot travel in it — a 3 MB invoice would
+ * fail the run at the output boundary. What travels is a `FileRef`
+ * (`{ $file: { id, filename, mimeType, size, sha256 } }`); this row is the id
+ * it points at, and the bytes live in the blob store.
+ * `executionId` is what ties a blob's lifetime to the run that made it, so the
+ * AF-M8-06 retention sweep deletes bytes on the same schedule it redacts
+ * payloads. A file with no execution (a form upload arriving before the run
+ * exists) carries `expiresAt` instead.
+ */
+model StoredFile {
+  id String @id @default(cuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /**
+   * Run that produced or received this file; null for pre-run intake.
+   */
+  executionId String?
+  execution   Execution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  /**
+   * Workflow the file belongs to, kept for attribution after a run is purged.
+   */
+  workflowId String?
+
+  filename String
+  mimeType String
+  /**
+   * Bytes. Int is enough — the per-file ceiling is far below 2^31.
+   */
+  size     Int
+  sha256   String
+
+  /**
+   * Backend-specific object key. Never rendered to a user; not a URL.
+   */
+  storageKey String
+  /**
+   * Which implementation wrote it, so a migrated install can still read old rows.
+   */
+  backend    String
+
+  /**
+   * Explicit lifetime for files with no execution to inherit one from.
+   */
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([executionId])
+  @@index([expiresAt])
+  @@index([organizationId, sha256])
 }

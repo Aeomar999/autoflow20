@@ -1,4 +1,5 @@
 import { CronExpressionParser } from "cron-parser";
+import { sweepPollingTriggers } from "@/features/triggers/server/polling-sweep";
 import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { inngest } from "./client";
@@ -22,6 +23,8 @@ export interface ScheduleDispatch {
  */
 export interface ActiveWorkflowForSchedule {
   id: string;
+  /** Tenant the run belongs to — required to resolve a poller's credentials. */
+  organizationId: string;
   activeVersion: { graphSnapshot: unknown } | null;
 }
 
@@ -121,9 +124,13 @@ export function collectScheduledDispatches(
 }
 
 /**
- * Single job evaluating all active schedule nodes (AF-M4-04).
- * Runs every minute to see if any published workflows with SCHEDULE_TRIGGER
- * need to be executed at this minute.
+ * Single job evaluating all active schedule nodes (AF-M4-04) and sweeping
+ * every polling trigger (AF-M10-05).
+ *
+ * Both live here rather than in a second cron function on purpose: they read
+ * the same set of published workflows, run on the same one-minute tick, and a
+ * separate job would double that read and let the two drift out of step over
+ * what "active" means.
  */
 export const evaluateSchedules = inngest.createFunction(
   {
@@ -140,6 +147,7 @@ export const evaluateSchedules = inngest.createFunction(
           where: { activeVersionId: { not: null } },
           select: {
             id: true,
+            organizationId: true,
             activeVersion: {
               select: {
                 id: true,
@@ -179,9 +187,25 @@ export const evaluateSchedules = inngest.createFunction(
       }
     });
 
+    // AF-M10-05: the polling sweep. Its own step, so a provider outage in one
+    // poller cannot make the schedule evaluation above look like it failed —
+    // and so the two are memoized separately on an Inngest retry.
+    const polling = await step.run("sweep-polling-triggers", async () =>
+      sweepPollingTriggers({ workflows: activeWorkflows, now: new Date() }),
+    );
+
+    if (polling.skipped > 0) {
+      // The budget is doing its job, but a sustained backlog means the install
+      // has outgrown one sweep per minute and someone should know.
+      logger.warn(
+        `Polling sweep hit its per-tick budget; ${polling.skipped} triggers deferred`,
+      );
+    }
+
     return {
       triggered: triggeredWorkflows.length,
       workflows: triggeredWorkflows,
+      polling,
     };
   },
 );

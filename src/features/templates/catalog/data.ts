@@ -392,4 +392,58 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "archive-file-to-sheet-log",
+    name: "Archive a file and log it to a sheet",
+    description:
+      "Fetches a file from a URL into AutoFlow's file storage and appends a row recording its name, size and SHA-256 to a Google Sheet. Use it as an audit log for exported reports, signed contracts or nightly database dumps: the sheet tells you what arrived and the hash tells you whether it changed. You supply the URL (or template it from the trigger), a Google Sheets credential, and a spreadsheet with the columns Downloaded at / Filename / Size (bytes) / SHA-256. The file itself never enters the run payload — only a reference does — so a 90 MB archive moves through the workflow as easily as a 2 KB CSV.",
+    category: "Data",
+    domain: "data",
+    tags: ["file", "download", "archive", "checksum", "sheets", "audit"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run manually",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "fetch",
+          type: "FILE_DOWNLOAD",
+          name: "Download the file",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "artifact",
+            // Replace with the artifact URL, or template it from the trigger.
+            url: "https://example.com/exports/report.csv",
+            // Uncomment authMode and bind a credential when the URL is behind
+            // an API. The secret is never templated into the request.
+            maxBytes: 26214400,
+          },
+        },
+        {
+          id: "log",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Log it to the sheet",
+          position: { x: 540, y: 0 },
+          data: {
+            variableName: "logged",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Downloads",
+            // The FileRef's fields are what make this row useful: the hash is
+            // stable for identical content, so a repeated row with a new hash
+            // means the upstream artifact actually changed.
+            values:
+              '[["{{$now}}","{{artifact.file.$file.filename}}","{{artifact.file.$file.size}}","{{artifact.file.$file.sha256}}"]]',
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "fetch" },
+        { source: "fetch", target: "log" },
+      ],
+    },
+  },
 ];
