@@ -140,6 +140,36 @@ export type NodeExecute<TConfig> =
   (ctx: NodeExecutionContext<TConfig>) => Promise<NodeResult>;
 ```
 
+### Ports are a persisted contract  *(AF-M9-03)*
+
+`PortDef.id` is one identifier used by four surfaces, and they must agree:
+
+| Surface | Where the id appears |
+|---|---|
+| Editor canvas | the React Flow `<Handle id>` (`NodePortHandles`) |
+| Save boundary | `Connection.fromOutput` / `Connection.toInput`, stored verbatim |
+| Validator | `checkRequiredInputs` matches `toNodeId:toInput` |
+| Engine | `markTakenEdges` compares `edge.fromOutput` to the node's `_outputPort` |
+
+**A port id is therefore permanent, exactly like `NodeDefinition.type`.** Renaming
+one orphans every saved edge that referenced it: the edge is not deleted, it simply
+stops matching, and the engine marks the whole downstream `SKIPPED` — a silent
+behaviour change, not an error. Add a port, or deprecate the type; never rename.
+
+Every surface resolves ports through `src/nodes/ports.ts` (`inputPorts`,
+`outputPorts`, `defaultOutputId`, `resolveEdgePorts`). Do not read
+`definition.outputs` directly in a component or a router — that is precisely how the
+three surfaces drifted before AF-M9-03, when the canvas rendered a single hardcoded
+`source-1` handle, `saveGraph` persisted that literal, and no CONDITION edge could
+ever match the `"true"`/`"false"` the engine was looking for.
+
+Two consequences worth stating outright:
+
+- **The default port is the first declared one, not `"main"`.** A CONDITION declares
+  `true`/`false` and has no `main`, so appending from it lands on `true`.
+- **A trigger declares `inputs: []`,** and that empty array is honoured — no target
+  handle is rendered, so nothing can be wired into a trigger on the canvas.
+
 ### Errors
 
 ```ts

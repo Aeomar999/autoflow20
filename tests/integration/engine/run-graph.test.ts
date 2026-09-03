@@ -243,8 +243,8 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
   // ------------------------------------------------------------------
   // Suite 4 — CONDITION regression: G1 bug (editor-style edge ids)
   // ------------------------------------------------------------------
-  describe("CONDITION regression (G1 bug)", () => {
-    it("editor-style edge ids source-1 cause downstream to be SKIPPED instead of SUCCESS (BUG until AF-M9-03)", async () => {
+  describe("CONDITION branch routing (G1, fixed by AF-M9-03)", () => {
+    it("editor-style edge ids resolve onto declared ports, so the taken branch runs", async () => {
       const graph: TemplateGraph = {
         nodes: [
           {
@@ -293,24 +293,132 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
 
       const { execution, nodeExecutions } = await runGraph(graph);
 
-      // CONDITION sets _outputPort="true" but markTakenEdges checks
-      // edge.fromOutput === outputPort → "source-1" !== "true" → no match.
-      // Done is never reached via takenEdges → SKIPPED (G1 bug).
+      // Before AF-M9-03 the canvas persisted its hardcoded "source-1" handle as
+      // `fromOutput`, so `markTakenEdges` compared it against the CONDITION's
+      // `_outputPort` of "true", never matched, and marked the whole downstream
+      // SKIPPED. `resolveEdgePorts` now maps "source-1" onto the node's first
+      // declared output ("true"), so the affirmative branch actually runs.
       const condition = nodeExecutions.find((n) => n.nodeName === "Cond");
       expect(condition?.status).toBe(NodeExecutionStatus.SUCCESS);
 
       const done = nodeExecutions.find((n) => n.nodeName === "Done");
+      expect(done?.status).toBe(NodeExecutionStatus.SUCCESS);
+      expect(done?.skipReason).toBeNull();
 
-      // This assertion documents the BUG: Done is SKIPPED when it should
-      // be SUCCESS. Once AF-M9-03 lands, flip this to:
-      //   expect(done?.status).toBe(NodeExecutionStatus.SUCCESS);
-      expect(done?.status).toBe(NodeExecutionStatus.SKIPPED);
-      expect(done?.skipReason).toBe(
-        "Skipped: not reachable via taken branches",
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+    });
+
+    it("routes to exactly one branch: the untaken side is SKIPPED with a reason", async () => {
+      // The other half of G1 — a fix that ran BOTH branches would be just as
+      // wrong as one that ran neither, and the old assertion could not tell.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-b",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "cond-b",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "a",
+              _timeoutMs: 1000,
+            },
+          },
+          {
+            id: "yes-b",
+            name: "Yes",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+          {
+            id: "no-b",
+            name: "No",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+        ],
+        edges: [
+          { source: "trigger-b", target: "cond-b", sourceHandle: "main" },
+          { source: "cond-b", target: "yes-b", sourceHandle: "true" },
+          { source: "cond-b", target: "no-b", sourceHandle: "false" },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(nodeExecutions.find((n) => n.nodeName === "Yes")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
       );
 
-      // Execution still succeeds — skipped nodes don't block completion.
+      const no = nodeExecutions.find((n) => n.nodeName === "No");
+      expect(no?.status).toBe(NodeExecutionStatus.SKIPPED);
+      expect(no?.skipReason).toBe("Skipped: not reachable via taken branches");
+
       expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+    });
+
+    it("takes the false branch when the condition does not hold", async () => {
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-f",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "cond-f",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "b",
+              _timeoutMs: 1000,
+            },
+          },
+          {
+            id: "yes-f",
+            name: "Yes",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+          {
+            id: "no-f",
+            name: "No",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+        ],
+        edges: [
+          { source: "trigger-f", target: "cond-f", sourceHandle: "main" },
+          { source: "cond-f", target: "yes-f", sourceHandle: "true" },
+          { source: "cond-f", target: "no-f", sourceHandle: "false" },
+        ],
+      };
+
+      const { nodeExecutions } = await runGraph(graph);
+
+      expect(nodeExecutions.find((n) => n.nodeName === "No")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+      expect(nodeExecutions.find((n) => n.nodeName === "Yes")?.status).toBe(
+        NodeExecutionStatus.SKIPPED,
+      );
     });
   });
 });

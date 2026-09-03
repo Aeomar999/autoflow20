@@ -9,6 +9,7 @@
 
 import { validate } from "@/engine/validate";
 import { computeSkipNodes } from "@/features/executions/server/executions-router-helpers";
+import { resolveEdgePorts } from "@/nodes/ports";
 import { nodeRegistry } from "@/nodes/registry";
 
 /** Loose shape accepted from the client canvas (React Flow nodes/edges). */
@@ -65,6 +66,11 @@ export function buildTestGraph(
   nodes: DraftNode[],
   edges: DraftEdge[],
 ): TestGraph {
+  // AF-M9-03: resolve handles through the same path `saveGraph` uses, so an
+  // in-editor test run takes the same branch the saved workflow would.
+  const typeOfNode = (nodeId: string) =>
+    nodes.find((n) => n.id === nodeId)?.type;
+
   return {
     nodes: nodes.map((n) => ({
       id: n.id,
@@ -75,8 +81,7 @@ export function buildTestGraph(
     connections: edges.map((e) => ({
       fromNodeId: e.source,
       toNodeId: e.target,
-      fromOutput: e.sourceHandle || "main",
-      toInput: e.targetHandle || "main",
+      ...resolveEdgePorts(e, typeOfNode),
     })),
   };
 }

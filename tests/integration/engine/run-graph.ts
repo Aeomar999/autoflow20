@@ -2,6 +2,7 @@ import type { TemplateGraph } from "@/features/templates/server/instantiate";
 import { ExecutionStatus } from "@/generated/prisma/client";
 import { executeWorkflowHandler } from "@/inngest/functions";
 import prisma from "@/lib/db";
+import { resolveEdgePorts } from "@/nodes/ports";
 
 type HandlerCtx = Parameters<typeof executeWorkflowHandler>[0];
 
@@ -110,11 +111,17 @@ export async function runGraph(
     },
   });
 
+  // AF-M9-03: resolve handles through the same helper `saveGraph` and
+  // `buildTestGraph` use, so the harness executes the graph a real save would
+  // have persisted — including translating a pre-AF-M9-03 `source-1` handle
+  // onto the node's first declared port.
+  const typeOfNode = (nodeId: string) =>
+    spec.nodes.find((n) => n.id === nodeId)?.type;
+
   const connections = spec.edges.map((e) => ({
     fromNodeId: e.source,
     toNodeId: e.target,
-    fromOutput: e.sourceHandle ?? "main",
-    toInput: e.targetHandle ?? "main",
+    ...resolveEdgePorts(e, typeOfNode),
   }));
 
   const graphSnapshot = { nodes: spec.nodes, connections };

@@ -983,7 +983,7 @@ Every row was verified against the code on 2026-09-01, not against a spec.
 | **G6** | **No items model.** `NodeRun` returns one `WorkflowContext`; the runner's `for` loop executes each node exactly once. A node that produces N rows cannot produce N downstream runs. (Decision D deferred this "until post-beta" — M9 *is* post-beta.) | `src/nodes/types.ts` (`NodeRun`), `src/inngest/functions.ts` node loop | W3 | AF-M9-14 |
 | **G7** | **No Code/Function node.** Nothing in `src/nodes/` executes user-supplied JS. This is n8n's most-used node and appears in roughly one in five library workflows. | `src/nodes/manifest.ts` | W3 | AF-M9-13 |
 | **G8** | **Expressions are Handlebars-only, string-valued, and HTML-escaped.** No `?.`, no `\|\|` default, no arithmetic, no object literals — W1/W2 use all four. `{{ $json }}` renders `[object Object]`. Default escaping corrupts any JSON body containing `&`, `"`, `<`. `SET` writes only strings, so `ok: true` persists as `"true"` and `payload: object` as `"[object Object]"`. | `src/features/executions/template.ts:95-102`, `src/nodes/core/set/execute.ts:30,33` | W1, W2, W3 | AF-M9-07, AF-M9-08 |
-| **G9** | **Enriched context leaks into node output and the trace.** The runner passes `enrichedContext` as `context`; every executor returns `{...context, …}`, so `$json`/`$node`/`$execution`/`$now` are persisted into `nodeOutputs`, `Execution.output` and every `NodeExecution.input/output` — and each hop re-nests the previous `$json`. Payload grows superlinearly with node count; AF-M8-06 retention caps get hit for the wrong reason. | `src/inngest/functions.ts:556,594,595`; `set/execute.ts:30`; `http/request/execute.ts:140` | all three | AF-M9-05 |
+| **G9** | **Enriched context leaks into node output and the trace.** The runner passes `enrichedContext` as `context`; every executor returns `{...context, …}`, so `$json`/`$node`/`$execution`/`$now` are persisted into `nodeOutputs`, `Execution.output` and every `NodeExecution.input/output` — and each hop re-nests the previous `$json`. Payload grows superlinearly with node count; AF-M8-06 retention caps get hit for the wrong reason. **Now more urgent (2026-09-02):** AF-M2-09 / ADR-0018 added a hard per-node output byte cap, so a long-enough graph will fail a run outright on scaffolding it never asked to carry. | `src/inngest/functions.ts:556,594,595`; `set/execute.ts:30`; `http/request/execute.ts:140` | all three | AF-M9-05 |
 | **G10** | **`Node.disabled` is persisted and never read.** Disabling a node on the canvas does nothing — it still executes. | `prisma/schema.prisma:319`, written by `saveGraph`, absent from `src/inngest/functions.ts` and `src/engine/validate.ts` | authoring the three graphs | AF-M9-04 |
 | **G11** | **Per-node run policy is undeclared magic.** The runner reads `data._timeoutMs` and `data._continueOnFail`, which appear in no `configSchema` and no UI, so the save boundary can drop them and no user can set them. All three source workflows set `retryOnFail: true, maxRetries: 2` per node. | `src/inngest/functions.ts:61,71` | W1, W2, W3 | AF-M9-06 |
 | **G12** | **Nothing anywhere executes a graph.** `executeWorkflow` is referenced only by `src/inngest/functions.ts` and `src/app/api/inngest/route.ts`. There is no `@inngest/test` dependency and no engine integration test. The template harness deliberately stops at planning. | repo-wide grep; `src/features/templates/catalog/harness.ts:30` | proving *any* of this | **AF-M9-01** |
@@ -1003,7 +1003,7 @@ payload. Both should be fixed even if the rest of M9 is descoped.
 
 #### Phase 0 — make "it runs" provable *(nothing else in M9 is verifiable until this lands)*
 
-### ⬜ AF-M9-01 · Engine execution harness: run a whole graph in a test · 2d
+### 🟡 AF-M9-01 · Engine execution harness: run a whole graph in a test · 2d
 G12. There is no way today to assert that a graph executes — only that it *plans*.
 Add `@inngest/test` (`InngestTestEngine`) and a helper that takes a `TemplateGraph`,
 seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
@@ -1011,10 +1011,10 @@ seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
 
 **Depends on:** —
 **Acceptance**
-- [x] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org.
+- [ ] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org. *(Reopened 2026-09-02 — the file and the return shape ship, but there is **no `initialData` option**: opts are `mode`/`executionId`/`orgId`/`userId`/`workflowId`. Every trigger payload therefore has to be faked through a node's config, and W1/W2 cannot inject a webhook body at all. Close with AF-M9-10, which is the first task that needs it.)*
 - [x] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
 - [x] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
-- [x] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03.
+- [x] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03. *(Reopened 2026-09-02 — the test existed but was **green**: a characterization test asserting the bug (`expect(done?.status).toBe(SKIPPED)`) with a comment to flip it later, not a red proof. **Closed 2026-09-03 by AF-M9-03**, which flipped it to `SUCCESS` and added the two cases the original could not distinguish: a fix that ran *both* branches would have satisfied the old assertion identically.)*
 - [x] Runs inside the existing `integration` vitest project (serial, `maxWorkers: 1`) — no new project, no new CI service.
 - [x] `docs/engineering/testing_strategy.md` gains a §"Engine execution tests" saying when one is mandatory.
 - [x] progress.md updated
@@ -1050,6 +1050,15 @@ AF-M9-03), proving `markTakenEdges` compares `edge.fromOutput` against the CONDI
 Suites truncate fixture tables in `beforeEach` and run inside the existing
 `integration` project (`maxWorkers: 1`). Gates clean: `run-graph.test.ts` 4/4,
 `npx biome check .`, `npx tsc --noEmit`, `npm run build`.
+
+**RECONCILIATION (2026-09-02, at M9 kickoff).** Every acceptance box above had been
+ticked while the header still read ⬜. Re-verified each against the code: the harness,
+the DB-row assertions, the three baseline suites, the vitest wiring,
+`testing_strategy.md` §3.5 and the `progress.md` entry are all real and merged
+(`dbde481`, PR #49). **Two boxes did not hold and are reopened** — the missing
+`initialData` option and the green-instead-of-red G1 test, both annotated inline.
+Status is therefore 🟡, not ✅. The `@inngest/test` substitution is **accepted, not a
+gap**: the DONE note argues it and the outcome is equivalent. Nothing was re-done.
 
 ### ✅ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
 G13. Let the engine reach a fixture HTTP server on `127.0.0.1` **only** under an
@@ -1087,7 +1096,7 @@ the existing 59 egress-guard tests.
 
 #### Phase 1 — fix the graph contract
 
-### ⬜ AF-M9-03 · Render one handle per declared port; persist real port ids · 2.5d
+### ✅ AF-M9-03 · Render one handle per declared port; persist real port ids · 2.5d · **DONE 2026-09-03**
 **G1 — the highest-value fix in this milestone.** Node components render one
 hardcoded `source-1`/`target-1` pair, `saveGraph` stores that string as `fromOutput`,
 and `markTakenEdges` compares it against `"true"`/`"false"`. Branching is therefore
@@ -1097,14 +1106,22 @@ round trip through the editor.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] `BaseExecutionNode` / `BaseTriggerNode` render one `<BaseHandle>` per entry in the node's `definition.inputs` / `definition.outputs`, with `id` equal to the `PortDef.id`, labelled and vertically distributed.
-- [ ] `node-selector.tsx` appends edges using the source node's **first declared output id**, not the literal `"source-1"`.
-- [ ] `saveGraph` and `test-run.ts` keep `e.sourceHandle || "main"` but now receive real port ids; a saved CONDITION edge persists `fromOutput = "true"` / `"false"`.
-- [ ] **Data migration for existing rows:** rewrite `Connection.fromOutput = 'source-1'` → the source node type's first declared output id, and `toInput = 'target-1'` → its first declared input id. Idempotent, logs a count, leaves anything it cannot resolve untouched and reports it.
-- [ ] The AF-M9-01 red regression test goes green: a CONDITION routes to exactly one branch and the other branch's nodes are `SKIPPED` with the branch reason.
-- [ ] `dom` test: a node with three declared outputs renders three distinct handles carrying the declared ids.
-- [ ] `docs/architecture/node_sdk.md` states that the handle id **is** the `PortDef.id`, and that this is a persisted contract.
-- [ ] progress.md updated
+- [x] `BaseExecutionNode` / `BaseTriggerNode` render one `<BaseHandle>` per entry in the node's `definition.inputs` / `definition.outputs`, with `id` equal to the `PortDef.id`, labelled and vertically distributed. *(One new component, `NodePortHandles`, used by both. **Deviation:** labels render only when a side has ≥2 ports — a single port has no choice to disambiguate, and labelling it would change how every existing node looks for no information gain.)*
+- [x] `node-selector.tsx` appends edges using the source node's **first declared output id**, not the literal `"source-1"`.
+- [x] `saveGraph` and `test-run.ts` keep `e.sourceHandle || "main"` but now receive real port ids; a saved CONDITION edge persists `fromOutput = "true"` / `"false"`. *(Went further: all four surfaces — `saveGraph`, `buildTestGraph`, the client lint adapter `toGraph`, and the `runGraph` harness — now call one shared `resolveEdgePorts`, so "the client lint must mirror the server" is enforced by the code instead of by a comment asking future authors to remember.)*
+- [x] **Data migration for existing rows:** rewrite `Connection.fromOutput = 'source-1'` → the source node type's first declared output id, and `toInput = 'target-1'` → its first declared input id. Idempotent, logs a count, leaves anything it cannot resolve untouched and reports it. *(`20260902120000_declared_port_ids`. Applies cleanly; 6 integration tests run the **shipped file** — not a copy of its logic — covering the non-branching rewrite, the CONDITION rewrite, idempotency, an unmanifested type, and that an authored `"false"` is never touched.)*
+- [x] The AF-M9-01 red regression test goes green: a CONDITION routes to exactly one branch and the other branch's nodes are `SKIPPED` with the branch reason. *(Flipped to `SUCCESS`, plus two new tests — a fix that ran **both** branches would have satisfied the original assertion just as well, so the true and false paths are now each asserted to run exactly one side.)*
+- [x] `dom` test: a node with three declared outputs renders three distinct handles carrying the declared ids. *(No registered type declares three outputs yet — `SWITCH` (AF-M9-09) will be the first — so the test mocks a synthetic `TRIPLE_FIXTURE` entry rather than asserting N-port support from the two ports that happen to exist today. Every other case runs against the real manifest.)*
+- [x] `docs/architecture/node_sdk.md` states that the handle id **is** the `PortDef.id`, and that this is a persisted contract. *(New "Ports are a persisted contract" section: the four surfaces that share the id, why renaming one silently orphans saved edges, and the rule that ports resolve through `src/nodes/ports.ts` rather than by reading `definition.outputs` in a component.)*
+- [x] progress.md updated
+
+**Not verified: the rendered canvas.** The handle ids, counts, ordering, vertical
+distribution and label visibility are pinned by 7 dom tests, but no screenshot was
+taken — reaching `/workflows/[id]` needs a signed-in session against the dev
+database, and the alternatives (signing up a throwaway account on what may be the
+production DB, or repointing the developer's `.env`) are worse than the gap. The
+residual risk is cosmetic only: label placement next to a 2-output node. Worth one
+look the next time the app is run.
 
 ### ⬜ AF-M9-04 · Honour `Node.disabled` · 0.5d
 G10. The column exists, the editor writes it, and the engine ignores it.
@@ -1327,10 +1344,10 @@ nothing in this milestone can honestly be reported as done.
 
 | ADR | Subject | Task |
 |---|---|---|
-| 0019 | Declared ports are the handle identity; `fromOutput`/`toInput` are a persisted contract | AF-M9-03 |
-| 0020 | Per-node input resolution replaces the single rolling context (compat view retained) | AF-M9-12 |
-| 0021 | Sandbox choice for the Code node, and its stated non-goals | AF-M9-13 |
-| 0022 | Bounded item fan-out; the narrow expiry of Decision D | AF-M9-14 |
+| ~~0019~~ | Declared ports are the handle identity; `fromOutput`/`toInput` are a persisted contract | AF-M9-03 — **no ADR written (2026-09-03).** `node_sdk.md` already specified `PortDef.id` as "the React Flow handle id and Connection.fromOutput/toInput"; the code simply did not obey it. That is a defect fixed, not a decision taken, and an ADR recording "we now do what the spec said" would be noise. The contract is stated in `node_sdk.md` §"Ports are a persisted contract" instead. 0019 stays free for AF-M9-12. |
+| 0019 | Per-node input resolution replaces the single rolling context (compat view retained) | AF-M9-12 |
+| 0020 | Sandbox choice for the Code node, and its stated non-goals | AF-M9-13 |
+| 0021 | Bounded item fan-out; the narrow expiry of Decision D | AF-M9-14 |
 | — | ADR-0007 **amended** (not superseded) with the helper set and the escaping rule | AF-M9-07 |
 
 ### 6. Verification recipe

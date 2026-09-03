@@ -1,22 +1,23 @@
 "use client";
 
-import { type NodeProps, Position, useReactFlow } from "@xyflow/react";
+import { type NodeProps, useReactFlow } from "@xyflow/react";
 import { useSetAtom } from "jotai";
 import { type LucideIcon, PlusIcon } from "lucide-react";
 import Image from "next/image";
 import { memo, type ReactNode, useCallback } from "react";
-import { BaseHandle } from "@/components/react-flow/base-handle";
 import { BaseNode, BaseNodeContent } from "@/components/react-flow/base-node";
 import {
   type NodeStatus,
   NodeStatusIndicator,
 } from "@/components/react-flow/node-status-indicator";
 import { WorkflowNode } from "@/components/workflow-node";
+import { NodePortHandles } from "@/features/editor/components/node-port-handles";
 import { NodeValidationBadge } from "@/features/editor/components/node-validation-badge";
 import {
   appendSourceNodeIdAtom,
   nodeSelectorOpenAtom,
 } from "@/features/editor/store/atoms";
+import { outputPorts } from "@/nodes/ports";
 
 interface BaseTriggerNodeProps extends NodeProps {
   icon: LucideIcon | string | React.ComponentType<{ className?: string }>;
@@ -31,6 +32,7 @@ interface BaseTriggerNodeProps extends NodeProps {
 export const BaseTriggerNode = memo(
   ({
     id,
+    type,
     icon: Icon,
     name,
     description,
@@ -90,20 +92,20 @@ export const BaseTriggerNode = memo(
                 <Icon className="size-4 text-muted-foreground" />
               )}
               {children}
-              <BaseHandle
-                id="source-1"
-                type="source"
-                position={Position.Right}
-              />
-              <button
-                type="button"
-                onClick={handleAppend}
-                aria-label="Append connected node"
-                title="Append next node"
-                className="absolute -right-3.5 top-1/2 -translate-y-1/2 size-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-xs cursor-pointer z-10"
-              >
-                <PlusIcon className="size-3" />
-              </button>
+              <NodePortHandles type={type} />
+              {/* See BaseExecutionNode: the append affordance only makes sense
+                  where "next" is unambiguous. */}
+              {outputPorts(type).length === 1 && (
+                <button
+                  type="button"
+                  onClick={handleAppend}
+                  aria-label="Append connected node"
+                  title="Append next node"
+                  className="absolute -right-3.5 top-1/2 -translate-y-1/2 size-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-xs cursor-pointer z-10"
+                >
+                  <PlusIcon className="size-3" />
+                </button>
+              )}
             </BaseNodeContent>
             <NodeValidationBadge nodeId={id} />
           </BaseNode>

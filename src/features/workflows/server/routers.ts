@@ -9,6 +9,7 @@ import { saveWorkflowInputSchema } from "@/features/workflows/schemas";
 import type { Prisma } from "@/generated/prisma/client";
 import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
+import { resolveEdgePorts } from "@/nodes/ports";
 import { nodeRegistry } from "@/nodes/registry";
 import {
   createTRPCRouter,
@@ -203,6 +204,16 @@ export const workflowsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { id, nodes, edges, revision } = input;
 
+      // AF-M9-03: one port resolution for validation AND persistence, so the
+      // graph the validator approves is byte-for-byte the graph that is stored
+      // and later executed. Also translates the pre-AF-M9-03 `source-1`/
+      // `target-1` handles a stale browser tab can still post.
+      const typeOfNode = (nodeId: string) =>
+        nodes.find((n) => n.id === nodeId)?.type;
+      const edgePorts = new Map(
+        edges.map((e) => [e, resolveEdgePorts(e, typeOfNode)] as const),
+      );
+
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id, organizationId: ctx.org.id },
       });
@@ -228,8 +239,7 @@ export const workflowsRouter = createTRPCRouter({
           connections: edges.map((e) => ({
             fromNodeId: e.source,
             toNodeId: e.target,
-            fromOutput: e.sourceHandle || "main",
-            toInput: e.targetHandle || "main",
+            ...(edgePorts.get(e) as { fromOutput: string; toInput: string }),
           })),
         },
         nodeRegistry,
@@ -274,8 +284,10 @@ export const workflowsRouter = createTRPCRouter({
                 workflowId: id,
                 fromNodeId: edge.source,
                 toNodeId: edge.target,
-                fromOutput: edge.sourceHandle || "main",
-                toInput: edge.targetHandle || "main",
+                ...(edgePorts.get(edge) as {
+                  fromOutput: string;
+                  toInput: string;
+                }),
               })),
             });
           }

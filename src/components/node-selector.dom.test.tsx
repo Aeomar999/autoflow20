@@ -199,7 +199,45 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
       expect(currentEdges).toHaveLength(1);
       expect(currentEdges[0].source).toBe("n-source");
       expect(currentEdges[0].target).toBe(newNode.id);
+
+      // AF-M9-03: the handles are the declared PortDef ids, which saveGraph
+      // persists verbatim as Connection.fromOutput/toInput. The literals
+      // "source-1"/"target-1" are what made branching unmatchable by the engine.
+      expect(currentEdges[0].sourceHandle).toBe("main");
+      expect(currentEdges[0].targetHandle).toBe("main");
     }
+  });
+
+  it("appends from a CONDITION onto its first declared output, not 'main'", () => {
+    // AF-M9-03 regression: CONDITION declares true/false and has no "main"
+    // output, so a hardcoded handle produced an edge on a port that does not
+    // exist — the engine then marked the whole downstream SKIPPED.
+    const sourceNode: EditorNode = {
+      id: "n-cond",
+      type: "CONDITION",
+      position: { x: 100, y: 200 },
+      data: {},
+      name: "Check",
+    };
+    store.set(nodesAtom, [sourceNode]);
+
+    render(
+      <Provider store={store}>
+        <NodeSelector
+          open={true}
+          onOpenChange={() => undefined}
+          sourceNodeId="n-cond"
+        />
+      </Provider>,
+    );
+
+    const httpButton = screen.getByText("HTTP Request").closest("button");
+    if (httpButton) fireEvent.click(httpButton);
+
+    const currentEdges = store.get(edgesAtom);
+    expect(currentEdges).toHaveLength(1);
+    expect(currentEdges[0].sourceHandle).toBe("true");
+    expect(currentEdges[0].targetHandle).toBe("main");
   });
 
   it("supports HTML5 drag-and-drop on palette items", () => {
