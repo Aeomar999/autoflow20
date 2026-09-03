@@ -2,6 +2,7 @@ import "server-only";
 import { NonRetriableError } from "inngest";
 import { Client as PgClient } from "pg";
 import { postgresQueryChannel } from "@/inngest/channels/postgres-query";
+import { logger } from "@/lib/logger";
 import type { NodeRun } from "@/nodes/types";
 
 type PostgresQueryData = {
@@ -132,13 +133,20 @@ export const execute: NodeRun<PostgresQueryData> = async ({
             truncated: out.rows.length > MAX_STORED_ROWS,
           },
         };
-      } catch (error) {
-        // Cleanup only — the query outcome is decided above; a failed socket
-        // teardown must not mask the real error.
-        await client.end().catch(() => {});
-        throw error;
       } finally {
-        await client.end().catch(() => {});
+        // Cleanup only — the query outcome is decided above, so a failed
+        // socket teardown must not mask the real error. Logged rather than
+        // swallowed silently: a connection that will not close is worth
+        // knowing about even though it cannot change this run's result.
+        //
+        // Previously `end()` was called here AND in a `catch` that rethrew,
+        // so the error path closed the client twice.
+        await client.end().catch((endError: unknown) => {
+          logger.warn("Postgres node: client teardown failed", {
+            nodeId,
+            error: endError instanceof Error ? endError.message : "unknown",
+          });
+        });
       }
     });
     await publish(postgresQueryChannel().status({ nodeId, status: "success" }));

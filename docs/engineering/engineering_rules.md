@@ -148,7 +148,7 @@ Full threat model in `docs/architecture/security.md`.
 - **[HARD]** Credentials are encrypted at rest with envelope encryption and decrypted only inside the execution runtime.
 - **[HARD]** No tRPC procedure, REST endpoint, or server component ever returns decrypted credential material.
 - **[HARD]** All logging goes through `src/lib/logger.ts`, which redacts keys matching secret patterns (`token`, `secret`, `password`, `apiKey`, `authorization`, `cookie`, `privateKey`, …) at any depth, including inside arrays; Sentry `beforeSend` applies the same redaction.
-- **[HARD]** An empty catch block fails `npm run lint` (`no-empty` with `allowEmptyCatch: false`).
+- **[HARD]** An empty catch block fails `npm run lint` (Biome `suspicious/noEmptyBlockStatements`, enabled in `biome.json`). *(Corrected 2026-09-03: this line named ESLint's `no-empty` with `allowEmptyCatch: false`, a rule that does not exist in Biome and was never configured after the migration — so the project's self-declared top-priority defect class had **no enforcement at all** for the life of the repo. Enabling it found three real empty blocks in production code, one of which silently swallowed knowledge-base upload failures. Turned off for test files and `vitest.setup.ts`, where `() => {}` is an idiomatic no-op mock rather than a swallowed failure.)*
 - **[HARD]** Webhook endpoints verify a signature or secret before doing work, and are rate-limited.
 - **[HARD]** Outbound HTTP from user-configured nodes is checked against SSRF rules (no link-local, no loopback, no internal ranges) unless explicitly allowlisted.
 - **[DEFAULT]** New dependencies are justified in the PR. Prefer the existing stack.
