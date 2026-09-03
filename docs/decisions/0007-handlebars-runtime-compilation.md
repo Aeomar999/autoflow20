@@ -1,6 +1,6 @@
 # ADR-0007: Handlebars runtime compilation stays; access is sandboxed
 
-**Status:** Accepted · **Date:** 2026-08-24 (amended 2026-08-26 for AF-M2-03)
+**Status:** Accepted · **Date:** 2026-08-24 (amended 2026-08-26 for AF-M2-03; 2026-09-03 for AF-M9-07)
 **Deciders:** Jerry (owner) + agent proposal
 **Related:** AF-A-03, ADR-0006 (expressions-not-eval), M2-03 (full expression resolver)
 
@@ -78,6 +78,44 @@ compilation.
 Regression tests lock this posture in `template.test.ts`: proto chains, global
 probes, legitimate own-property resolution, and the full `$`-prefixed context
 surface are asserted against every upgrade of Handlebars.
+
+### AF-M9-07 amendment: expression helper set and the unescaped-JSON rule
+
+The n8n → AutoFlow port (M9) adds a fixed helper set and makes raw-JSON output
+deliberate. A canonical list, `EXPRESSION_HELPERS`, is exported from
+`src/features/executions/template.ts` and is the single source of truth shared
+by runtime registration and graph validation.
+
+| Helper | Behavior | Failure path |
+|---|---|---|
+| `default a b` | `a` when present (non-null, non-empty), else `b` | none |
+| `get obj "a.b.0.c"` | Dotted/array path into `obj`; missing → `""` | non-string path throws |
+| `json v` | Pretty-printed JSON of own properties (SafeString) | none |
+| `eq`/`ne`/`gt`/`gte`/`lt`/`lte` | Comparisons (numeric when both finite, else string) | none |
+| `and`/`or`/`not` | Truthiness logic (drops Handlebars' `options` arg) | none |
+| `add`/`sub`/`mul`/`div` | Arithmetic; `div` by zero throws | division by zero |
+| `len v` | Length of string/array/object keys; missing → `0` | none |
+| `upper`/`lower` | Case transform | non-string throws |
+| `formatDate d "fmt"` | date-fns format of ISO string / Date / epoch | unparseable throws |
+
+**Unescaped-JSON rule:** by default Handlebars HTML-escapes output. The *only*
+supported way to emit raw, unescaped JSON is the triple-stache + `json` helper
+(`{{{json v}}}`) — that is documented in `docs/nodes/expressions.md`. Every
+node that writes a JSON body (HTTP request, webhook-out, and any future
+JSON-body node) validates the compiled result still parses as JSON, so a
+malformed template is a config error, not a silent body substitution.
+
+**Unknown-top-level-root validation:** at save time the shared graph validator
+(`src/engine/validate.ts` → `checkTemplateRoots`) infers every root the graph
+can produce — always-present context keys (`$json`/`$node`/`$execution`/
+`$workflow`/`$now`), every node's `variableName`, every SET mapping key
+(first dot segment), and the trigger's seeded keys (webhook → `webhook`;
+manual → `trigger`) — and emits a **warning** when a config template
+references a root outside that union. A ported n8n expression like
+`{{$json.body.x}}` or `{{body.x}}` therefore fails loudly at save instead of
+silently rendering `""`. `getTemplateRoots` parses with `Handlebars.parse` and
+walks the AST (helper callees and `@data` refs are not data roots), so no
+template is ever compiled or executed during validation.
 
 ## Consequences
 

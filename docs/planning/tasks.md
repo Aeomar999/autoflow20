@@ -1246,32 +1246,77 @@ remains unbuilt.
 
 #### Phase 2 — expression and Set fidelity
 
-### ⬜ AF-M9-07 · Expression helpers, raw output, and the `webhook.*` mapping · 2d
+### ✅ AF-M9-07 · Expression helpers, raw output, and the `webhook.*` mapping · 2d — **DONE 2026-09-03**
 G8, G14. ADR-0007 keeps expressions on sandboxed Handlebars; that stands. What is
 missing is the helper set that makes real templates portable, and a written mapping
 from n8n's `$json.body` to AutoFlow's `webhook.body`.
 
 **Depends on:** —
 **Acceptance**
-- [ ] Helpers registered centrally in `src/features/executions/template.ts`, each unit-tested including its failure path: `default a b`, `get obj "a.b.0.c"`, `json v` (already present — keep), `eq/ne/gt/gte/lt/lte`, `and/or/not`, `add/sub/mul/div`, `len`, `upper/lower`, `formatDate`.
-- [ ] `{{{triple-stache}}}` and the `json` helper are documented as **the** way to emit unescaped JSON, and every node that builds a JSON body validates that the compiled result parses (the HTTP node already does — extend to `WEBHOOK_OUT` and the new nodes).
-- [ ] A template referencing an unknown top-level root (e.g. `$json.body` when only `webhook` exists) produces a **validation warning at save time**, so a ported expression fails loudly instead of resolving to `""`.
-- [ ] `docs/nodes/` and `/docs/expressions` gain an "n8n → AutoFlow expression map": `$json.body.x` → `{{webhook.body.x}}`, `$json.x` → `{{x}}`, `$node["N"].json.x` → `{{$node.N.x}}`, `{{ a || b }}` → `{{default a b}}`, `{{ a?.b }}` → `{{get a "b"}}`, `{{ n/100 }}` → `{{div n 100}}`.
-- [ ] ADR-0007 amended (not superseded) with the helper set and the escaping rule.
-- [ ] progress.md updated
+- [x] Helpers registered centrally in `src/features/executions/template.ts`, each unit-tested including its failure path: `default a b`, `get obj "a.b.0.c"`, `json v` (already present — keep), `eq/ne/gt/gte/lt/lte`, `and/or/not`, `add/sub/mul/div`, `len`, `upper/lower`, `formatDate`.
+- [x] `{{{triple-stache}}}` and the `json` helper are documented as **the** way to emit unescaped JSON, and every node that builds a JSON body validates that the compiled result parses (the HTTP node already does — extend to `WEBHOOK_OUT` and the new nodes).
+- [x] A template referencing an unknown top-level root (e.g. `$json.body` when only `webhook` exists) produces a **validation warning at save time**, so a ported expression fails loudly instead of resolving to `""`.
+- [x] `docs/nodes/` and `/docs/expressions` gain an "n8n → AutoFlow expression map": `$json.body.x` → `{{webhook.body.x}}`, `$json.x` → `{{x}}`, `$node["N"].json.x` → `{{$node.N.x}}`, `{{ a || b }}` → `{{default a b}}`, `{{ a?.b }}` → `{{get a "b"}}`, `{{ n/100 }}` → `{{div n 100}}`.
+- [x] ADR-0007 amended (not superseded) with the helper set and the escaping rule.
+- [x] progress.md updated
 
-### ⬜ AF-M9-08 · Typed `SET` assignments · 1d
+**Status 2026-09-03 — done.** Full helper set in `src/features/executions/template.ts`
+(exported as `EXPRESSION_HELPERS`, unit-tested incl. failure paths — 63 tests):
+`default`, `get` (dotted path incl. `"a.b.0.c"`), `json` (kept), `eq/ne/gt/gte/lt/lte`,
+`and/or/not`, `add/sub/mul/div` (div-by-zero throws), `len`, `upper/lower`,
+`formatDate` (date-fns; ISO/Date/epoch). **Unknown-root warning:** `validate()`
+now calls `checkTemplateRoots` (Option B — full root inference): it walks each
+config template's AST with the helper-aware `getTemplateRoots` and warns on any
+root outside the union of always-present meta keys (`$json`/`$node`/`$execution`/
+`$workflow`/`$now`), `EXPRESSION_HELPERS`, every node's `variableName`, every SET
+mapping first segment, and the trigger's seeded keys (webhook → `webhook`;
+schedule → `schedule`; google-form → `googleForm`; stripe → `stripe`; manual →
+`trigger`) plus the manual trigger's flat-spread payload keys (enumerated from
+the node's own `payload` JSON — the same string the executor parses). This
+**completes root inference (Option B)** and is what makes the authoring harness
+gate green: the reference workflows reference `{{schedule.timestamp}}`,
+`{{googleForm.*}}`, `{{stripe.*}}` and manual-payload keys like `{{title}}`, all
+previously flagged unknown. The webhook root stays deliberately scoped to
+`["webhook"]` so ported `{{body.*}}`/`{{$json.body.*}}` are still caught — the
+G14 acceptance case. Warning severity, non-blocking; flows through the shared
+validator to the canvas lint and save router (throws only on `error`). +16 root
+tests total (`validate.test.ts`, now 46): the original 11, plus 5 for the
+schedule/googleForm/stripe/manual-payload roots. Docs: new `docs/nodes/expressions.md` (full map +
+triple-stache/`json` raw-JSON rule) mirroring the map added to the in-app
+`/docs/expressions` page; `docs/nodes/webhook-out.md` example corrected from the
+stale `{{data.*}}` to `{{webhook.body.*}}`; ADR-0007 amended with the helper
+table + escaping rule + unknown-root validation. `npm run build` and `npm run lint`
+pass.
+
+### ✅ AF-M9-08 · Typed `SET` assignments · 1d — **DONE 2026-09-03**
 G8. `SET` writes the compiled string, so a boolean becomes `"true"` and an object
 becomes `"[object Object]"`. W1 and W2 both assign booleans and objects.
 
 **Depends on:** AF-M9-07
 **Acceptance**
-- [ ] `mappings[].type` ∈ `string | number | boolean | object | array`, default `string` — existing configs keep working unchanged.
-- [ ] Non-string types parse the compiled output and **throw a `NonRetriableError` naming the field** when it does not parse. Never coerce silently.
-- [ ] `setNestedValue` no longer aliases nested upstream objects — today `{ ...context }` is shallow, so a nested write mutates the upstream node's recorded output.
-- [ ] The config panel exposes the type selector per mapping.
-- [ ] Unit tests: each type round-trips; a malformed object throws with the field name; a nested write does not mutate the upstream output.
-- [ ] progress.md updated
+- [x] `mappings[].type` ∈ `string | number | boolean | object | array`, default `string` — existing configs keep working unchanged.
+- [x] Non-string types parse the compiled output and **throw a `NonRetriableError` naming the field** when it does not parse. Never coerce silently.
+- [x] `setNestedValue` no longer aliases nested upstream objects — today `{ ...context }` is shallow, so a nested write mutates the upstream node's recorded output.
+- [x] The config panel exposes the type selector per mapping.
+- [x] Unit tests: each type round-trips; a malformed object throws with the field name; a nested write does not mutate the upstream output.
+- [x] progress.md updated
+
+**Status 2026-09-03 — done.** `SET` config now declares `mappings[].type` as a
+`z.enum(["string","number","boolean","object","array"]).default("string")`
+(`src/nodes/core/set/definition.ts`), so pre-typing configs keep working
+unchanged and the schema-driven config panel (AF-M1-06) auto-renders a per-mapping
+type `<select>` on the mapping `fieldList` (now `Key`/`Value`/`Type`) with zero
+hand-written UI. `execute.ts` gains `parseTypedValue`: `string` passes through;
+`number` requires a non-empty finite literal; `boolean` exactly `"true"`/`"false"`;
+`object`/`array` `JSON.parse` with shape enforcement — every failure throws
+`new NonRetriableError('Set node: "<key>" …')` naming the field, never a silent
+coercion. `setNestedValue` now clones-on-descend, so writing `user.name` replaces
+the shared nested object instead of mutating the upstream node's recorded output
+(`nodeOutputs[prev]`/`context`). Tests: SET definition + new `execute.test.ts`
+(16 tests) covering each type round-trip, default-to-string, the non-aliasing
+nested write, and every failure path with its field-named message; config-schema
+catalogue, registry guards, template (63), and validate (41) all still green.
+`npm run build` and `npm run lint` pass.
 
 #### Phase 3 — the missing nodes and the missing scheduler behaviour
 

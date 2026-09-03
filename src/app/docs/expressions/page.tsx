@@ -133,6 +133,52 @@ export default function ExpressionsPage() {
         <Code>{`{{$json.custmoer.name}}   →  ""   (typo renders empty, run continues)`}</Code>
       </Section>
 
+      <Section id="from-n8n" title="Porting from n8n">
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          AutoFlow is largely n8n-compatible. Most templates migrate by
+          rewriting a small set of idioms. The full written map lives in{" "}
+          <code>docs/nodes/expressions.md</code>; the common cases:
+        </p>
+        <ul className="rounded-xl border border-hairline bg-panel px-4">
+          <Row
+            expression="n8n: {{$json.body.x}}  →  {{webhook.body.x}}"
+            meaning="The webhook payload is under the webhook root. A bare {{body.x}} or {{$json.body.x}} is flagged at save time."
+          />
+          <Row
+            expression="n8n: {{$json.x}}  →  {{x}}"
+            meaning="The accumulated context is flat; reference top-level keys directly."
+          />
+          <Row
+            expression={`n8n: {{$node["N"].json.x}}  →  {{$node.N.x}}`}
+            meaning="A node's output by its canvas name; use square brackets, unquoted, for names with spaces."
+          />
+          <Row
+            expression="n8n: {{ a || b }}  →  {{default a b}}"
+            meaning="Loose fallback — a when present and non-empty, else b."
+          />
+          <Row
+            expression='n8n: {{ a?.b }}  →  {{get a "b"}}'
+            meaning="Safe path access; a missing path renders empty rather than failing."
+          />
+          <Row
+            expression="n8n: {{ n/100 }}  →  {{div n 100}}"
+            meaning="Arithmetic is helper-based: add, sub, mul, div. Also gt/gte/lt/lte, and/or/not, len, upper, lower."
+          />
+          <Row
+            expression='n8n: {{ $now }}  →  {{formatDate $now "yyyy-MM-dd HH:mm:ss"}}'
+            meaning="Time formatting is explicit, with a date-fns pattern."
+          />
+        </ul>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          A template that references a root the workflow cannot produce (for
+          example a <code>webhook.*</code> root on a workflow that has no
+          Webhook trigger, or a stale <code>$json.body</code>) is a{" "}
+          <strong>warning at save time</strong>, not a silent empty render — so
+          a ported expression fails loudly instead of resolving to{" "}
+          <code>""</code> at run time.
+        </p>
+      </Section>
+
       <Section id="limits" title="What expressions deliberately cannot do">
         <p className="max-w-2xl text-sm text-muted-foreground">
           Expressions are not JavaScript. There is no <code>eval</code>, no{" "}

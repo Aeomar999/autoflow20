@@ -1,4 +1,8 @@
 import toposort from "toposort";
+import {
+  EXPRESSION_HELPERS,
+  getTemplateRoots,
+} from "@/features/executions/template";
 import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
 /**
@@ -106,6 +110,13 @@ export function validate(
     checkUnknownTypes(nodes, registry, errors);
     checkConfigs(nodes, registry, errors);
   }
+
+  // --- Template root inference (AF-M9-07) ---
+  // Warn when a config template references a top-level root the graph cannot
+  // produce, so a ported (n8n) expression fails loudly instead of silently
+  // rendering as "". Runs on both server save and client lint because the
+  // valid-root set is derived purely from graph structure.
+  checkTemplateRoots(nodes, errors);
 
   // --- Deterministic order (only if no cycles) ---
 
@@ -327,6 +338,174 @@ function checkDisconnected(
         nodeId: node.id,
         severity: "warning",
         message: `Node "${node.name}" is not reachable from any trigger.`,
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Template root inference (AF-M9-07)
+// ---------------------------------------------------------------------------
+
+/**
+ * Top-level context keys that always exist in any template context regardless
+ * of the graph (`buildTemplateContext` in `src/features/executions/template.ts`).
+ */
+const ALWAYS_PRESENT_ROOTS: readonly string[] = [
+  "$json",
+  "$node",
+  "$execution",
+  "$workflow",
+  "$now",
+];
+
+/**
+ * Context roots a trigger seeds at the top of the accumulated context, keyed
+ * by node type. Webhook exposes a single `webhook` root ─ the n8n→AutoFlow
+ * mapping (`$json.body.x` → `{{webhook.body.x}}`) deliberately does NOT expose
+ * flat `body`/`query`/`headers`/`params`/`method` top-level keys, so a ported
+ * `{{body…}}`/`{{$json.body…}}` expression is caught as an unknown root rather
+ * than silently resolving. Manual/INITIAL expose `trigger`, and their parsed
+ * payload is spread flat onto the context — those payload keys are enumerated
+ * from the config by `spreadPayloadRoots` below (the same data the executor
+ * parses), so any key a graph references from a manual payload validates.
+ * Schedule, Google-Form and Stripe seed `schedule` / `googleForm` / `stripe`
+ * respectively, matching what `cron.ts` and the google-form/stripe webhooks
+ * place into context.
+ */
+const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
+  WEBHOOK_TRIGGER: ["webhook"],
+  MANUAL_TRIGGER: ["trigger"],
+  INITIAL: ["trigger"],
+  SCHEDULE_TRIGGER: ["schedule"],
+  GOOGLE_FORM_TRIGGER: ["googleForm"],
+  STRIPE_TRIGGER: ["stripe"],
+};
+
+/** True when value is a template string (contains a Handlebars expression). */
+function looksLikeTemplate(value: unknown): value is string {
+  return typeof value === "string" && value.includes("{{");
+}
+
+/**
+ * Recurse through a node's config bag collecting every top-level root
+ * referenced by any template string in it.
+ */
+function collectConfigRoots(
+  value: unknown,
+  out: Set<string>,
+  seen: Set<unknown>,
+): void {
+  if (value === null || value === undefined || seen.has(value)) return;
+  if (typeof value === "object") {
+    seen.add(value);
+  }
+  if (looksLikeTemplate(value)) {
+    for (const root of getTemplateRoots(value)) out.add(root);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectConfigRoots(item, out, seen);
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      collectConfigRoots((value as Record<string, unknown>)[key], out, seen);
+    }
+  }
+}
+
+/**
+ * Top-level context keys a manual/INITIAL trigger's mock payload contributes.
+ *
+ * The executor (`src/nodes/core/manual-trigger/execute.ts`) parses the
+ * `payload` config string and spreads the resulting object flat onto the
+ * context alongside a `trigger` key, so every top-level key of a successfully
+ * parsed plain-object payload is a real runtime root. A payload that does not
+ * JSON-parse produces no spread keys — matching the executor's `try`/`catch`.
+ * Payload keys are therefore statically knowable from the config, so a
+ * reference to one must not be flagged as unknown.
+ */
+function spreadPayloadRoots(node: GraphNode): string[] {
+  if (node.type !== "MANUAL_TRIGGER" && node.type !== "INITIAL") {
+    return [];
+  }
+  const payload = node.data?.payload;
+  if (typeof payload !== "string" || payload === "") return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    return [];
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return [];
+  }
+  return Object.keys(parsed as Record<string, unknown>);
+}
+
+/**
+ * The set of top-level roots the graph, as a whole, can place in the template
+ * context: always-present meta keys, every data node's `variableName`, every
+ * SET node mapping key (first dot segment), and the trigger's seeded keys.
+ * Forward references are permitted only when some node actually produces that
+ * root — a reference to a root nobody produces is the porting bug we catch.
+ */
+function computeValidRoots(nodes: GraphNode[]): Set<string> {
+  const valid = new Set<string>([
+    ...ALWAYS_PRESENT_ROOTS,
+    ...EXPRESSION_HELPERS,
+  ]);
+  for (const node of nodes) {
+    const triggerRoots = TRIGGER_CONTEXT_ROOTS[node.type];
+    if (triggerRoots) {
+      for (const root of triggerRoots) valid.add(root);
+    }
+    const data = node.data ?? {};
+    if (typeof data.variableName === "string" && data.variableName !== "") {
+      valid.add(data.variableName);
+    }
+    for (const root of spreadPayloadRoots(node)) valid.add(root);
+    if (node.type === "SET") {
+      const mappings = data.mappings;
+      if (Array.isArray(mappings)) {
+        for (const m of mappings) {
+          if (
+            m &&
+            typeof m === "object" &&
+            typeof (m as { key?: unknown }).key === "string"
+          ) {
+            const key = (m as { key: string }).key;
+            valid.add(key.split(".")[0]);
+          }
+        }
+      }
+    }
+  }
+  return valid;
+}
+
+function checkTemplateRoots(
+  nodes: GraphNode[],
+  errors: ValidationError[],
+): void {
+  if (nodes.length === 0) return;
+  const valid = computeValidRoots(nodes);
+
+  for (const node of nodes) {
+    // AF-M9-04 parity: a disabled node never executes, so a half-written
+    // template on it must not nag at save time.
+    if (node.disabled) continue;
+    if (!node.data || typeof node.data !== "object") continue;
+
+    const roots = new Set<string>();
+    collectConfigRoots(node.data, roots, new Set());
+    for (const root of roots) {
+      if (valid.has(root)) continue;
+      errors.push({
+        nodeId: node.id,
+        severity: "warning",
+        message: `Template references unknown root "${root}". The workflow produces no value under "${root}" — did you mean an existing variable, or one of the trigger keys (e.g. "webhook.body")?`,
       });
     }
   }

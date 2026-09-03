@@ -26,4 +26,33 @@ describe("SET definition", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("defaults an absent mapping type to string (AF-M9-08)", () => {
+    const result = configSchema.safeParse({
+      mappings: [{ key: "name", value: "Ada" }],
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.mappings?.[0].type).toBe("string");
+  });
+
+  it("accepts every declared mapping type (AF-M9-08)", () => {
+    const result = configSchema.safeParse({
+      mappings: [
+        { key: "a", value: "1", type: "string" },
+        { key: "b", value: "1", type: "number" },
+        { key: "c", value: "true", type: "boolean" },
+        { key: "d", value: "{}", type: "object" },
+        { key: "e", value: "[]", type: "array" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown mapping type (AF-M9-08)", () => {
+    const result = configSchema.safeParse({
+      mappings: [{ key: "a", value: "1", type: "date" }],
+    });
+    expect(result.success).toBe(false);
+  });
 });

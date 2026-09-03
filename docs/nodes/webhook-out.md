@@ -42,16 +42,20 @@ Reference it downstream as `{{myWebhook.webhookResponse.status}}`,
 
 ## Example
 
-Notify a custom endpoint when a user signs up, passing the user id through:
+Notify a custom endpoint when a user signs up, passing the user id through.
+This example assumes the workflow is triggered by a **Webhook** trigger, whose
+payload arrives under the `webhook` root — so use `{{webhook.body.*}}`, not
+`{{data.*}}` or `{{$json.body.*}}` (both are flagged at save time; see
+`docs/nodes/expressions.md` for the n8n → AutoFlow map):
 
 - `variableName`: `delivery`
-- `url`: `https://hooks.example.com/users/{{data.userId}}`
+- `url`: `https://hooks.example.com/users/{{webhook.body.userId}}`
 - `body`:
   ```json
   {
     "event": "user.created",
-    "userId": "{{data.userId}}",
-    "at": "{{data.createdAt}}"
+    "userId": "{{webhook.body.userId}}",
+    "at": "{{webhook.body.createdAt}}"
   }
   ```
 
