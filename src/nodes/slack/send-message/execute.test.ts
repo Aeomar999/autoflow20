@@ -35,6 +35,7 @@ vi.mock("@/inngest/channels/slack", () => ({
   }),
 }));
 
+import { withResolve } from "@/nodes/shared/test-params";
 import { execute } from "./execute";
 
 const step = {
@@ -43,19 +44,20 @@ const step = {
 
 const publish = vi.fn(async () => {});
 
-const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams => ({
-  nodeId: "node_1",
-  userId: "user_1",
-  context: { data: { userId: "usr_123" } },
-  data: {
-    variableName: "mySlack",
-    webhookUrl: "https://hooks.example.com/verify",
-    content: "Hello {{data.userId}}",
-  },
-  step,
-  publish,
-  ...overrides,
-});
+const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams =>
+  withResolve({
+    nodeId: "node_1",
+    userId: "user_1",
+    context: { data: { userId: "usr_123" } },
+    data: {
+      variableName: "mySlack",
+      webhookUrl: "https://hooks.example.com/verify",
+      content: "Hello {{data.userId}}",
+    },
+    step,
+    publish,
+    ...overrides,
+  });
 
 describe("SLACK execute", () => {
   beforeEach(() => {

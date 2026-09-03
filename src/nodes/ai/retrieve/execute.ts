@@ -1,6 +1,5 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
-import { compileTemplate } from "@/features/executions/template";
 import { embedQuery } from "@/features/knowledge/lib/embedder";
 import { searchKnowledgeChunks } from "@/features/knowledge/lib/vector-search";
 import type { NodeRun } from "@/nodes/types";
@@ -10,6 +9,7 @@ export const execute: NodeRun<RetrieveKnowledgeData> = async ({
   data,
   userId,
   context,
+  resolve,
   step,
   credentials,
 }) => {
@@ -23,7 +23,7 @@ export const execute: NodeRun<RetrieveKnowledgeData> = async ({
     throw new NonRetriableError("Retrieve Knowledge node: Query is missing");
   }
 
-  const resolvedQuery = compileTemplate(data.query)(context).trim();
+  const resolvedQuery = resolve(data.query).trim();
 
   if (!resolvedQuery) {
     throw new NonRetriableError(
@@ -35,7 +35,7 @@ export const execute: NodeRun<RetrieveKnowledgeData> = async ({
   const apiKey = secret?.apiKey;
 
   const sourceIdsArray = data.sourceIds
-    ? compileTemplate(data.sourceIds)(context)
+    ? resolve(data.sourceIds)
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean)

@@ -44,6 +44,7 @@ vi.mock("@/inngest/channels/openai-compatible-chat", () => ({
 }));
 
 import { assertSafeEndpoint } from "@/features/executions/components/http-request/egress-guard";
+import { withResolve } from "@/nodes/shared/test-params";
 import { execute } from "./execute";
 
 const step = {
@@ -65,19 +66,20 @@ const baseData = {
   userPrompt: "What is 6 times 7?",
 };
 
-const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams => ({
-  nodeId: "node_1",
-  userId: "user_1",
-  context: {
-    data: { question: "6 times 7", workspace: "verify" },
-    config: { baseUrl: "openai/v1" },
-  },
-  credentials: { credentialId: secret },
-  data: baseData,
-  step,
-  publish,
-  ...overrides,
-});
+const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams =>
+  withResolve({
+    nodeId: "node_1",
+    userId: "user_1",
+    context: {
+      data: { question: "6 times 7", workspace: "verify" },
+      config: { baseUrl: "openai/v1" },
+    },
+    credentials: { credentialId: secret },
+    data: baseData,
+    step,
+    publish,
+    ...overrides,
+  });
 
 beforeEach(() => {
   mockKy.mockClear();

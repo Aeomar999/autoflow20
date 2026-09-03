@@ -9,6 +9,7 @@
 
 import { validate } from "@/engine/validate";
 import { computeSkipNodes } from "@/features/executions/server/executions-router-helpers";
+import { resolveEdgePorts } from "@/nodes/ports";
 import { nodeRegistry } from "@/nodes/registry";
 
 /** Loose shape accepted from the client canvas (React Flow nodes/edges). */
@@ -16,6 +17,8 @@ export type DraftNode = {
   id: string;
   type: string;
   data?: unknown;
+  /** Persisted `Node.disabled` (AF-M9-04); the engine skips these. */
+  disabled?: boolean;
 };
 
 export type DraftEdge = {
@@ -30,6 +33,7 @@ export type GraphNode = {
   name: string;
   type: string;
   data: Record<string, unknown>;
+  disabled?: boolean;
 };
 
 export type GraphConnection = {
@@ -65,18 +69,23 @@ export function buildTestGraph(
   nodes: DraftNode[],
   edges: DraftEdge[],
 ): TestGraph {
+  // AF-M9-03: resolve handles through the same path `saveGraph` uses, so an
+  // in-editor test run takes the same branch the saved workflow would.
+  const typeOfNode = (nodeId: string) =>
+    nodes.find((n) => n.id === nodeId)?.type;
+
   return {
     nodes: nodes.map((n) => ({
       id: n.id,
       name: n.type,
       type: n.type,
       data: (n.data as Record<string, unknown> | null | undefined) ?? {},
+      disabled: n.disabled === true,
     })),
     connections: edges.map((e) => ({
       fromNodeId: e.source,
       toNodeId: e.target,
-      fromOutput: e.sourceHandle || "main",
-      toInput: e.targetHandle || "main",
+      ...resolveEdgePorts(e, typeOfNode),
     })),
   };
 }

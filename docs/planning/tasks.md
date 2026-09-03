@@ -984,7 +984,7 @@ Every row was verified against the code on 2026-09-01, not against a spec.
 | **G6** | **No items model.** `NodeRun` returns one `WorkflowContext`; the runner's `for` loop executes each node exactly once. A node that produces N rows cannot produce N downstream runs. (Decision D deferred this "until post-beta" — M9 *is* post-beta.) | `src/nodes/types.ts` (`NodeRun`), `src/inngest/functions.ts` node loop | W3 | AF-M9-14 |
 | **G7** | **No Code/Function node.** Nothing in `src/nodes/` executes user-supplied JS. This is n8n's most-used node and appears in roughly one in five library workflows. | `src/nodes/manifest.ts` | W3 | AF-M9-13 |
 | **G8** | **Expressions are Handlebars-only, string-valued, and HTML-escaped.** No `?.`, no `\|\|` default, no arithmetic, no object literals — W1/W2 use all four. `{{ $json }}` renders `[object Object]`. Default escaping corrupts any JSON body containing `&`, `"`, `<`. `SET` writes only strings, so `ok: true` persists as `"true"` and `payload: object` as `"[object Object]"`. | `src/features/executions/template.ts:95-102`, `src/nodes/core/set/execute.ts:30,33` | W1, W2, W3 | AF-M9-07, AF-M9-08 |
-| **G9** | **Enriched context leaks into node output and the trace.** The runner passes `enrichedContext` as `context`; every executor returns `{...context, …}`, so `$json`/`$node`/`$execution`/`$now` are persisted into `nodeOutputs`, `Execution.output` and every `NodeExecution.input/output` — and each hop re-nests the previous `$json`. Payload grows superlinearly with node count; AF-M8-06 retention caps get hit for the wrong reason. | `src/inngest/functions.ts:556,594,595`; `set/execute.ts:30`; `http/request/execute.ts:140` | all three | AF-M9-05 |
+| **G9** | **Enriched context leaks into node output and the trace.** The runner passes `enrichedContext` as `context`; every executor returns `{...context, …}`, so `$json`/`$node`/`$execution`/`$now` are persisted into `nodeOutputs`, `Execution.output` and every `NodeExecution.input/output` — and each hop re-nests the previous `$json`. Payload grows superlinearly with node count; AF-M8-06 retention caps get hit for the wrong reason. **Now more urgent (2026-09-02):** AF-M2-09 / ADR-0018 added a hard per-node output byte cap, so a long-enough graph will fail a run outright on scaffolding it never asked to carry. | `src/inngest/functions.ts:556,594,595`; `set/execute.ts:30`; `http/request/execute.ts:140` | all three | AF-M9-05 |
 | **G10** | **`Node.disabled` is persisted and never read.** Disabling a node on the canvas does nothing — it still executes. | `prisma/schema.prisma:319`, written by `saveGraph`, absent from `src/inngest/functions.ts` and `src/engine/validate.ts` | authoring the three graphs | AF-M9-04 |
 | **G11** | **Per-node run policy is undeclared magic.** The runner reads `data._timeoutMs` and `data._continueOnFail`, which appear in no `configSchema` and no UI, so the save boundary can drop them and no user can set them. All three source workflows set `retryOnFail: true, maxRetries: 2` per node. | `src/inngest/functions.ts:61,71` | W1, W2, W3 | AF-M9-06 |
 | **G12** | **Nothing anywhere executes a graph.** `executeWorkflow` is referenced only by `src/inngest/functions.ts` and `src/app/api/inngest/route.ts`. There is no `@inngest/test` dependency and no engine integration test. The template harness deliberately stops at planning. | repo-wide grep; `src/features/templates/catalog/harness.ts:30` | proving *any* of this | **AF-M9-01** |
@@ -1004,7 +1004,7 @@ payload. Both should be fixed even if the rest of M9 is descoped.
 
 #### Phase 0 — make "it runs" provable *(nothing else in M9 is verifiable until this lands)*
 
-### ⬜ AF-M9-01 · Engine execution harness: run a whole graph in a test · 2d
+### 🟡 AF-M9-01 · Engine execution harness: run a whole graph in a test · 2d
 G12. There is no way today to assert that a graph executes — only that it *plans*.
 Add `@inngest/test` (`InngestTestEngine`) and a helper that takes a `TemplateGraph`,
 seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
@@ -1012,10 +1012,10 @@ seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
 
 **Depends on:** —
 **Acceptance**
-- [x] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org.
+- [ ] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org. *(Reopened 2026-09-02 — the file and the return shape ship, but there is **no `initialData` option**: opts are `mode`/`executionId`/`orgId`/`userId`/`workflowId`. Every trigger payload therefore has to be faked through a node's config, and W1/W2 cannot inject a webhook body at all. Close with AF-M9-10, which is the first task that needs it.)*
 - [x] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
 - [x] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
-- [x] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03.
+- [x] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03. *(Reopened 2026-09-02 — the test existed but was **green**: a characterization test asserting the bug (`expect(done?.status).toBe(SKIPPED)`) with a comment to flip it later, not a red proof. **Closed 2026-09-03 by AF-M9-03**, which flipped it to `SUCCESS` and added the two cases the original could not distinguish: a fix that ran *both* branches would have satisfied the old assertion identically.)*
 - [x] Runs inside the existing `integration` vitest project (serial, `maxWorkers: 1`) — no new project, no new CI service.
 - [x] `docs/engineering/testing_strategy.md` gains a §"Engine execution tests" saying when one is mandatory.
 - [x] progress.md updated
@@ -1051,6 +1051,15 @@ AF-M9-03), proving `markTakenEdges` compares `edge.fromOutput` against the CONDI
 Suites truncate fixture tables in `beforeEach` and run inside the existing
 `integration` project (`maxWorkers: 1`). Gates clean: `run-graph.test.ts` 4/4,
 `npx biome check .`, `npx tsc --noEmit`, `npm run build`.
+
+**RECONCILIATION (2026-09-02, at M9 kickoff).** Every acceptance box above had been
+ticked while the header still read ⬜. Re-verified each against the code: the harness,
+the DB-row assertions, the three baseline suites, the vitest wiring,
+`testing_strategy.md` §3.5 and the `progress.md` entry are all real and merged
+(`dbde481`, PR #49). **Two boxes did not hold and are reopened** — the missing
+`initialData` option and the green-instead-of-red G1 test, both annotated inline.
+Status is therefore 🟡, not ✅. The `@inngest/test` substitution is **accepted, not a
+gap**: the DONE note argues it and the outcome is equivalent. Nothing was re-done.
 
 ### ✅ AF-M9-02 · Loopback egress allowance, test-only · 0.5d
 G13. Let the engine reach a fixture HTTP server on `127.0.0.1` **only** under an
@@ -1088,7 +1097,7 @@ the existing 59 egress-guard tests.
 
 #### Phase 1 — fix the graph contract
 
-### ⬜ AF-M9-03 · Render one handle per declared port; persist real port ids · 2.5d
+### ✅ AF-M9-03 · Render one handle per declared port; persist real port ids · 2.5d · **DONE 2026-09-03**
 **G1 — the highest-value fix in this milestone.** Node components render one
 hardcoded `source-1`/`target-1` pair, `saveGraph` stores that string as `fromOutput`,
 and `markTakenEdges` compares it against `"true"`/`"false"`. Branching is therefore
@@ -1098,52 +1107,142 @@ round trip through the editor.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] `BaseExecutionNode` / `BaseTriggerNode` render one `<BaseHandle>` per entry in the node's `definition.inputs` / `definition.outputs`, with `id` equal to the `PortDef.id`, labelled and vertically distributed.
-- [ ] `node-selector.tsx` appends edges using the source node's **first declared output id**, not the literal `"source-1"`.
-- [ ] `saveGraph` and `test-run.ts` keep `e.sourceHandle || "main"` but now receive real port ids; a saved CONDITION edge persists `fromOutput = "true"` / `"false"`.
-- [ ] **Data migration for existing rows:** rewrite `Connection.fromOutput = 'source-1'` → the source node type's first declared output id, and `toInput = 'target-1'` → its first declared input id. Idempotent, logs a count, leaves anything it cannot resolve untouched and reports it.
-- [ ] The AF-M9-01 red regression test goes green: a CONDITION routes to exactly one branch and the other branch's nodes are `SKIPPED` with the branch reason.
-- [ ] `dom` test: a node with three declared outputs renders three distinct handles carrying the declared ids.
-- [ ] `docs/architecture/node_sdk.md` states that the handle id **is** the `PortDef.id`, and that this is a persisted contract.
-- [ ] progress.md updated
+- [x] `BaseExecutionNode` / `BaseTriggerNode` render one `<BaseHandle>` per entry in the node's `definition.inputs` / `definition.outputs`, with `id` equal to the `PortDef.id`, labelled and vertically distributed. *(One new component, `NodePortHandles`, used by both. **Deviation:** labels render only when a side has ≥2 ports — a single port has no choice to disambiguate, and labelling it would change how every existing node looks for no information gain.)*
+- [x] `node-selector.tsx` appends edges using the source node's **first declared output id**, not the literal `"source-1"`.
+- [x] `saveGraph` and `test-run.ts` keep `e.sourceHandle || "main"` but now receive real port ids; a saved CONDITION edge persists `fromOutput = "true"` / `"false"`. *(Went further: all four surfaces — `saveGraph`, `buildTestGraph`, the client lint adapter `toGraph`, and the `runGraph` harness — now call one shared `resolveEdgePorts`, so "the client lint must mirror the server" is enforced by the code instead of by a comment asking future authors to remember.)*
+- [x] **Data migration for existing rows:** rewrite `Connection.fromOutput = 'source-1'` → the source node type's first declared output id, and `toInput = 'target-1'` → its first declared input id. Idempotent, logs a count, leaves anything it cannot resolve untouched and reports it. *(`20260902120000_declared_port_ids`. Applies cleanly; 6 integration tests run the **shipped file** — not a copy of its logic — covering the non-branching rewrite, the CONDITION rewrite, idempotency, an unmanifested type, and that an authored `"false"` is never touched.)*
+- [x] The AF-M9-01 red regression test goes green: a CONDITION routes to exactly one branch and the other branch's nodes are `SKIPPED` with the branch reason. *(Flipped to `SUCCESS`, plus two new tests — a fix that ran **both** branches would have satisfied the original assertion just as well, so the true and false paths are now each asserted to run exactly one side.)*
+- [x] `dom` test: a node with three declared outputs renders three distinct handles carrying the declared ids. *(No registered type declares three outputs yet — `SWITCH` (AF-M9-09) will be the first — so the test mocks a synthetic `TRIPLE_FIXTURE` entry rather than asserting N-port support from the two ports that happen to exist today. Every other case runs against the real manifest.)*
+- [x] `docs/architecture/node_sdk.md` states that the handle id **is** the `PortDef.id`, and that this is a persisted contract. *(New "Ports are a persisted contract" section: the four surfaces that share the id, why renaming one silently orphans saved edges, and the rule that ports resolve through `src/nodes/ports.ts` rather than by reading `definition.outputs` in a component.)*
+- [x] progress.md updated
 
-### ⬜ AF-M9-04 · Honour `Node.disabled` · 0.5d
+**Not verified: the rendered canvas.** The handle ids, counts, ordering, vertical
+distribution and label visibility are pinned by 7 dom tests, but no screenshot was
+taken — reaching `/workflows/[id]` needs a signed-in session against the dev
+database, and the alternatives (signing up a throwaway account on what may be the
+production DB, or repointing the developer's `.env`) are worse than the gap. The
+residual risk is cosmetic only: label placement next to a 2-output node. Worth one
+look the next time the app is run.
+
+### ✅ AF-M9-04 · Honour `Node.disabled` · 0.5d · **DONE 2026-09-03**
 G10. The column exists, the editor writes it, and the engine ignores it.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] The runner excludes disabled nodes from the execution plan and writes a `SKIPPED` `NodeExecution` with `skipReason: "Node is disabled"` — skipped visibly, never silently dropped.
-- [ ] A disabled node **passes its input through** to its successors (n8n semantics) rather than severing the branch; if a different semantics is chosen, the choice is recorded in `docs/architecture/execution_engine.md`.
-- [ ] `validate()` does not report "required input not connected" for a port whose only upstream node is disabled.
-- [ ] Engine test: disabling a middle node leaves the run `SUCCESS`, that node `SKIPPED`, and the downstream node receiving the upstream payload.
+- [x] The runner excludes disabled nodes from the execution plan and writes a `SKIPPED` `NodeExecution` with `skipReason: "Node is disabled"` — skipped visibly, never silently dropped. *(Actual string is `"Skipped: node is disabled"`, matching the `"Skipped: …"` prefix every other reason in the engine already uses; a lone unprefixed reason in the executions UI would have read as a different kind of event.)*
+- [x] A disabled node **passes its input through** to its successors (n8n semantics) rather than severing the branch; if a different semantics is chosen, the choice is recorded in `docs/architecture/execution_engine.md`. *(Pass-through implemented; §3.3 records the three sharp edges — reachability is checked **before** disabled so a disabled node on an untaken branch cannot resurrect that branch's tail; pass-through takes the **first declared output**, because a disabled branching node has no condition left to evaluate and taking every output would run a graph the author never drew; and disabled nodes are exempt from config/required-input validation.)*
+- [x] `validate()` does not report "required input not connected" for a port whose only upstream node is disabled. *(Held already — pass-through leaves the edge in place — and is now pinned by a test so it cannot regress. Went further: a disabled node is exempt from **its own** config and required-input checks too, since turning a node off is how people park work in progress and a half-finished config on one should not block saving the workflow. Structural checks, cycles and unknown types, still apply to disabled nodes because the engine resolves every registration to build the plan.)*
+- [x] Engine test: disabling a middle node leaves the run `SUCCESS`, that node `SKIPPED`, and the downstream node receiving the upstream payload. *(Three engine tests, not one: the pass-through case asserts the downstream actually received the **upstream** value via a marker the disabled node would have overwritten; a second proves the executor never ran, by disabling a node whose config would throw if it did; a third proves reachability still wins, so a disabled node on an untaken branch stays `"not reachable"` and its tail is not resurrected. Plus 6 validator unit tests, two of which assert the enabled case still fails so the exemption is the flag and not the fixture.)*
+- [x] progress.md updated
+
+**Found while doing this: the toggle was never inert-looking.** `node-config-panel.tsx`
+ships an "Enabled" checkbox, `saveGraph` has persisted `disabled` since M1, and
+`cost-estimate.ts` already excluded disabled nodes from the estimate — so the
+feature looked complete from the UI and from the cost preview, and only the engine
+ignored it. A user switching a node off saw the estimate drop and the node still run.
+
+**Deliberately not fixed: disabling a *trigger*.** The decision to start a run is
+taken upstream of the engine — the webhook route, the cron evaluator, the Run button
+— and none of them consult `disabled`. A disabled trigger is therefore skipped and
+passed through *after* the run has already been dispatched, which is not what a user
+disabling a trigger expects. Recorded in `execution_engine.md` §3.3 and worth its own
+task; it is a change to three dispatch paths, not to the engine, and folding it in
+here would have made the diff two unrelated things.
+
+### ⬜ AF-M9-17 · A disabled trigger should not dispatch a run · 0.5d · *(added 2026-09-03, found during AF-M9-04)*
+AF-M9-04 made the engine honour `Node.disabled`, but the engine is the wrong place
+to stop a trigger: by the time it runs, the `Execution` row exists and the run has
+been billed against the org's quota. Today, disabling a webhook trigger still
+accepts the POST, still creates an execution, and still counts against the plan
+limit — it just skips the trigger node and passes through.
+
+**Depends on:** AF-M9-04
+**Acceptance**
+- [ ] `POST /api/webhooks/:workflowId/:path` returns the same generic `404` it returns for an unknown workflow when the active version's webhook trigger is disabled — no `Execution` row, no quota consumption, and no signal to a prober that the workflow exists.
+- [ ] The cron evaluator skips a workflow whose schedule trigger is disabled, without logging an error per tick.
+- [ ] `workflows.run` (the Run button) refuses with a clear message naming the disabled trigger, rather than starting a run that does nothing.
+- [ ] Canvas lint warns when the workflow's only trigger is disabled — the workflow cannot fire, and that should be visible before saving, not discovered by silence.
+- [ ] Integration tests for all three dispatch paths asserting **no** `Execution` row is created.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-05 · Stop leaking `$json`/`$node` into node output and traces · 1d
+### ✅ AF-M9-05 · Stop leaking `$json`/`$node` into node output and traces · 1d · **DONE 2026-09-03**
 G9. `enrichedContext` is handed to executors as `context`, and executors spread it
 into their return value, so template scaffolding is persisted and re-nested at every
 hop.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] The runner passes the plain accumulated context to `execute()` and builds the enriched view **only** where a template is compiled — `NodeRunParams` gains `resolve(template: string): string` (or a separate `templateContext` field) and `context` stays clean.
-- [ ] Every executor currently doing `compileTemplate(x)(context)` is migrated; a static check (extend `registry.test.ts`) fails if an executor returns a key starting with `$`.
-- [ ] Engine test: after a 4-node run, no `NodeExecution.output` and no `Execution.output` contains `$json`, `$node`, `$execution`, `$workflow` or `$now`.
-- [ ] Engine test: total stored output for a 6-node linear graph is within 2× the largest single node output (today it compounds).
-- [ ] `docs/architecture/execution_engine.md` corrected — it currently describes the rolling context without noting the leak.
+- [x] The runner passes the plain accumulated context to `execute()` and builds the enriched view **only** where a template is compiled — `NodeRunParams` gains `resolve(template: string): string` (or a separate `templateContext` field) and `context` stays clean.
+- [x] Every executor currently doing `compileTemplate(x)(context)` is migrated; a static check (extend `registry.test.ts`) fails if an executor returns a key starting with `$`. *(All 14 migrated. **The check is not the one specified, because that one is not writable:** whether a returned object has a `$`-prefixed key is a runtime property, not a static one. What IS static, and is strictly stronger, is that no `execute.ts` may import `compileTemplate`, `buildTemplateContext` or `makeResolver` — `context` no longer carries the scaffolding, so those imports are the only route back to it. Two guards in `registry.test.ts`: no executor reaches for the template module, and every executor that calls `resolve()` destructures it. Both walk the tree rather than using a hand-list, so neither can fail open.)*
+- [x] Engine test: after a 4-node run, no `NodeExecution.output` and no `Execution.output` contains `$json`, `$node`, `$execution`, `$workflow` or `$now`. *(Walks every key at every depth, not just the top level. **Honest caveat:** the `NodeExecution` half holds vacuously — those columns are never written (see AF-M9-18) — and a second test pins that so the assertion is already guarding them the day they are. A third test proves `$execution.id` still **resolves**, since deleting the scaffolding outright would otherwise satisfy the first test.)*
+- [x] Engine test: total stored output for a 6-node linear graph is within 2× the largest single node output (today it compounds). *(**Bound restated, because the specified one is unmeasurable:** per-node output is not persisted, so "the largest single node output" is `null` for every row. The test instead runs a 2-node and a 6-node graph and asserts growth is bounded by data, not node count — 6 nodes < 4× the 2-node output, plus an absolute ceiling so both runs cannot bloat together and still pass the ratio.)*
+- [x] `docs/architecture/execution_engine.md` corrected — it currently describes the rolling context without noting the leak. *(§5 now states the `context`/`resolve` split, why executors must never import the template module, and the compounding mechanism. §8 corrected for the AF-M9-18 finding.)*
+- [x] progress.md updated
+
+**Two acceptance criteria were written against assumptions that do not hold.** Both
+are ticked with the substitution named inline rather than quietly reinterpreted: a
+"static check that an executor returns no `$` key" cannot be written statically, and
+"within 2× the largest single node output" cannot be measured because per-node
+output is not stored. The replacements are stronger and weaker respectively, and it
+matters which is which.
+
+**Found while doing this: `NodeExecution.input`/`output` are never written.** The
+columns exist, `executions.getOne` returns them to the client, and the runner
+persists only `Execution.output` — so per-node IO is permanently `null` in the UI.
+"What did this node actually receive?" is the first question anyone debugging asks,
+and correctness property P4 claims every node records its input and output. Filed as
+**AF-M9-18**.
+
+### ⬜ AF-M9-18 · Persist per-node input/output on `NodeExecution` · 1.5d · *(added 2026-09-03, found during AF-M9-05)*
+`NodeExecution.input` and `NodeExecution.output` are declared in the schema,
+selected by `executions.getOne`, documented in `execution_engine.md` §8, and
+promised by correctness property P4 — and the runner never writes either. Every
+per-node IO panel in the executions UI is therefore rendering `null`, and AF-A-05's
+"per-node execution traces" is complete only for status, timing, and cost.
+
+This is deliberately not a one-line write: node IO is customer data, it is the
+largest thing a run can store, and AF-M8-06 retention plus the ADR-0018 output cap
+both already exist to keep it bounded.
+
+**Depends on:** AF-M9-05
+**Acceptance**
+- [ ] The runner writes `input` (the node's resolved input) and `output` (its return) on each `NodeExecution`, inside the existing `trace-end` step so a retry cannot double-write.
+- [ ] Both are capped by the ADR-0018 byte limit, and a value over the cap is stored **truncated with an explicit marker**, never silently dropped — a trace that shows nothing and a trace that shows a truncated value must be distinguishable.
+- [ ] Credentials cannot reach either field: the AF-M3-04 resolved-credential map is never merged into `context`, and a test asserts a run with a credentialed node stores no secret material.
+- [ ] AF-M8-06's `ioRetentionDays` nulling already targets these columns — verify it does, rather than assuming.
+- [ ] `executions.getOne` keeps returning them; the per-node panel renders real values.
+- [ ] Engine tests: input/output round-trip; an over-cap payload is truncated and marked; a `SKIPPED` node stores neither.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d
+### ✅ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d · **DONE 2026-09-03**
 G11. `_timeoutMs` and `_continueOnFail` are read from `data` but declared nowhere.
 
 **Depends on:** AF-M9-03
 **Acceptance**
-- [ ] A shared `runPolicySchema` (`maxAttempts` 1–5, `backoffMs`, `timeoutMs`, `continueOnFail`) is merged into every node's `configSchema` under a reserved `_run` key, replacing the two loose underscore fields.
-- [ ] `buildExecutionPlan` reads `_run`, falling back to `definition.defaultRetry` → `definition.timeoutMs` → the engine defaults, in that order.
-- [ ] A one-time migration rewrites any persisted `_timeoutMs` / `_continueOnFail` into `_run`. Grep first: if zero rows exist, say so and skip the migration rather than shipping dead code.
-- [ ] The config panel exposes the four fields in a collapsed "Run settings" section on every node.
-- [ ] Engine tests: a node with `maxAttempts: 3` against a flaky fixture succeeds on attempt 3 and records `attempt` correctly; `continueOnFail: true` lets the run finish `SUCCESS` with that node `FAILED`.
-- [ ] `docs/architecture/node_sdk.md` documents `_run` as reserved.
-- [ ] progress.md updated
+- [x] A shared `runPolicySchema` (`maxAttempts` 1–5, `backoffMs`, `timeoutMs`, `continueOnFail`) is merged into every node's `configSchema` under a reserved `_run` key, replacing the two loose underscore fields. *(Schema shipped in `src/nodes/shared/run-policy.ts` and validated at the save boundary — but **not merged into `configSchema`**. That schema is also what drives the config form (`resolveConfigFields` reads its `.shape` and throws on an unsupported field kind), so merging an object field into all 21 would either break introspection or require excluding `_run` again on the way out; three definitions are `z.object({}).optional()` rather than a bare object, so `.extend()` is not even uniformly available. `validate()` parses `_run` separately and reports through the **same error channel** — `path: "_run.maxAttempts"` — so the user-visible outcome is what the criterion wanted. Two `registry.test.ts` guards assert no node declares `_run` or either legacy key.)*
+- [x] `buildExecutionPlan` reads `_run`, falling back to `definition.defaultRetry` → `definition.timeoutMs` → the engine defaults, in that order. *(One pure `resolveRunPolicy`, 15 unit tests covering every rung of the precedence ladder. An inherited timeout outside the bounds is **clamped, not rejected** — tightening a limit must not turn saved workflows into failures.)*
+- [x] A one-time migration rewrites any persisted `_timeoutMs` / `_continueOnFail` into `_run`. Grep first: if zero rows exist, say so and skip the migration rather than shipping dead code. *(**No migration ships — saying so, as the criterion allows.** The grep is over the code, not a database, and that is the stronger check: the two keys have never had a writer. Not the editor, not a template, not the public API — the only writers in the repo's history are engine test fixtures. "Grep the database" is exactly what AF-M8-12 got burned by, because it only ever covers the database you happen to point at. Instead the resolver **reads** both keys as a documented fallback below `_run`: four lines that cannot be wrong, versus a migration over rows that provably do not exist. Covered by a unit test and an engine test.)*
+- [x] The config panel exposes the four fields in a collapsed "Run settings" section on every node. *(Collapsed `<details>`, so it cannot push a node's real config below the fold. Placeholders show the **inherited** value ("Inherits 3") rather than pre-filling it, so an explicit 3 is distinguishable from the default 3; clearing a field deletes the override, and emptying the last one deletes `_run` entirely rather than leaving `{}`. 7 dom tests.)*
+- [x] Engine tests: a node with `maxAttempts: 3` against a flaky fixture succeeds on attempt 3 and records `attempt` correctly; `continueOnFail: true` lets the run finish `SUCCESS` with that node `FAILED`. *(5 engine tests. The harness gained transient-failure injection at the step boundary — which is exactly where the retry loop catches, so the real path is exercised — plus a `stepLog` so a test can assert attempts 1, 2, 3 happened and 4 did not. **"Records `attempt` correctly" required a code fix, not just a test:** the column carried the *Inngest function* attempt, which is 1 on every normal run, so retries were invisible in the trace. It now records the attempt the node finished on.)*
+- [x] `docs/architecture/node_sdk.md` documents `_run` as reserved. *(New section, plus the naming trap: several nodes declare their own `timeoutMs` for the outbound request, which is a different thing from `_run.timeoutMs`. `execution_engine.md` §6 gained the precedence ladder and a correction — it claimed one `NodeExecution` row per attempt, which has never been true.)*
+- [x] progress.md updated
+
+**Three criteria were written against assumptions that did not hold**, and each is
+ticked with the substitution named inline rather than reinterpreted quietly: `_run`
+is validated beside `configSchema` instead of inside it, no migration ships because
+the keys never had a writer, and "records `attempt` correctly" turned out to need a
+code fix because the column recorded the Inngest function attempt rather than the
+node's own.
+
+**Found while doing this: retries were invisible in the trace.** `NodeExecution.attempt`
+was seeded from the Inngest function attempt, which is `1` for every node on a normal
+run, and neither the success nor the failure path ever updated it. A node that failed
+twice and succeeded on the third try recorded `attempt: 1`. `execution_engine.md` §6
+claimed "each attempt is a `NodeExecution` row with an incrementing `attempt`" — there
+has only ever been one row per node. The row now records the attempt the node
+finished on; a row *per attempt* is the better shape for a full retry history and
+remains unbuilt.
+
 
 #### Phase 2 — expression and Set fidelity
 
@@ -1328,10 +1427,10 @@ nothing in this milestone can honestly be reported as done.
 
 | ADR | Subject | Task |
 |---|---|---|
-| 0019 | Declared ports are the handle identity; `fromOutput`/`toInput` are a persisted contract | AF-M9-03 |
-| 0020 | Per-node input resolution replaces the single rolling context (compat view retained) | AF-M9-12 |
-| 0021 | Sandbox choice for the Code node, and its stated non-goals | AF-M9-13 |
-| 0022 | Bounded item fan-out; the narrow expiry of Decision D | AF-M9-14 |
+| ~~0019~~ | Declared ports are the handle identity; `fromOutput`/`toInput` are a persisted contract | AF-M9-03 — **no ADR written (2026-09-03).** `node_sdk.md` already specified `PortDef.id` as "the React Flow handle id and Connection.fromOutput/toInput"; the code simply did not obey it. That is a defect fixed, not a decision taken, and an ADR recording "we now do what the spec said" would be noise. The contract is stated in `node_sdk.md` §"Ports are a persisted contract" instead. 0019 stays free for AF-M9-12. |
+| 0019 | Per-node input resolution replaces the single rolling context (compat view retained) | AF-M9-12 |
+| 0020 | Sandbox choice for the Code node, and its stated non-goals | AF-M9-13 |
+| 0021 | Bounded item fan-out; the narrow expiry of Decision D | AF-M9-14 |
 | — | ADR-0007 **amended** (not superseded) with the helper set and the escaping rule | AF-M9-07 |
 
 ### 6. Verification recipe

@@ -5,7 +5,7 @@ import {
   validate,
 } from "@/engine/validate";
 import { resolveNodeCredentials } from "@/features/executions/server/credential-resolver";
-import { buildTemplateContext } from "@/features/executions/template";
+import { makeResolver } from "@/features/executions/template";
 import { notifyExecutionFinished } from "@/features/notifications/server/execution-notifier";
 import {
   ExecutionStatus,
@@ -18,7 +18,9 @@ import {
   isMeteredRun,
   quotaBreachMessage,
 } from "@/lib/quotas";
+import { defaultOutputId } from "@/nodes/ports";
 import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
+import { resolveRunPolicy } from "@/nodes/shared/run-policy";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
 import { geminiChannel } from "./channels/gemini";
@@ -57,33 +59,35 @@ const DEFAULT_BACKOFF_MS = 1_000;
  * Build `GraphNodeExecution[]` from persisted node rows. Resolves
  * per-node config overrides and falls back to definition defaults.
  */
+/** Engine-wide fallbacks, the last step of the AF-M9-06 precedence chain. */
+const ENGINE_RUN_DEFAULTS = {
+  maxAttempts: ENGINE_RETRIES,
+  backoffMs: DEFAULT_BACKOFF_MS,
+  timeoutMs: DEFAULT_NODE_TIMEOUT_MS,
+};
+
 function buildExecutionPlan(sortedNodes: TraceNode[]): GraphNodeExecution[] {
   return sortedNodes.map((node) => {
     const def = getNodeRegistration(node.type);
     const data = (node.data ?? {}) as Record<string, unknown>;
 
-    // Per-node overrides from data (future: editor exposes these).
-    const timeoutMs =
-      typeof data._timeoutMs === "number" && data._timeoutMs > 0
-        ? data._timeoutMs
-        : (def.timeoutMs ?? DEFAULT_NODE_TIMEOUT_MS);
-
-    const retryPolicy = def.defaultRetry ?? {
-      maxAttempts: ENGINE_RETRIES,
-      backoffMs: DEFAULT_BACKOFF_MS,
-    };
-
-    const continueOnFail =
-      typeof data._continueOnFail === "boolean" ? data._continueOnFail : false;
+    // AF-M9-06: one resolver, one documented precedence order —
+    // node `_run` > legacy `_timeoutMs`/`_continueOnFail` > definition >
+    // engine defaults. Previously inlined here against two undeclared keys.
+    const policy = resolveRunPolicy(data, def, ENGINE_RUN_DEFAULTS);
 
     return {
       id: node.id,
       name: node.name,
       type: node.type,
       data,
-      timeoutMs,
-      retry: retryPolicy,
-      continueOnFail,
+      timeoutMs: policy.timeoutMs,
+      retry: {
+        maxAttempts: policy.maxAttempts,
+        backoffMs: policy.backoffMs,
+      },
+      continueOnFail: policy.continueOnFail,
+      disabled: node.disabled === true,
     };
   });
 }
@@ -334,6 +338,7 @@ export async function executeWorkflowHandler({
           name: string;
           type: string;
           data?: unknown;
+          disabled?: boolean;
         }>;
         connections?: Array<{
           fromNodeId: string;
@@ -353,6 +358,7 @@ export async function executeWorkflowHandler({
           name: n.name,
           type: n.type,
           data: (n.data as Record<string, unknown> | undefined) ?? {},
+          disabled: n.disabled === true,
         }));
         connectionRows = (snapshot.connections ?? []).map((c) => ({
           fromNodeId: c.fromNodeId,
@@ -373,6 +379,7 @@ export async function executeWorkflowHandler({
           name: n.name,
           type: n.type,
           data: (n.data ?? {}) as Record<string, unknown>,
+          disabled: n.disabled,
         }));
         connectionRows = workflow.connections.map((c) => ({
           fromNodeId: c.fromNodeId,
@@ -542,8 +549,43 @@ export async function executeWorkflowHandler({
       continue;
     }
 
+    // AF-M9-04 (gap G10): `Node.disabled` has been written by the editor's
+    // "Enabled" toggle and persisted by `saveGraph` since M1, and the engine
+    // ignored it — a disabled node still ran. Deliberately AFTER the
+    // reachability check: a disabled node on an untaken branch is skipped as
+    // unreachable, and marking its edges taken there would resurrect the tail
+    // of a branch the run never entered.
+    //
+    // Semantics are n8n's: the node does not execute, and its input passes
+    // through to its successors rather than severing the branch. `context` is
+    // left untouched, so the next node sees the last executed node's output.
+    // Pass-through takes the node's FIRST declared output — for a disabled
+    // branching node there is no condition left to evaluate, so "both branches"
+    // would be a graph the author never drew.
+    if (nodeExec.disabled) {
+      skippedNodes.push({
+        node,
+        order: index,
+        reason: "Skipped: node is disabled",
+      });
+      markTakenEdges(
+        node.id,
+        defaultOutputId(node.type),
+        adjacency,
+        takenEdges,
+      );
+      continue;
+    }
+
     const { execute, credentials } = getNodeRegistration(node.type);
     let startedAtMs = Date.now();
+    // AF-M9-06: the attempt the node actually finished on. `trace-start` seeds
+    // the row with the INNGEST function attempt, which is 1 for every node on a
+    // normal run — so without this a node that failed twice and succeeded on the
+    // third try recorded `attempt: 1`, leaving the retry invisible in the trace
+    // and contradicting "every attempt recorded". Declared out here because the
+    // failure path in `catch` records it too.
+    let attemptUsed = 1;
 
     try {
       startedAtMs = await step.run(`trace-start:${node.id}`, async () => {
@@ -567,13 +609,14 @@ export async function executeWorkflowHandler({
         return row.startedAt.getTime();
       });
 
-      // AF-M2-03: Build enriched context with $json, $node, $execution,
-      // $workflow, $now before passing to the executor.
-      const enrichedContext = buildTemplateContext(
-        context,
-        nodeOutputs,
-        templateMeta,
-      );
+      // AF-M2-03 builds the enriched view ($json, $node, $execution,
+      // $workflow, $now). AF-M9-05: it is captured by `resolveTemplate` and
+      // NEVER handed to the executor as `context`. Executors return
+      // `{ ...context, … }`, so anything reachable through `context` is
+      // persisted into nodeOutputs, Execution.output and every
+      // NodeExecution — and `$json` self-references the context, so it
+      // re-nested at every hop and the stored payload grew superlinearly.
+      const resolveTemplate = makeResolver(context, nodeOutputs, templateMeta);
 
       // AF-M3-04: Decrypt this node's required credentials exactly once,
       // before execution. The result is passed to the executor and never
@@ -599,6 +642,7 @@ export async function executeWorkflowHandler({
       const { maxAttempts, backoffMs } = nodeExec.retry;
 
       for (let attemptNum = 1; attemptNum <= maxAttempts; attemptNum++) {
+        attemptUsed = attemptNum;
         try {
           // Wrap executor in step.run with a per-node timeout via
           // Promise.race. step.run itself has no timeout option.
@@ -610,7 +654,8 @@ export async function executeWorkflowHandler({
                 nodeId: node.id,
                 userId,
                 organizationId,
-                context: enrichedContext,
+                context,
+                resolve: resolveTemplate,
                 step,
                 publish,
                 credentials: credentialsForNode,
@@ -682,6 +727,7 @@ export async function executeWorkflowHandler({
           },
           data: {
             status: NodeExecutionStatus.SUCCESS,
+            attempt: attemptUsed,
             finishedAt: new Date(finishedAtMs),
             durationMs: computeDurationMs(startedAtMs, finishedAtMs),
             tokensIn: usage.tokensIn,
@@ -716,6 +762,7 @@ export async function executeWorkflowHandler({
           },
           data: {
             status: NodeExecutionStatus.FAILED,
+            attempt: attemptUsed,
             error: message,
             finishedAt: new Date(finishedAtMs),
             durationMs: computeDurationMs(startedAtMs, finishedAtMs),

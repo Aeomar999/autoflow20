@@ -1,7 +1,6 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
 import nodemailer from "nodemailer";
-import { compileTemplate } from "@/features/executions/template";
 import { emailSendChannel } from "@/inngest/channels/email-send";
 import type { NodeRun } from "@/nodes/types";
 
@@ -24,6 +23,7 @@ export const execute: NodeRun<EmailSendData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
   credentials,
@@ -98,11 +98,11 @@ export const execute: NodeRun<EmailSendData> = async ({
         throw new NonRetriableError("Email node: Subject not configured");
       }
 
-      const to = compileTemplate(data.to)(context);
-      const cc = data.cc ? compileTemplate(data.cc)(context) : undefined;
-      const bcc = data.bcc ? compileTemplate(data.bcc)(context) : undefined;
-      const subject = compileTemplate(data.subject)(context);
-      const body = data.body ? compileTemplate(data.body)(context) : "";
+      const to = resolve(data.to);
+      const cc = data.cc ? resolve(data.cc) : undefined;
+      const bcc = data.bcc ? resolve(data.bcc) : undefined;
+      const subject = resolve(data.subject);
+      const body = data.body ? resolve(data.body) : "";
 
       // Deny policy: the SMTP user/password never leave this scope, so a run
       // that throws still cannot disclose secrets through its trace.

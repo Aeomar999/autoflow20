@@ -7,7 +7,6 @@ import {
   resolveTimeoutMs,
   safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
-import { compileTemplate } from "@/features/executions/template";
 import { openAiCompatibleChatChannel } from "@/inngest/channels/openai-compatible-chat";
 import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
 import type { NodeRun } from "@/nodes/types";
@@ -27,6 +26,7 @@ export const execute: NodeRun<OpenAiCompatibleData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
   credentials,
@@ -73,19 +73,19 @@ export const execute: NodeRun<OpenAiCompatibleData> = async ({
 
       // SSRF guard: the rendered base URL must be a safe outbound endpoint
       // before any request is issued.
-      const renderedUrl = compileTemplate(data.baseUrl)(context);
+      const renderedUrl = resolve(data.baseUrl);
       const baseUrl = await assertSafeEndpoint(renderedUrl);
 
       const messages: Array<{ role: "system" | "user"; content: string }> = [];
       if (data.systemPrompt) {
         messages.push({
           role: "system",
-          content: compileTemplate(data.systemPrompt)(context),
+          content: resolve(data.systemPrompt),
         });
       }
       messages.push({
         role: "user",
-        content: compileTemplate(data.userPrompt)(context),
+        content: resolve(data.userPrompt),
       });
 
       const chatUrl = `${baseUrl.origin}${baseUrl.pathname.replace(/\/+$/, "")}/chat/completions`;

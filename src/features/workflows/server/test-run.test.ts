@@ -53,13 +53,22 @@ describe("buildTestGraph", () => {
       ],
       [{ source: "n1", target: "n2" }],
     );
+    // AF-M9-04: `disabled` is carried into the snapshot, so an in-editor test
+    // run skips the same nodes the saved workflow would.
     expect(graph.nodes).toEqual([
-      { id: "n1", name: "MANUAL_TRIGGER", type: "MANUAL_TRIGGER", data: {} },
+      {
+        id: "n1",
+        name: "MANUAL_TRIGGER",
+        type: "MANUAL_TRIGGER",
+        data: {},
+        disabled: false,
+      },
       {
         id: "n2",
         name: "SET",
         type: "SET",
         data: { json: { fields: [] } },
+        disabled: false,
       },
     ]);
     expect(graph.connections).toEqual([

@@ -45,21 +45,21 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "set-1",
             name: "Set",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
           {
             id: "done-1",
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -101,21 +101,21 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "cond-fail",
             name: "CondNoOp",
             type: "CONDITION",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "done-2",
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -210,7 +210,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [],
@@ -243,8 +243,8 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
   // ------------------------------------------------------------------
   // Suite 4 — CONDITION regression: G1 bug (editor-style edge ids)
   // ------------------------------------------------------------------
-  describe("CONDITION regression (G1 bug)", () => {
-    it("editor-style edge ids source-1 cause downstream to be SKIPPED instead of SUCCESS (BUG until AF-M9-03)", async () => {
+  describe("CONDITION branch routing (G1, fixed by AF-M9-03)", () => {
+    it("editor-style edge ids resolve onto declared ports, so the taken branch runs", async () => {
       const graph: TemplateGraph = {
         nodes: [
           {
@@ -252,7 +252,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "cond-g1",
@@ -263,7 +263,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
               left: "trigger",
               operator: "equals",
               right: "trigger",
-              _timeoutMs: 1000,
+              _run: { timeoutMs: 1000 },
             },
           },
           {
@@ -271,7 +271,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -293,24 +293,584 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
 
       const { execution, nodeExecutions } = await runGraph(graph);
 
-      // CONDITION sets _outputPort="true" but markTakenEdges checks
-      // edge.fromOutput === outputPort → "source-1" !== "true" → no match.
-      // Done is never reached via takenEdges → SKIPPED (G1 bug).
+      // Before AF-M9-03 the canvas persisted its hardcoded "source-1" handle as
+      // `fromOutput`, so `markTakenEdges` compared it against the CONDITION's
+      // `_outputPort` of "true", never matched, and marked the whole downstream
+      // SKIPPED. `resolveEdgePorts` now maps "source-1" onto the node's first
+      // declared output ("true"), so the affirmative branch actually runs.
       const condition = nodeExecutions.find((n) => n.nodeName === "Cond");
       expect(condition?.status).toBe(NodeExecutionStatus.SUCCESS);
 
       const done = nodeExecutions.find((n) => n.nodeName === "Done");
+      expect(done?.status).toBe(NodeExecutionStatus.SUCCESS);
+      expect(done?.skipReason).toBeNull();
 
-      // This assertion documents the BUG: Done is SKIPPED when it should
-      // be SUCCESS. Once AF-M9-03 lands, flip this to:
-      //   expect(done?.status).toBe(NodeExecutionStatus.SUCCESS);
-      expect(done?.status).toBe(NodeExecutionStatus.SKIPPED);
-      expect(done?.skipReason).toBe(
-        "Skipped: not reachable via taken branches",
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+    });
+
+    it("routes to exactly one branch: the untaken side is SKIPPED with a reason", async () => {
+      // The other half of G1 — a fix that ran BOTH branches would be just as
+      // wrong as one that ran neither, and the old assertion could not tell.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-b",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "cond-b",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "a",
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "yes-b",
+            name: "Yes",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "no-b",
+            name: "No",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+        ],
+        edges: [
+          { source: "trigger-b", target: "cond-b", sourceHandle: "main" },
+          { source: "cond-b", target: "yes-b", sourceHandle: "true" },
+          { source: "cond-b", target: "no-b", sourceHandle: "false" },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(nodeExecutions.find((n) => n.nodeName === "Yes")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
       );
 
-      // Execution still succeeds — skipped nodes don't block completion.
+      const no = nodeExecutions.find((n) => n.nodeName === "No");
+      expect(no?.status).toBe(NodeExecutionStatus.SKIPPED);
+      expect(no?.skipReason).toBe("Skipped: not reachable via taken branches");
+
       expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+    });
+
+    it("takes the false branch when the condition does not hold", async () => {
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-f",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "cond-f",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "b",
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "yes-f",
+            name: "Yes",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "no-f",
+            name: "No",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+        ],
+        edges: [
+          { source: "trigger-f", target: "cond-f", sourceHandle: "main" },
+          { source: "cond-f", target: "yes-f", sourceHandle: "true" },
+          { source: "cond-f", target: "no-f", sourceHandle: "false" },
+        ],
+      };
+
+      const { nodeExecutions } = await runGraph(graph);
+
+      expect(nodeExecutions.find((n) => n.nodeName === "No")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+      expect(nodeExecutions.find((n) => n.nodeName === "Yes")?.status).toBe(
+        NodeExecutionStatus.SKIPPED,
+      );
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Suite 5 — Node.disabled (AF-M9-04, gap G10)
+  // ------------------------------------------------------------------
+  describe("disabled nodes", () => {
+    it("skips a disabled middle node and passes its input through", async () => {
+      // The editor has shipped an "Enabled" toggle since M1 and `saveGraph`
+      // has always persisted it; the engine ignored the column entirely, so
+      // disabling a node did nothing at run time.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-d",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "seed-d",
+            name: "Seed",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "marker", value: "from-upstream" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "off-d",
+            name: "Off",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            disabled: true,
+            // Would overwrite `marker` if it ran — that is the assertion.
+            data: {
+              mappings: [{ key: "marker", value: "from-disabled" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "done-d",
+            name: "Done",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+        ],
+        edges: [
+          { source: "trigger-d", target: "seed-d", sourceHandle: "main" },
+          { source: "seed-d", target: "off-d", sourceHandle: "main" },
+          { source: "off-d", target: "done-d", sourceHandle: "main" },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      // Skipped VISIBLY — a node missing from the trace is indistinguishable
+      // from one that never existed.
+      const off = nodeExecutions.find((n) => n.nodeName === "Off");
+      expect(off?.status).toBe(NodeExecutionStatus.SKIPPED);
+      expect(off?.skipReason).toBe("Skipped: node is disabled");
+
+      // Pass-through: the branch is not severed and Done still runs.
+      const done = nodeExecutions.find((n) => n.nodeName === "Done");
+      expect(done?.status).toBe(NodeExecutionStatus.SUCCESS);
+
+      // Done received the UPSTREAM payload, not the disabled node's.
+      expect((execution.output as Record<string, unknown> | null)?.marker).toBe(
+        "from-upstream",
+      );
+
+      // Every node is present in the trace exactly once.
+      expect(nodeExecutions).toHaveLength(4);
+    });
+
+    it("does not run a disabled node's executor at all", async () => {
+      // A disabled node whose config could not possibly execute: if the engine
+      // still ran it, this would fail the run instead of skipping it.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-x",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "broken-x",
+            name: "Broken",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            disabled: true,
+            // No operator — the executor throws NonRetriableError when run.
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "done-x",
+            name: "Done",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+        ],
+        edges: [
+          { source: "trigger-x", target: "broken-x", sourceHandle: "main" },
+          { source: "broken-x", target: "done-x", sourceHandle: "true" },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+      expect(nodeExecutions.find((n) => n.nodeName === "Broken")?.status).toBe(
+        NodeExecutionStatus.SKIPPED,
+      );
+      // Pass-through on a branching node takes its FIRST declared output.
+      expect(nodeExecutions.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+    });
+
+    it("does not resurrect a branch that was never taken", async () => {
+      // A disabled node on an untaken branch must stay skipped-as-unreachable;
+      // marking its outgoing edges taken would run the false branch's tail.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-u",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "cond-u",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "a",
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "off-u",
+            name: "OffOnFalse",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            disabled: true,
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "tail-u",
+            name: "Tail",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+        ],
+        edges: [
+          { source: "trigger-u", target: "cond-u", sourceHandle: "main" },
+          { source: "cond-u", target: "off-u", sourceHandle: "false" },
+          { source: "off-u", target: "tail-u", sourceHandle: "main" },
+        ],
+      };
+
+      const { nodeExecutions } = await runGraph(graph);
+
+      const off = nodeExecutions.find((n) => n.nodeName === "OffOnFalse");
+      expect(off?.status).toBe(NodeExecutionStatus.SKIPPED);
+      // Unreachable beats disabled: the reason names the real cause.
+      expect(off?.skipReason).toBe("Skipped: not reachable via taken branches");
+
+      const tail = nodeExecutions.find((n) => n.nodeName === "Tail");
+      expect(tail?.status).toBe(NodeExecutionStatus.SKIPPED);
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Suite 6 - Context hygiene (AF-M9-05, gap G9)
+  // ------------------------------------------------------------------
+  describe("context hygiene", () => {
+    const SCAFFOLDING = ["$json", "$node", "$execution", "$workflow", "$now"];
+
+    /** Every key at every depth of a stored JSON payload. */
+    function allKeys(value: unknown, acc = new Set<string>()): Set<string> {
+      if (Array.isArray(value)) {
+        for (const v of value) allKeys(v, acc);
+      } else if (value && typeof value === "object") {
+        for (const [k, v] of Object.entries(value)) {
+          acc.add(k);
+          allKeys(v, acc);
+        }
+      }
+      return acc;
+    }
+
+    function linearGraph(count: number): TemplateGraph {
+      const nodes: TemplateGraph["nodes"] = [
+        {
+          id: "trigger-h",
+          name: "Trigger",
+          type: "MANUAL_TRIGGER",
+          position: { x: 0, y: 0 },
+          data: { _run: { timeoutMs: 1000 } },
+        },
+      ];
+      const edges: TemplateGraph["edges"] = [];
+      let previous = "trigger-h";
+      for (let i = 0; i < count; i++) {
+        const id = `set-h-${i}`;
+        nodes.push({
+          id,
+          name: `Set${i}`,
+          type: "SET",
+          position: { x: 0, y: 0 },
+          // A real template, so the node genuinely goes through `resolve`.
+          data: {
+            mappings: [
+              { key: `field${i}`, value: `value-${i} {{$execution.id}}` },
+            ],
+            _run: { timeoutMs: 1000 },
+          },
+        });
+        edges.push({ source: previous, target: id, sourceHandle: "main" });
+        previous = id;
+      }
+      return { nodes, edges };
+    }
+
+    it("keeps template scaffolding out of every stored payload", async () => {
+      const { execution, nodeExecutions } = await runGraph(linearGraph(3));
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const executionKeys = allKeys(execution.output);
+      for (const key of SCAFFOLDING) {
+        expect(executionKeys.has(key), `Execution.output leaked ${key}`).toBe(
+          false,
+        );
+      }
+
+      for (const ne of nodeExecutions) {
+        for (const field of [ne.input, ne.output]) {
+          const keys = allKeys(field);
+          for (const key of SCAFFOLDING) {
+            expect(
+              keys.has(key),
+              `NodeExecution(${ne.nodeName}) leaked ${key}`,
+            ).toBe(false);
+          }
+        }
+      }
+    });
+
+    it("still resolves $-prefixed expressions even though they are not stored", () => {
+      // The scaffolding must be absent from the OUTPUT, not from the resolver.
+      // Without this, deleting `$execution` entirely would pass the test above.
+      return runGraph(linearGraph(1)).then(({ execution }) => {
+        const output = execution.output as Record<string, unknown>;
+        expect(typeof output.field0).toBe("string");
+        // "value-0 <executionId>" - the id resolved, so $execution still works.
+        expect(output.field0 as string).toMatch(/^value-0 .+/);
+        expect(output.field0 as string).not.toBe("value-0 ");
+      });
+    });
+
+    it("does not compound stored output as the graph gets longer", async () => {
+      // Before AF-M9-05 each node returned `{ ...context }` including `$json`,
+      // which self-references the context - so every hop re-nested the whole
+      // previous payload and the stored size grew superlinearly with node
+      // count, against the ADR-0018 per-node byte cap.
+      const { execution: shortRun } = await runGraph(linearGraph(2));
+      await prisma.$executeRawUnsafe(TRUNCATE);
+      const { execution: longRun, nodeExecutions } = await runGraph(
+        linearGraph(6),
+      );
+
+      const sizeOf = (v: unknown) => JSON.stringify(v ?? null).length;
+
+      // Growth from 2 SET nodes to 6 must track the DATA (four more small
+      // fields), not the node count. Each `SET` here writes ~20 bytes, so a
+      // linear result lands near 3x; the pre-fix nesting was far worse,
+      // because every hop embedded the entire previous context under `$json`.
+      expect(sizeOf(longRun.output)).toBeLessThan(4 * sizeOf(shortRun.output));
+
+      // Absolute bound too, so the ratio cannot pass by both runs bloating.
+      expect(sizeOf(longRun.output)).toBeLessThan(600);
+
+      // `NodeExecution.input`/`output` are columns the engine does not write
+      // today (only `Execution.output` is persisted) - see AF-M9-18. The
+      // hygiene assertions above therefore hold vacuously for those two
+      // fields; this pins that fact so the day they start being written, the
+      // scaffolding check above is already guarding them.
+      for (const ne of nodeExecutions) {
+        expect(ne.input).toBeNull();
+        expect(ne.output).toBeNull();
+      }
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Suite 7 - Per-node run policy (AF-M9-06, gap G11)
+  // ------------------------------------------------------------------
+  describe("run policy", () => {
+    /** Trigger -> Flaky(SET) -> Done(SET). */
+    function retryGraph(policy: Record<string, unknown>): TemplateGraph {
+      return {
+        nodes: [
+          {
+            id: "trigger-r",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: {},
+          },
+          {
+            id: "flaky-r",
+            name: "Flaky",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "ok", value: "yes" }],
+              _run: policy,
+            },
+          },
+          {
+            id: "done-r",
+            name: "Done",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [] },
+          },
+        ],
+        edges: [
+          { source: "trigger-r", target: "flaky-r", sourceHandle: "main" },
+          { source: "flaky-r", target: "done-r", sourceHandle: "main" },
+        ],
+      };
+    }
+
+    it("retries a transient failure and succeeds on the third attempt", async () => {
+      const { execution, nodeExecutions, stepLog } = await runGraph(
+        retryGraph({ maxAttempts: 3, backoffMs: 0 }),
+        // The first two `node:flaky-r:attempt:*` steps throw.
+        { failSteps: { prefix: "node:flaky-r:attempt:", times: 2 } },
+      );
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const flaky = nodeExecutions.find((n) => n.nodeName === "Flaky");
+      expect(flaky?.status).toBe(NodeExecutionStatus.SUCCESS);
+      // AF-M9-06: the recorded attempt is the one it FINISHED on. Before this,
+      // the row carried the Inngest function attempt (always 1), so a retry was
+      // invisible in the trace.
+      expect(flaky?.attempt).toBe(3);
+
+      // All three attempts really were made, in order.
+      expect(stepLog).toContain("node:flaky-r:attempt:1");
+      expect(stepLog).toContain("node:flaky-r:attempt:2");
+      expect(stepLog).toContain("node:flaky-r:attempt:3");
+      expect(stepLog).not.toContain("node:flaky-r:attempt:4");
+
+      // Downstream still ran.
+      expect(nodeExecutions.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+    });
+
+    it("honours maxAttempts: 1 as no retry at all", async () => {
+      const { stepLog } = await runGraph(
+        retryGraph({ maxAttempts: 1, backoffMs: 0 }),
+        { failSteps: { prefix: "node:flaky-r:attempt:", times: 0 } },
+      );
+      expect(stepLog).toContain("node:flaky-r:attempt:1");
+      expect(stepLog).not.toContain("node:flaky-r:attempt:2");
+    });
+
+    it("stops at maxAttempts and fails the run when every attempt fails", async () => {
+      let threw = false;
+      try {
+        await runGraph(retryGraph({ maxAttempts: 2, backoffMs: 0 }), {
+          failSteps: { prefix: "node:flaky-r:attempt:", times: 99 },
+        });
+      } catch {
+        threw = true;
+      }
+      expect(threw).toBe(true);
+
+      const rows = await prisma.nodeExecution.findMany({
+        orderBy: { order: "asc" },
+      });
+      const flaky = rows.find((n) => n.nodeName === "Flaky");
+      expect(flaky?.status).toBe(NodeExecutionStatus.FAILED);
+      // The failure records the last attempt tried, not the first.
+      expect(flaky?.attempt).toBe(2);
+      expect(rows.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SKIPPED,
+      );
+    });
+
+    it("continueOnFail lets the run finish SUCCESS with the node FAILED", async () => {
+      const graph = retryGraph({ maxAttempts: 1, continueOnFail: true });
+      const { execution, nodeExecutions } = await runGraph(graph, {
+        failSteps: { prefix: "node:flaky-r:attempt:", times: 99 },
+      });
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+      expect(nodeExecutions.find((n) => n.nodeName === "Flaky")?.status).toBe(
+        NodeExecutionStatus.FAILED,
+      );
+      // The whole point: downstream keeps going.
+      expect(nodeExecutions.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+    });
+
+    it("a legacy _timeoutMs node still runs, with no migration", async () => {
+      // AF-M9-06 ships no data migration; rows predating it must keep working.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-l",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "set-l",
+            name: "Legacy",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 2000, _continueOnFail: true },
+          },
+        ],
+        edges: [{ source: "trigger-l", target: "set-l", sourceHandle: "main" }],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+      expect(nodeExecutions.find((n) => n.nodeName === "Legacy")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
     });
   });
 });

@@ -6,7 +6,6 @@ import {
   assertSafeEndpoint,
   safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
-import { compileTemplate } from "@/features/executions/template";
 import { slackChannel } from "@/inngest/channels/slack";
 import type { NodeRun } from "@/nodes/types";
 
@@ -20,6 +19,7 @@ export const execute: NodeRun<SlackData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
 }) => {
@@ -40,7 +40,7 @@ export const execute: NodeRun<SlackData> = async ({
     throw new NonRetriableError("Slack node: Message content is required");
   }
 
-  const rawContent = compileTemplate(data.content)(context);
+  const rawContent = resolve(data.content);
   const content = decode(rawContent);
 
   try {

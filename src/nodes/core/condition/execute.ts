@@ -1,6 +1,5 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
-import { compileTemplate } from "@/features/executions/template";
 import { manualTriggerChannel } from "@/inngest/channels/manual-trigger";
 import { OUTPUT_PORT_KEY } from "@/inngest/trace";
 import type { NodeRun } from "@/nodes/types";
@@ -17,6 +16,7 @@ export const execute: NodeRun<ConditionData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
 }) => {
@@ -28,8 +28,8 @@ export const execute: NodeRun<ConditionData> = async ({
   );
 
   const result = await step.run("condition", async () => {
-    const leftRaw = data.left ? compileTemplate(data.left)(context) : "";
-    const rightRaw = data.right ? compileTemplate(data.right)(context) : "";
+    const leftRaw = data.left ? resolve(data.left) : "";
+    const rightRaw = data.right ? resolve(data.right) : "";
 
     if (!data.operator) {
       throw new NonRetriableError("Condition node: operator is required");

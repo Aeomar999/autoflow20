@@ -2,6 +2,7 @@ import type { TemplateGraph } from "@/features/templates/server/instantiate";
 import { ExecutionStatus } from "@/generated/prisma/client";
 import { executeWorkflowHandler } from "@/inngest/functions";
 import prisma from "@/lib/db";
+import { resolveEdgePorts } from "@/nodes/ports";
 
 type HandlerCtx = Parameters<typeof executeWorkflowHandler>[0];
 
@@ -10,15 +11,40 @@ type HandlerCtx = Parameters<typeof executeWorkflowHandler>[0];
  * No replay, no memoisation; the executor is invoked exactly once.
  *
  * The result is deep-cloned via JSON round-trip, mirroring real Inngest
- * serialization semantics: the executor's `buildTemplateContext` adds a
- * `$json` field that self-references the accumulated context, so without
- * this clone the subsequent `serializedBytes` (JSON.stringify) would throw
- * "Converting circular structure to JSON". Cloning also keeps later nodes'
- * contexts independent of earlier ones, matching persisted-step behaviour.
+ * serialization semantics: a persisted step returns a fresh value, so later
+ * nodes' contexts stay independent of earlier ones.
+ *
+ * Until AF-M9-05 the clone was also load-bearing for a second reason: the
+ * executor received the *enriched* context, whose `$json` self-references it,
+ * so `serializedBytes` (JSON.stringify) threw "Converting circular structure
+ * to JSON" without it. That is fixed at the source — the enriched view now
+ * lives only inside the injected `resolve` — so the clone is back to being
+ * only a fidelity measure. Keep it: dropping it would let a mutation in one
+ * node be visible in an earlier node's recorded output, which real Inngest
+ * would never do.
  */
-function makeStep() {
+function makeStep(opts?: {
+  /** Throw for the first `times` step.run calls whose name starts with this. */
+  failSteps?: { prefix: string; times: number };
+  /** Every step.run name, in order — lets a test assert what was attempted. */
+  log?: string[];
+}) {
+  let failures = 0;
   return {
     run: async (_name: string, fn: () => unknown) => {
+      opts?.log?.push(_name);
+      const failSpec = opts?.failSteps;
+      if (
+        failSpec &&
+        _name.startsWith(failSpec.prefix) &&
+        failures < failSpec.times
+      ) {
+        failures += 1;
+        // Fails at the step boundary, which is exactly where the engine's
+        // per-node retry loop catches — so the retry path is genuinely
+        // exercised rather than simulated.
+        throw new Error(`injected transient failure #${failures}`);
+      }
       const value = await fn();
       if (value === undefined || value === null) return value;
       try {
@@ -56,10 +82,14 @@ export async function runGraph(
     userId?: string;
     /** Reuse this workflow id instead of creating one. Requires orgId. */
     workflowId?: string;
+    /** Inject transient failures at the step boundary (AF-M9-06 retry tests). */
+    failSteps?: { prefix: string; times: number };
   },
 ): Promise<{
   execution: Awaited<ReturnType<typeof prisma.execution.findUniqueOrThrow>>;
   nodeExecutions: Awaited<ReturnType<typeof prisma.nodeExecution.findMany>>;
+  /** Every `step.run` name in order, so a test can assert what was attempted. */
+  stepLog: string[];
 }> {
   const userId = opts?.userId ?? `user-eng-${Date.now()}`;
 
@@ -110,13 +140,21 @@ export async function runGraph(
     },
   });
 
+  // AF-M9-03: resolve handles through the same helper `saveGraph` and
+  // `buildTestGraph` use, so the harness executes the graph a real save would
+  // have persisted — including translating a pre-AF-M9-03 `source-1` handle
+  // onto the node's first declared port.
+  const typeOfNode = (nodeId: string) =>
+    spec.nodes.find((n) => n.id === nodeId)?.type;
+
   const connections = spec.edges.map((e) => ({
     fromNodeId: e.source,
     toNodeId: e.target,
-    fromOutput: e.sourceHandle ?? "main",
-    toInput: e.targetHandle ?? "main",
+    ...resolveEdgePorts(e, typeOfNode),
   }));
 
+  // `TemplateNode` already carries `disabled`; it must reach the engine's
+  // snapshot path or AF-M9-04 cannot be tested through this harness.
   const graphSnapshot = { nodes: spec.nodes, connections };
 
   const event = {
@@ -131,7 +169,8 @@ export async function runGraph(
     },
   };
 
-  const step = makeStep();
+  const stepLog: string[] = [];
+  const step = makeStep({ failSteps: opts?.failSteps, log: stepLog });
 
   await executeWorkflowHandler({
     event,
@@ -151,5 +190,5 @@ export async function runGraph(
     orderBy: { order: "asc" },
   });
 
-  return { execution, nodeExecutions };
+  return { execution, nodeExecutions, stepLog };
 }

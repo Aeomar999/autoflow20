@@ -1,5 +1,6 @@
 import type { Graph, ValidationRegistry } from "@/engine/validate";
 import { findManifestEntry } from "@/nodes/manifest";
+import { resolveEdgePorts } from "@/nodes/ports";
 
 /**
  * Client-side catalogue adapter + canvas-draft converter (AF-M1-07).
@@ -49,6 +50,8 @@ type CanvasNodeLike = {
   type?: string | null;
   name?: string | null;
   data?: Record<string, unknown> | null;
+  /** AF-M9-04: a disabled node is exempt from config/required-input lint. */
+  disabled?: boolean;
 };
 
 type CanvasEdgeLike = {
@@ -59,28 +62,33 @@ type CanvasEdgeLike = {
 };
 
 /**
- * Convert a React Flow draft back into the validator's `Graph`. The `|| "main"`
- * handle normalisation MUST mirror the server (saveGraph in
- * `src/features/workflows/server/routers.ts` and the engine in
- * `src/inngest/functions.ts`) — the client lint is only useful if it reports
- * what the server would reject.
+ * Convert a React Flow draft back into the validator's `Graph`. Handle
+ * resolution MUST mirror the server (saveGraph in
+ * `src/features/workflows/server/routers.ts` and `buildTestGraph` in
+ * `src/features/workflows/server/test-run.ts`) — the client lint is only useful
+ * if it reports what the server would reject. Since AF-M9-03 all three share
+ * `resolveEdgePorts`, so "mirror" is enforced by the code rather than by this
+ * comment.
  */
 export function toGraph(
   nodes: CanvasNodeLike[],
   edges: CanvasEdgeLike[],
 ): Graph {
+  const typeOfNode = (nodeId: string) =>
+    nodes.find((n) => n.id === nodeId)?.type ?? undefined;
+
   return {
     nodes: nodes.map((node) => ({
       id: node.id,
       name: node.name ?? node.type ?? node.id,
       type: node.type ?? "UNKNOWN",
       data: node.data ?? {},
+      disabled: node.disabled === true,
     })),
     connections: edges.map((edge) => ({
       fromNodeId: edge.source,
       toNodeId: edge.target,
-      fromOutput: edge.sourceHandle || "main",
-      toInput: edge.targetHandle || "main",
+      ...resolveEdgePorts(edge, typeOfNode),
     })),
   };
 }

@@ -35,6 +35,7 @@ vi.mock("@/inngest/channels/postgres-query", () => ({
   }),
 }));
 
+import { withResolve } from "@/nodes/shared/test-params";
 import { execute } from "./execute";
 
 const step = {
@@ -59,16 +60,17 @@ const baseData = {
   params: '["{{data.userId}}", true]',
 };
 
-const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams => ({
-  nodeId: "node_1",
-  userId: "user_1",
-  context: { data: { userId: "usr_123" } },
-  credentials: { credentialId: postgresSecret },
-  data: baseData,
-  step,
-  publish,
-  ...overrides,
-});
+const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams =>
+  withResolve({
+    nodeId: "node_1",
+    userId: "user_1",
+    context: { data: { userId: "usr_123" } },
+    credentials: { credentialId: postgresSecret },
+    data: baseData,
+    step,
+    publish,
+    ...overrides,
+  });
 
 beforeEach(() => {
   mockClient.mockClear();

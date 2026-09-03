@@ -376,3 +376,248 @@ describe("validate — config validation with a real registry", () => {
     expect(inputErrors).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Disabled nodes (AF-M9-04, gap G10)
+// ---------------------------------------------------------------------------
+
+describe("validate — disabled nodes", () => {
+  const registry: ValidationRegistry = {
+    has: (type) => type === "MANUAL_TRIGGER" || type === "HTTP_REQUEST",
+    resolve: (type) => {
+      if (type === "MANUAL_TRIGGER") {
+        return { configSchema: z.object({}), inputs: [] };
+      }
+      if (type === "HTTP_REQUEST") {
+        return {
+          configSchema: z.object({ endpoint: z.url() }),
+          inputs: [{ id: "main", required: true }],
+        };
+      }
+      throw new Error(`Unknown node type: "${type}".`);
+    },
+  };
+
+  function disabled(node: ReturnType<typeof makeNode>) {
+    return { ...node, disabled: true };
+  }
+
+  it("exempts a disabled node's invalid config", () => {
+    // Turning a node off is how you park work in progress. If a half-finished
+    // config on a disabled node still blocked the save, the toggle would be
+    // useless for the thing people actually use it for.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        disabled(makeNode("n1", "HTTP_REQUEST", "Fetch", { endpoint: 12345 })),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const configErrors = errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.startsWith("Config error:"),
+    );
+    expect(configErrors).toHaveLength(0);
+  });
+
+  it("still flags the same invalid config when the node is enabled", () => {
+    // The exemption must be the disabled flag, not the test fixture.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", { endpoint: 12345 }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const configErrors = errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.startsWith("Config error:"),
+    );
+    expect(configErrors).toHaveLength(1);
+    expect(configErrors[0].nodeId).toBe("n1");
+  });
+
+  it("exempts a disabled node's unconnected required input", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        disabled(
+          makeNode("n1", "HTTP_REQUEST", "Fetch", {
+            endpoint: "https://example.com",
+          }),
+        ),
+      ],
+      connections: [],
+    };
+    const inputErrors = errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.includes("Required input"),
+    );
+    expect(inputErrors).toHaveLength(0);
+  });
+
+  it("does not report a required input fed only by a disabled node", () => {
+    // A disabled node passes its input through (AF-M9-04), so the downstream
+    // node IS still fed at run time — reporting it unconnected would be wrong.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        disabled(
+          makeNode("off", "HTTP_REQUEST", "Off", {
+            endpoint: "https://example.com",
+          }),
+        ),
+        makeNode("n2", "HTTP_REQUEST", "Downstream", {
+          endpoint: "https://example.com",
+        }),
+      ],
+      connections: [makeEdge("t1", "off"), makeEdge("off", "n2")],
+    };
+    const inputErrors = errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.includes("Required input"),
+    );
+    expect(inputErrors).toHaveLength(0);
+  });
+
+  it("still reports an unknown type on a disabled node", () => {
+    // The engine resolves every node's registration to build the plan, so an
+    // unknown type is fatal whether or not the node is switched off.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        disabled(makeNode("n1", "NOT_A_TYPE", "Ghost")),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const unknownErrors = errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.startsWith("Unknown node type"),
+    );
+    expect(unknownErrors).toHaveLength(1);
+  });
+
+  it("still detects a cycle that runs through a disabled node", () => {
+    // Structural checks are about the graph, not about what executes.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        disabled(
+          makeNode("a", "HTTP_REQUEST", "A", {
+            endpoint: "https://example.com",
+          }),
+        ),
+        makeNode("b", "HTTP_REQUEST", "B", {
+          endpoint: "https://example.com",
+        }),
+      ],
+      connections: [
+        makeEdge("t1", "a"),
+        makeEdge("a", "b"),
+        makeEdge("b", "a"),
+      ],
+    };
+    const cycleErrors = errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.includes("cycle"),
+    );
+    expect(cycleErrors).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Run policy (AF-M9-06)
+// ---------------------------------------------------------------------------
+
+describe("validate — run policy", () => {
+  const registry: ValidationRegistry = {
+    has: (type) => type === "MANUAL_TRIGGER" || type === "HTTP_REQUEST",
+    resolve: (type) => {
+      if (type === "MANUAL_TRIGGER") {
+        return { configSchema: z.object({}), inputs: [] };
+      }
+      if (type === "HTTP_REQUEST") {
+        return {
+          configSchema: z.object({ endpoint: z.url().optional() }),
+          inputs: [{ id: "main" }],
+        };
+      }
+      throw new Error(`Unknown node type: "${type}".`);
+    },
+  };
+
+  function graphWithPolicy(policy: unknown): Graph {
+    return {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com",
+          _run: policy,
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+  }
+
+  function policyErrors(graph: Graph) {
+    return errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.startsWith("Run settings:"),
+    );
+  }
+
+  it("accepts a valid policy", () => {
+    expect(
+      policyErrors(
+        graphWithPolicy({
+          maxAttempts: 3,
+          backoffMs: 500,
+          timeoutMs: 5000,
+          continueOnFail: true,
+        }),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("accepts a node with no policy at all", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    expect(policyErrors(graph)).toHaveLength(0);
+  });
+
+  it("reports an out-of-range attempt count against the reserved path", () => {
+    // Same error channel as a bad endpoint, so the config panel can point at
+    // the offending field rather than showing a generic save failure.
+    const found = policyErrors(graphWithPolicy({ maxAttempts: 99 }));
+    expect(found).toHaveLength(1);
+    expect(found[0].nodeId).toBe("n1");
+    expect(found[0].path).toBe("_run.maxAttempts");
+  });
+
+  it("reports a timeout below the floor", () => {
+    const found = policyErrors(graphWithPolicy({ timeoutMs: 1 }));
+    expect(found).toHaveLength(1);
+    expect(found[0].path).toBe("_run.timeoutMs");
+  });
+
+  it("reports a policy that is not an object", () => {
+    expect(policyErrors(graphWithPolicy("fast")).length).toBeGreaterThan(0);
+  });
+
+  it("does not report the policy of a disabled node", () => {
+    // Consistent with AF-M9-04: a node that cannot run cannot fail a run.
+    const graph = graphWithPolicy({ maxAttempts: 99 });
+    graph.nodes[1] = { ...graph.nodes[1], disabled: true };
+    expect(policyErrors(graph)).toHaveLength(0);
+  });
+
+  it("does not let the reserved key trip the node's own config schema", () => {
+    // `_run` is not a field any node declares; a non-strict Zod object strips
+    // it, and this pins that so a future `.strict()` cannot silently break
+    // every saved node that carries a policy.
+    const configErrors = errorsOf(
+      validate(graphWithPolicy({ maxAttempts: 2 }), registry),
+    ).filter((e) => e.message.startsWith("Config error:"));
+    expect(configErrors).toHaveLength(0);
+  });
+});

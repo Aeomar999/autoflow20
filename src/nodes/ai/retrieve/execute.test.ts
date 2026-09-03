@@ -21,6 +21,7 @@ vi.mock("@/features/knowledge/lib/vector-search", () => ({
   ]),
 }));
 
+import { withResolve } from "@/nodes/shared/test-params";
 import { execute } from "./execute";
 
 describe("AI_RETRIEVE execute", () => {
@@ -30,48 +31,54 @@ describe("AI_RETRIEVE execute", () => {
 
   it("throws NonRetriableError if variableName is missing", async () => {
     await expect(
-      execute({
-        data: { query: "test" } as unknown as Parameters<
-          typeof execute
-        >[0]["data"],
-        nodeId: "n1",
-        userId: "u1",
-        context: {},
-        step,
-        publish: vi.fn(),
-      }),
+      execute(
+        withResolve({
+          data: { query: "test" } as unknown as Parameters<
+            typeof execute
+          >[0]["data"],
+          nodeId: "n1",
+          userId: "u1",
+          context: {},
+          step,
+          publish: vi.fn(),
+        }),
+      ),
     ).rejects.toThrow(/Variable name is missing/);
   });
 
   it("throws NonRetriableError if query is missing", async () => {
     await expect(
-      execute({
-        data: { variableName: "docs" } as unknown as Parameters<
-          typeof execute
-        >[0]["data"],
-        nodeId: "n1",
-        userId: "u1",
-        context: {},
-        step,
-        publish: vi.fn(),
-      }),
+      execute(
+        withResolve({
+          data: { variableName: "docs" } as unknown as Parameters<
+            typeof execute
+          >[0]["data"],
+          nodeId: "n1",
+          userId: "u1",
+          context: {},
+          step,
+          publish: vi.fn(),
+        }),
+      ),
     ).rejects.toThrow(/Query is missing/);
   });
 
   it("executes vector retrieval and writes formatted context and citations", async () => {
-    const result = await execute({
-      data: {
-        variableName: "docs",
-        query: "What is AutoFlow?",
-        topK: 4,
-        minSimilarity: 0.6,
-      },
-      nodeId: "n1",
-      userId: "u1",
-      context: { previous: "data" },
-      step,
-      publish: vi.fn(),
-    });
+    const result = await execute(
+      withResolve({
+        data: {
+          variableName: "docs",
+          query: "What is AutoFlow?",
+          topK: 4,
+          minSimilarity: 0.6,
+        },
+        nodeId: "n1",
+        userId: "u1",
+        context: { previous: "data" },
+        step,
+        publish: vi.fn(),
+      }),
+    );
 
     const docs = (result as Record<string, unknown>).docs as {
       query: string;

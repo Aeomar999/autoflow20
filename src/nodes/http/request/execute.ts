@@ -7,7 +7,6 @@ import {
   resolveTimeoutMs,
   safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
-import { compileTemplate } from "@/features/executions/template";
 import { httpRequestChannel } from "@/inngest/channels/http-request";
 import type { NodeRun } from "@/nodes/types";
 
@@ -26,6 +25,7 @@ export const execute: NodeRun<HttpRequestData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
 }) => {
@@ -72,13 +72,13 @@ export const execute: NodeRun<HttpRequestData> = async ({
         throw new NonRetriableError("HTTP Request node: Method not configured");
       }
 
-      const endpoint = compileTemplate(data.endpoint)(context);
+      const endpoint = resolve(data.endpoint);
       const url = await assertSafeEndpoint(endpoint);
 
       // Append query parameters (template-resolved).
       if (data.queryParams) {
         for (const [key, value] of Object.entries(data.queryParams)) {
-          url.searchParams.set(key, compileTemplate(value)(context));
+          url.searchParams.set(key, resolve(value));
         }
       }
 
@@ -93,13 +93,13 @@ export const execute: NodeRun<HttpRequestData> = async ({
       if (data.headers) {
         const resolvedHeaders: Record<string, string> = {};
         for (const [key, value] of Object.entries(data.headers)) {
-          resolvedHeaders[key] = compileTemplate(value)(context);
+          resolvedHeaders[key] = resolve(value);
         }
         options.headers = resolvedHeaders;
       }
 
       if (["POST", "PUT", "PATCH"].includes(method)) {
-        const resolved = compileTemplate(data.body || "{}")(context);
+        const resolved = resolve(data.body || "{}");
         JSON.parse(resolved);
         options.body = resolved;
         // Set Content-Type only if the user hasn't provided it via headers.

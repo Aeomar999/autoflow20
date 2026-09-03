@@ -21,6 +21,8 @@ export type TraceNode = {
   name: string;
   type: string;
   data: unknown;
+  /** Persisted `Node.disabled` (AF-M9-04). */
+  disabled?: boolean;
 };
 
 export type NodeExecutionRow = {
@@ -51,6 +53,11 @@ export type GraphNodeExecution = {
   retry: { maxAttempts: number; backoffMs: number };
   /** When true, a failed node is recorded FAILED but the run continues. */
   continueOnFail: boolean;
+  /**
+   * When true the executor is never invoked: the node is traced `SKIPPED` and
+   * its input passes through to its successors (AF-M9-04).
+   */
+  disabled: boolean;
 };
 
 /**

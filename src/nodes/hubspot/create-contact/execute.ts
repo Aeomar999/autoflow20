@@ -1,6 +1,5 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
-import { compileTemplate } from "@/features/executions/template";
 import { hubspotCreateContactChannel } from "@/inngest/channels/hubspot-create-contact";
 import type { NodeRun } from "@/nodes/types";
 
@@ -18,6 +17,7 @@ export const execute: NodeRun<HubSpotCreateContactData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
   credentials,
@@ -68,9 +68,7 @@ export const execute: NodeRun<HubSpotCreateContactData> = async ({
         );
       }
 
-      const propertiesSource = compileTemplate(data.properties || "{}")(
-        context,
-      );
+      const propertiesSource = resolve(data.properties || "{}");
       let parsedProperties: unknown;
       try {
         parsedProperties = JSON.parse(propertiesSource);
@@ -106,7 +104,7 @@ export const execute: NodeRun<HubSpotCreateContactData> = async ({
         Object.entries(parsedProperties as Record<string, unknown>).map(
           ([key, value]) => [
             key,
-            typeof value === "string" ? compileTemplate(value)(context) : value,
+            typeof value === "string" ? resolve(value) : value,
           ],
         ),
       );

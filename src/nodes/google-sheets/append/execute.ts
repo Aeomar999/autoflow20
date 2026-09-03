@@ -1,6 +1,5 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
-import { compileTemplate } from "@/features/executions/template";
 import { googleSheetsAppendChannel } from "@/inngest/channels/google-sheets-append";
 import type { NodeRun } from "@/nodes/types";
 
@@ -20,6 +19,7 @@ export const execute: NodeRun<GoogleSheetsAppendData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
   credentials,
@@ -94,10 +94,10 @@ export const execute: NodeRun<GoogleSheetsAppendData> = async ({
         );
       }
 
-      const spreadsheetId = compileTemplate(data.spreadsheetId)(context);
-      const range = compileTemplate(data.sheetName)(context);
+      const spreadsheetId = resolve(data.spreadsheetId);
+      const range = resolve(data.sheetName);
 
-      const valuesSource = compileTemplate(data.values || "[]")(context);
+      const valuesSource = resolve(data.values || "[]");
       let parsed: unknown;
       try {
         parsed = JSON.parse(valuesSource);
@@ -132,7 +132,7 @@ export const execute: NodeRun<GoogleSheetsAppendData> = async ({
       const rows = (parsed as unknown[]).map((row) =>
         (row as unknown[]).map((cell) => {
           if (typeof cell === "string") {
-            return compileTemplate(cell)(context);
+            return resolve(cell);
           }
           return cell;
         }),

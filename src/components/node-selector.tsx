@@ -26,6 +26,7 @@ import {
   saveStatusAtom,
 } from "@/features/editor/store/atoms";
 import { nodeManifest, nodePalette } from "@/nodes/manifest";
+import { defaultInputId, defaultOutputId } from "@/nodes/ports";
 import type { NodeCategory, NodeDefinition } from "@/nodes/types";
 
 export type NodeTypeOption = {
@@ -216,14 +217,19 @@ export function NodeSelector({
         setNodes((prev) => [...prev, newNode]);
       }
 
-      // Auto-connect if appended from a source node
+      // Auto-connect if appended from a source node. AF-M9-03: the handle ids
+      // are the declared `PortDef.id`s, which `saveGraph` persists verbatim as
+      // `Connection.fromOutput`/`toInput` — hardcoding "source-1"/"target-1"
+      // here is what made every branching edge unmatchable by the engine.
       if (sourceNode) {
         const newEdge = {
           id: createId(),
           source: sourceNode.id,
-          sourceHandle: "source-1",
+          // React Flow types `Node.type` as optional; an untyped node falls
+          // back to the "main" default rather than emitting a null handle.
+          sourceHandle: defaultOutputId(sourceNode.type ?? ""),
           target: newNodeId,
-          targetHandle: "target-1",
+          targetHandle: defaultInputId(selection.type),
         };
         setEdges((prev) => [...prev, newEdge]);
       }

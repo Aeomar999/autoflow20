@@ -1,7 +1,6 @@
 import "server-only";
 import { generateObject, jsonSchema } from "ai";
 import { NonRetriableError } from "inngest";
-import { compileTemplate } from "@/features/executions/template";
 import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
 import { buildAiCacheKey, normalizeCacheTtlSeconds } from "@/lib/ai/cache";
 import {
@@ -95,6 +94,7 @@ export function buildOutputSchema(data: ExtractData): Record<string, unknown> {
 export const execute: NodeRun<ExtractData> = async ({
   data,
   context,
+  resolve,
   organizationId,
   step,
   credentials,
@@ -106,7 +106,7 @@ export const execute: NodeRun<ExtractData> = async ({
     throw new NonRetriableError("AI Extract node: Source content is missing");
   }
 
-  const resolvedContent = compileTemplate(data.content)(context).trim();
+  const resolvedContent = resolve(data.content).trim();
   if (!resolvedContent) {
     throw new NonRetriableError(
       "AI Extract node: source content resolved to an empty value",

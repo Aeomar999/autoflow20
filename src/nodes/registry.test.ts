@@ -194,3 +194,105 @@ describe("production node registry + manifest", () => {
     }
   });
 });
+
+describe("executor context hygiene (AF-M9-05)", () => {
+  /** Every `execute.ts` on disk. Walked, not listed — a hand-list fails open. */
+  function findExecuteModules(): string[] {
+    const root = join(process.cwd(), "src/nodes");
+    const executes: string[] = [];
+
+    for (const namespace of readdirSync(root, { withFileTypes: true })) {
+      if (!namespace.isDirectory()) continue;
+      const namespaceDir = join(root, namespace.name);
+
+      for (const node of readdirSync(namespaceDir, { withFileTypes: true })) {
+        if (!node.isDirectory()) continue;
+        const executePath = join(namespaceDir, node.name, "execute.ts");
+        if (existsSync(executePath)) executes.push(executePath);
+      }
+    }
+    return executes;
+  }
+
+  it("no executor compiles templates itself", () => {
+    // This is what makes "an executor cannot return a `$`-prefixed key"
+    // enforceable rather than aspirational. `context` no longer carries
+    // `$json`/`$node`/`$execution`/`$workflow`/`$now` — the enriched view
+    // exists only inside the `resolve` closure the runner passes in. The one
+    // way back to it is to import the template module and rebuild it, so
+    // that import is the thing to forbid.
+    //
+    // An executor that did would reintroduce the exact defect AF-M9-05 fixed:
+    // executors return `{ ...context, … }`, so the scaffolding would be
+    // persisted into nodeOutputs, Execution.output and every NodeExecution,
+    // with `$json` self-referencing the context and re-nesting at each hop.
+    const executes = findExecuteModules();
+
+    // Guard the guard: a walk that found nothing would pass vacuously.
+    expect(executes.length).toBeGreaterThan(10);
+
+    const offenders: string[] = [];
+    for (const executePath of executes) {
+      const source = readFileSync(executePath, "utf8");
+      if (
+        source.includes("compileTemplate") ||
+        source.includes("buildTemplateContext") ||
+        source.includes("makeResolver")
+      ) {
+        offenders.push(executePath);
+      }
+    }
+
+    expect(
+      offenders,
+      `these executors reach for the template module directly; use the injected resolve() instead:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("every executor that resolves templates destructures resolve", () => {
+    // Catches the other half: a node that takes `resolve` but never uses it is
+    // harmless, while one that templates without it cannot compile — so this
+    // asserts the positive case is actually wired, not just that the negative
+    // one is absent.
+    const withResolveParam = findExecuteModules().filter((p) =>
+      readFileSync(p, "utf8").includes("resolve("),
+    );
+    expect(withResolveParam.length).toBeGreaterThan(10);
+
+    for (const executePath of withResolveParam) {
+      const source = readFileSync(executePath, "utf8");
+      expect(
+        /\n\s+resolve,\n/.test(source),
+        `${executePath} calls resolve() but does not destructure it from NodeRunParams`,
+      ).toBe(true);
+    }
+  });
+});
+
+describe("reserved config keys (AF-M9-06)", () => {
+  it("no node declares the reserved `_run` key as its own config field", () => {
+    // `_run` is the per-node run policy, validated separately from the node's
+    // configSchema. A node declaring it would give one key two owners and two
+    // validation rules.
+    for (const def of nodeManifest) {
+      const shape =
+        (def.configSchema as unknown as { shape?: Record<string, unknown> })
+          .shape ?? {};
+      expect(
+        Object.keys(shape),
+        `${def.type} must not declare "_run"`,
+      ).not.toContain("_run");
+    }
+  });
+
+  it("no node declares the legacy underscore keys either", () => {
+    for (const def of nodeManifest) {
+      const shape =
+        (def.configSchema as unknown as { shape?: Record<string, unknown> })
+          .shape ?? {};
+      const keys = Object.keys(shape);
+      expect(keys, `${def.type}`).not.toContain("_timeoutMs");
+      expect(keys, `${def.type}`).not.toContain("_continueOnFail");
+    }
+  });
+});

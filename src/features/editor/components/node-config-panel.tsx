@@ -22,7 +22,20 @@ import {
 } from "@/features/editor/lib/cost-estimate";
 import type { EditorNode } from "@/features/editor/store/atoms";
 import { findManifestEntry } from "@/nodes/manifest";
+import { RUN_POLICY_KEY, resolveRunPolicy } from "@/nodes/shared/run-policy";
 import type { NodeDefinition } from "@/nodes/types";
+
+/**
+ * Mirror of the runner's `ENGINE_RUN_DEFAULTS` (AF-M9-06). Duplicated rather
+ * than imported because the runner's copy reads `ENGINE_RETRIES` from
+ * `process.env` in a server-only module; these values only ever fill in a
+ * placeholder, so drifting would mislead the user, not break a run.
+ */
+const EDITOR_RUN_DEFAULTS = {
+  maxAttempts: 3,
+  backoffMs: 1000,
+  timeoutMs: 60_000,
+};
 
 function CronPreview({ cronStr }: { cronStr: string }) {
   const [preview, setPreview] = useState<string[]>([]);
@@ -698,6 +711,141 @@ export function NodeConfigPanel({
           onDataChange={(data) => onNodeChange({ data })}
         />
       </div>
+
+      <RunSettings
+        definition={definition}
+        data={node.data}
+        onDataChange={(data) => onNodeChange({ data })}
+      />
     </aside>
+  );
+}
+
+/**
+ * Per-node run policy (AF-M9-06).
+ *
+ * Collapsed by default: retries and timeouts matter to a handful of nodes and
+ * would otherwise push the node's actual configuration below the fold on every
+ * one of them. Placeholders show the value the node would inherit — the
+ * definition's own policy, or the engine default — so leaving a field empty is
+ * an informed choice rather than a blank.
+ */
+function RunSettings({
+  definition,
+  data,
+  onDataChange,
+}: {
+  definition: NodeDefinition;
+  data: Record<string, unknown>;
+  onDataChange: (next: Record<string, unknown>) => void;
+}) {
+  const uid = useId();
+  const policy = (data?.[RUN_POLICY_KEY] ?? {}) as Record<string, unknown>;
+
+  const inherited = resolveRunPolicy(
+    // Resolve what this node WOULD get with no policy of its own, so the
+    // placeholders describe the fallback rather than echoing the value.
+    Object.fromEntries(
+      Object.entries(data ?? {}).filter(([k]) => k !== RUN_POLICY_KEY),
+    ),
+    definition,
+    EDITOR_RUN_DEFAULTS,
+  );
+
+  const setField = (key: string, value: number | boolean | undefined) => {
+    const next = { ...policy };
+    if (value === undefined) {
+      delete next[key];
+    } else {
+      next[key] = value;
+    }
+    const nextData = { ...data };
+    if (Object.keys(next).length === 0) {
+      delete nextData[RUN_POLICY_KEY];
+    } else {
+      nextData[RUN_POLICY_KEY] = next;
+    }
+    onDataChange(nextData);
+  };
+
+  /** Empty input clears the override rather than writing 0. */
+  const numberField = (
+    key: "maxAttempts" | "backoffMs" | "timeoutMs",
+    label: string,
+    placeholder: number,
+    hint: string,
+  ) => (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={`${uid}-${key}`} className="text-xs font-medium">
+        {label}
+      </label>
+      <input
+        id={`${uid}-${key}`}
+        type="number"
+        className={baseFieldClass()}
+        placeholder={`Inherits ${placeholder}`}
+        value={typeof policy[key] === "number" ? String(policy[key]) : ""}
+        onChange={(e) => {
+          const raw = e.target.value.trim();
+          setField(key, raw === "" ? undefined : Number(raw));
+        }}
+      />
+      <p className="text-[10px] text-muted-foreground">{hint}</p>
+    </div>
+  );
+
+  return (
+    <details className="border-t border-border pt-3">
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+        Run settings
+      </summary>
+      <div className="mt-3 flex flex-col gap-3">
+        {numberField(
+          "maxAttempts",
+          "Max attempts",
+          inherited.maxAttempts,
+          "Total tries including the first. 1 disables retries.",
+        )}
+        {numberField(
+          "backoffMs",
+          "Retry backoff (ms)",
+          inherited.backoffMs,
+          "Doubles after each failed attempt.",
+        )}
+        {/* "Attempt timeout", not "Timeout": several nodes (HTTP Request,
+            Webhook) declare their own `timeoutMs` for the outbound request,
+            and two fields labelled "Timeout" on one panel would be a coin
+            flip. This one is the engine's wall clock for one attempt of the
+            whole node. */}
+        {numberField(
+          "timeoutMs",
+          "Attempt timeout (ms)",
+          inherited.timeoutMs,
+          "Engine wall clock for one attempt of this node — separate from any request timeout the node itself configures.",
+        )}
+
+        <div className="flex items-center justify-between gap-2">
+          <label
+            htmlFor={`${uid}-continueOnFail`}
+            className="text-sm font-medium"
+          >
+            Continue on fail
+          </label>
+          <input
+            id={`${uid}-continueOnFail`}
+            type="checkbox"
+            className="size-4 rounded border-border"
+            checked={policy.continueOnFail === true}
+            onChange={(e) =>
+              setField("continueOnFail", e.target.checked ? true : undefined)
+            }
+          />
+        </div>
+        <p className="-mt-1 text-[10px] text-muted-foreground">
+          The run keeps going when this node fails. The node is still recorded
+          as failed.
+        </p>
+      </div>
+    </details>
   );
 }
