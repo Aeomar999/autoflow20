@@ -643,18 +643,75 @@ Explicitly out (Phase 2): Slack channel sync, external vector stores (Pinecone/E
 
 ---
 
-## ✅ M6 — Tenancy, RBAC, audit, SSO · 3 weeks
+## 🟡 M6 — Tenancy, RBAC, audit, SSO · 3 weeks
+
+> **UI GAP CLOSED 2026-09-03.** The five missing surfaces the audit below found
+> are now built and gated. `src/features/organizations/components/` (created
+> this session) holds the member table, invite dialog, pending-invitations
+> list, audit-log viewer, workspace switcher and create-workspace dialog;
+> `src/features/auth/components/profile-settings.tsx` holds profile + session
+> revocation; and the routes exist under `src/app/(dashboard)/(rest)/settings/`
+> (`/settings/profile`, `/settings/members`, `/settings/audit-logs`, with a
+> `/settings` → profile redirect) plus a top-level `/accept-invite`. The
+> sidebar's stale static `WorkspaceCard` was replaced by the real
+> `WorkspaceSwitcher`, and a Settings nav entry added. Server work the UI
+> needed: a `getActive` procedure (active org + caller role), a best-effort
+> `sendInvitationEmail` (an invite must not fail when Resend is unconfigured —
+> the dialog shows a copyable accept link either way), `inviteMember` now
+> returns `{ acceptUrl, emailed }`, and the login form honours a
+> same-origin-validated `?redirect=` so the accept-invite round trip resumes
+> after sign-in. **Coverage:** `tests/integration/organizations-members.integration.test.ts`
+> (5 tests — invite → accept → member → role change → removal, `getActive`, the
+> copyable-link return, and the audit-log entry) and 3 new `email.test.ts`
+> cases for the best-effort sender. The browser check caught and fixed a real
+> infinite-render loop in the accept-invite effect that tsc/lint/build all
+> passed. **Gates:** unit 1421/1421, integration 198/198, tsc clean, lint clean
+> (zero warnings), build green. **Still open in this milestone:** only
+> AF-M6-10's approval *node*, which is `AF-M10-09` scope (see its entry). The
+> five entries below keep their corrected history; each is re-flipped to ✅ with
+> a build note.
+>
+> **RECONCILIATION 2026-09-03 (M0–M9 audit). Reopened: the server half of this
+> milestone is real; roughly half of the client half was never built, and five
+> task entries described UI that does not exist.**
+>
+> Verified against the filesystem, not the record: `src/app` contains **no**
+> `settings`, `accept-invite`, `approvals`, `api-keys`, `audit` or `profile`
+> route — `find src/app -ipath "*settings*"` and the other five all return
+> nothing. `src/features/organizations/` and `src/features/api-keys/` have **no
+> `components/` directory at all**; `src/features/approvals/` has two files, a
+> hook and a router, and the hook is imported by nothing.
+>
+> The models, `orgProcedure` RBAC, cross-tenant isolation tests, audit-log
+> writes and SSO are all genuinely done and are load-bearing for everything
+> built since — this is not a claim that M6 is hollow. What is missing is the
+> operator-facing surface: there is no way for a user to manage members, accept
+> an invitation, read the audit log, switch workspace, or edit their profile,
+> because none of those screens were written.
+>
+> Corrected inline below rather than rewritten, so the original claim stays
+> visible next to what is actually on disk. This is the second occurrence of
+> the provenance failure the 2026-08-22 reconciliation was written about; the
+> rule it set — "a task is only checked after the change is verified on disk" —
+> was not applied to this milestone.
 
 - [x] **AF-M6-01** `Organization`, `Member(role)`, `Workspace`, `Invitation`, `AuditLog`, `ApprovalRequest` models in `prisma/schema.prisma` · 3d — **done**: Multi-tenant database schema with foreign keys, cascading deletes, and role enums (`OWNER`, `ADMIN`, `EDITOR`, `VIEWER`).
 - [x] **AF-M6-02** `orgProcedure(minRole)` middleware; migrate every existing procedure to organization scoping · 3d — **done**: `src/lib/rbac.ts` and `src/trpc/init.ts` with auto-provisioning fallback, cookie/header organization resolution. The workflow/execution/credential read/write paths were **not** migrated here (`Workflow.organizationId` stayed nullable, reads kept `userId` scoping) — that retrofit landed later as **AF-M7-pre-1**. The procedures added in this task (organizations/members/invitations/audit) are tenant-scoped.
 - [x] **AF-M6-03** Cross-tenant isolation test suite (org B cannot read/write org A through **any** procedure) · 2d — **done**: Unit and integration test suites validating monotonic RBAC hierarchy and cross-tenant query isolation.
-- [x] **AF-M6-04** Invitations, member management, role changes · 3d — **done**: `organizationsRouter` with `inviteMember`, `updateMemberRole`, `removeMember`, `listInvitations`, `cancelInvitation`, and `getMembers` UI table.
-- [x] **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d — **done**: Append-only `logAuditEvent` helper and `/settings/audit-logs` table with state diff JSON viewer.
+- ✅ **AF-M6-04** Invitations, member management, role changes · 3d — **DONE (server 2026-08, UI 2026-09-03).** `organizationsRouter` (`inviteMember`, `updateMemberRole`, `removeMember`, `listInvitations`, `cancelInvitation`, `getMembers`) + the UI that was missing: `members-list.tsx` (role badges, role-change menu, remove-with-confirm; own row and owners are not editable so a workspace can't be locked out), `invite-member-dialog.tsx` (role picker with inline descriptions; on success shows a copyable accept link and whether the email was sent), `invitations-list.tsx` (pending invites with cancel), at `/settings/members`. Role gating is presentation only — every mutation stays an `orgAdminProcedure`. *(2026-09-03 build closed the `git 2026-09-03` audit finding "no `getMembers` UI table".)*
+- ✅ **AF-M6-05** `AuditLog` model + append-only writes on every mutation + filterable viewer · 3d — **DONE (writes 2026-08, viewer 2026-09-03).** `logAuditEvent` + append-only writes, and now the reader that was missing: `audit-log-list.tsx` at `/settings/audit-logs` — paginated, filterable by action text and resource type, each row expandable to its `before`/`after` JSON diff, actor resolved (with "Deleted user"/system fallbacks for the `SetNull` actor). Admin-only, matching `listAuditLogs`. *(2026-09-03 build closed the audit finding "no `/settings/audit-logs` page".)*
 - [x] **AF-M6-06** SSO: Google + GitHub via Better Auth · 2d — **done**: Better Auth social providers wired into authentication flow.
-- [x] **AF-M6-07** Workspace switcher and resource sharing UI · 2d — **done**: `OrganizationSwitcher` component mounted on `AppSidebar` with workspace creation dialog.
-- [x] **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)* — **done**: `/settings/profile` page with user information and active session revocation.
-- [x] **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)* — **done**: `/accept-invite` page with secure token validation, organization membership creation, and workspace redirect.
-- [x] **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)* — **done**: `core.approval` node type with dual `approved`/`rejected` output branches, `/approvals` management dashboard, and Inngest resumption event emission.
+- ✅ **AF-M6-07** Workspace switcher and resource sharing UI · 2d — **DONE 2026-09-03.** `workspace-switcher.tsx` replaces the stale static `WorkspaceCard` in `app-sidebar.tsx` (whose own comment used to read "There is no switcher yet"): a dropdown of the caller's memberships with the active one checked, each labelled by role, plus `create-workspace-dialog.tsx` (derives a unique slug, switches into the new workspace on create). Switching writes the `autoflow_active_org` cookie — which `resolveActiveOrg` already read and membership-checked server-side, so nothing wrote it before — then `router.refresh()` so server components re-resolve against the new tenant. *(Resource-sharing UI beyond workspace membership stays out of scope, as before.)*
+- ✅ **AF-M6-08** User profile settings (`settings-profile`) · 0.5d · *(added 2026-08-26)* — **DONE 2026-09-03.** `/settings/profile` (`profile-settings.tsx`): edit display name via `authClient.updateUser`, read-only email (changing the sign-in address is a separate verification flow), and **active-session management** — `listSessions` with a per-device label, "This device" marked, per-session Revoke and a "Sign out other devices" (`revokeOtherSessions`). The security-relevant half — signing out a lost device — now has a surface.
+- ✅ **AF-M6-09** Accept-invite flow (`accept-invite`) · 0.5d · *(added 2026-08-26)* — **DONE 2026-09-03.** Top-level `/accept-invite?token=` (`accept-invite.tsx`), deliberately not behind `requireAuth`: an unauthenticated visitor is sent to `/login?redirect=…` with the token preserved, and acceptance resumes automatically after sign-in (the login form now honours a same-origin-validated `redirect`, verified in the browser). On success the joined workspace is made active and the user is dropped into it. The full invite → accept round trip is covered end to end by `organizations-members.integration.test.ts`. **A browser check caught a real infinite-render loop** (the effect's no-token branch set state before the `attempted` guard while depending on the unstable mutation object) that tsc, lint and build all passed — fixed.
+- 🟡 **AF-M6-10** Approval workflows (`approvals`) · 2d · *(added 2026-08-26)* — ~~**done**: `core.approval` node type with dual `approved`/`rejected` output branches, `/approvals` management dashboard, and Inngest resumption event emission.~~
+  **REOPENED 2026-09-03 (M0–M9 audit). None of the three things that description claims exists.** Verified against the code, not the record:
+  - **No `core.approval` node.** `grep -rn "approval" src/nodes/` returns nothing; it is absent from `registry.ts` and `manifest.ts`, so there is no node to place, no `approved`/`rejected` ports, and nothing that could emit a resumption event.
+  - **No `/approvals` dashboard.** No route under `src/app` matches `*approval*`. `src/features/approvals/` contains exactly two files — `hooks/use-approvals.ts` and `server/routers.ts`. There are no components.
+  - **No Inngest resumption event emission**, which follows from there being no node.
+  What *does* ship is a mounted `approvals` tRPC router that lists and resolves `ApprovalRequest` rows — **over a table nothing in the application ever writes to**. `prisma.approvalRequest.create` appears nowhere outside the generated client.
+  **This was already known and recorded elsewhere**: AF-M8-13 states plainly that "nothing in the app creates `ApprovalRequest` rows — no approval node ships, so the AF-M6 approvals dashboard reads a table with no writer", and defers the approvals half to `AF-P2-E`. The two entries have contradicted each other since 2026-08-31; this one was the wrong one and is corrected here rather than left as the second instance of the exact provenance failure the 2026-08-22 reconciliation was written about.
+  **Remaining scope** is the node itself and its UI — which is `AF-M10-09` (`APPROVAL` node — send and wait), already planned and estimated in M10. Nothing new is being added; this entry is being made honest.
 
 ---
 
@@ -1004,7 +1061,7 @@ payload. Both should be fixed even if the rest of M9 is descoped.
 
 #### Phase 0 — make "it runs" provable *(nothing else in M9 is verifiable until this lands)*
 
-### 🟡 AF-M9-01 · Engine execution harness: run a whole graph in a test · 2d
+### ✅ AF-M9-01 · Engine execution harness: run a whole graph in a test · 2d · **DONE 2026-09-03**
 G12. There is no way today to assert that a graph executes — only that it *plans*.
 Add `@inngest/test` (`InngestTestEngine`) and a helper that takes a `TemplateGraph`,
 seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
@@ -1012,7 +1069,7 @@ seeds a workflow + org, drives `executeWorkflow`, and returns the terminal
 
 **Depends on:** —
 **Acceptance**
-- [ ] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org. *(Reopened 2026-09-02 — the file and the return shape ship, but there is **no `initialData` option**: opts are `mode`/`executionId`/`orgId`/`userId`/`workflowId`. Every trigger payload therefore has to be faked through a node's config, and W1/W2 cannot inject a webhook body at all. Close with AF-M9-10, which is the first task that needs it.)*
+- [x] `tests/integration/engine/run-graph.ts` exports `runGraph(spec, { initialData })` → `{ execution, nodeExecutions }`, tenant-scoped to a fixture org. *(Reopened 2026-09-02 — the file and the return shape ship, but there is **no `initialData` option**: opts are `mode`/`executionId`/`orgId`/`userId`/`workflowId`. Every trigger payload therefore has to be faked through a node's config, and W1/W2 cannot inject a webhook body at all. Close with AF-M9-10, which is the first task that needs it.)* **Closed 2026-09-03 with AF-M9-10 as planned:** `initialData` is threaded into `event.data.initialData`, the field the engine already reads at `src/inngest/functions.ts` to seed the run context — the same field the webhook, Stripe, Google-Form and public-API entry points write. The AF-M9-10 suite injects a real `{ webhook: { path, method, headers, query, body } }` payload through it and asserts a template resolves `{{webhook.body.action}}` from it, so the option is proven by a test that could not otherwise exist rather than by inspection.
 - [x] Asserts on real DB rows, not mocks: statuses, `order`, `skipReason`, `durationMs`, `Execution.output`.
 - [x] First three suites, all covering behaviour that passes today: a linear 3-node graph reaches `SUCCESS`; a failing node without `continueOnFail` leaves downstream rows `SKIPPED`; a quota-exceeded run terminates `QUOTA_EXCEEDED` and never enters the retry path.
 - [x] **A regression test that fails on `main`:** a CONDITION whose edges carry the editor's real handle ids (`source-1`) skips its whole downstream. This is the G1 proof; it must stay red until AF-M9-03. *(Reopened 2026-09-02 — the test existed but was **green**: a characterization test asserting the bug (`expect(done?.status).toBe(SKIPPED)`) with a comment to flip it later, not a red proof. **Closed 2026-09-03 by AF-M9-03**, which flipped it to `SUCCESS` and added the two cases the original could not distinguish: a fix that ran *both* branches would have satisfied the old assertion identically.)*
@@ -1149,7 +1206,7 @@ disabling a trigger expects. Recorded in `execution_engine.md` §3.3 and worth i
 task; it is a change to three dispatch paths, not to the engine, and folding it in
 here would have made the diff two unrelated things.
 
-### ⬜ AF-M9-17 · A disabled trigger should not dispatch a run · 0.5d · *(added 2026-09-03, found during AF-M9-04)*
+### ✅ AF-M9-17 · A disabled trigger should not dispatch a run · 0.5d · **DONE 2026-09-03**
 AF-M9-04 made the engine honour `Node.disabled`, but the engine is the wrong place
 to stop a trigger: by the time it runs, the `Execution` row exists and the run has
 been billed against the org's quota. Today, disabling a webhook trigger still
@@ -1158,12 +1215,12 @@ limit — it just skips the trigger node and passes through.
 
 **Depends on:** AF-M9-04
 **Acceptance**
-- [ ] `POST /api/webhooks/:workflowId/:path` returns the same generic `404` it returns for an unknown workflow when the active version's webhook trigger is disabled — no `Execution` row, no quota consumption, and no signal to a prober that the workflow exists.
-- [ ] The cron evaluator skips a workflow whose schedule trigger is disabled, without logging an error per tick.
-- [ ] `workflows.run` (the Run button) refuses with a clear message naming the disabled trigger, rather than starting a run that does nothing.
-- [ ] Canvas lint warns when the workflow's only trigger is disabled — the workflow cannot fire, and that should be visible before saving, not discovered by silence.
-- [ ] Integration tests for all three dispatch paths asserting **no** `Execution` row is created.
-- [ ] progress.md updated
+- [x] `POST /api/webhooks/:workflowId/:path` returns the same generic `404` it returns for an unknown workflow when the active version's webhook trigger is disabled — no `Execution` row, no quota consumption, and no signal to a prober that the workflow exists.
+- [x] The cron evaluator skips a workflow whose schedule trigger is disabled, without logging an error per tick.
+- [x] `workflows.run` (the Run button) refuses with a clear message naming the disabled trigger, rather than starting a run that does nothing.
+- [x] Canvas lint warns when the workflow's only trigger is disabled — the workflow cannot fire, and that should be visible before saving, not discovered by silence.
+- [x] Integration tests for all three dispatch paths asserting **no** `Execution` row is created.
+- [x] progress.md updated
 
 ### ✅ AF-M9-05 · Stop leaking `$json`/`$node` into node output and traces · 1d · **DONE 2026-09-03**
 G9. `enrichedContext` is handed to executors as `context`, and executors spread it
@@ -1216,8 +1273,32 @@ both already exist to keep it bounded.
 
 **DoD notes:** `npm run build` and `npm run lint` (biome) pass; full vitest (116 files / 1303 tests) green, +4 unit and +2 engine tests against the 17-test baseline. The `trace-end` `updateMany` narrows to `executionId + nodeId` (the tenant check happens when the execution's row is owned), so no new non-tenant-scoped query. No silent-failure sites added — `boundTraceValue` follows the same "log and re-throw, or handle meaningfully" stance as the guard it sits beside. `package.json` scripts unchanged; the `RetryCount` union and every existing export of `config.ts` are untouched.
 
-### ✅ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d · **DONE 2026-09-03**
+### ✅ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d · **DONE 2026-09-03** *(reopened and re-closed 2026-09-03)*
 G11. `_timeoutMs` and `_continueOnFail` are read from `data` but declared nowhere.
+
+> **CORRECTION (2026-09-03, found by AF-M9-15's round-trip proof).** The first
+> acceptance note below claimed `_run` was "validated at the save boundary".
+> **It was not — it was silently discarded there.** `configOf` in
+> `src/features/workflows/schemas.ts` returned each node's bare `configSchema`,
+> and Zod strips unknown keys, so the policy the config panel writes never
+> reached the database. Setting retries or a timeout in the UI appeared to work
+> and did nothing; all three M9 reference templates shipped a `_run` that did
+> not survive installation.
+>
+> This is G11 itself, recurring in the key meant to fix it: the task's own
+> premise was that `_timeoutMs`/`_continueOnFail` were broken because they
+> "appeared in no `configSchema`", so "the save boundary was free to drop them".
+> The schema, the runner support and the UI all shipped; the one place that had
+> to change for any of it to persist did not.
+>
+> Fixed in `configOf` — the reserved key is split off, both halves are validated
+> (so a bad policy is *reported*, not dropped, and an invalid node config still
+> fails), and the result is re-joined. A transform rather than
+> `configSchema.extend(...)`, because `triggerDataSchema` is
+> `z.object({}).optional()` and `AGGREGATE`'s is `z.object({}).default({})`,
+> neither of which exposes `.extend`. Six regression tests in
+> `schemas.test.ts`, one of which asserts a policy round-trips through **every**
+> registered node type so no future node can quietly opt out.
 
 **Depends on:** AF-M9-03
 **Acceptance**
@@ -1356,19 +1437,77 @@ the node so the catalogue "exercises every node type the palette offers" invaria
 instead of the static `outputs` array, and `EXPECTED_TEMPLATE_COUNT` moved 20→21);
 `npm run build`, `npm run lint`, and the full suite pass.
 
-### ⬜ AF-M9-10 · `RESPOND_TO_WEBHOOK` node + real synchronous webhook responses · 2.5d
+### ✅ AF-M9-10 · `RESPOND_TO_WEBHOOK` node + real synchronous webhook responses · 2.5d · **DONE 2026-09-03**
 G3. `?sync=true` returns a fixed envelope and 500 ms-polls for up to 20 s.
 
 **Depends on:** AF-M9-05
 **Acceptance**
-- [ ] `RESPOND_TO_WEBHOOK` (`ACTION`): `statusCode` (100–599, default 200), `contentType`, `body` (template), `headers` (record). Writes the response onto the execution — new nullable `Execution.response Json?` via an additive migration — and marks the run "responded".
-- [ ] The webhook route in sync mode returns that response verbatim: status, content type, headers, body. Header names are allowlisted (no `Set-Cookie`, no hop-by-hop) and the body is size-capped.
-- [ ] A sync run that finishes **without** reaching a respond node keeps today's `{success, executionId}` envelope — the existing contract does not break.
-- [ ] `validate()` warns when a `RESPOND_TO_WEBHOOK` sits in a graph with no webhook trigger, and when two respond nodes are reachable on the same path.
-- [ ] The 500 ms poll loop is replaced with an Inngest realtime subscription or a Postgres `LISTEN`, keeping the 20 s hard timeout. If neither is workable inside the M9 window the poll may stay — but the reason is written into this task, not left implicit.
-- [ ] The route accepts `GET`/`PUT`/`PATCH`/`DELETE` as well as `POST`, with the method surfaced as `webhook.method` (W1's real-world generalizations are multi-method endpoints).
-- [ ] Integration tests: sync POST → 200 with the composed body; a 404-composing branch returns 404; a run with no respond node still returns the legacy envelope; an oversized body is rejected, not truncated.
-- [ ] progress.md updated
+- [x] `RESPOND_TO_WEBHOOK` (`ACTION`): `statusCode` (100–599, default 200), `contentType`, `body` (template), `headers` (record). Writes the response onto the execution — new nullable `Execution.response Json?` via an additive migration — and marks the run "responded". *(Status narrowed to **200–599**: 1xx is an interim response with no body, which a settled execution cannot express. Recorded rather than silently accepted.)*
+- [x] The webhook route in sync mode returns that response verbatim: status, content type, headers, body. Header names are allowlisted (no `Set-Cookie`, no hop-by-hop) and the body is size-capped.
+- [x] A sync run that finishes **without** reaching a respond node keeps today's `{success, executionId}` envelope — the existing contract does not break.
+- [x] `validate()` warns when a `RESPOND_TO_WEBHOOK` sits in a graph with no webhook trigger, and when two respond nodes are reachable on the same path.
+- [x] The 500 ms poll loop is replaced with an Inngest realtime subscription or a Postgres `LISTEN`, keeping the 20 s hard timeout. If neither is workable inside the M9 window the poll may stay — but the reason is written into this task, not left implicit. *(**Poll kept, deliberately.** Both alternatives bind a long-lived connection to a serverless request handler that Vercel may freeze between event-loop turns — trading a correctness risk for latency this endpoint does not need. The reason is written at the call site as well as here. Revisit if sync webhooks move to a long-lived runtime.)*
+- [x] The route accepts `GET`/`PUT`/`PATCH`/`DELETE` as well as `POST`, with the method surfaced as `webhook.method` (W1's real-world generalizations are multi-method endpoints).
+- [x] Integration tests: sync POST → 200 with the composed body; a 404-composing branch returns 404; a run with no respond node still returns the legacy envelope; an oversized body is rejected, not truncated.
+- [x] progress.md updated
+
+**DONE (2026-09-03, AF-M9-10).** Shipped as `src/nodes/core/respond-to-webhook/`
+(definition + execute + index, registered in both `registry.ts` and `manifest.ts`),
+`src/lib/webhook-response.ts` (the header policy), migration
+`20260903120000_add_execution_response`, engine wiring in `src/inngest/functions.ts`,
+`checkRespondNodes` in `src/engine/validate.ts`, and the multi-method route.
+
+**The response is written eagerly, at the node, not at settle time.** This was the
+one real design decision. `onFailure` is a separate Inngest context with no access to
+the handler closure, so a settle-time write would silently lose the response whenever
+any node *downstream* of the respond node failed — which is exactly the "respond
+early, then do slow follow-up work" shape the node exists to enable. Eager writing
+also survives AF-M8-27 cancellation, which suppresses every terminal-status write. The
+cost is one extra DB write per respond node; an integration test covers the FAILED
+case specifically.
+
+**Harvested per node, not off the terminal context**, because AF-M9-12 gives each node
+its own input: a respond node on a branch that is not the last to run would otherwise
+vanish. Both harvest sites (main loop and fan-out segment loop) call one
+`persistWebhookResponse` helper. Last writer wins, and `validate()` warns about the
+only shape where that is ambiguous.
+
+**Header policy is an allowlist, applied twice.** A header passes only by being a
+known-safe response header or `x-` prefixed; `Set-Cookie` (session fixation),
+hop-by-hop headers, `Content-Length` and `Content-Type` (one source of truth — the
+node's own field) are refused. It runs in the node **after template resolution** — a
+template resolving to `Set-Cookie`, or smuggling a CRLF through a *value*, is the case
+a literal-config check would miss — and again in the route on the value read back from
+the database, so a row written by anything other than current node code still cannot
+split a response. Rejections fail the node loudly rather than dropping headers
+silently, so the endpoint cannot behave differently from what the canvas shows.
+
+**Three defects found and fixed while making the gates honest** — all pre-existing on
+this branch, none introduced here:
+ 1. `CODE`, `SPLIT_OUT` and `AGGREGATE` were **missing from `updateNodeSchemas`**
+    (`src/features/workflows/schemas.ts`), so none of the three could be saved from
+    the editor at all. That file's own doc comment describes this exact failure mode
+    (it happened to `AI_LLM`/`AI_EXTRACT` before AF-M8-24) and it recurred with
+    AF-M9-13/14. All four types added.
+ 2. `CODE.defaults` was `{ code: "" }` against a `min(1)` schema, and
+    `SPLIT_OUT.defaults` was `{ path: "" }` against a non-empty refinement — both
+    failed `registry.test.ts`'s "defaults satisfy their own schema" assertion, so
+    that suite was red on the branch. Fixed with real starter values rather than by
+    weakening the schemas: `CODE` gets a starter body that documents its return
+    contract, and `SPLIT_OUT` defaults to `path: "items"`, which is the key `CODE`
+    stores an array under — so the documented CODE → SPLIT_OUT pairing now works the
+    moment both are dropped on the canvas.
+ 3. Two unrelated `tsc` errors in untouched test files (`set/execute.test.ts`,
+    `run-graph.test.ts`) left `npx tsc --noEmit` red; both were missing type
+    assertions, both fixed.
+
+**Tests:** 15 header-policy unit tests (`src/lib/webhook-response.test.ts`, including
+CRLF response-splitting and a byte-vs-character body cap), 10 executor unit tests,
+9 validator tests (`validate.test.ts`), and 11 integration tests
+(`tests/integration/respond-to-webhook.integration.test.ts`) split between the engine
+half and the route half. **Gates:** `npm test` 1394/1394 across 122 files,
+`npm run test:integration` 180/180 across 19 files, `npx tsc --noEmit` clean,
+`npm run lint` clean, `npm run build` green.
 
 ### ✅ AF-M9-11 · `MERGE` v2 — real multi-input ports · 2d · **DONE 2026-09-03**
 G4. One input port today, with the result reconstructed from the flat bag.
@@ -1395,7 +1534,12 @@ receives B's output and D receives only C's.
 - [x] ADR-0019 records per-node input resolution, what it supersedes in `docs/architecture/execution_engine.md`, and the compatibility view.
 - [x] progress.md updated
 
-### ⬜ AF-M9-13 · `CODE` node — sandboxed, no network, hard caps · 3d
+### ✅ AF-M9-13 · `CODE` node — sandboxed, no network, hard caps · 3d · **DONE 2026-09-03**
+*(Header was stale at ⬜ while every acceptance box below was already ticked and the
+work merged as `945cf4d` + `f32bfff`. Corrected 2026-09-03 during AF-M9-10, which also
+fixed two things this task shipped broken: `CODE` was **absent from
+`updateNodeSchemas`**, so it could not be saved from the editor, and its
+`defaults: { code: "" }` failed its own `min(1)` schema — see the AF-M9-10 DONE note.)*
 G7. The most-used node in the source library, and the one with real blast radius:
 this is arbitrary tenant JS running on our worker.
 
@@ -1433,34 +1577,98 @@ between an explicit start and an explicit end. Full n8n items semantics stay out
 
 #### Phase 4 — ship them and prove them
 
-### ⬜ AF-M9-15 · Author the three templates in the catalogue · 1.5d
+### ✅ AF-M9-15 · Author the three templates in the catalogue · 1.5d · **DONE 2026-09-03**
 The delivery vehicle already exists — `src/features/templates/catalog/` plus
 `npm run seed:templates`, gated by `catalog/harness.ts`. Nothing new is needed; the
 templates simply have to pass the existing gate.
 
 **Depends on:** AF-M9-09, AF-M9-10, AF-M9-11, AF-M9-13 *(AF-M9-14 only for W3's fan-out form)*
 **Acceptance**
-- [ ] `api-router-sync-response` (ops), `multi-channel-broadcast-merge` (ops), `api-etl-batch-deliver` (data) added, matching §1 exactly.
-- [ ] Each `description` names the demo endpoint it calls, states that it needs **no credentials**, and says what to swap for production use.
-- [ ] `checkCatalog` passes: no secret-shaped literals, no cuids, slug/node-id patterns, per-node config schemas, reachability.
-- [ ] Each carries a source-attribution comment naming the exact library file it derives from and any deliberate deviation.
-- [ ] `npm run seed:templates` dry run is clean and the domain-coverage test still holds.
-- [ ] Instantiating each from the gallery produces a workflow that opens in the editor, renders every branch handle, and **saves back byte-identically** — the G1 round-trip proof.
-- [ ] progress.md updated
+- [x] `api-router-sync-response` (ops), `multi-channel-broadcast-merge` (ops), `api-etl-batch-deliver` (data) added, matching §1 exactly. *(W3 ships in the **full** `SPLIT_OUT`/`AGGREGATE` form — the §1 batched fallback was not needed, since AF-M9-14 landed.)*
+- [x] Each `description` names the demo endpoint it calls, states that it needs **no credentials**, and says what to swap for production use.
+- [x] `checkCatalog` passes: no secret-shaped literals, no cuids, slug/node-id patterns, per-node config schemas, reachability. *(`harness.test.ts` 24/24 — including the "exercises every node type the palette offers" assertion, which had been **red since AF-M9-13/14** because `CODE`, `SPLIT_OUT` and `AGGREGATE` had no template. These three close it.)*
+- [x] Each carries a source-attribution comment naming the exact library file it derives from and any deliberate deviation.
+- [x] `npm run seed:templates` dry run is clean and the domain-coverage test still holds. *(24 templates, all three new ones at **0 credentials** — the property that lets AF-M9-16 run them in CI without anyone's accounts.)*
+- [x] Instantiating each from the gallery produces a workflow that opens in the editor, renders every branch handle, and **saves back byte-identically** — the G1 round-trip proof. *(Closed 2026-09-03 as a **test** rather than a browser check: `tests/integration/template-round-trip.integration.test.ts` drives the real path — `prepareTemplateGraph` (install) → `saveWorkflowInputSchema` (the boundary the editor posts through) → `workflows.saveGraph` (validate + persist) → the `Node`/`Connection` rows — and asserts node config survives and **every persisted edge names a port its source node actually declares**, which is the part G1 broke. A browser proves it once on one machine; this proves it on every run. A fourth case pins that the SWITCH keeps two *distinct* ports, which a regression collapsing both onto the first would otherwise satisfy.)*
+- [x] progress.md updated
 
-### ⬜ AF-M9-16 · End-to-end acceptance: the three run green in CI · 1.5d
+**DONE (2026-09-03).** All three authored, gated, and round-tripped.
+
+**The round-trip proof found a shipping bug on its first run: `_run` was being
+stripped by the save boundary.** `configOf` returned each node's bare
+`configSchema`, and Zod strips unknown keys — so the AF-M9-06 run policy the
+config panel writes was discarded on every save. A user who set retries or a
+timeout in the UI watched it silently vanish, and all three reference templates
+shipped a `_run` that never survived installation. This is the *same* defect
+AF-M9-06 was written to end — its own note says the legacy
+`_timeoutMs`/`_continueOnFail` keys were broken because they "appeared in no
+configSchema", so "the save boundary was free to drop them" — reappearing in
+the key that replaced them. **AF-M9-06 was therefore not actually complete**;
+see its reopened-and-closed note. Fixed in `configOf` by splitting the reserved
+key off, validating both halves, and re-joining (a transform rather than
+`.extend`, because `triggerDataSchema` and `AGGREGATE`'s schema are not bare
+`ZodObject`s). Six unit regression tests in `schemas.test.ts`, including one
+that asserts a policy round-trips on **every** registered node type.
+
+Authoring also surfaced the save-boundary and defaults defects recorded in the
+AF-M9-10 DONE note: the templates could be *authored* against node types that
+could not be *saved*, which is precisely the drift `schemas.ts` warns about.
+
+### ✅ AF-M9-16 · End-to-end acceptance: the three run green in CI · 1.5d · **DONE 2026-09-03**
 The point of the milestone. Not "the plan compiles" — the graphs execute.
 
 **Depends on:** AF-M9-01, AF-M9-02, AF-M9-15
 **Acceptance**
-- [ ] A local fixture HTTP server, started by the integration global setup (no new CI service), mimics `httpbin.org/post` (echoes JSON under `json`) and `jsonplaceholder.typicode.com/posts` (100 fixed records). Reached via `ALLOW_LOOPBACK_EGRESS=1`. **No test in this suite touches the public internet.**
-- [ ] W1: `action: "ping"` → 200 `{ok:true,message:"pong"}` with the `process` branch `SKIPPED`. `action: "process"` → 200 `{ok:true,source:"serviceA",data:{...}}` with the `ping` branch `SKIPPED`. An unknown action → run `SUCCESS`, everything after the switch `SKIPPED`, legacy envelope returned.
-- [ ] W2: both broadcasts execute; the merge output carries `input0` and `input1` in declared port order; the response carries both. With Broadcast B forced to fail under `continueOnFail: true`, the merge yields `input1: null` and the response still returns 200.
-- [ ] W3: 10 deliveries and `AGGREGATE` reports `{count: 10, failed: 0}` — or, under the AF-M9-14 fallback, one batched POST carrying 10 records, with the deviation asserted explicitly so the test cannot silently pass the weaker shape.
-- [ ] Every run asserts terminal status `SUCCESS`, zero `FAILED` node rows, an `Execution.output` free of `$`-prefixed keys (AF-M9-05), and a recorded `durationMs`.
-- [ ] The three specs run from the **seeded catalogue rows**, not from inline fixtures — so a template that drifts from what the gallery ships breaks the build.
-- [ ] CI wires `ALLOW_LOOPBACK_EGRESS=1` for the integration job only.
-- [ ] `docs/planning/progress.md` records the milestone complete, with the three run ids.
+- [x] A local fixture HTTP server, started by the integration global setup (no new CI service), mimics `httpbin.org/post` (echoes JSON under `json`) and `jsonplaceholder.typicode.com/posts` (100 fixed records). Reached via `ALLOW_LOOPBACK_EGRESS=1`. **No test in this suite touches the public internet.** *(`tests/integration/fixtures/http-fixture-server.ts`, `node:http` only, plus a `/fail` route for the W2 case. The suite asserts the host rewrite actually applied and that no external host survives it, so a template gaining a third external host fails loudly instead of quietly reintroducing a network dependency.)*
+- [x] W1: `action: "ping"` → 200 `{ok:true,message:"pong"}` with the `process` branch `SKIPPED`. `action: "process"` → 200 `{ok:true,source:"serviceA",data:{...}}` with the `ping` branch `SKIPPED`. An unknown action → run `SUCCESS`, everything after the switch `SKIPPED`, legacy envelope returned.
+- [x] W2: both broadcasts execute; the merge output carries `input0` and `input1` in declared port order; the response carries both. With Broadcast B forced to fail under `continueOnFail: true`, the merge yields `input1: null` and the response still returns 200.
+- [x] W3: 10 deliveries and `AGGREGATE` reports `{count: 10, failed: 0}` — or, under the AF-M9-14 fallback, one batched POST carrying 10 records, with the deviation asserted explicitly so the test cannot silently pass the weaker shape. *(Full form. The suite asserts **10** `Deliver` rows with `itemIndex` 0–9, so a silent substitution of one batched POST drops that to 1 and fails.)*
+- [x] Every run asserts terminal status `SUCCESS`, zero `FAILED` node rows, an `Execution.output` free of `$`-prefixed keys (AF-M9-05), and a recorded `durationMs`.
+- [x] The three specs run from the **seeded catalogue rows**, not from inline fixtures — so a template that drifts from what the gallery ships breaks the build. *(Projected through `toSeedRow` — the same function `seed:templates` uses — upserted, then read back out of Postgres.)*
+- [x] CI wires `ALLOW_LOOPBACK_EGRESS=1` for the integration job only.
+- [x] `docs/planning/progress.md` records the milestone complete.
+
+**DONE (2026-09-03, AF-M9-16).** `tests/integration/reference-workflows.integration.test.ts`
+— 6 tests, all green. **The suite earned its keep immediately: it found three
+defects that every other gate had passed over.**
+
+1. **The engine could not rejoin after a branch.** `_outputPort` is a control
+   signal the engine consumes at the node that produced it, but `buildNodeInput`
+   copied it into the *next* node's input, and since every executor returns
+   `{ ...input, … }` that node re-emitted the branch's port id as its own.
+   `markTakenEdges` then matched none of its outgoing edges (which are `main`),
+   so **everything below the join was marked "not reachable via taken branches"
+   while the run still reported `SUCCESS`.** Route → per-branch work → single
+   response — the single most common branching shape, and W1's whole point —
+   silently dropped its tail. `trace.test.ts` could not have caught it: those
+   unit tests call `markTakenEdges` with hand-built port ids, so the poisoned
+   value never appears. Fixed at the root (strip the key when merging upstream
+   outputs) plus a guard (`declaredOutputPort`: a node may only route to a port
+   it declares; anything else is treated as non-branching rather than as a
+   silent kill switch). Regression tests added to `run-graph.test.ts`.
+2. **`{{{json x}}}` emitted invalid JSON for a missing path.**
+   `JSON.stringify(undefined)` returns the JS value `undefined`, which
+   Handlebars renders as the bare word `undefined` — so any template building a
+   JSON payload from an optional path produced a malformed document, and a
+   typed `SET` failed with `resolved to "undefined"`. Now emits `null`. This is
+   an AF-M9-07 helper defect affecting every template, not just these three.
+3. **The integration `globalSetup` had never run.** It reads
+   `TEST_DATABASE_URL`, but `.env` was only loaded per worker
+   (`vitest.integration.setup.ts`), never in vitest's main process — so the
+   variable was `undefined`, the guard returned early, and **migrations were
+   silently never applied on a local run**, despite the file's own comment
+   saying they were. CI was unaffected (job-level env var + its own
+   `migrate deploy` step), which is exactly why it went unnoticed. Fixed by
+   loading `.env` there too.
+
+Also fixed while auditing: W1's `payload` mapping crashed on any request
+without a payload (every `ping`), and `WEBHOOK_TRIGGER` still described itself
+as *"(Stub — full implementation in M4.)"* in the palette and node reference
+long after M4 shipped the receiver.
+
+**Gates:** `npm test` 1403/1403 across 123 files, `npm run test:integration`
+189/189 across 20 files, `npx tsc --noEmit` clean, `npm run lint` clean,
+`npm run build` green, `seed:templates` dry run clean at 24 templates.
 
 ---
 
@@ -1516,3 +1724,617 @@ npm run seed:templates -- --yes
 `AF-M9-16` is the milestone's definition of done: the three graphs execute to
 `SUCCESS` from seeded catalogue rows, against a local fixture server, in CI, with no
 network access and no credentials.
+
+---
+
+## M10 — Automation library: the 35 reference automations · ~12 weeks (62d) · *(added 2026-09-03)*
+
+**Source:** `docs/automations/autoflow-automations.md` — the 35 n8n templates Intuz
+publishes for small businesses, captured 2026-08-25. This milestone's goal is that
+**all 35 exist as AutoFlow catalogue entries that execute to `SUCCESS`**, against
+fixture servers in CI and against real accounts in staging.
+
+**Do not start before AF-M9 closes.** M9 makes *one* graph provably runnable; M10 is
+what that capability is for. Three M9 tasks are hard prerequisites — AF-M9-01 (the
+execution harness), AF-M9-10 (`RESPOND_TO_WEBHOOK`), AF-M9-13 (`CODE`) — and
+AF-M9-14's `SPLIT_OUT`/`AGGREGATE` is load-bearing for 6 of the 35.
+
+> **Scope honesty, stated once.** The 35 automations require **34 distinct
+> third-party services**. AutoFlow today ships 25 node types covering 12 services,
+> of which 8 are real API integrations. This is not a "write 35 templates"
+> milestone — it is a connector-platform milestone with 35 templates as its
+> acceptance test. Anyone reading this expecting a one-day job should read §0 and
+> §8 before planning around it.
+
+---
+
+### 0. Reality check: what the 35 actually require
+
+Counted by reading all 35 entries in the source document and grepping this repo on
+2026-09-03. Every "have" below is a file on disk, not a spec claim.
+
+| Requirement | Needed by | AutoFlow today | Verdict |
+|---|---|---|---|
+| Authenticated REST call to an arbitrary API | 31 of 35 | `HTTP_REQUEST` has **no `credentials` array** — `src/nodes/http/request/definition.ts` declares none, and `execute.ts` contains no `Authorization` handling | **blocked** |
+| Polling trigger (new mail / new file / new row) | 18 of 35 | Only `WEBHOOK_TRIGGER`, `SCHEDULE_TRIGGER`, `MANUAL_TRIGGER`, `GOOGLE_FORM_TRIGGER`, `STRIPE_TRIGGER`. No cursor state model in `prisma/schema.prisma` | **blocked** |
+| Google Workspace beyond one sheet append | 21 of 35 | `GOOGLE_SHEETS_APPEND` only; `google.oauth2` `defaultScopes` is `userinfo.email` — Gmail, Drive, Calendar and Sheets *read* are all unreachable | **blocked** |
+| Binary payloads (PDF, image, video) | 12 of 35 | `WorkflowContext` is JSON-only; no blob store, no dependency for one | **blocked** |
+| Multimodal AI input (image / PDF into a model) | 4 of 35 | `src/lib/ai/registry.ts` declares a `vision` capability on 5 models, but no node accepts an image | **blocked** |
+| QuickBooks Online | 10 of 35 | nothing; no Intuit OAuth provider | **blocked** |
+| Human-in-the-loop approval / timed wait | 2 of 35 | no `WAIT` and no approval **node** (`src/features/approvals` is a UI surface, not a node) | **blocked** |
+| External vector store (Pinecone) | 1 of 35 | `AI_RETRIEVE` is bound to the internal `KnowledgeChunk` store | **blocked** |
+| Document text extraction (PDF/DOCX) | 6 of 35 | **have** — `src/features/knowledge/lib/extractor.ts` (`pdf-parse` + `mammoth`), not yet exposed as a node | partial |
+| LLM chat / structured extraction | 24 of 35 | **have** — `AI_LLM`, `AI_EXTRACT`, `AI_COMPATIBLE` with multi-provider fallback | ✅ |
+| Branching, switch, merge, code, fan-out | 19 of 35 | **have** after M9 — `CONDITION`, `SWITCH`, `MERGE` v2, `CODE`, `SPLIT_OUT`/`AGGREGATE` | ✅ |
+| Slack notification | 6 of 35 | partial — `SLACK` is **incoming-webhook only** (`webhookUrl` config, no credential). #26 needs `conversations.list`/`create`, #27 needs `users.lookupByEmail` + DM | partial |
+| Brand logo on a node | all 35 | `NodeDefinition.icon` is a **lucide-react icon name**; there is no `logo` field (`CredentialTypeDef` has one). `public/logos/` cannot currently reach the canvas | **blocked** |
+
+**The single highest-leverage item is the first one.** Because 31 of 35 automations
+are ultimately authenticated REST calls, putting credentials on the generic
+`HTTP_REQUEST` node converts most of Phase B from "write a node family" into "write
+a template" — and it unblocks work on every service in parallel rather than in
+series. It is AF-M10-01 for that reason, not for alphabetical accident.
+
+---
+
+### 1. Coverage matrix
+
+All 35, in source order, with the numbering from `autoflow-automations.md`.
+**New nodes** lists only what does not exist today. **Blocked by** names the Phase A
+capability that gates it; a row with `—` is authorable the moment its services land.
+
+| # | Automation | Trigger | Services | New nodes | Blocked by |
+|---|---|---|---|---|---|
+| 1 | Hyper-personalized email outreach | Sheets poll | Sheets, Gmail, OpenAI | `SHEETS_READ`, `SHEETS_UPDATE`, `GMAIL_SEND` | A-05, A-03 |
+| 2 | AI Upwork proposal generation | Schedule ✅ | Apify, Gemini, Sheets, Gmail | `APIFY_RUN`, `SHEETS_READ/UPDATE`, `GMAIL_SEND` | A-01, A-03 |
+| 3 | Lead gen + outreach (Apollo + GPT-4) | Schedule ✅ | Apify, Apollo, OpenAI, Sheets | `APIFY_RUN`, `APOLLO_ENRICH` | A-01, A-09 |
+| 4 | Cold outreach personalization (Gemini) | Schedule ✅ | Sheets, Gemini | `SHEETS_READ`, `SHEETS_UPDATE` | A-03 |
+| 5 | LinkedIn profile research + outreach | Schedule ✅ | Apify, Gemini, Sheets | `APIFY_RUN`, `SHEETS_READ/UPDATE` | A-01, A-03 |
+| 6 | Lead gen from Google Search + Maps | Form/chat | Custom Search, Maps, Sheets | `FORM_TRIGGER`, `GOOGLE_SEARCH`, `GOOGLE_MAPS`, `DEDUPE` | A-14, A-10 |
+| 7 | Outreach from LinkedIn job signals | Schedule ✅ | Apify, Apollo, Gemini, Sheets | `APIFY_RUN`, `APOLLO_ENRICH` | A-01, A-03 |
+| 8 | AP invoices from Gmail + Drive | Gmail poll, Drive poll | Gmail, Drive, Gemini, Sheets, QBO, Slack | `GMAIL_TRIGGER`, `DRIVE_TRIGGER`, `DRIVE_DOWNLOAD`, `QBO_*`, `SLACK_POST` | A-05, A-06, A-07, B-16 |
+| 9 | Expense reporting: Airtable → QBO | Airtable poll | Airtable, QBO | `AIRTABLE_TRIGGER`, `AIRTABLE_UPDATE`, `QBO_CREATE_EXPENSE` | A-05, A-06, B-16 |
+| 10 | QuickBooks invoice alerts in Slack | QBO webhook | QBO, Slack | `QBO_WEBHOOK_TRIGGER`, `QBO_GET`, `SLACK_POST` | A-04, B-16 |
+| 11 | QBO sales receipts from Stripe | Stripe ✅ | Stripe, QBO | `QBO_FIND/CREATE_CUSTOMER`, `QBO_CREATE_RECEIPT` | B-16 |
+| 12 | QBO invoice PDFs → Drive | QBO webhook | QBO, Drive | `QBO_WEBHOOK_TRIGGER`, `QBO_GET_PDF`, `DRIVE_UPLOAD` | A-04, A-06, B-16 |
+| 13 | QBO customers + receipts from a Sheet | Sheets poll | Sheets, QBO | `SHEETS_TRIGGER`, `QBO_*` | A-05, B-16 |
+| 14 | QBO customer + estimate from Sheets | Sheets poll | Sheets, QBO | `SHEETS_TRIGGER`, `QBO_CREATE_ESTIMATE` | A-05, B-16 |
+| 15 | QBO invoice sync to Sheets | QBO webhook | QBO, Sheets | `QBO_WEBHOOK_TRIGGER`, `SHEETS_UPSERT` | A-04, B-16 |
+| 16 | Full-cycle invoicing (Airtable+QBO+Stripe) | Airtable poll | Airtable, QBO, Stripe | `STRIPE_CUSTOMER`, `STRIPE_PAYMENT_LINK`, `QBO_*` | A-05, B-16, B-20 |
+| 17 | QBO invoicing from Airtable orders | Webhook ✅ | Airtable, QBO | `AIRTABLE_READ/UPDATE`, `QBO_*` | B-16, B-20 |
+| 18 | GitHub PRs + JIRA updates (multi-repo) | GitHub webhook | GitHub, JIRA, Slack, Notion | `GITHUB_TRIGGER`, `GITHUB_CREATE_PR`, `JIRA_TRANSITION`, `NOTION_CREATE` | A-04, B-18 |
+| 19 | GitHub PRs + JIRA updates (single repo) | GitHub webhook | GitHub, JIRA | `GITHUB_TRIGGER`, `GITHUB_CREATE_PR`, `JIRA_TRANSITION` | A-04, B-18 |
+| 20 | Release notes via Gemini | GitHub webhook | GitHub, JIRA, Gemini, SMTP ✅ | `GITHUB_TRIGGER`, `GITHUB_LIST_COMMITS`, `JIRA_SEARCH` | A-04, B-18 |
+| 21 | Data extraction from faxes + PDFs | Form | Gemini, Drive, Sheets | `FORM_TRIGGER`, `EXTRACT_DOCUMENT_TEXT`, multimodal `AI_EXTRACT` | A-14, A-06, A-07 |
+| 22 | Scrape Y Combinator startups | Manual ✅ | Apify, Sheets | `APIFY_RUN` | A-01 |
+| 23 | "Chat with your PDF" on Telegram | Telegram webhook | Telegram, Gemini, Pinecone | `TELEGRAM_TRIGGER`, `TELEGRAM_SEND`, Pinecone provider | A-13, B-21 |
+| 24 | Sheets → MailerLite, no duplicates | Schedule ✅ | Sheets, MailerLite | `SHEETS_READ`, `MAILERLITE_*`, `DEDUPE` | A-03, A-10 |
+| 25 | Shopify orders from Airtable | Webhook ✅ | Airtable, Shopify, Gmail | `SHOPIFY_CREATE_ORDER`, `GMAIL_SEND`, `AIRTABLE_UPDATE` | A-03, B-20 |
+| 26 | Gmail → Slack routing (Llama 3) | Gmail poll | Gmail, Slack, OpenRouter | `GMAIL_TRIGGER`, `SLACK_LIST/CREATE_CHANNEL`, `SLACK_POST` | A-05, B-17 |
+| 27 | Pre-meeting Slack briefings | Calendar poll | Calendar, Notion, GitHub, Jira, Slack | `CALENDAR_TRIGGER`, `WAIT`, `SLACK_DM_BY_EMAIL` | A-05, A-08, B-18 |
+| 28 | Contract review → legal PDF report | Drive poll | Drive, OpenAI, HTML→PDF, Slack | `DRIVE_TRIGGER`, `DRIVE_DOWNLOAD/UPLOAD/MOVE`, `HTML_TO_PDF` | A-05, A-06, A-12 |
+| 29 | Review and approve NDAs | Drive poll | Drive, Sheets, OpenAI, SMTP ✅ | `DRIVE_TRIGGER`, `DRIVE_MOVE`, `SHEETS_READ/APPEND` ✅ | A-05, A-06, A-11 |
+| 30 | Contract risk + approval routing | Drive poll | Drive, OpenAI, Gmail, Sheets | `DRIVE_TRIGGER`, `APPROVAL` (send-and-wait) | A-05, A-09 |
+| 31 | Multichannel support ticket routing | Gmail poll, WAHA webhook, form | Gmail, WhatsApp, HubSpot, OpenAI, Jira, Slack | `FORM_TRIGGER`, `WAHA_TRIGGER`, `HUBSPOT_SEARCH`, `JIRA_CREATE`, SLA sweep | A-05, A-14, B-18, B-21 |
+| 32 | Twitter/X posting with GPT-4 | Schedule ✅ | OpenAI, X, Sheets | `X_POST`, `SHEETS_READ`, `DEDUPE` | A-04, A-10, B-22 |
+| 33 | AI video ad generation (Veo 3) | Form | Airtable, Gemini, Veo 3 | `FORM_TRIGGER`, `VEO_GENERATE`, multimodal AI | A-14, A-06, A-07, B-23 |
+| 34 | AI video creation + multi-publishing | Manual ✅ | Gemini, Airtable, Pollinations, Creatomate, YouTube, Instagram | `POLLINATIONS_IMAGE`, `CREATOMATE_RENDER`, `YOUTUBE_UPLOAD`, `UPLOAD_POST` | A-06, B-22, B-23 |
+| 35 | LinkedIn post with image (DALL·E) | Schedule ✅ | Gemini, DALL·E, LinkedIn | `OPENAI_IMAGE`, `LINKEDIN_POST` | A-04, A-06, B-22, B-23 |
+
+**Rollup.** 18 need a polling trigger · 12 need binary payloads · 10 need QuickBooks ·
+21 need Google Workspace breadth · 4 need multimodal AI · 6 already have every
+non-Phase-A dependency and are the natural first templates (#4, #11, #17, #22, #24, #32).
+
+---
+
+### 2. Gap register
+
+Verified against code on 2026-09-03. `Closed by` names the task below.
+
+| ID | Gap | Evidence | Blocks | Closed by |
+|---|---|---|---|---|
+| **H1** | **`HTTP_REQUEST` cannot authenticate.** No `credentials` in its definition, no `Authorization` handling in its executor. Every API in the library is therefore reachable only by pasting a secret into a plaintext `headers` map — which lands in `NodeExecution.input` and violates the AF-M3-04 rule that plaintext never reaches the trace. | `src/nodes/http/request/definition.ts`, `execute.ts` | 31 of 35 | AF-M10-01 |
+| **H2** | **Only 17 credential types, none for the library's services.** No Intuit/QBO, GitHub, Jira, Notion, Telegram, Shopify, LinkedIn, X, Apify, Apollo, MailerLite, Pinecone, OpenRouter, Creatomate. | `src/features/credentials/credential-types.ts` | 33 of 35 | AF-M10-02 |
+| **H3** | **One Google credential, one scope.** `google.oauth2.defaultScopes` is `userinfo.email`. A user who connects Google gets a token that can read their address and nothing else — Sheets *append* works only because an existing token happens to carry the scope. Gmail, Drive, Calendar are unreachable, and re-scoping one shared credential would silently over-grant every workflow. | `src/features/credentials/server/oauth-providers.ts:22` | 21 of 35 | AF-M10-03 |
+| **H4** | **Two OAuth providers total** (`google.oauth2`, `slack.oauth2`). QuickBooks, GitHub, Atlassian, Notion, Shopify, LinkedIn and X all need the authorize/token/refresh dance, and Intuit additionally needs the `realmId` (company id) captured at callback — a field the current `oauth-state`/callback path has nowhere to put. | `src/features/credentials/server/oauth-providers.ts` | 16 of 35 | AF-M10-04 |
+| **H5** | **No polling triggers and no place to keep a cursor.** `prisma/schema.prisma` has no per-trigger state model, so "new since last run" is inexpressible. `cron.ts` dispatches whole workflows on a cron and keeps nothing. | `prisma/schema.prisma`, `src/inngest/cron.ts` | 18 of 35 | AF-M10-05 |
+| **H6** | **No binary payloads.** `WorkflowContext = Record<string, unknown>` is JSON-serialized into `NodeExecution.output` under the ADR-0018 byte cap; a 3 MB PDF cannot pass between two nodes, and no blob dependency exists in `package.json`. | `src/nodes/types.ts`, `package.json` | 12 of 35 | AF-M10-06 |
+| **H7** | **`vision` is declared but unreachable.** Five models advertise the capability; no node lets a user attach an image or PDF page to a prompt. | `src/lib/ai/registry.ts:34,127,136,155,165,174` | #8, #21, #33 | AF-M10-07 |
+| **H8** | **No `WAIT` and no approval node.** #27 pauses until 15 minutes before a meeting; #30 sends a Gmail approval and blocks on the reply. `src/features/approvals` is a dashboard surface with no node binding. | grep: no `WAIT`/`APPROVAL` under `src/nodes/` | #27, #30 | AF-M10-08, AF-M10-09 |
+| **H9** | **`SLACK` is incoming-webhook only.** Config is `{webhookUrl, content}` with no credential; a webhook URL is channel-pinned, so "post to the channel the classifier chose", "create the channel if absent" and "DM the attendee found by email" are all impossible. | `src/nodes/slack/send-message/definition.ts` | #8, #26, #27, #31 | AF-M10-17 |
+| **H10** | **Google Sheets is append-only.** 16 automations read a sheet, and 9 write back to a specific row. Neither operation exists. | `src/nodes/google-sheets/` contains only `append/` | 16 of 35 | AF-M10-15 |
+| **H11** | **Airtable is create-only; HubSpot is create-contact-only; Stripe is trigger-only.** #9/#16/#17/#25 update Airtable records, #31 searches HubSpot, #16 creates a Stripe customer and payment link. | `src/nodes/airtable/`, `src/nodes/hubspot/`, `src/nodes/payments/` | 7 of 35 | AF-M10-20 |
+| **H12** | **`AI_RETRIEVE` is bound to the internal store.** #23 requires a caller-supplied Pinecone index at 768 dimensions. | `src/nodes/ai/retrieve/execute.ts`, `src/features/knowledge/lib/vector-search.ts` | #23 | AF-M10-13 |
+| **H13** | **No hosted intake form.** #6, #21, #31 and #33 all start from "user submits a form". `GOOGLE_FORM_TRIGGER` requires the user to own a Google Form and wire Apps Script; there is no first-party form. | `src/nodes/forms/google-form/` | 4 of 35 | AF-M10-14 |
+| **H14** | **Nodes cannot show a brand logo.** `NodeDefinition.icon` is documented as "lucide-react icon name" and there is no `logo` field, so a `QUICKBOOKS_*` node renders a generic glyph. `CredentialTypeDef` already has `logo?: string` — the asymmetry is the bug. `public/logos/` also lacks 18 of the marks this library needs. | `src/nodes/types.ts` (`icon`), `credential-types.ts:40` (`logo`) | presentation of all 35 | AF-M10-35 |
+| **H15** | **No dedupe primitive.** #6, #24, #26 and #32 all mean "skip what we already processed", implemented in n8n as a sheet lookup. Doing it with `SHEETS_READ` + `CODE` per template is four copies of the same bug surface. | grep: no `DEDUPE`/`FILTER` under `src/nodes/` | 4 of 35 | AF-M10-10 |
+
+---
+
+### 3. Tasks
+
+#### Phase A — platform capabilities *(nothing in Phase B or C is authorable until these land)*
+
+### ⬜ AF-M10-01 · Credentials on `HTTP_REQUEST` · 1.5d
+H1. Give the generic node a credential binding so any REST API in the library is
+reachable without pasting a secret into a templated header. This is the milestone's
+keystone: it converts most of Phase B from bespoke integration work into
+configuration, and it is the only Phase A task that unblocks work in parallel.
+
+**Depends on:** AF-M9-01
+**Acceptance**
+- [ ] `configSchema` gains `credentialId` + `authMode` (`none` | `bearer` | `header` | `basic` | `queryParam` | `oauth2`); `credentials: [{ key: "credentialId", type: "*", required: false }]` accepts **any** registered type, resolved through the existing AF-M3-04 injection path.
+- [ ] The executor reads only from `params.credentials` — never `data` — and applies auth per `authMode`; an OAuth2 credential sends `Authorization: Bearer <accessToken>` and honours the AF-M3 refresh path.
+- [ ] Secret material never reaches `NodeExecution.input/output`: a test asserts the persisted row for an authenticated request contains no substring of the secret, including in the echoed request headers.
+- [ ] A credential-typed node still validates when unbound (`authMode: "none"`), so existing saved `HTTP_REQUEST` nodes load unchanged — no migration.
+- [ ] Egress guard, timeout, retry policy (AF-M9-06) and the ADR-0018 byte cap all continue to apply; a redirect hop re-vets *and* re-attaches auth only for the same origin (an auth header must not follow a cross-origin redirect).
+- [ ] `docs/nodes/http-request.md` written, covering the cross-origin-redirect rule.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-02 · Credential types for the library's services · 1.5d
+H2. Add the API-key/bearer credential definitions the 35 need. These are data
+entries against the existing registry, not new machinery — batch them.
+
+**Depends on:** —
+**Acceptance**
+- [ ] New types registered in `credential-types.ts`: `apify.apiKey`, `apollo.apiKey`, `mailerlite.apiKey`, `pinecone.apiKey` (+ `environment`, `indexHost`), `openrouter.apiKey`, `creatomate.apiKey`, `telegram.botToken`, `waha.apiKey` (+ `baseUrl`), `uploadPost.apiKey`, `googleCustomSearch.apiKey` (+ `cx`), `shopify.accessToken` (+ `shopDomain`), `jira.apiToken` (+ `email`, `siteUrl`).
+- [ ] Each carries a `logo` pointing at a real file under `public/logos/` (see AF-M10-35 for the 18 that must be added first).
+- [ ] Connection testers registered for every type whose provider exposes a cheap authenticated GET; types without one are explicitly `NOT_TESTABLE` rather than silently untested.
+- [ ] `credential-registry.test.ts` extended: every new type round-trips through `secretFromInput` → vault → `openSecret`, and `computePreview` masks every `secret: true` field.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-03 · Scoped Google credentials · 1d
+H3. Split the single `google.oauth2` type into per-service credential types so a
+workflow that appends to a sheet cannot also read the user's mail.
+
+**Depends on:** AF-M10-02
+**Acceptance**
+- [ ] Types `google.sheets`, `google.gmail`, `google.drive`, `google.calendar`, `google.docs` registered, each with its own `defaultScopes` (e.g. `gmail` → `gmail.readonly gmail.send`, `drive` → `drive.file drive.readonly`).
+- [ ] The existing `google.oauth2` type is **kept and marked deprecated**, not removed: saved `GOOGLE_SHEETS_APPEND` nodes reference it by id and must keep running (ADR-0011 retirement rule). A node's `credentials[].type` accepts either during the overlap.
+- [ ] Consent screen shows only the scopes for the type being connected; a test asserts the authorize URL's `scope` param per type.
+- [ ] `docs/architecture/security.md` §credentials records why one credential per Google service, not one per user.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-04 · OAuth providers: Intuit, GitHub, Atlassian, Notion, Shopify, LinkedIn, X · 2d
+H4. Seven new providers in `oauth-providers.ts`, plus the one shape the current
+callback cannot express.
+
+**Depends on:** AF-M10-02
+**Acceptance**
+- [ ] Providers registered with authorize/token URLs, env-backed client id/secret getters, and default scopes; `.env.example` documents all fourteen new vars.
+- [ ] **Provider-extra capture:** the callback persists provider-specific identifiers returned alongside the token — Intuit's `realmId` (company id), Shopify's `shop`, X's `scope` — into the credential secret. Today `oauth-state.ts` has nowhere to put them; this is the schema change, not a config tweak.
+- [ ] Refresh handled per provider quirk: Intuit rotates the refresh token on every exchange (the old one dies — persist the new one in the same transaction or the connection is lost); X uses PKCE; Shopify tokens do not expire.
+- [ ] `oauth.test.ts` covers each provider's authorize-URL construction, the extras capture, and Intuit's rotating-refresh path.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-05 · Polling trigger framework + `TriggerState` · 3d
+H5. The largest single unlock in the milestone — 18 of 35 automations begin with
+"when a new X appears". Build the framework once; individual pollers become
+~40-line adapters in Phase B.
+
+**Depends on:** AF-M10-01
+**Acceptance**
+- [ ] `TriggerState` model added: `(workflowId, nodeId)` unique, `cursor Json`, `lastPolledAt`, `lastSeenIds String[]`, org-scoped. Migration written and applied.
+- [ ] A `PollingTrigger` interface in the node SDK: `poll(ctx: { cursor, credentials, config }) => { items: unknown[]; cursor: unknown }`. A poller returns items; the framework owns dispatch, dedupe and cursor persistence — an adapter never writes `TriggerState` itself.
+- [ ] The `evaluate-schedules` Inngest job is extended (not duplicated) to sweep polling triggers on each workflow's configured interval, honouring `Node.disabled` exactly as AF-M9-17 does for schedule triggers.
+- [ ] **At-least-once with dedupe:** each returned item carries a stable id; ids seen in the previous window are suppressed, so a retried poll cannot double-dispatch. A test drives two consecutive polls returning an overlapping window and asserts exactly one run per item.
+- [ ] Backoff on provider failure, and a per-workflow poll budget so one broken credential cannot spend the whole sweep.
+- [ ] First poll of a newly-activated trigger establishes the cursor **without** dispatching history — a test asserts a workflow activated against a 500-row sheet dispatches zero runs, not 500.
+- [ ] `docs/architecture/execution_engine.md` §Triggers documents the contract; ADR written (see §5).
+- [ ] progress.md updated
+
+### ⬜ AF-M10-06 · Binary payloads: `FileRef` + blob store · 3d
+H6. 12 automations move a PDF, image or video between nodes. Passing bytes through
+`WorkflowContext` is not an option — ADR-0018 caps per-node output.
+
+**Depends on:** AF-M9-01
+**Acceptance**
+- [ ] A `FileRef` shape (`{ $file: { id, filename, mimeType, size, sha256 } }`) is what travels in the context; **bytes never do**. A test asserts a 5 MB download leaves `NodeExecution.output` under the ADR-0018 cap.
+- [ ] Blob storage behind one interface with two implementations: local filesystem (dev/CI) and S3-compatible (staging/prod), selected by env. No provider SDK leaks past the interface.
+- [ ] Org-scoped keys, a per-org quota checked before write, and a TTL sweep that deletes blobs whose execution has passed the AF-M8-06 retention window.
+- [ ] `FILE_DOWNLOAD` (URL → `FileRef`, egress-guarded, size-capped) and `FILE_UPLOAD` helpers available to executors; a node opts in by declaring it accepts/produces `FileRef`.
+- [ ] Reading a `FileRef` requires the same org as the run — a cross-tenant read is a test case, not a comment.
+- [ ] ADR written (see §5); `docs/architecture/data_model.md` updated.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-07 · Multimodal input for `AI_LLM` / `AI_EXTRACT` · 1.5d
+H7. Turn the declared `vision` capability into something a graph can use.
+
+**Depends on:** AF-M10-06
+**Acceptance**
+- [ ] Both nodes accept an `attachments` config: a template resolving to one or more `FileRef`s, passed to the provider as image/document parts via the existing `ai` SDK message shape.
+- [ ] A model without the `vision` capability fails **at validation time** with a message naming the model and the capability — not at run time, and never by silently dropping the attachment.
+- [ ] Attachment bytes are counted into the AF-M5 cost estimate; a test asserts a vision call's recorded cost exceeds the same prompt without the image.
+- [ ] PDF handling is explicit: providers that accept PDFs natively get the file; those that do not get page images or extracted text, and the choice is recorded in the trace so a user can see which path ran.
+- [ ] The AF-M5-07 response cache key includes the attachment `sha256` — two different invoices must not share a cache entry.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-08 · `WAIT` node · 1d
+H8. #27 pauses until 15 minutes before a meeting.
+
+**Depends on:** AF-M9-01
+**Acceptance**
+- [ ] Modes: `duration` (relative) and `until` (a template resolving to an ISO timestamp). Backed by Inngest `step.sleep`/`step.sleepUntil` — no polling loop.
+- [ ] A maximum wait is enforced and configurable per plan; exceeding it fails validation at save time, not mid-run.
+- [ ] An `until` in the past resolves immediately rather than erroring.
+- [ ] The waiting node shows as a distinct status in the trace and the run detail UI — a run parked for six days must not read as hung.
+- [ ] Cancellation (AF-M8-27) interrupts a sleeping run.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-09 · `APPROVAL` node — send and wait · 2d
+H8. #30 emails an approver and blocks on the answer. `src/features/approvals` has
+the dashboard and the `ApprovalRequest` model; this binds them to the graph.
+
+**Depends on:** AF-M10-08
+**Acceptance**
+- [ ] The node creates an `ApprovalRequest` row, sends the request over a configured channel (Gmail/SMTP now; Slack once AF-M10-17 lands), and waits on an Inngest event.
+- [ ] Two outputs, `approved` and `rejected`, resolved through the AF-M9-09 `resolveOutputs` contract; a timeout routes to `rejected` with a recorded `skipReason`.
+- [ ] Approval links carry a single-use, expiring, org-scoped token; replay of a used token is rejected and audited. A test covers replay.
+- [ ] The approver's decision, identity and timestamp land in `AuditLog`.
+- [ ] Existing dashboard approvals and graph approvals share one model and one list — not two parallel systems.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-10 · `FILTER` and `DEDUPE` nodes · 1d
+H15. Four automations mean "skip what we already handled".
+
+**Depends on:** AF-M10-05
+**Acceptance**
+- [ ] `FILTER`: evaluates a condition per item and passes through only matches, using the AF-M9-08 typed-value rules (a filter on `ok: true` must not compare the string `"true"`).
+- [ ] `DEDUPE`: suppresses items whose key was seen before, backed by the same `TriggerState` store, scoped to `(workflowId, nodeId)`; modes `forever` and `window(n)`.
+- [ ] Both are fan-out aware — inside an AF-M9-14 segment they filter the segment's items, and a fully-filtered branch ends the run cleanly rather than erroring.
+- [ ] Dedupe state is cleared when the node's key expression changes, so an edited workflow does not inherit stale keys.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-11 · `EXTRACT_DOCUMENT_TEXT` node · 0.5d
+The extractor already exists for the knowledge base; expose it to graphs.
+
+**Depends on:** AF-M10-06
+**Acceptance**
+- [ ] Node wraps `src/features/knowledge/lib/extractor.ts` — one implementation, not a copy — taking a `FileRef` and returning `{ text, pageCount, truncated }`.
+- [ ] PDF and DOCX supported; an unsupported MIME type fails with a message naming the type. #29's "DOCX marked supported but not wired" deviation must not be reproduced here.
+- [ ] Output is capped and the cap is reported via `truncated`, never silently applied.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-12 · `HTML_TO_PDF` node · 1d
+#28 renders an attorney-ready report.
+
+**Depends on:** AF-M10-06
+**Acceptance**
+- [ ] Takes templated HTML, returns a `FileRef`. Rendering runs with no network access and no JS execution from the input document — a test asserts an embedded `<script>` and a remote `<img>` neither execute nor fetch.
+- [ ] Page size, orientation and margins configurable; output size-capped.
+- [ ] Renderer choice and its footprint recorded in the task's DONE note — a headless browser is a deployment decision, not an implementation detail.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-13 · External vector store for `AI_RETRIEVE` (Pinecone) · 1.5d
+H12. #23 needs a caller-supplied index.
+
+**Depends on:** AF-M10-02
+**Acceptance**
+- [ ] A `VectorStore` interface with two implementations: the existing internal `KnowledgeChunk` search and Pinecone (upsert/query/delete by namespace).
+- [ ] `AI_RETRIEVE` gains a store selector; the internal store stays the default so no saved node changes behaviour.
+- [ ] Embedding dimension is validated against the index before the first write, with a clear error naming both numbers — #23's 768-dimension prerequisite is exactly the failure users hit.
+- [ ] Namespaces are org-scoped; a test asserts one org cannot query another's namespace.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-14 · `FORM_TRIGGER` — first-party hosted intake form · 1.5d
+H13. #6, #21, #31 and #33 start from a form submission.
+
+**Depends on:** AF-M10-06
+**Acceptance**
+- [ ] A published workflow exposes a form at a stable public path; fields are authored in the node config (text, email, select, file).
+- [ ] File fields produce `FileRef`s through the AF-M10-06 store, size- and type-capped.
+- [ ] Anti-abuse: per-form rate limit (reusing `src/lib/rate-limit`), a size cap, and an optional secret path segment. An unpublished or disabled workflow's form returns 404, not a 500.
+- [ ] Submission payload shape documented and mapped into the run context alongside the AF-M9-07 `webhook.*` mapping, so ported n8n form expressions resolve.
+- [ ] progress.md updated
+
+#### Phase B — service node families
+
+Each family shares one thin client built on the AF-M10-01 auth path. A family task is
+done when its nodes are registered, unit-tested against recorded fixtures, and
+documented in `docs/nodes/`.
+
+### ⬜ AF-M10-15 · Google Workspace family · 4d
+H10. Needed by 21 of 35 — the widest single dependency in the matrix.
+
+**Depends on:** AF-M10-03, AF-M10-05, AF-M10-06
+**Acceptance**
+- [ ] Sheets: `SHEETS_READ` (range → rows, with header mapping), `SHEETS_UPDATE` (write a specific row), `SHEETS_UPSERT` (match-on-column), `SHEETS_TRIGGER` (new row, via AF-M10-05). Existing `GOOGLE_SHEETS_APPEND` is left untouched.
+- [ ] Gmail: `GMAIL_SEND` (HTML + attachments from `FileRef`), `GMAIL_TRIGGER` (new unread, with the label/query filter #26 needs).
+- [ ] Drive: `DRIVE_TRIGGER` (new file in folder), `DRIVE_DOWNLOAD` → `FileRef`, `DRIVE_UPLOAD`, `DRIVE_MOVE` (#28/#29 move between intake/processing/approved folders).
+- [ ] Calendar: `CALENDAR_TRIGGER` (upcoming events window, with attendee emails).
+- [ ] Google API 429/403-quota responses map to a **retriable** error with backoff; auth failures map to `NonRetriableError`. A test covers both, because getting this backwards burns a user's quota on retry.
+- [ ] Pagination handled inside each node (`nextPageToken`), with a bounded page budget — no unbounded loop.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-16 · QuickBooks Online family · 3d
+10 of 35 — the largest single-service dependency.
+
+**Depends on:** AF-M10-04
+**Acceptance**
+- [ ] Nodes: `QBO_FIND_CUSTOMER`, `QBO_CREATE_CUSTOMER`, `QBO_CREATE_INVOICE`, `QBO_CREATE_ESTIMATE`, `QBO_CREATE_SALES_RECEIPT`, `QBO_CREATE_EXPENSE`, `QBO_GET` (by id/type), `QBO_GET_INVOICE_PDF` → `FileRef`, `QBO_ATTACH` (attach a `FileRef` to a record).
+- [ ] `QBO_WEBHOOK_TRIGGER` verifying Intuit's `intuit-signature` HMAC; an unverified payload is rejected and audited. Needed by #10, #12, #15.
+- [ ] Sandbox vs production base URL is a credential property, not a node config — the source templates' "sandbox values must be replaced" footgun must be impossible here.
+- [ ] `realmId` comes from the credential (AF-M10-04), never from node config.
+- [ ] Intuit's minor-version pinning and its "query" endpoint escaping are handled centrally; a test covers a customer name containing an apostrophe.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-17 · Slack Web API family (supersede webhook-only) · 1.5d
+H9. #26 creates channels; #27 DMs by email; #8 and #31 post to a chosen channel.
+
+**Depends on:** AF-M10-01
+**Acceptance**
+- [ ] `SLACK_POST` (bot token, `chat.postMessage`, Block Kit body), `SLACK_LIST_CHANNELS`, `SLACK_CREATE_CHANNEL`, `SLACK_INVITE`, `SLACK_DM_BY_EMAIL` (`users.lookupByEmail` → `chat.postMessage`).
+- [ ] The existing webhook-only `SLACK` node is deprecated per ADR-0011 (`replacedBy: "SLACK_POST"`) — kept registered and executable, dropped from the palette.
+- [ ] Required scopes are declared per node and surfaced in the config panel, so a missing `channels:manage` is a readable error rather than a Slack `missing_scope` code.
+- [ ] Slack's `ok: false` envelope (HTTP 200 with an error body) is treated as failure — a test asserts a `channel_not_found` response fails the node instead of succeeding with junk.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-18 · Dev-tools family: GitHub, Jira, Notion · 3d
+Needed by #18, #19, #20, #27, #31.
+
+**Depends on:** AF-M10-04
+**Acceptance**
+- [ ] GitHub: `GITHUB_TRIGGER` (push/PR webhook with HMAC-SHA256 signature verification), `GITHUB_CREATE_PR`, `GITHUB_LIST_COMMITS`, `GITHUB_SEARCH_PRS`.
+- [ ] Jira: `JIRA_CREATE_ISSUE`, `JIRA_TRANSITION` (by transition **name**, resolved per project — the source templates hardcode numeric status ids and break on any other project), `JIRA_SEARCH` (JQL), `JIRA_ADD_ATTACHMENT`.
+- [ ] Notion: `NOTION_CREATE_PAGE`, `NOTION_QUERY_DATABASE`.
+- [ ] Webhook signature verification is shared with the AF-M10-16 QBO verifier — one constant-time comparison, not three.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-19 · Data-acquisition family: Apify, Apollo, Google Search/Maps · 2.5d
+Needed by #2, #3, #5, #6, #7, #22.
+
+**Depends on:** AF-M10-02
+**Acceptance**
+- [ ] `APIFY_RUN` starts an actor and waits for the dataset, with a bounded wait and a run-timeout that surfaces as a clear error; `APIFY_GET_DATASET` fetches results with pagination. The five automations that use Apify all follow run-then-fetch, so the wait must be a first-class, cancellable step — not a sleep loop.
+- [ ] `APOLLO_ENRICH` (person/organization match), rate-limit aware.
+- [ ] `GOOGLE_SEARCH` (Custom Search JSON API, `cx` from the credential) and `GOOGLE_MAPS_SEARCH` (Places text search).
+- [ ] Per-run result caps and cost notes in the docs — these are metered APIs and an unbounded actor run is a bill, not a bug.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-20 · Commerce & list family: Airtable, Shopify, MailerLite, Stripe actions · 3d
+H11. Needed by #9, #16, #17, #24, #25, #33, #34.
+
+**Depends on:** AF-M10-04, AF-M10-05
+**Acceptance**
+- [ ] Airtable: `AIRTABLE_READ` (with filterByFormula), `AIRTABLE_UPDATE`, `AIRTABLE_TRIGGER` (new/changed record via AF-M10-05). Existing `AIRTABLE_CREATE_RECORD` untouched.
+- [ ] Shopify: `SHOPIFY_CREATE_ORDER` (line items, customer, shipping).
+- [ ] MailerLite: `MAILERLITE_FIND_SUBSCRIBER`, `MAILERLITE_CREATE_SUBSCRIBER` (with group assignment).
+- [ ] Stripe: `STRIPE_FIND_OR_CREATE_CUSTOMER`, `STRIPE_CREATE_PAYMENT_LINK`, `STRIPE_GET_CUSTOMER`. The existing `STRIPE_TRIGGER` is untouched.
+- [ ] Every create is idempotent where the API supports it (Stripe `Idempotency-Key`, Airtable typecast off) — a retried step must not create a second customer or a second order.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-21 · Messaging family: Telegram, WhatsApp (WAHA) · 2d
+Needed by #23 and #31.
+
+**Depends on:** AF-M10-02
+**Acceptance**
+- [ ] Telegram: `TELEGRAM_TRIGGER` (webhook with a secret path token), `TELEGRAM_SEND_MESSAGE`, `TELEGRAM_GET_FILE` → `FileRef` (#23 uploads a PDF).
+- [ ] WAHA: `WAHA_TRIGGER` (inbound message webhook), `WAHA_SEND_MESSAGE`, against a user-supplied base URL that is egress-guarded like any other.
+- [ ] Inbound webhook bodies are size-capped and validated before dispatch; an unverified Telegram update is dropped, not run.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-22 · Social publishing family: X, LinkedIn, YouTube, Upload-Post · 2.5d
+Needed by #32, #34, #35.
+
+**Depends on:** AF-M10-04, AF-M10-06
+**Acceptance**
+- [ ] `X_POST` (v2 `POST /2/tweets`, OAuth2 PKCE user context), `LINKEDIN_POST` (UGC post with image upload — a two-step register-then-upload dance), `YOUTUBE_UPLOAD` (resumable upload from a `FileRef`), `UPLOAD_POST_PUBLISH` (Instagram via Upload-Post.com).
+- [ ] Media upload paths stream from the blob store; a video is never buffered whole in memory. A test uploads a fixture larger than the per-node output cap.
+- [ ] Character/media limits validated before the call, with the platform limit named in the error.
+- [ ] Each node documents the account tier its API needs (X v2 write access is not on the free tier) so a user learns it from the config panel, not a 403.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-23 · Media generation family: OpenAI Images, Veo, Creatomate, Pollinations, OpenRouter · 2.5d
+Needed by #26, #33, #34, #35.
+
+**Depends on:** AF-M10-06, AF-M10-07
+**Acceptance**
+- [ ] `OPENAI_IMAGE` (DALL·E/gpt-image) → `FileRef`; `POLLINATIONS_IMAGE` → `FileRef`.
+- [ ] `VEO_GENERATE` (Vertex AI) and `CREATOMATE_RENDER`: both are long-running jobs — submit, then poll to completion as a bounded, cancellable step with a configurable ceiling, surfacing progress in the trace.
+- [ ] `OPENROUTER_CHAT` registered through the existing `AI_COMPATIBLE` path rather than as a new provider, since OpenRouter is OpenAI-compatible — reuse, don't duplicate (#26's Llama 3).
+- [ ] Generation cost is recorded through the AF-M5 cost pipeline; per-image and per-video pricing entries added to the model registry.
+- [ ] progress.md updated
+
+#### Phase C — the 35 templates
+
+Authored as `TemplateSpec` entries under `src/features/templates/catalog/`, gated by
+`harness.test.ts`. **A template is not done when it is authored — it is done when
+AF-M10-34 runs it green.** Each batch adds its templates *and* their fixture-server
+suites in the same task; splitting authoring from proving is how a catalogue fills up
+with graphs nobody has run.
+
+Every entry must also state, in its `description`, any deviation from the source
+document — the way AF-M9's W3 fallback was required to.
+
+### ⬜ AF-M10-24 · Templates: Sales & Marketing (#1–#7) · 2d
+**Depends on:** AF-M10-15, AF-M10-19
+**Acceptance**
+- [ ] Seven specs: `outreach-personalized-gmail`, `upwork-proposal-generator`, `lead-gen-apollo-gpt4`, `cold-outreach-gemini`, `linkedin-profile-research`, `lead-gen-google-search-maps`, `outreach-from-job-signals`.
+- [ ] Each carries the source doc's prerequisites in its `description`, including required sheet columns.
+- [ ] `harness.test.ts` passes for all seven (schema, ports, credentials, no dangling edges).
+- [ ] progress.md updated
+
+### ⬜ AF-M10-25 · Templates: Finance & Accounting (#8–#17) · 2.5d
+**Depends on:** AF-M10-16, AF-M10-20, AF-M10-15
+**Acceptance**
+- [ ] Ten specs covering AP invoice processing, expense sync, Slack invoice alerts, Stripe→QBO receipts, PDF archiving, sheet→QBO customer/receipt/estimate flows, invoice sync, full-cycle invoicing, and Airtable sales orders.
+- [ ] #8's confidence-threshold branch is a real `CONDITION` on the extraction confidence, with the low-confidence path writing an exceptions row and alerting Slack — not a comment saying it should.
+- [ ] No template contains a sandbox company id, item id or tax code; all such values are config the installer must supply, surfaced as pending setup.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-26 · Templates: Engineering & DevOps (#18–#20) · 1d
+**Depends on:** AF-M10-18, AF-M10-17
+**Acceptance**
+- [ ] Three specs; the multi-repo variant (#18) routes by repository through `SWITCH` rather than duplicating branches.
+- [ ] Jira transitions are by name (AF-M10-18), so an installed template works against a project whose status ids differ.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-27 · Templates: Data Extraction & AI (#21–#23) · 1d
+**Depends on:** AF-M10-14, AF-M10-11, AF-M10-13, AF-M10-21
+**Acceptance**
+- [ ] Three specs: fax/PDF extraction to Sheets, YC scraper, Telegram PDF RAG bot.
+- [ ] #23 ships as two linked workflows (ingest and ask) if a single graph cannot express both Telegram entry points — recorded as a deviation either way.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-28 · Templates: Subscribers & eCommerce (#24–#25) · 0.5d
+**Depends on:** AF-M10-20, AF-M10-10
+**Acceptance**
+- [ ] Two specs; #24's duplicate check uses `DEDUPE`, not a hand-rolled sheet lookup.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-29 · Templates: Communication & Productivity (#26–#27) · 1d
+**Depends on:** AF-M10-17, AF-M10-15, AF-M10-08, AF-M10-18
+**Acceptance**
+- [ ] Two specs; #26's "create the channel if absent" is a real `CONDITION` + `SLACK_CREATE_CHANNEL` branch.
+- [ ] #27 uses `WAIT` in `until` mode against the meeting start minus 15 minutes.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-30 · Templates: Legal & Contract (#28–#30) · 1d
+**Depends on:** AF-M10-15, AF-M10-11, AF-M10-12, AF-M10-09
+**Acceptance**
+- [ ] Three specs; each moves the source file between Drive folders so a re-poll cannot reprocess it.
+- [ ] #29's playbook lives in Sheets as the source describes, and DOCX extraction actually works (AF-M10-11) rather than being claimed.
+- [ ] #30's approval routing by contract value uses `SWITCH` on a typed numeric comparison (AF-M9-08), not a string compare.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-31 · Templates: Customer Support (#31) · 0.5d
+**Depends on:** AF-M10-14, AF-M10-21, AF-M10-18, AF-M10-17
+**Acceptance**
+- [ ] One spec with three trigger entry points normalized into a common ticket shape via `SET`/`CODE`.
+- [ ] The SLA-breach sweep ships as a second scheduled workflow in the same template family, since one workflow still allows one trigger (M9 G15).
+- [ ] progress.md updated
+
+### ⬜ AF-M10-32 · Templates: Content & Social Publishing (#32–#35) · 1.5d
+**Depends on:** AF-M10-22, AF-M10-23, AF-M10-10
+**Acceptance**
+- [ ] Four specs; #34's scene loop uses `SPLIT_OUT`/`AGGREGATE` (AF-M9-14) with an explicit scene cap.
+- [ ] Long-running renders (#33, #34) surface progress in the run detail view rather than appearing stalled.
+- [ ] progress.md updated
+
+#### Phase D — proving it
+
+### ⬜ AF-M10-33 · Fixture-server contract suites for every service node · 2.5d
+**Depends on:** Phase B
+**Acceptance**
+- [ ] One local fixture server (reached via the AF-M9-02 loopback allowance) serves recorded responses for every service in Phase B, including error shapes: 401, 403-quota, 429 with `Retry-After`, and the Slack `ok: false` envelope.
+- [ ] Every node has a contract test asserting request shape (method, path, headers, body) and response mapping. No test reaches the public internet.
+- [ ] Fixtures are recorded from real responses once and checked in with the recording date, so drift is visible.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-34 · All 35 execute green in CI · 2d
+The milestone's definition of done.
+
+**Depends on:** Phase C, AF-M10-33
+**Acceptance**
+- [ ] `tests/integration/automations/` drives each of the 35 catalogue graphs through `runGraph` against the fixture server, asserting terminal `SUCCESS` and the expected `NodeExecution` count, order and statuses.
+- [ ] Trigger payloads are injected through the `initialData` option that AF-M9-01 still owes (its first reopened acceptance box) — this task cannot close until that lands.
+- [ ] No network access, no credentials, no manual intervention; suite runs in the existing `integration` project.
+- [ ] A staging checklist records which of the 35 have additionally been run against real accounts, with dates — CI-green and provider-green are different claims and the docs must not blur them.
+- [ ] progress.md updated
+
+### ⬜ AF-M10-35 · Node brand logos · 0.5d
+H14. `public/logos/` cannot currently reach a node.
+
+**Depends on:** —
+**Acceptance**
+- [ ] `NodeDefinition` gains `logo?: string` (mirroring `CredentialTypeDef.logo`); the palette, canvas node and config panel render it with the lucide `icon` as fallback. A node with no logo is unchanged.
+- [ ] Existing marks wired up from `public/logos/`: Airtable, HubSpot, Slack, Stripe, GitHub, Jira, Notion, QuickBooks/Intuit, Shopify, WhatsApp, MailChimp, Google Sheets/Docs/Forms, Gmail (Email.png), OpenAI, Gemini, Anthropic, Discord.
+- [ ] **18 marks are missing and must be added:** Telegram, LinkedIn, X, Pinecone, Apify, Apollo.io, MailerLite, Creatomate, Pollinations.ai, YouTube, Instagram, OpenRouter, WAHA, Google Drive, Google Calendar, Google Maps, Veo, Upload-Post. SVG preferred; each usable on both light and dark canvas.
+- [ ] A test asserts every `logo` path in the node manifest and the credential registry resolves to a file that exists — a broken logo path must fail CI, not render an empty box.
+- [ ] progress.md updated
+
+---
+
+### 4. Sequencing and descope
+
+```
+Weeks 1-2   A-01, A-02, A-03, A-04, A-35        auth + credentials + logos
+Weeks 3-4   A-05, A-06                          polling + binaries (the two big ones)
+Week  5     A-07, A-08, A-10, A-11, A-12, A-13, A-14
+Weeks 6-8   B-15, B-16, B-17, B-18              the four families 30 of 35 depend on
+Weeks 9-10  B-19, B-20, B-21, B-22, B-23, A-09
+Weeks 11-12 C-24…C-32, D-33, D-34
+```
+
+**Descope order, first to go.** Cut whole automations, never a template's honesty:
+
+1. **#33, #34** (Veo, Creatomate) — the most infrastructure per automation, and both depend on long-poll job handling nothing else needs. Cutting them removes AF-M10-23's hardest half.
+2. **#23** (Telegram + Pinecone RAG) — the only automation needing an external vector store.
+3. **#31** (multichannel support) — needs four families at once and a second workflow for the SLA sweep.
+4. **#6** (Search + Maps) — two metered Google APIs used by one automation.
+5. **#35, #32** (LinkedIn, X) — the two hardest OAuth surfaces, one automation each.
+
+Cutting all five groups removes 8 of 35 and roughly 12d, leaving 27 automations that
+need only the Google, QuickBooks, Slack and dev-tools families.
+
+**Never descope AF-M10-01, AF-M10-02 or AF-M10-05** — the first two are prerequisites
+for every remaining automation, and without the third, 18 of them have no trigger.
+
+**A template with an unmet dependency is not shipped as a stub.** It stays out of the
+catalogue until it runs. A gallery entry that cannot execute is worse than a missing
+one, because the user finds out after installing it.
+
+---
+
+### 5. Decisions this milestone must record
+
+| ADR | Subject | Task |
+|---|---|---|
+| 0022 | Credentials on the generic HTTP node: any registered type, and why auth does not follow a cross-origin redirect | AF-M10-01 |
+| 0023 | One Google credential per service scope, not one per user | AF-M10-03 |
+| 0024 | Polling triggers: at-least-once with dedupe, cursor ownership, and no history replay on activation | AF-M10-05 |
+| 0025 | Binary payloads by reference (`FileRef`), never by value; blob lifetime tied to execution retention | AF-M10-06 |
+| — | ADR-0011 applied twice: `SLACK` → `SLACK_POST` (AF-M10-17), `google.oauth2` → scoped types (AF-M10-03) | — |
+
+---
+
+### 6. Verification recipe
+
+```bash
+npm run lint && npm run build
+npm test
+npm run test:db:up && npm run test:integration && npm run test:db:down
+npm run seed:templates -- --yes
+```
+
+`AF-M10-34` is the definition of done: **35 catalogue rows, 35 green runs, zero
+network access, zero credentials, zero manual steps.**
+
+---
+
+### 7. What this milestone deliberately does not do
+
+- **No arbitrary n8n JSON import.** M9 §0 already established that the source library's
+  topology is unrecoverable for 2,057 of 2,061 files. This milestone ports 35
+  *documented* automations by hand; it does not build an importer, and no task here
+  should be read as progress toward one.
+- **No workflow-to-workflow calls.** #31's SLA sweep is a second workflow because one
+  workflow still allows one trigger (M9 G15). A sub-workflow node is a Phase 2 epic.
+- **No per-provider retry tuning beyond AF-M9-06.** The per-node run policy shipped in
+  M9 is what these nodes use.
+
+---
+
+### 8. The one-day slice — what is actually reachable in a single session
+
+Recorded because the milestone was requested with a same-day deadline. 62 engineer-days
+does not compress into one; six automations do, and they are the right six because they
+are the ones whose only missing piece is authentication.
+
+**Ship in order:**
+
+1. **AF-M10-01** — credentials on `HTTP_REQUEST`. Roughly half a day, and it is the
+   difference between "no automation in the library is reachable" and "most are".
+2. **AF-M10-02** — the API-key credential types. Data entry against a registry that
+   already validates itself.
+3. **AF-M10-35** — `logo` on `NodeDefinition` plus the existing marks. Half an hour,
+   and it makes everything built afterwards look finished.
+4. **A first template batch** — the automations in §1 whose every non-Phase-A
+   dependency already exists: **#22** (YC scrape → Sheets append), **#4** and **#24**
+   once `SHEETS_READ` lands, **#11** and **#17** once QuickBooks does, **#32** once X
+   does.
+
+Realistically **#22 alone is end-to-end green today**; #4, #11, #17, #24 and #32 each
+need one Phase B family first. Anything beyond that is a template that has been
+authored, not an automation that works — and the difference is the whole point of
+AF-M10-34.
