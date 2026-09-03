@@ -2031,16 +2031,16 @@ page-break control are not honoured. Adequate for a generated report (#28's
 shape); not adequate for rendering an arbitrary web page. The node's
 description says so.
 
-### ⬜ AF-M10-13 · External vector store for `AI_RETRIEVE` (Pinecone) · 1.5d
+### ✅ AF-M10-13 · External vector store for `AI_RETRIEVE` (Pinecone) · 1.5d · **DONE 2026-09-03**
 H12. #23 needs a caller-supplied index.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] A `VectorStore` interface with two implementations: the existing internal `KnowledgeChunk` search and Pinecone (upsert/query/delete by namespace).
-- [ ] `AI_RETRIEVE` gains a store selector; the internal store stays the default so no saved node changes behaviour.
-- [ ] Embedding dimension is validated against the index before the first write, with a clear error naming both numbers — #23's 768-dimension prerequisite is exactly the failure users hit.
-- [ ] Namespaces are org-scoped; a test asserts one org cannot query another's namespace.
-- [ ] progress.md updated
+- [x] A `VectorStore` interface with two implementations: the existing internal `KnowledgeChunk` search and Pinecone (upsert/query/delete by namespace).
+- [x] `AI_RETRIEVE` gains a store selector; the internal store stays the default so no saved node changes behaviour.
+- [x] Embedding dimension is validated against the index before the first write, with a clear error naming both numbers — #23's 768-dimension prerequisite is exactly the failure users hit.
+- [x] Namespaces are org-scoped; a test asserts one org cannot query another's namespace.
+- [x] progress.md updated
 
 ### ⬜ AF-M10-14 · `FORM_TRIGGER` — first-party hosted intake form · 1.5d
 H13. #6, #21, #31 and #33 start from a form submission.
