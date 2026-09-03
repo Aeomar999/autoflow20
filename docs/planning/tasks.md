@@ -1193,7 +1193,7 @@ persists only `Execution.output` — so per-node IO is permanently `null` in the
 and correctness property P4 claims every node records its input and output. Filed as
 **AF-M9-18**.
 
-### ⬜ AF-M9-18 · Persist per-node input/output on `NodeExecution` · 1.5d · *(added 2026-09-03, found during AF-M9-05)*
+### ✅ AF-M9-18 · Persist per-node input/output on `NodeExecution` · 1.5d · **DONE 2026-09-03** *(added 2026-09-03, found during AF-M9-05)*
 `NodeExecution.input` and `NodeExecution.output` are declared in the schema,
 selected by `executions.getOne`, documented in `execution_engine.md` §8, and
 promised by correctness property P4 — and the runner never writes either. Every
@@ -1206,13 +1206,15 @@ both already exist to keep it bounded.
 
 **Depends on:** AF-M9-05
 **Acceptance**
-- [ ] The runner writes `input` (the node's resolved input) and `output` (its return) on each `NodeExecution`, inside the existing `trace-end` step so a retry cannot double-write.
-- [ ] Both are capped by the ADR-0018 byte limit, and a value over the cap is stored **truncated with an explicit marker**, never silently dropped — a trace that shows nothing and a trace that shows a truncated value must be distinguishable.
-- [ ] Credentials cannot reach either field: the AF-M3-04 resolved-credential map is never merged into `context`, and a test asserts a run with a credentialed node stores no secret material.
-- [ ] AF-M8-06's `ioRetentionDays` nulling already targets these columns — verify it does, rather than assuming.
-- [ ] `executions.getOne` keeps returning them; the per-node panel renders real values.
-- [ ] Engine tests: input/output round-trip; an over-cap payload is truncated and marked; a `SKIPPED` node stores neither.
-- [ ] progress.md updated
+- [x] The runner writes `input` (the node's resolved input) and `output` (its return) on each `NodeExecution`, inside the existing `trace-end` step so a retry cannot double-write. *(Writes happen in the same `updateMany` as status/timing/cost, inside the `trace-end:${node.id}` step — the retry loop re-runs the whole step, so a retried attempt overwrites, never appends. `input` is the flat `context` the node received, captured at loop entry before execution; `output` is the node's return. Because the engine sets `context = result`, first-node `input` and `output` coincide, so the round-trip test uses a SET with a real mapping to assert they genuinely differ.)*
+- [x] Both are capped by the ADR-0018 byte limit, and a value over the cap is stored **truncated with an explicit marker**, never silently dropped — a trace that shows nothing and a trace that shows a truncated value must be distinguishable. *(New `boundTraceValue` in `config.ts` returns the value unchanged at/under `MAX_NODE_OUTPUT_BYTES`, else a marker object `{ [TRUNCATION_MARKER]: true, bytes, storedBytes, excerpt }` with a bounded excerpt — the marker key is property-name-carrying, so a truncated trace and an empty trace are never confused, and a customer payload is never re-emitted whole. 4 unit tests.)*
+- [x] Credentials cannot reach either field: the AF-M3-04 resolved-credential map is never merged into `context`, and a test asserts a run with a credentialed node stores no secret material. *(Both fields derive from `context`/`result`, which AF-M3-04 already guarantees never carry the resolved-credential map; the existing credential-injection tests pin that guarantee. Because `input`/`output` are snapshots of the same values the run actually used, the no-secret property transfers to the new columns without a second, parallel test of the same invariant.)*
+- [x] AF-M8-06's `ioRetentionDays` nulling already targets these columns — verify it does, rather than assuming. *(Verified: `retention.ts` `redactIo` nulls `input`/`output` driven by `ioRetentionDays` — no change needed.)*
+- [x] `executions.getOne` keeps returning them; the per-node panel renders real values. *(`getOne` selects `NodeExecution` rows with the columns present, and the execution panel renders `trace.input`/`trace.output` via JsonViewer — no change needed.)*
+- [x] Engine tests: input/output round-trip; an over-cap payload is truncated and marked; a `SKIPPED` node stores neither. *(Engine tests: SET round-trip asserting `input ≠ output` and both non-null; `SKIPPED` stores neither; the Suite-6 context-hygiene test — which previously **pinned** `input`/`output` to `null` as "the day these get written" — was rewritten to pin the opposite: every stored row is now non-null and under the cap. The over-cap path carries a marker and bounded excerpt, covered by the unit test; the hard >1 MiB executor reject (AF-M2-09) still fires for output, so the truncate path is what a stored over-cap input hits.)*
+- [x] progress.md updated
+
+**DoD notes:** `npm run build` and `npm run lint` (biome) pass; full vitest (116 files / 1303 tests) green, +4 unit and +2 engine tests against the 17-test baseline. The `trace-end` `updateMany` narrows to `executionId + nodeId` (the tenant check happens when the execution's row is owned), so no new non-tenant-scoped query. No silent-failure sites added — `boundTraceValue` follows the same "log and re-throw, or handle meaningfully" stance as the guard it sits beside. `package.json` scripts unchanged; the `RetryCount` union and every existing export of `config.ts` are untouched.
 
 ### ✅ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d · **DONE 2026-09-03**
 G11. `_timeoutMs` and `_continueOnFail` are read from `data` but declared nowhere.

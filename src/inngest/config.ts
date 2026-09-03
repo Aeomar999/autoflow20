@@ -1,3 +1,5 @@
+import type { Prisma } from "@/generated/prisma/client";
+
 /** Inngest accepts an integer retry count between 0 and 20. */
 export type RetryCount =
   | 0
@@ -65,3 +67,43 @@ export const serializedBytes = (value: unknown): number =>
 /** Whether a serialized output size exceeds MAX_NODE_OUTPUT_BYTES. */
 export const nodeOutputIsOverLimit = (bytes: number): boolean =>
   bytes > MAX_NODE_OUTPUT_BYTES;
+
+/**
+ * Key marking a `NodeExecution.input`/`output` value that was stored truncated
+ * because it exceeded MAX_NODE_OUTPUT_BYTES (AF-M9-18).
+ *
+ * The marker is property-name-carrying so a stored value that signals truncation
+ * is distinguishable on sight from a value that simply holds no data — a
+ * truncated trace and an empty trace must never look the same, and the marker
+ * also bounds the excerpt so a customer payload is never re-emitted whole.
+ */
+export const TRUNCATION_MARKER = "__autoflow_truncated__";
+
+/**
+ * Bound a value before it is persisted as a `NodeExecution.input`/`output`
+ * payload.
+ *
+ * Values at or under MAX_NODE_OUTPUT_BYTES are returned unchanged. Values over
+ * the cap are replaced by a small explicit marker object carrying the original
+ * serialized size and a bounded excerpt — a truncated trace is never silently
+ * indistinguishable from a trace with nothing, and the stored row itself always
+ * fits the cap. Exposed for unit tests.
+ */
+export const boundTraceValue = (
+  value: unknown,
+  excerptBytes = 4_000,
+): Prisma.InputJsonValue => {
+  const serialized = JSON.stringify(value) ?? "null";
+  const bytes = Buffer.byteLength(serialized, "utf-8");
+  if (bytes <= MAX_NODE_OUTPUT_BYTES) {
+    // `value` came from a JSON-structured context/result, so it is already a
+    // valid InputJsonValue; the guard above attests it fits the cap.
+    return value as Prisma.InputJsonValue;
+  }
+  return {
+    [TRUNCATION_MARKER]: true,
+    bytes,
+    storedBytes: excerptBytes,
+    excerpt: serialized.slice(0, excerptBytes),
+  };
+};

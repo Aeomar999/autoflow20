@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  boundTraceValue,
   ENGINE_RETRIES,
   MAX_NODE_OUTPUT_BYTES,
   MAX_STACK_LENGTH,
   nodeOutputIsOverLimit,
   serializedBytes,
+  TRUNCATION_MARKER,
   truncateStack,
 } from "./config";
 
@@ -64,5 +66,40 @@ describe("node output size bound (AF-M2-09, ADR-0018)", () => {
     const output = "x".repeat(MAX_NODE_OUTPUT_BYTES + 1);
     expect(serializedBytes(output)).toBeGreaterThan(MAX_NODE_OUTPUT_BYTES);
     expect(nodeOutputIsOverLimit(serializedBytes(output))).toBe(true);
+  });
+});
+
+describe("boundTraceValue (AF-M9-18)", () => {
+  it("returns values at or under the cap unchanged", () => {
+    const value = { ok: true, detail: "x".repeat(MAX_NODE_OUTPUT_BYTES - 64) };
+    expect(boundTraceValue(value)).toBe(value);
+  });
+
+  it("replaces a value over the cap with an explicit marker, never silently dropping it", () => {
+    const value = "payload".repeat(MAX_NODE_OUTPUT_BYTES);
+    const result = boundTraceValue(value) as Record<string, unknown>;
+
+    // Property-name-carrying marker, distinguishable from an empty value.
+    expect(result[TRUNCATION_MARKER]).toBe(true);
+    expect(result.bytes).toBeGreaterThan(MAX_NODE_OUTPUT_BYTES);
+
+    // A bounded excerpt, not the whole payload re-emitted.
+    const excerpt = result.excerpt as string;
+    expect(excerpt).toBeTypeOf("string");
+    expect(excerpt.length).toBeLessThanOrEqual(4_000);
+    expect(excerpt.length).toBeLessThan(value.length);
+  });
+
+  it("sizes the excerpt independently of the cap", () => {
+    const value = "x".repeat(MAX_NODE_OUTPUT_BYTES + 1);
+    const result = boundTraceValue(value, 123) as Record<string, unknown>;
+    expect((result.excerpt as string).length).toBe(123);
+    expect(result.storedBytes).toBe(123);
+  });
+
+  it("never lets a stored row exceed the ADR-0018 cap", () => {
+    const value = "y".repeat(MAX_NODE_OUTPUT_BYTES * 2);
+    const stored = boundTraceValue(value) as Record<string, unknown>;
+    expect(serializedBytes(stored)).toBeLessThanOrEqual(MAX_NODE_OUTPUT_BYTES);
   });
 });

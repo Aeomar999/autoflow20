@@ -4,6 +4,7 @@ import {
   ExecutionStatus,
   NodeExecutionStatus,
 } from "@/generated/prisma/client";
+import { MAX_NODE_OUTPUT_BYTES, serializedBytes } from "@/inngest/config";
 import prisma from "@/lib/db";
 import { runGraph } from "./run-graph";
 
@@ -716,14 +717,18 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       // Absolute bound too, so the ratio cannot pass by both runs bloating.
       expect(sizeOf(longRun.output)).toBeLessThan(600);
 
-      // `NodeExecution.input`/`output` are columns the engine does not write
-      // today (only `Execution.output` is persisted) - see AF-M9-18. The
-      // hygiene assertions above therefore hold vacuously for those two
-      // fields; this pins that fact so the day they start being written, the
-      // scaffolding check above is already guarding them.
+      // `NodeExecution.input`/`output` now ARE written by the engine (AF-M9-18),
+      // so the hygiene assertions above at the per-node level are meaningful,
+      // not vacuous — every stored row must stay under the ADR-0018 byte cap.
       for (const ne of nodeExecutions) {
-        expect(ne.input).toBeNull();
-        expect(ne.output).toBeNull();
+        expect(ne.input).not.toBeNull();
+        expect(ne.output).not.toBeNull();
+        expect(serializedBytes(ne.input)).toBeLessThanOrEqual(
+          MAX_NODE_OUTPUT_BYTES,
+        );
+        expect(serializedBytes(ne.output)).toBeLessThanOrEqual(
+          MAX_NODE_OUTPUT_BYTES,
+        );
       }
     });
   });
@@ -871,6 +876,114 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       expect(nodeExecutions.find((n) => n.nodeName === "Legacy")?.status).toBe(
         NodeExecutionStatus.SUCCESS,
       );
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Suite 8 - Per-node input/output persistence (AF-M9-18)
+  // ------------------------------------------------------------------
+  describe("per-node input/output persistence (AF-M9-18)", () => {
+    it("records the node's resolved input and return as genuinely distinct payloads", async () => {
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "t-inout",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "s-inout",
+            name: "Set0",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            // A real template: input must NOT contain the field, output must.
+            data: {
+              mappings: [{ key: "field0", value: "value-0 {{$execution.id}}" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+        ],
+        edges: [{ source: "t-inout", target: "s-inout", sourceHandle: "main" }],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const set = nodeExecutions.find((n) => n.nodeName === "Set0");
+      expect(set?.status).toBe(NodeExecutionStatus.SUCCESS);
+
+      const input = set?.input as Record<string, unknown> | null;
+      const output = set?.output as Record<string, unknown> | null;
+      expect(input).not.toBeNull();
+      expect(output).not.toBeNull();
+
+      const resolved = output?.field0;
+      // `input` is the flat context the node RECEIVED (pre-execution) — it does
+      // not yet hold the field; `output` is the node's return with the field
+      // resolved. Both written, and they genuinely differ for the same node.
+      expect(input?.field0).toBeUndefined();
+      expect(typeof resolved).toBe("string");
+      expect(resolved).toMatch(/^value-0 /);
+      expect(resolved.length).toBeGreaterThan("value-0 ".length);
+    });
+
+    it("stores neither input nor output for a SKIPPED node", async () => {
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "t-sk",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "c-sk",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "a",
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "yes-sk",
+            name: "Yes",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+          {
+            id: "no-sk",
+            name: "No",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
+          },
+        ],
+        edges: [
+          { source: "t-sk", target: "c-sk", sourceHandle: "main" },
+          { source: "c-sk", target: "yes-sk", sourceHandle: "true" },
+          { source: "c-sk", target: "no-sk", sourceHandle: "false" },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const no = nodeExecutions.find((n) => n.nodeName === "No");
+      expect(no?.status).toBe(NodeExecutionStatus.SKIPPED);
+      // A skipped node never runs, so it has neither recordable input nor
+      // return — an empty trace must not be confused with a truncated one.
+      expect(no?.input).toBeNull();
+      expect(no?.output).toBeNull();
     });
   });
 });

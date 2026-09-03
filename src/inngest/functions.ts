@@ -32,6 +32,7 @@ import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
 import { inngest } from "./client";
 import {
+  boundTraceValue,
   ENGINE_RETRIES,
   MAX_NODE_OUTPUT_BYTES,
   nodeOutputIsOverLimit,
@@ -578,6 +579,10 @@ export async function executeWorkflowHandler({
     }
 
     const { execute, credentials } = getNodeRegistration(node.type);
+    // AF-M9-18: The node's input is the flat rolling context it received,
+    // captured BEFORE the executor runs (context is reassigned to `result`
+    // below). Persisted alongside `result` in `trace-end`.
+    const nodeInputValue = context;
     let startedAtMs = Date.now();
     // AF-M9-06: the attempt the node actually finished on. `trace-start` seeds
     // the row with the INNGEST function attempt, which is 1 for every node on a
@@ -735,6 +740,13 @@ export async function executeWorkflowHandler({
             costUsd: usage.costUsd,
             cacheHit: usage.cacheHit,
             model: usage.model ?? null,
+            // AF-M9-18: Persist the node's resolved input and its return.
+            // Bounded by ADR-0018: an over-cap value is stored truncated with an
+            // explicit marker, never silently dropped. Both derive from
+            // `context`/`result`, which AF-M3-04 guarantees never carry the
+            // resolved-credential map, so no secret material reaches the row.
+            input: boundTraceValue(nodeInputValue),
+            output: boundTraceValue(result),
           },
         });
       });
