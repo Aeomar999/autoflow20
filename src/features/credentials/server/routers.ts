@@ -201,15 +201,34 @@ export const credentialsRouter = createTRPCRouter({
             .refine((t) => t === undefined || credentialRegistry.has(t), {
               message: "Unknown credential type",
             }),
+          /**
+           * (AF-M10-01) Restrict to a set of types — what the node config
+           * panel sends for a `CredentialRequirement` that accepts more than
+           * one (`"google.sheets|google.oauth2"`). Absent means no restriction,
+           * which is also what the `"*"` wildcard resolves to.
+           */
+          types: z
+            .array(z.string())
+            .min(1)
+            .max(32)
+            .optional()
+            .refine(
+              (list) =>
+                list === undefined ||
+                list.every((t) => credentialRegistry.has(t)),
+              { message: "Unknown credential type" },
+            ),
         })
         .strip(),
     )
     .output(credentialListOutput)
     .query(async ({ ctx, input }) => {
-      const { page, pageSize, search, type } = input;
+      const { page, pageSize, search, type, types } = input;
       const where = {
         organizationId: ctx.org.id,
-        type,
+        // A single `type` still wins when both are sent; `types` is the
+        // multi-accept form (AF-M10-01) and collapses to a plain `in`.
+        ...(type ? { type } : types ? { type: { in: types } } : {}),
         name: {
           contains: search,
           mode: "insensitive" as const,

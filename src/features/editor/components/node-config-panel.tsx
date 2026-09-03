@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { CredentialField } from "@/features/editor/components/credential-field";
 import {
   type ConfigListColumn,
   type ResolvedConfigField,
@@ -173,19 +174,26 @@ function FieldEditor({
       );
     }
     case "credential":
-      return (
-        <div className="flex flex-col gap-1">
-          <input
-            id={inputId}
-            type="text"
-            disabled
-            className={baseFieldClass()}
-            placeholder={`Connect ${field.credential?.type ?? "credential"} in Credentials`}
-          />
-          <p className="text-xs text-muted-foreground">
-            Pick a connected credential in Credentials to configure this node.
-          </p>
-        </div>
+      // `field.credential` is set for every field resolved as kind
+      // "credential" (config-schema.ts pairs it with the definition's
+      // requirement), but the type is nullable, so fall back rather than
+      // render a picker that cannot know what it accepts.
+      return field.credential ? (
+        <CredentialField
+          requirement={field.credential}
+          inputId={inputId}
+          value={value}
+          onValueChange={onValueChange}
+          className={baseFieldClass()}
+        />
+      ) : (
+        <input
+          id={inputId}
+          type="text"
+          disabled
+          className={baseFieldClass()}
+          placeholder="No credential requirement declared for this field"
+        />
       );
     case "kv-list":
     case "keyValueList":

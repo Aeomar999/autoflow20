@@ -238,6 +238,7 @@ const buildRedirectRequest = (
   previous: Request,
   next: URL,
   status: number,
+  extraCredentialHeaders: readonly string[] = [],
 ): Request => {
   // Per the fetch spec: 303 always becomes GET, and 301/302 become GET when
   // the original was a POST. 307/308 preserve the method and body.
@@ -247,7 +248,7 @@ const buildRedirectRequest = (
 
   const headers = new Headers(previous.headers);
   if (new URL(previous.url).origin !== next.origin) {
-    for (const header of CREDENTIAL_HEADERS) {
+    for (const header of [...CREDENTIAL_HEADERS, ...extraCredentialHeaders]) {
       headers.delete(header);
     }
   }
@@ -285,9 +286,37 @@ const buildRedirectRequest = (
  * ky then keeps its own timeout, retry, and `throwHttpErrors` semantics, and
  * every hop is validated in one place instead of at each call site (ADR-0015).
  */
+export interface SafeFetchOptions {
+  /**
+   * Extra header names (lower-case) that carry credential material for this
+   * request and must be dropped on a cross-origin redirect hop (AF-M10-01).
+   *
+   * `CREDENTIAL_HEADERS` covers the three the fetch spec knows about.
+   * `HTTP_REQUEST` can authenticate with an arbitrary header name - an
+   * `X-API-Key` is exactly as sensitive as an `Authorization`, and nothing in
+   * the spec's list would stop it following a redirect to an attacker's host.
+   */
+  credentialHeaders?: readonly string[];
+}
+
+/**
+ * Build a `safeFetch` that also strips this request's own auth headers when a
+ * redirect leaves the origin. Pass the result to `ky` as its `fetch` option.
+ */
+export const createSafeFetch =
+  (options: SafeFetchOptions = {}) =>
+  (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+    guardedFetch(input, init, options.credentialHeaders ?? []);
+
 export const safeFetch = async (
   input: RequestInfo | URL,
   init?: RequestInit,
+): Promise<Response> => guardedFetch(input, init, []);
+
+const guardedFetch = async (
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  extraCredentialHeaders: readonly string[],
 ): Promise<Response> => {
   let request = new Request(input, init);
 
@@ -339,7 +368,12 @@ export const safeFetch = async (
 
     // Vetted at the top of the next iteration, which both re-runs the guard
     // and pins the connection to what it just approved.
-    request = buildRedirectRequest(request, next, response.status);
+    request = buildRedirectRequest(
+      request,
+      next,
+      response.status,
+      extraCredentialHeaders,
+    );
   }
 };
 

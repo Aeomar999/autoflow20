@@ -374,6 +374,7 @@ export function NodeSelector({
                             <NodeIcon
                               type={node.type}
                               iconName={node.icon}
+                              logo={node.logo}
                               label={node.label}
                               className="size-5"
                             />

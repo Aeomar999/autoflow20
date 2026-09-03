@@ -1855,7 +1855,7 @@ Verified against code on 2026-09-03. `Closed by` names the task below.
 
 #### Phase A — platform capabilities *(nothing in Phase B or C is authorable until these land)*
 
-### ⬜ AF-M10-01 · Credentials on `HTTP_REQUEST` · 1.5d
+### ✅ AF-M10-01 · Credentials on `HTTP_REQUEST` · 1.5d · **DONE 2026-09-03**
 H1. Give the generic node a credential binding so any REST API in the library is
 reachable without pasting a secret into a templated header. This is the milestone's
 keystone: it converts most of Phase B from bespoke integration work into
@@ -1863,49 +1863,49 @@ configuration, and it is the only Phase A task that unblocks work in parallel.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] `configSchema` gains `credentialId` + `authMode` (`none` | `bearer` | `header` | `basic` | `queryParam` | `oauth2`); `credentials: [{ key: "credentialId", type: "*", required: false }]` accepts **any** registered type, resolved through the existing AF-M3-04 injection path.
-- [ ] The executor reads only from `params.credentials` — never `data` — and applies auth per `authMode`; an OAuth2 credential sends `Authorization: Bearer <accessToken>` and honours the AF-M3 refresh path.
-- [ ] Secret material never reaches `NodeExecution.input/output`: a test asserts the persisted row for an authenticated request contains no substring of the secret, including in the echoed request headers.
-- [ ] A credential-typed node still validates when unbound (`authMode: "none"`), so existing saved `HTTP_REQUEST` nodes load unchanged — no migration.
-- [ ] Egress guard, timeout, retry policy (AF-M9-06) and the ADR-0018 byte cap all continue to apply; a redirect hop re-vets *and* re-attaches auth only for the same origin (an auth header must not follow a cross-origin redirect).
-- [ ] `docs/nodes/http-request.md` written, covering the cross-origin-redirect rule.
-- [ ] progress.md updated
+- [x] `configSchema` gains `credentialId` + `authMode` (`none` | `bearer` | `header` | `basic` | `queryParam` | `oauth2`); `credentials: [{ key: "credentialId", type: "*", required: false }]` accepts **any** registered type, resolved through the existing AF-M3-04 injection path.
+- [x] The executor reads only from `params.credentials` — never `data` — and applies auth per `authMode`; an OAuth2 credential sends `Authorization: Bearer <accessToken>` and honours the AF-M3 refresh path.
+- [x] Secret material never reaches `NodeExecution.input/output`: a test asserts the persisted row for an authenticated request contains no substring of the secret, including in the echoed request headers.
+- [x] A credential-typed node still validates when unbound (`authMode: "none"`), so existing saved `HTTP_REQUEST` nodes load unchanged — no migration.
+- [x] Egress guard, timeout, retry policy (AF-M9-06) and the ADR-0018 byte cap all continue to apply; a redirect hop re-vets *and* re-attaches auth only for the same origin (an auth header must not follow a cross-origin redirect).
+- [x] `docs/nodes/http-request.md` written, covering the cross-origin-redirect rule.
+- [x] progress.md updated
 
-### ⬜ AF-M10-02 · Credential types for the library's services · 1.5d
+### ✅ AF-M10-02 · Credential types for the library's services · 1.5d · **DONE 2026-09-03**
 H2. Add the API-key/bearer credential definitions the 35 need. These are data
 entries against the existing registry, not new machinery — batch them.
 
 **Depends on:** —
 **Acceptance**
-- [ ] New types registered in `credential-types.ts`: `apify.apiKey`, `apollo.apiKey`, `mailerlite.apiKey`, `pinecone.apiKey` (+ `environment`, `indexHost`), `openrouter.apiKey`, `creatomate.apiKey`, `telegram.botToken`, `waha.apiKey` (+ `baseUrl`), `uploadPost.apiKey`, `googleCustomSearch.apiKey` (+ `cx`), `shopify.accessToken` (+ `shopDomain`), `jira.apiToken` (+ `email`, `siteUrl`).
-- [ ] Each carries a `logo` pointing at a real file under `public/logos/` (see AF-M10-35 for the 18 that must be added first).
-- [ ] Connection testers registered for every type whose provider exposes a cheap authenticated GET; types without one are explicitly `NOT_TESTABLE` rather than silently untested.
-- [ ] `credential-registry.test.ts` extended: every new type round-trips through `secretFromInput` → vault → `openSecret`, and `computePreview` masks every `secret: true` field.
-- [ ] progress.md updated
+- [x] New types registered in `credential-types.ts`: `apify.apiKey`, `apollo.apiKey`, `mailerlite.apiKey`, `pinecone.apiKey` (+ `environment`, `indexHost`), `openrouter.apiKey`, `creatomate.apiKey`, `telegram.botToken`, `waha.apiKey` (+ `baseUrl`), `uploadPost.apiKey`, `googleCustomSearch.apiKey` (+ `cx`), `shopify.accessToken` (+ `shopDomain`), `jira.apiToken` (+ `email`, `siteUrl`).
+- [x] Each carries a `logo` pointing at a real file under `public/logos/` (see AF-M10-35 for the 18 that must be added first).
+- [x] Connection testers registered for every type whose provider exposes a cheap authenticated GET; types without one are explicitly `NOT_TESTABLE` rather than silently untested.
+- [x] `credential-registry.test.ts` extended: every new type round-trips through `secretFromInput` → vault → `openSecret`, and `computePreview` masks every `secret: true` field.
+- [x] progress.md updated
 
-### ⬜ AF-M10-03 · Scoped Google credentials · 1d
+### ✅ AF-M10-03 · Scoped Google credentials · 1d · **DONE 2026-09-03**
 H3. Split the single `google.oauth2` type into per-service credential types so a
 workflow that appends to a sheet cannot also read the user's mail.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] Types `google.sheets`, `google.gmail`, `google.drive`, `google.calendar`, `google.docs` registered, each with its own `defaultScopes` (e.g. `gmail` → `gmail.readonly gmail.send`, `drive` → `drive.file drive.readonly`).
-- [ ] The existing `google.oauth2` type is **kept and marked deprecated**, not removed: saved `GOOGLE_SHEETS_APPEND` nodes reference it by id and must keep running (ADR-0011 retirement rule). A node's `credentials[].type` accepts either during the overlap.
-- [ ] Consent screen shows only the scopes for the type being connected; a test asserts the authorize URL's `scope` param per type.
-- [ ] `docs/architecture/security.md` §credentials records why one credential per Google service, not one per user.
-- [ ] progress.md updated
+- [x] Types `google.sheets`, `google.gmail`, `google.drive`, `google.calendar`, `google.docs` registered, each with its own `defaultScopes` (e.g. `gmail` → `gmail.readonly gmail.send`, `drive` → `drive.file drive.readonly`).
+- [x] The existing `google.oauth2` type is **kept and marked deprecated**, not removed: saved `GOOGLE_SHEETS_APPEND` nodes reference it by id and must keep running (ADR-0011 retirement rule). A node's `credentials[].type` accepts either during the overlap.
+- [x] Consent screen shows only the scopes for the type being connected; a test asserts the authorize URL's `scope` param per type.
+- [x] `docs/architecture/security.md` §credentials records why one credential per Google service, not one per user.
+- [x] progress.md updated
 
-### ⬜ AF-M10-04 · OAuth providers: Intuit, GitHub, Atlassian, Notion, Shopify, LinkedIn, X · 2d
+### ✅ AF-M10-04 · OAuth providers: Intuit, GitHub, Atlassian, Notion, Shopify, LinkedIn, X · 2d · **DONE 2026-09-03**
 H4. Seven new providers in `oauth-providers.ts`, plus the one shape the current
 callback cannot express.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] Providers registered with authorize/token URLs, env-backed client id/secret getters, and default scopes; `.env.example` documents all fourteen new vars.
-- [ ] **Provider-extra capture:** the callback persists provider-specific identifiers returned alongside the token — Intuit's `realmId` (company id), Shopify's `shop`, X's `scope` — into the credential secret. Today `oauth-state.ts` has nowhere to put them; this is the schema change, not a config tweak.
-- [ ] Refresh handled per provider quirk: Intuit rotates the refresh token on every exchange (the old one dies — persist the new one in the same transaction or the connection is lost); X uses PKCE; Shopify tokens do not expire.
-- [ ] `oauth.test.ts` covers each provider's authorize-URL construction, the extras capture, and Intuit's rotating-refresh path.
-- [ ] progress.md updated
+- [x] Providers registered with authorize/token URLs, env-backed client id/secret getters, and default scopes; `.env.example` documents all fourteen new vars.
+- [x] **Provider-extra capture:** the callback persists provider-specific identifiers returned alongside the token — Intuit's `realmId` (company id), Shopify's `shop`, X's `scope` — into the credential secret. Today `oauth-state.ts` has nowhere to put them; this is the schema change, not a config tweak.
+- [x] Refresh handled per provider quirk: Intuit rotates the refresh token on every exchange (the old one dies — persist the new one in the same transaction or the connection is lost); X uses PKCE; Shopify tokens do not expire.
+- [x] `oauth.test.ts` covers each provider's authorize-URL construction, the extras capture, and Intuit's rotating-refresh path.
+- [x] progress.md updated
 
 ### ⬜ AF-M10-05 · Polling trigger framework + `TriggerState` · 3d
 H5. The largest single unlock in the milestone — 18 of 35 automations begin with
@@ -2232,16 +2232,16 @@ The milestone's definition of done.
 - [ ] A staging checklist records which of the 35 have additionally been run against real accounts, with dates — CI-green and provider-green are different claims and the docs must not blur them.
 - [ ] progress.md updated
 
-### ⬜ AF-M10-35 · Node brand logos · 0.5d
+### ✅ AF-M10-35 · Node brand logos · 0.5d · **DONE 2026-09-03**
 H14. `public/logos/` cannot currently reach a node.
 
 **Depends on:** —
 **Acceptance**
-- [ ] `NodeDefinition` gains `logo?: string` (mirroring `CredentialTypeDef.logo`); the palette, canvas node and config panel render it with the lucide `icon` as fallback. A node with no logo is unchanged.
-- [ ] Existing marks wired up from `public/logos/`: Airtable, HubSpot, Slack, Stripe, GitHub, Jira, Notion, QuickBooks/Intuit, Shopify, WhatsApp, MailChimp, Google Sheets/Docs/Forms, Gmail (Email.png), OpenAI, Gemini, Anthropic, Discord.
-- [ ] **18 marks are missing and must be added:** Telegram, LinkedIn, X, Pinecone, Apify, Apollo.io, MailerLite, Creatomate, Pollinations.ai, YouTube, Instagram, OpenRouter, WAHA, Google Drive, Google Calendar, Google Maps, Veo, Upload-Post. SVG preferred; each usable on both light and dark canvas.
-- [ ] A test asserts every `logo` path in the node manifest and the credential registry resolves to a file that exists — a broken logo path must fail CI, not render an empty box.
-- [ ] progress.md updated
+- [x] `NodeDefinition` gains `logo?: string` (mirroring `CredentialTypeDef.logo`); the palette, canvas node and config panel render it with the lucide `icon` as fallback. A node with no logo is unchanged.
+- [x] Existing marks wired up from `public/logos/`: Airtable, HubSpot, Slack, Stripe, GitHub, Jira, Notion, QuickBooks/Intuit, Shopify, WhatsApp, MailChimp, Google Sheets/Docs/Forms, Gmail (Email.png), OpenAI, Gemini, Anthropic, Discord.
+- [x] **18 marks are missing and must be added:** Telegram, LinkedIn, X, Pinecone, Apify, Apollo.io, MailerLite, Creatomate, Pollinations.ai, YouTube, Instagram, OpenRouter, WAHA, Google Drive, Google Calendar, Google Maps, Veo, Upload-Post. SVG preferred; each usable on both light and dark canvas.
+- [x] A test asserts every `logo` path in the node manifest and the credential registry resolves to a file that exists — a broken logo path must fail CI, not render an empty box.
+- [x] progress.md updated
 
 ---
 

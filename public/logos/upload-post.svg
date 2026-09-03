@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Upload-Post">
+  <rect width="24" height="24" rx="5" fill="#1D4ED8"/>
+  <g fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 16.4V6.9"/><path d="m8.2 10.7 3.8-3.8 3.8 3.8"/><path d="M5.9 17.6h12.2"/>
+  </g>
+</svg>

@@ -59,6 +59,16 @@ export interface NodeDefinition<TConfig = unknown> {
   description: string;
   /** lucide-react icon name (resolved by the palette/config panel). */
   icon: string;
+  /**
+   * (AF-M10-35) Path to a brand mark under `public/`, e.g.
+   * `/logos/telegram.svg`. Mirrors `CredentialTypeDef.logo`. The palette,
+   * canvas node and config panel render it in place of `icon`; `icon` stays
+   * required and is the fallback for a node with no mark of its own, so a
+   * broken or absent logo degrades to a glyph rather than an empty box.
+   *
+   * `registry.test.ts` asserts every path here resolves to a file on disk.
+   */
+  logo?: string;
   /** Palette search terms. */
   keywords?: string[];
   /** Zod schema — single source of truth for config. Drives form AND validation. */

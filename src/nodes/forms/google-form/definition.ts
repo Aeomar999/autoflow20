@@ -11,6 +11,7 @@ export const definition: NodeDefinition = {
   description:
     "Start the workflow when a Google Form submission arrives via its webhook URL.",
   icon: "ClipboardList",
+  logo: "/logos/googleform.svg",
   keywords: ["google", "form", "webhook", "survey", "response"],
   configSchema,
   defaults: {},

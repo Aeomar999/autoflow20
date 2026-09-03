@@ -100,6 +100,20 @@ Rules:
 
 `keyVersion` on every row enables rolling rotation: new writes use the current KEK; a background job re-wraps older rows; decrypt supports N-1 versions during the window.
 
+### OAuth scope granularity — one credential per service, not per user (AF-M10-03, ADR-0023)
+
+Until M10 there was a single `google.oauth2` credential type whose `defaultScopes` was `userinfo.email`. That is one connection standing for every Google API a workflow might ever call, and it forces a choice with no good answer: either the scope set stays tiny and Gmail, Drive, Calendar and Sheets *reads* are unreachable, or it is widened once — at which point **every** workflow in the org can read the connecting user's mail, because they all resolve the same credential row.
+
+There are now five scoped types — `google.sheets`, `google.gmail`, `google.drive`, `google.calendar`, `google.docs` — each with its own `defaultScopes`. A workflow that appends to a spreadsheet resolves a credential whose token was never granted Gmail access, so the blast radius of a compromised or misused workflow is the service it was built for.
+
+Three consequences worth stating:
+
+- **The consent screen is the enforcement point.** `buildAuthorizeUrl` puts exactly one service's scopes in the `scope` parameter, and `oauth.test.ts` asserts per type that no scoped credential drags in another service's scopes. A user connecting Sheets is never asked for mail.
+- **`google.oauth2` is deprecated, not deleted.** Saved nodes hold credentials by id; re-pointing them at a type the user has not connected would break running workflows to tidy a registry. A node's `credentials[].type` accepts `"google.sheets|google.oauth2"` during the overlap (ADR-0011's retirement rule, applied to credentials).
+- **Drive takes the full `drive` scope, deliberately.** `drive.file` only ever sees files this app created, which makes "watch the folder a user drops contracts into" and "move a processed file to /approved" impossible. The narrower scope would not be more secure, only non-functional — and the per-service split is what keeps that breadth out of a Sheets workflow.
+
+An OAuth credential is created **org-scoped**. Before AF-M10-03 the callback wrote `userId` and no `organizationId`, so the credential was invisible to every org-scoped read and unresolvable by the engine: connecting Google appeared to succeed and then nothing could use it. The active org is captured at connect time and carried in the signed state, which is also HMAC-verified in constant time and expires after 15 minutes.
+
 ---
 
 ## 4. Authentication and authorization
