@@ -24,6 +24,7 @@ import filesDownload from "./files/download";
 import filesExtractText from "./files/extract-text";
 import filesHtmlToPdf from "./files/html-to-pdf";
 import formsGoogleForm from "./forms/google-form";
+import formsHostedForm from "./forms/hosted-form";
 import googleSheetsAppend from "./google-sheets/append";
 import httpHttpRequest from "./http/request";
 import hubspotCreateContact from "./hubspot/create-contact";
@@ -182,6 +183,7 @@ export const nodeRegistry = createNodeRegistry(
     coreWait,
     coreRespondToWebhook,
     formsGoogleForm,
+    formsHostedForm,
     googleSheetsAppend,
     airtableCreateRecord,
     hubspotCreateContact,

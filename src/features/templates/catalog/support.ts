@@ -411,4 +411,129 @@ export const supportTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "intake-form-triage-and-route",
+    name: "Intake form, triaged and routed",
+    description:
+      "Publishes a hosted intake form, has a model classify each submission by urgency and topic, and routes it — urgent to Slack immediately, everything else to a digest channel. The form is public at a stable URL and needs no Google account, no Apps Script and no embed: authored fields become a real page. Attachments arrive as file references, so a 9 MB screenshot moves through the workflow without touching the run payload. Supply an AI credential and a Slack incoming-webhook URL; publish the workflow and the form goes live at its URL.",
+    category: "Support",
+    domain: "support",
+    tags: ["form", "intake", "triage", "routing", "slack", "support"],
+    featured: true,
+    graph: {
+      nodes: [
+        {
+          id: "intake",
+          type: "FORM_TRIGGER",
+          name: "Support request",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Contact support",
+            description:
+              "Tell us what went wrong. We reply to every request within one business day.",
+            submitLabel: "Send request",
+            successMessage:
+              "Thanks — we have your request and will be in touch shortly.",
+            fields: [
+              {
+                name: "email",
+                label: "Your email",
+                type: "email",
+                required: true,
+                placeholder: "you@company.com",
+              },
+              {
+                name: "topic",
+                label: "What is this about?",
+                type: "select",
+                required: true,
+                options: "Billing\nBug report\nAccount access\nSomething else",
+              },
+              {
+                name: "summary",
+                label: "What happened?",
+                type: "textarea",
+                required: true,
+                maxLength: 5000,
+                help: "Include what you expected and what you saw instead.",
+              },
+              {
+                name: "screenshot",
+                label: "Screenshot (optional)",
+                type: "file",
+                help: "PNG, JPEG or PDF, up to 10 MB.",
+              },
+            ],
+          },
+        },
+        {
+          id: "triage",
+          type: "AI_EXTRACT",
+          name: "Classify it",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "triage",
+            model: "openai:gpt-4o-mini",
+            fallbackModels: "anthropic:claude-3-5-haiku",
+            content:
+              "Topic: {{form.fields.topic}}\nFrom: {{form.fields.email}}\n\n{{form.fields.summary}}",
+            fields: [
+              {
+                name: "urgency",
+                type: "string",
+                description:
+                  "One of: urgent, normal. Urgent means the customer is blocked right now or money is at stake.",
+              },
+              {
+                name: "one_line",
+                type: "string",
+                description: "One sentence a support lead can triage from.",
+              },
+            ],
+          },
+        },
+        {
+          id: "is-urgent",
+          type: "CONDITION",
+          name: "Urgent?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{triage.urgency}}",
+            operator: "equals",
+            right: "urgent",
+          },
+        },
+        {
+          id: "page-oncall",
+          type: "SLACK",
+          name: "Page on-call",
+          position: { x: 840, y: -80 },
+          data: {
+            variableName: "paged",
+            webhookUrl: "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
+            content:
+              ":rotating_light: *Urgent support request* — {{triage.one_line}}\n*From:* {{form.fields.email}} · *Topic:* {{form.fields.topic}}",
+          },
+        },
+        {
+          id: "queue-it",
+          type: "SLACK",
+          name: "Add to the queue",
+          position: { x: 840, y: 80 },
+          data: {
+            variableName: "queued",
+            webhookUrl: "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
+            content:
+              "New request — {{triage.one_line}}\n*From:* {{form.fields.email}} · *Topic:* {{form.fields.topic}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "intake", target: "triage" },
+        { source: "triage", target: "is-urgent" },
+        { source: "is-urgent", sourceHandle: "true", target: "page-oncall" },
+        { source: "is-urgent", sourceHandle: "false", target: "queue-it" },
+      ],
+    },
+  },
 ];

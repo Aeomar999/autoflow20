@@ -23,6 +23,7 @@ import { definition as filesDownload } from "./files/download/definition";
 import { definition as filesExtractText } from "./files/extract-text/definition";
 import { definition as filesHtmlToPdf } from "./files/html-to-pdf/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
+import { definition as formsHostedForm } from "./forms/hosted-form/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
 import { definition as hubspotCreateContact } from "./hubspot/create-contact/definition";
@@ -57,6 +58,7 @@ export const nodeManifest: NodeDefinition[] = [
   coreWait,
   coreRespondToWebhook,
   formsGoogleForm,
+  formsHostedForm,
   googleSheetsAppend,
   airtableCreateRecord,
   hubspotCreateContact,

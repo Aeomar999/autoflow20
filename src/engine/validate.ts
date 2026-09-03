@@ -855,6 +855,12 @@ const ALWAYS_PRESENT_ROOTS: readonly string[] = [
  * Schedule, Google-Form and Stripe seed `schedule` / `googleForm` / `stripe`
  * respectively, matching what `cron.ts` and the google-form/stripe webhooks
  * place into context.
+ *
+ * AF-M10-14: `FORM_TRIGGER` seeds `form`, holding `{ nodeId, title,
+ * submittedAt, fields, files }` — deliberately nested under one root for the
+ * same reason `webhook` is, so a field named `title` cannot shadow the form's
+ * own metadata. AF-M10-05: a polling trigger seeds `trigger` alongside the
+ * item's own payload, which is spread flat because the shape is the provider's.
  */
 const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   WEBHOOK_TRIGGER: ["webhook"],
@@ -863,6 +869,7 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   SCHEDULE_TRIGGER: ["schedule"],
   GOOGLE_FORM_TRIGGER: ["googleForm"],
   STRIPE_TRIGGER: ["stripe"],
+  FORM_TRIGGER: ["form"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */

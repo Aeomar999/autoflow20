@@ -2042,16 +2042,16 @@ H12. #23 needs a caller-supplied index.
 - [x] Namespaces are org-scoped; a test asserts one org cannot query another's namespace.
 - [x] progress.md updated
 
-### ⬜ AF-M10-14 · `FORM_TRIGGER` — first-party hosted intake form · 1.5d
+### ✅ AF-M10-14 · `FORM_TRIGGER` — first-party hosted intake form · 1.5d · **DONE 2026-09-03**
 H13. #6, #21, #31 and #33 start from a form submission.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] A published workflow exposes a form at a stable public path; fields are authored in the node config (text, email, select, file).
-- [ ] File fields produce `FileRef`s through the AF-M10-06 store, size- and type-capped.
-- [ ] Anti-abuse: per-form rate limit (reusing `src/lib/rate-limit`), a size cap, and an optional secret path segment. An unpublished or disabled workflow's form returns 404, not a 500.
-- [ ] Submission payload shape documented and mapped into the run context alongside the AF-M9-07 `webhook.*` mapping, so ported n8n form expressions resolve.
-- [ ] progress.md updated
+- [x] A published workflow exposes a form at a stable public path; fields are authored in the node config (text, email, select, file).
+- [x] File fields produce `FileRef`s through the AF-M10-06 store, size- and type-capped.
+- [x] Anti-abuse: per-form rate limit (reusing `src/lib/rate-limit`), a size cap, and an optional secret path segment. An unpublished or disabled workflow's form returns 404, not a 500.
+- [x] Submission payload shape documented and mapped into the run context alongside the AF-M9-07 `webhook.*` mapping, so ported n8n form expressions resolve.
+- [x] progress.md updated
 
 #### Phase B — service node families
 
