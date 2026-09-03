@@ -11,9 +11,9 @@ import {
   LayoutTemplateIcon,
   LineChartIcon,
   LogOutIcon,
+  SettingsIcon,
   SparklesIcon,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -38,7 +38,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useOrganizations } from "@/features/organizations/hooks/use-organizations";
+import { WorkspaceSwitcher } from "@/features/organizations/components/workspace-switcher";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { authClient } from "@/lib/auth-client";
 import { polarProductSlug } from "@/lib/env";
@@ -75,6 +75,10 @@ export const NAV_GROUPS = [
       { title: "Knowledge Base", icon: BookOpenIcon, url: "/knowledge" },
     ],
   },
+  {
+    label: "Workspace",
+    items: [{ title: "Settings", icon: SettingsIcon, url: "/settings" }],
+  },
 ] as const;
 
 const initialsOf = (value: string) =>
@@ -84,49 +88,6 @@ const initialsOf = (value: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "A";
-
-/**
- * Workspace card. The small line names what the big line is, which is the only
- * arrangement that survives an org called "Billing" or "Ops".
- *
- * There is no switcher yet: the active organization is resolved server-side
- * from an `x-organization-id` header with an owner-membership fallback, and
- * nothing persists a choice, so a chevron here would open a menu that cannot
- * change anything.
- */
-const WorkspaceCard = () => {
-  const { data: organizations, isLoading } = useOrganizations();
-  const workspace = organizations?.[0];
-
-  return (
-    <Link
-      href="/"
-      prefetch
-      className={cn(
-        "flex items-center gap-2.5 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2 transition-colors hover:bg-sidebar-accent",
-        "group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0",
-      )}
-    >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/12 ring-1 ring-primary/25">
-        <Image
-          src="/logos/autoflow-327.svg"
-          alt=""
-          width={18}
-          height={18}
-          priority
-        />
-      </span>
-      <span className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
-        <span className="truncate text-[11px] leading-tight text-muted-foreground">
-          Workspace
-        </span>
-        <span className="truncate text-sm leading-tight font-semibold">
-          {isLoading ? "Loading" : (workspace?.name ?? "AutoFlow")}
-        </span>
-      </span>
-    </Link>
-  );
-};
 
 const AccountCard = () => {
   const router = useRouter();
@@ -221,7 +182,7 @@ export const AppSidebar = () => {
   return (
     <Sidebar collapsible="icon" className="border-hairline">
       <SidebarHeader className="border-b border-sidebar-border p-2">
-        <WorkspaceCard />
+        <WorkspaceSwitcher />
       </SidebarHeader>
 
       <SidebarContent className="gap-0">

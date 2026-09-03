@@ -2,6 +2,7 @@ import "server-only";
 
 import { Resend } from "resend";
 import { resendApiKey, resendFromEmail } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 /**
  * Transactional auth email (AF-M8-04) delivered via Resend.
@@ -182,4 +183,72 @@ export async function sendPasswordResetEmail(data: {
   url: string;
 }): Promise<void> {
   await sendAuthEmail(passwordResetEmail(data.user.email, data.url));
+}
+
+function invitationEmail(
+  to: string,
+  url: string,
+  organizationName: string,
+): AuthEmail {
+  const body: EmailBody = {
+    heading: `You're invited to ${organizationName}`,
+    lead: `You've been invited to join the ${organizationName} workspace on ${brand}. Accept the invitation to start collaborating on its workflows.`,
+    ctaUrl: url,
+    ctaLabel: "Accept invitation",
+    safetyLine:
+      "If you weren't expecting this, you can safely ignore this email. The invitation expires in seven days.",
+  };
+  return {
+    to,
+    subject: `You're invited to ${organizationName} on ${brand}`,
+    text: [
+      `You've been invited to join the ${organizationName} workspace on ${brand}.`,
+      "",
+      "Accept the invitation here:",
+      url,
+      "",
+      "If you weren't expecting this, you can safely ignore this email. The invitation expires in seven days.",
+    ].join("\n"),
+    html: wrapEmail(body),
+  };
+}
+
+/**
+ * Email a workspace invitation (AF-M6-04).
+ *
+ * **Best-effort, unlike the two auth emails above.** A password-reset email
+ * that cannot be sent is a dead end, so `sendAuthEmail` throws when Resend is
+ * unconfigured and the auth action fails loudly. An invitation is different:
+ * the `Invitation` row is the source of truth, and the admin is shown a
+ * copyable accept link in the UI regardless, so a missing email must not fail
+ * the whole `inviteMember` mutation. When Resend is unconfigured — the common
+ * case in dev — this returns `false` after logging, and the caller carries on.
+ * Returns whether the email was actually dispatched.
+ */
+export async function sendInvitationEmail(data: {
+  email: string;
+  url: string;
+  organizationName: string;
+}): Promise<boolean> {
+  if (!resendApiKey) {
+    logger.warn(
+      "Invitation email not sent: Resend is not configured. The invite still exists and its accept link is shown in the UI.",
+      { organizationName: data.organizationName },
+    );
+    return false;
+  }
+  try {
+    await sendAuthEmail(
+      invitationEmail(data.email, data.url, data.organizationName),
+    );
+    return true;
+  } catch (error) {
+    // The invite row already exists; a delivery failure is logged and the
+    // caller still returns the copyable link rather than rolling back.
+    logger.warn("Invitation email failed to send", {
+      organizationName: data.organizationName,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return false;
+  }
 }

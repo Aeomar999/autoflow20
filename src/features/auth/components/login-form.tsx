@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -33,8 +33,25 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+/**
+ * A post-login destination that cannot leave the app (AF-M6-09).
+ *
+ * The `redirect` param drives where the user lands after signing in — used by
+ * the accept-invite round trip. It must be a same-origin *relative* path: a
+ * value like `//evil.com` or `https://evil.com` is an open redirect, so
+ * anything not starting with a single `/` is rejected back to the default.
+ */
+function safeRedirect(target: string | null): string {
+  if (!target || !target.startsWith("/") || target.startsWith("//")) {
+    return "/";
+  }
+  return target;
+}
+
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const destination = safeRedirect(searchParams.get("redirect"));
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -51,7 +68,7 @@ export function LoginForm() {
       },
       {
         onSuccess: () => {
-          router.push("/");
+          router.push(destination);
         },
         onError: () => {
           toast.error("Something went wrong");
@@ -67,7 +84,7 @@ export function LoginForm() {
       },
       {
         onSuccess: () => {
-          router.push("/");
+          router.push(destination);
         },
         onError: () => {
           toast.error("Something went wrong");
@@ -81,11 +98,11 @@ export function LoginForm() {
       {
         email: values.email,
         password: values.password,
-        callbackURL: "/",
+        callbackURL: destination,
       },
       {
         onSuccess: () => {
-          router.push("/");
+          router.push(destination);
         },
         onError: (ctx) => {
           toast.error(ctx.error.message);

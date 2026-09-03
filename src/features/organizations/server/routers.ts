@@ -3,6 +3,8 @@ import { z } from "zod";
 import { PAGINATION } from "@/config/constants";
 import { logAuditEvent } from "@/lib/audit";
 import prisma from "@/lib/db";
+import { sendInvitationEmail } from "@/lib/email";
+import { publicAppUrl } from "@/lib/env";
 import type { Role } from "@/lib/rbac";
 import {
   createTRPCRouter,
@@ -251,7 +253,19 @@ export const organizationsRouter = createTRPCRouter({
         after: { email: input.email, role: input.role },
       });
 
-      return invitation;
+      // The accept link is the reliable channel: it works whether or not email
+      // delivery is configured, and the invite dialog shows it for the admin to
+      // copy. The email is best-effort on top (see `sendInvitationEmail`).
+      const acceptUrl = `${publicAppUrl}/accept-invite?token=${encodeURIComponent(
+        invitation.token,
+      )}`;
+      const emailed = await sendInvitationEmail({
+        email: input.email,
+        url: acceptUrl,
+        organizationName: ctx.org.name,
+      });
+
+      return { ...invitation, acceptUrl, emailed };
     }),
 
   updateMemberRole: orgAdminProcedure
@@ -487,4 +501,26 @@ export const organizationsRouter = createTRPCRouter({
       orderBy: { createdAt: "asc" },
     });
   }),
+
+  /**
+   * Which organization this request resolved to, and the caller's role in it
+   * (AF-M6-07).
+   *
+   * `list` returns every membership but cannot say which one is *active* —
+   * that is decided server-side by `resolveActiveOrg` from the
+   * `x-organization-id` header or the `autoflow_active_org` cookie, with a
+   * membership check and an owner fallback. The client needs the answer for
+   * two things it cannot compute: highlighting the current workspace in the
+   * switcher, and hiding admin-only surfaces from an EDITOR or VIEWER.
+   *
+   * Role-gating the UI is presentation, not enforcement — every mutation
+   * behind these screens is already an `orgAdminProcedure`, so hiding a
+   * button and removing a capability are independent.
+   */
+  getActive: orgViewerProcedure.query(({ ctx }) => ({
+    id: ctx.org.id,
+    name: ctx.org.name,
+    slug: ctx.org.slug,
+    role: ctx.org.role,
+  })),
 });

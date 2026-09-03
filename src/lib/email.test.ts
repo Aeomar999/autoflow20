@@ -108,4 +108,56 @@ describe("email", () => {
       }),
     ).rejects.toThrow("Failed to send");
   });
+
+  // AF-M6-04: unlike the auth emails, an invitation email is best-effort — the
+  // invite row and its accept link exist regardless, so a missing or failing
+  // Resend must not throw and take the whole `inviteMember` mutation down.
+  describe("sendInvitationEmail (best-effort)", () => {
+    it("returns false without sending when Resend is unconfigured", async () => {
+      const email = await loadEmail();
+      const emailed = await email.sendInvitationEmail({
+        email: "invitee@b.com",
+        url: "http://x/accept-invite?token=t",
+        organizationName: "Acme",
+      });
+      expect(emailed).toBe(false);
+      expect(sendMock).not.toHaveBeenCalled();
+    });
+
+    it("sends and returns true when configured", async () => {
+      process.env.RESEND_API_KEY = "re_test-key";
+      process.env.RESEND_FROM_EMAIL = "AutoFlow <noreply@autoflow.local>";
+      sendMock.mockResolvedValue({ error: null });
+      const email = await loadEmail();
+
+      const emailed = await email.sendInvitationEmail({
+        email: "invitee@b.com",
+        url: "http://x/accept-invite?token=t",
+        organizationName: "Acme",
+      });
+
+      expect(emailed).toBe(true);
+      expect(sendMock).toHaveBeenCalledTimes(1);
+      const message = sendMock.mock.calls[0][0];
+      expect(message.to).toBe("invitee@b.com");
+      expect(message.subject).toContain("Acme");
+      expect(message.html).toContain(
+        "http://x/accept-invite?token=t",
+      );
+    });
+
+    it("returns false rather than throwing when Resend errors", async () => {
+      process.env.RESEND_API_KEY = "re_test-key";
+      sendMock.mockResolvedValue({ error: { message: "rate limited" } });
+      const email = await loadEmail();
+
+      // The auth emails throw here; the invitation must not.
+      const emailed = await email.sendInvitationEmail({
+        email: "invitee@b.com",
+        url: "http://x/accept-invite?token=t",
+        organizationName: "Acme",
+      });
+      expect(emailed).toBe(false);
+    });
+  });
 });
