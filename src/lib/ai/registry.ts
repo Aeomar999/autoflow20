@@ -402,3 +402,64 @@ export function estimateRunCostUsd(modelId: string, usage: AiRunUsage): number {
     (Math.max(0, usage.outputTokens) / 1_000_000) * def.outputCostPer1M;
   return roundUsd(usd);
 }
+
+/** Splits "provider:model" into its legs; a bare token is just a provider. */
+export function splitModelId(raw: string | undefined): {
+  provider: string;
+  modelHint: string | undefined;
+} {
+  if (!raw || raw.length === 0) {
+    return { provider: "", modelHint: undefined };
+  }
+  const colon = raw.indexOf(":");
+  if (colon === -1) {
+    return { provider: raw.trim(), modelHint: undefined };
+  }
+  return {
+    provider: raw.slice(0, colon).trim(),
+    modelHint: raw.slice(colon + 1).trim() || undefined,
+  };
+}
+
+/**
+ * The model a `provider:model` candidate names, or undefined when it names
+ * nothing registered (AF-M10-07).
+ *
+ * Lives here rather than in `fallback.ts` because the save-time validator runs
+ * on the client too, and `fallback.ts` is server-only — it builds language
+ * models and reads credentials. Answering "can this model see?" needs neither.
+ */
+export function findModelForCandidate(
+  candidate: string,
+): AiModelDef | undefined {
+  const { provider, modelHint } = splitModelId(candidate);
+  const providerDef = aiProviderById.get(provider as AiProviderId);
+  if (!providerDef) {
+    return undefined;
+  }
+  try {
+    return resolveAiModel(providerDef.id, modelHint);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Rough input-token cost of an attachment (AF-M10-07).
+ *
+ * Lives beside the rest of the cost math, and in a client-safe module, because
+ * the canvas estimator needs it and cannot import the server-only attachment
+ * resolver.
+ *
+ * Providers price images by tile count, which depends on dimensions this code
+ * does not decode. Bytes are the one signal available before the call, and the
+ * ratio below is calibrated against OpenAI's published high-detail tiling for
+ * typical photographic PNG/JPEG. It is an estimate; the RECORDED cost still
+ * comes from the provider's own usage numbers.
+ */
+export const ATTACHMENT_TOKENS_PER_KB = 12;
+
+export function estimateAttachmentTokens(totalBytes: number): number {
+  if (totalBytes <= 0) return 0;
+  return Math.ceil((totalBytes / 1024) * ATTACHMENT_TOKENS_PER_KB);
+}

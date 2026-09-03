@@ -1937,17 +1937,17 @@ H6. 12 automations move a PDF, image or video between nodes. Passing bytes throu
 - [x] ADR written (see §5); `docs/architecture/data_model.md` updated.
 - [x] progress.md updated
 
-### ⬜ AF-M10-07 · Multimodal input for `AI_LLM` / `AI_EXTRACT` · 1.5d
+### ✅ AF-M10-07 · Multimodal input for `AI_LLM` / `AI_EXTRACT` · 1.5d · **DONE 2026-09-03**
 H7. Turn the declared `vision` capability into something a graph can use.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] Both nodes accept an `attachments` config: a template resolving to one or more `FileRef`s, passed to the provider as image/document parts via the existing `ai` SDK message shape.
-- [ ] A model without the `vision` capability fails **at validation time** with a message naming the model and the capability — not at run time, and never by silently dropping the attachment.
-- [ ] Attachment bytes are counted into the AF-M5 cost estimate; a test asserts a vision call's recorded cost exceeds the same prompt without the image.
-- [ ] PDF handling is explicit: providers that accept PDFs natively get the file; those that do not get page images or extracted text, and the choice is recorded in the trace so a user can see which path ran.
-- [ ] The AF-M5-07 response cache key includes the attachment `sha256` — two different invoices must not share a cache entry.
-- [ ] progress.md updated
+- [x] Both nodes accept an `attachments` config: a template resolving to one or more `FileRef`s, passed to the provider as image/document parts via the existing `ai` SDK message shape.
+- [x] A model without the `vision` capability fails **at validation time** with a message naming the model and the capability — not at run time, and never by silently dropping the attachment.
+- [x] Attachment bytes are counted into the AF-M5 cost estimate; a test asserts a vision call's recorded cost exceeds the same prompt without the image.
+- [x] PDF handling is explicit: providers that accept PDFs natively get the file; those that do not get page images or extracted text, and the choice is recorded in the trace so a user can see which path ran.
+- [x] The AF-M5-07 response cache key includes the attachment `sha256` — two different invoices must not share a cache entry.
+- [x] progress.md updated
 
 ### ✅ AF-M10-08 · `WAIT` node · 1d · **DONE 2026-09-03**
 H8. #27 pauses until 15 minutes before a meeting.

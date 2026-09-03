@@ -3,6 +3,7 @@ import type { NodeDefinition } from "@/nodes/types";
 import {
   cacheTtlSecondsSchema,
   credentialIdRef,
+  freeText,
   promptSchema,
   variableNameSchema,
 } from "../../shared/config-fields";
@@ -38,6 +39,18 @@ export const configSchema = z.object({
   anthropicCredentialId: credentialIdRef(),
   geminiCredentialId: credentialIdRef(),
   content: promptSchema(),
+  /**
+   * (AF-M10-07) Template resolving to one or more `FileRef`s — usually
+   * `{{{json download.file}}}`. Three braces, not two: two renders the
+   * reference as `[object Object]`.
+   *
+   * This is how #21 reads a faxed PDF and #8 reads an invoice image: the
+   * document IS the content, and `content` becomes the instruction rather
+   * than the payload. Every model in the chain must declare the `vision`
+   * capability, checked at SAVE time.
+   */
+  attachments: freeText(8192).optional(),
+
   // Either `fields` (schema-builder rows) or `jsonSchema` (a pasted JSON
   // schema) defines what the model returns. Both stay optional at the zod
   // layer so `defaults: {}` remains valid in the registry; execute() resolves
