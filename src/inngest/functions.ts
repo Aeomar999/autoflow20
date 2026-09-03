@@ -570,7 +570,7 @@ export async function executeWorkflowHandler({
       });
       markTakenEdges(
         node.id,
-        defaultOutputId(node.type),
+        defaultOutputId(node.type, node.data),
         adjacency,
         takenEdges,
       );

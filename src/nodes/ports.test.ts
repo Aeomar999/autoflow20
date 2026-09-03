@@ -40,14 +40,24 @@ describe("inputPorts / outputPorts", () => {
     expect(outputPorts("NOT_A_REAL_TYPE")).toEqual([DEFAULT_OUTPUT]);
   });
 
-  it("every manifest node declares at least one output", () => {
+  it("every manifest node declares ≥1 output OR a resolveOutputs fn", () => {
     // A node with no outputs is unreachable-through: the append affordance and
-    // defaultOutputId would both have nothing to attach to.
+    // defaultOutputId would both have nothing to attach to. AF-M9-09: config-
+    // dependent nodes (SWITCH) legitimately declare `outputs: []` and instead
+    // resolve their real ports through `resolveOutputs(config)` — those ports
+    // exist but are only known once config is present.
     for (const def of nodeManifest) {
       expect(
-        def.outputs.length,
-        `${def.type} declares no outputs`,
-      ).toBeGreaterThan(0);
+        def.outputs.length > 0 || typeof def.resolveOutputs === "function",
+        `${def.type} declares no output source`,
+      ).toBe(true);
+      if (def.resolveOutputs) {
+        // A resolveOutputs node must still resolve to a working default.
+        expect(
+          Array.isArray(def.resolveOutputs(def.defaults)),
+          `${def.type} resolveOutputs must return an array`,
+        ).toBe(true);
+      }
     }
   });
 
@@ -176,6 +186,32 @@ describe("resolveEdgePorts", () => {
     expect(
       resolveEdgePorts({ source: "ghost", target: "set" }, () => undefined),
     ).toEqual({ fromOutput: "main", toInput: "main" });
+  });
+});
+
+describe("config-dependent output ports (SWITCH, AF-M9-09)", () => {
+  const rules = [
+    { outputKey: "low", left: "{{x}}", operator: "lte", right: "10" },
+    { outputKey: "high", left: "{{x}}", operator: "gt", right: "10" },
+  ];
+
+  it("resolves ports from config through the shared path", () => {
+    expect(
+      outputPorts("SWITCH", { rules, fallback: "none" }).map((p) => p.id),
+    ).toEqual(["low", "high"]);
+  });
+
+  it("appends the extra port when fallback is 'extra'", () => {
+    expect(
+      outputPorts("SWITCH", { rules, fallback: "extra" }).map((p) => p.id),
+    ).toEqual(["low", "high", "extra"]);
+  });
+
+  it("resolves the default output from resolved ports", () => {
+    expect(defaultOutputId("SWITCH", { rules, fallback: "none" })).toBe("low");
+    expect(defaultOutputId("SWITCH", { rules: [], fallback: "none" })).toBe(
+      "main",
+    );
   });
 });
 

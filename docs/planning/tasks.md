@@ -1320,17 +1320,39 @@ catalogue, registry guards, template (63), and validate (41) all still green.
 
 #### Phase 3 — the missing nodes and the missing scheduler behaviour
 
-### ⬜ AF-M9-09 · `SWITCH` node with config-driven outputs · 2d
+### ✅ AF-M9-09 · `SWITCH` node with config-driven outputs · 2d — **DONE 2026-09-03**
 G2. Requires `NodeDefinition.outputs` to become derivable from config.
 
 **Depends on:** AF-M9-03
 **Acceptance**
-- [ ] `NodeDefinition` gains an optional `resolveOutputs(config): PortDef[]`; when absent the static `outputs` array is used. The editor, `validate()`, and the runner all resolve ports through one shared helper — no third code path.
-- [ ] `SWITCH` (`LOGIC`): ordered rules `[{ outputKey, left, operator, right }]`, max 10, plus `fallback: "none" | "extra"`. Emits `_outputPort = <outputKey>`; with `fallback: "none"` and no match it emits no port, so the whole downstream is `SKIPPED` and the run still ends `SUCCESS`.
-- [ ] Renaming an `outputKey` does **not** silently detach edges: `validate()` raises an error naming the orphaned edge.
-- [ ] Engine tests: each of three rules routes to exactly its own branch; `fallback: none` with no match ends `SUCCESS` with everything downstream `SKIPPED` under a readable `skipReason`.
-- [ ] `/docs/nodes/SWITCH` generated from the registry via the existing `generateStaticParams` path.
-- [ ] progress.md updated
+- [x] `NodeDefinition` gains an optional `resolveOutputs(config): PortDef[]`; when absent the static `outputs` array is used. The editor, `validate()`, and the runner all resolve ports through one shared helper — no third code path.
+- [x] `SWITCH` (`LOGIC`): ordered rules `[{ outputKey, left, operator, right }]`, max 10, plus `fallback: "none" | "extra"`. Emits `_outputPort = <outputKey>`; with `fallback: "none"` and no match it emits no port, so the whole downstream is `SKIPPED` and the run still ends `SUCCESS`.
+- [x] Renaming an `outputKey` does **not** silently detach edges: `validate()` raises an error naming the orphaned edge.
+- [x] Engine tests: each of three rules routes to exactly its own branch; `fallback: none` with no match ends `SUCCESS` with everything downstream `SKIPPED` under a readable `skipReason`.
+- [x] `/docs/nodes/SWITCH` generated from the registry via the existing `generateStaticParams` path.
+- [x] progress.md updated
+
+**Summary:** `resolveOutputs` added to `NodeDefinition` (optional) and routed through a
+**single** shared helper `outputPorts(type, config)` in `src/nodes/ports.ts` — the editor
+(handle rendering via `node-port-handles.tsx`/`base-execution-node`, `defaultOutputId`),
+the validator (`checkOrphanedEdges` in `validate.ts`) and the engine (edge matching /
+disabled pass-through) all resolve ports there, so there is no third code path. `SWITCH`
+implements it: ordered rules (max 10, first match wins) with `outputKey`/`left`/`operator`/
+`right`, `fallback` `"none" | "extra"`. No-match + `"none"` emits the reserved
+`UNMATCHED_OUTPUT_PORT` sentinel; `markTakenEdges` early-returns on it (marks no edges) so
+`computeSkippableNodes` marks the whole downstream `SKIPPED` with a readable
+`skipReason` and the run ends `SUCCESS`. Renaming an `outputKey` is caught by
+`checkOrphanedEdges`, which raises an error naming the orphaned edge and the now-stale port.
+Config panel is fully auto-generated (`rules` → fieldList, zero custom component);
+`/docs/nodes/SWITCH` ships via the existing `generateStaticParams` from the registry, with
+`node-reference.ts` now resolving outputs through the shared `outputPorts` helper so the
+documented ports cannot diverge. Tests: SWITCH `execute.test.ts` (8), `definition.test.ts`
+(10), `ports.test.ts` invariant, `trace.test.ts` sentinel + SWITCH reachability, and
+`validate.test.ts` orphaned-edge; a `deployment-env-router` gallery template demonstrates
+the node so the catalogue "exercises every node type the palette offers" invariant holds
+(the template harness' `checkGraphShape` now resolves a source node's ports via `outputPorts`
+instead of the static `outputs` array, and `EXPECTED_TEMPLATE_COUNT` moved 20→21);
+`npm run build`, `npm run lint`, and the full suite pass.
 
 ### ⬜ AF-M9-10 · `RESPOND_TO_WEBHOOK` node + real synchronous webhook responses · 2.5d
 G3. `?sync=true` returns a fixed envelope and 500 ms-polls for up to 20 s.

@@ -67,7 +67,23 @@ export interface NodeDefinition<TConfig = unknown> {
   defaults: TConfig;
   /** [] for triggers. */
   inputs: PortDef[];
+  /**
+   * Static output ports (AF-M9-09). `[]` for triggers.
+   *
+   * A node with config-dependent outputs (e.g. SWITCH, whose ports are its
+   * `rules[].outputKey`s, and fan-out nodes like SPLIT_OUT) MUST instead
+   * implement `resolveOutputs(config)`; when it is present the engine, editor
+   * and validator resolve ports through `resolveOutputs` and this static
+   * `outputs` array is ignored.
+   */
   outputs: PortDef[];
+  /**
+   * (AF-M9-09) Resolve this node's output ports from its config. Optional —
+   * when absent, call sites use the static `outputs` array. Must be
+   * deterministic and side-effect free so the editor can call it on every
+   * keystroke and the engine on every compile.
+   */
+  resolveOutputs?: (config: TConfig) => PortDef[];
   credentials?: CredentialRequirement[];
   /**
    * True when this type honours a `cacheTtlSeconds` config field against the

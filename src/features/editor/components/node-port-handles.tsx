@@ -16,10 +16,20 @@ import { handleOffset, inputPorts, outputPorts } from "@/nodes/ports";
  *
  * A single port stays visually centred and unlabelled — single-port nodes render
  * exactly as they did before. Labels appear only where there is a choice to make.
+ *
+ * (AF-M9-09) `data` (the node's config) is threaded into `outputPorts` so
+ * config-dependent nodes like SWITCH render exactly the ports their current
+ * rules define. Omit it to get static ports only.
  */
-export function NodePortHandles({ type }: { type: string }) {
+export function NodePortHandles({
+  type,
+  data,
+}: {
+  type: string;
+  data?: Record<string, unknown>;
+}) {
   const inputs = inputPorts(type);
-  const outputs = outputPorts(type);
+  const outputs = outputPorts(type, data);
 
   return (
     <>

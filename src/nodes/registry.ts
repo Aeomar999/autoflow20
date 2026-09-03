@@ -9,6 +9,7 @@ import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
 import coreScheduleTrigger from "./core/schedule-trigger";
 import coreSet from "./core/set";
+import coreSwitch from "./core/switch";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
 import emailSend from "./email/send";
@@ -162,6 +163,7 @@ export const nodeRegistry = createNodeRegistry(
     coreSet,
     coreCondition,
     coreMerge,
+    coreSwitch,
     formsGoogleForm,
     googleSheetsAppend,
     airtableCreateRecord,

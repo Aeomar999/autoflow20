@@ -42,10 +42,26 @@ export function inputPorts(type: string): PortDef[] {
   return def.inputs;
 }
 
-/** Declared output ports for `type`. See `inputPorts` for the fallback rule. */
-export function outputPorts(type: string): PortDef[] {
+/**
+ * Resolved output ports for `type` (AF-M9-09).
+ *
+ * This is the SINGLE shared resolution path for a node's output ports. A node
+ * with config-dependent output ports (SWITCH, SPLIT_OUT) implements
+ * `resolveOutputs(config)` on its definition; this helper routes through it
+ * whenever it is present, and falls back to the static `outputs` array for
+ * every other node. The editor (handle rendering), the validator (orphaned-edge
+ * checks) and the engine (edge matching / disabled pass-through) all call here,
+ * so a node's ports cannot drift between surfaces.
+ *
+ * `config` is typically the node's `data`. It is optional: static-`outputs`
+ * nodes never need it, and callers that have not yet loaded a node's data can
+ * pass `undefined` to get the static ports (or the defaults-derived empty set
+ * for a `resolveOutputs` node using its config defaults).
+ */
+export function outputPorts(type: string, config?: unknown): PortDef[] {
   const def = findManifestEntry(type);
   if (!def) return [DEFAULT_OUTPUT];
+  if (def.resolveOutputs) return def.resolveOutputs(config as never);
   return def.outputs;
 }
 
@@ -57,8 +73,8 @@ export function outputPorts(type: string): PortDef[] {
  * `true`/`false` and has no `main`, so appending from one must land on `true`
  * (the affirmative branch) rather than inventing a port that does not exist.
  */
-export function defaultOutputId(type: string): string {
-  return outputPorts(type)[0]?.id ?? DEFAULT_OUTPUT.id;
+export function defaultOutputId(type: string, config?: unknown): string {
+  return outputPorts(type, config)[0]?.id ?? DEFAULT_OUTPUT.id;
 }
 
 /** The port an incoming edge attaches to by default. See `defaultOutputId`. */

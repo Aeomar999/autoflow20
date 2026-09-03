@@ -6,6 +6,7 @@ import {
   computeSkippableNodes,
   extractStepUsage,
   markTakenEdges,
+  UNMATCHED_OUTPUT_PORT,
 } from "./trace";
 
 describe("buildSkippedTraces", () => {
@@ -177,6 +178,101 @@ describe("buildSkippableNodes", () => {
   });
 });
 
+describe("SWITCH reachability (AF-M9-09)", () => {
+  // Trigger → SWITCH with three branches (low / mid / high), plus a chain under low.
+  const triggerId = "trigger";
+  const switchId = "switch";
+  const nodeIds = ["trigger", "switch", "low", "low2", "mid", "high"];
+  const edges = [
+    {
+      fromNodeId: triggerId,
+      toNodeId: switchId,
+      fromOutput: "main",
+      toInput: "main",
+    },
+    {
+      fromNodeId: switchId,
+      toNodeId: "low",
+      fromOutput: "low",
+      toInput: "main",
+    },
+    {
+      fromNodeId: "low",
+      toNodeId: "low2",
+      fromOutput: "main",
+      toInput: "main",
+    },
+    {
+      fromNodeId: switchId,
+      toNodeId: "mid",
+      fromOutput: "mid",
+      toInput: "main",
+    },
+    {
+      fromNodeId: switchId,
+      toNodeId: "high",
+      fromOutput: "high",
+      toInput: "main",
+    },
+  ];
+  const { adjacency } = buildGraphMaps(edges);
+
+  it("each rule routes only to its own branch", () => {
+    for (const port of ["low", "mid", "high"]) {
+      const taken = new Set([
+        `switch:${port}`,
+        // low runs once matched, marking its outgoing edge so low2 is reachable.
+        ...(port === "low" ? ["low:main"] : []),
+      ]);
+      const skippable = computeSkippableNodes(
+        [triggerId, switchId],
+        taken,
+        adjacency,
+        nodeIds,
+      );
+      // The taken branch and everything under it stay reachable.
+      expect(skippable.has(port), `branch ${port} should be reachable`).toBe(
+        false,
+      );
+      if (port === "low") {
+        expect(
+          skippable.has("low2"),
+          "low2 under low should be reachable",
+        ).toBe(false);
+      }
+      // Every OTHER branch is unreachable.
+      for (const other of ["low", "mid", "high"]) {
+        if (other !== port) {
+          expect(
+            skippable.has(other),
+            `branch ${other} should be SKIPPED when ${port} taken`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("fallback 'none' no-match leaves every downstream branch SKIPPED", () => {
+    // A no-match SWITCH returns UNMATCHED_OUTPUT_PORT; markTakenEdges marks no
+    // edges, so nothing downstream of the switch is reachable.
+    const taken = new Set<string>();
+    markTakenEdges(switchId, UNMATCHED_OUTPUT_PORT, adjacency, taken);
+    expect(taken.size).toBe(0);
+
+    const skippable = computeSkippableNodes(
+      [triggerId, switchId],
+      taken,
+      adjacency,
+      nodeIds,
+    );
+    expect(skippable.has("low")).toBe(true);
+    expect(skippable.has("low2")).toBe(true);
+    expect(skippable.has("mid")).toBe(true);
+    expect(skippable.has("high")).toBe(true);
+    expect(skippable.has("switch")).toBe(false);
+  });
+});
+
 describe("markTakenEdges", () => {
   const edges = [
     { fromNodeId: "cond", toNodeId: "A", fromOutput: "true", toInput: "main" },
@@ -205,6 +301,14 @@ describe("markTakenEdges", () => {
     const taken = new Set<string>();
     markTakenEdges("leaf", undefined, new Map(), taken);
     expect(taken.size).toBe(0);
+  });
+
+  it("marks NO edges for the no-match sentinel (AF-M9-09)", () => {
+    const taken = new Set<string>();
+    markTakenEdges("cond", UNMATCHED_OUTPUT_PORT, adjacency, taken);
+    expect(taken.size).toBe(0);
+    expect(taken.has("cond:true")).toBe(false);
+    expect(taken.has("cond:false")).toBe(false);
   });
 });
 

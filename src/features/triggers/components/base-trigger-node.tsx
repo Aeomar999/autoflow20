@@ -33,6 +33,7 @@ export const BaseTriggerNode = memo(
   ({
     id,
     type,
+    data,
     icon: Icon,
     name,
     description,
@@ -92,10 +93,10 @@ export const BaseTriggerNode = memo(
                 <Icon className="size-4 text-muted-foreground" />
               )}
               {children}
-              <NodePortHandles type={type} />
+              <NodePortHandles type={type} data={data} />
               {/* See BaseExecutionNode: the append affordance only makes sense
                   where "next" is unambiguous. */}
-              {outputPorts(type).length === 1 && (
+              {outputPorts(type, data).length === 1 && (
                 <button
                   type="button"
                   onClick={handleAppend}
