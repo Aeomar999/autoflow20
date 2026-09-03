@@ -124,6 +124,8 @@ export async function runGraph(
     ...resolveEdgePorts(e, typeOfNode),
   }));
 
+  // `TemplateNode` already carries `disabled`; it must reach the engine's
+  // snapshot path or AF-M9-04 cannot be tested through this harness.
   const graphSnapshot = { nodes: spec.nodes, connections };
 
   const event = {

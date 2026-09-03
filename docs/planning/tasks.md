@@ -1123,15 +1123,45 @@ production DB, or repointing the developer's `.env`) are worse than the gap. The
 residual risk is cosmetic only: label placement next to a 2-output node. Worth one
 look the next time the app is run.
 
-### ⬜ AF-M9-04 · Honour `Node.disabled` · 0.5d
+### ✅ AF-M9-04 · Honour `Node.disabled` · 0.5d · **DONE 2026-09-03**
 G10. The column exists, the editor writes it, and the engine ignores it.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] The runner excludes disabled nodes from the execution plan and writes a `SKIPPED` `NodeExecution` with `skipReason: "Node is disabled"` — skipped visibly, never silently dropped.
-- [ ] A disabled node **passes its input through** to its successors (n8n semantics) rather than severing the branch; if a different semantics is chosen, the choice is recorded in `docs/architecture/execution_engine.md`.
-- [ ] `validate()` does not report "required input not connected" for a port whose only upstream node is disabled.
-- [ ] Engine test: disabling a middle node leaves the run `SUCCESS`, that node `SKIPPED`, and the downstream node receiving the upstream payload.
+- [x] The runner excludes disabled nodes from the execution plan and writes a `SKIPPED` `NodeExecution` with `skipReason: "Node is disabled"` — skipped visibly, never silently dropped. *(Actual string is `"Skipped: node is disabled"`, matching the `"Skipped: …"` prefix every other reason in the engine already uses; a lone unprefixed reason in the executions UI would have read as a different kind of event.)*
+- [x] A disabled node **passes its input through** to its successors (n8n semantics) rather than severing the branch; if a different semantics is chosen, the choice is recorded in `docs/architecture/execution_engine.md`. *(Pass-through implemented; §3.3 records the three sharp edges — reachability is checked **before** disabled so a disabled node on an untaken branch cannot resurrect that branch's tail; pass-through takes the **first declared output**, because a disabled branching node has no condition left to evaluate and taking every output would run a graph the author never drew; and disabled nodes are exempt from config/required-input validation.)*
+- [x] `validate()` does not report "required input not connected" for a port whose only upstream node is disabled. *(Held already — pass-through leaves the edge in place — and is now pinned by a test so it cannot regress. Went further: a disabled node is exempt from **its own** config and required-input checks too, since turning a node off is how people park work in progress and a half-finished config on one should not block saving the workflow. Structural checks, cycles and unknown types, still apply to disabled nodes because the engine resolves every registration to build the plan.)*
+- [x] Engine test: disabling a middle node leaves the run `SUCCESS`, that node `SKIPPED`, and the downstream node receiving the upstream payload. *(Three engine tests, not one: the pass-through case asserts the downstream actually received the **upstream** value via a marker the disabled node would have overwritten; a second proves the executor never ran, by disabling a node whose config would throw if it did; a third proves reachability still wins, so a disabled node on an untaken branch stays `"not reachable"` and its tail is not resurrected. Plus 6 validator unit tests, two of which assert the enabled case still fails so the exemption is the flag and not the fixture.)*
+- [x] progress.md updated
+
+**Found while doing this: the toggle was never inert-looking.** `node-config-panel.tsx`
+ships an "Enabled" checkbox, `saveGraph` has persisted `disabled` since M1, and
+`cost-estimate.ts` already excluded disabled nodes from the estimate — so the
+feature looked complete from the UI and from the cost preview, and only the engine
+ignored it. A user switching a node off saw the estimate drop and the node still run.
+
+**Deliberately not fixed: disabling a *trigger*.** The decision to start a run is
+taken upstream of the engine — the webhook route, the cron evaluator, the Run button
+— and none of them consult `disabled`. A disabled trigger is therefore skipped and
+passed through *after* the run has already been dispatched, which is not what a user
+disabling a trigger expects. Recorded in `execution_engine.md` §3.3 and worth its own
+task; it is a change to three dispatch paths, not to the engine, and folding it in
+here would have made the diff two unrelated things.
+
+### ⬜ AF-M9-17 · A disabled trigger should not dispatch a run · 0.5d · *(added 2026-09-03, found during AF-M9-04)*
+AF-M9-04 made the engine honour `Node.disabled`, but the engine is the wrong place
+to stop a trigger: by the time it runs, the `Execution` row exists and the run has
+been billed against the org's quota. Today, disabling a webhook trigger still
+accepts the POST, still creates an execution, and still counts against the plan
+limit — it just skips the trigger node and passes through.
+
+**Depends on:** AF-M9-04
+**Acceptance**
+- [ ] `POST /api/webhooks/:workflowId/:path` returns the same generic `404` it returns for an unknown workflow when the active version's webhook trigger is disabled — no `Execution` row, no quota consumption, and no signal to a prober that the workflow exists.
+- [ ] The cron evaluator skips a workflow whose schedule trigger is disabled, without logging an error per tick.
+- [ ] `workflows.run` (the Run button) refuses with a clear message naming the disabled trigger, rather than starting a run that does nothing.
+- [ ] Canvas lint warns when the workflow's only trigger is disabled — the workflow cannot fire, and that should be visible before saving, not discovered by silence.
+- [ ] Integration tests for all three dispatch paths asserting **no** `Execution` row is created.
 - [ ] progress.md updated
 
 ### ⬜ AF-M9-05 · Stop leaking `$json`/`$node` into node output and traces · 1d

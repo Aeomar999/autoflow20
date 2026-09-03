@@ -102,6 +102,12 @@ Key points:
 - **`step.run` per node** gives P2 for free: Inngest memoizes completed steps, so a resumed run replays cached results rather than re-invoking side effects.
 - **Reachability drives skipping** (P1). When `core.condition` emits on `true`, the `false` edge is marked untaken; any node whose only path to the trigger runs through untaken edges is `SKIPPED` with the reason `"branch not taken at node 'Is Premium?' (false)"`.
 - **Inputs are gathered, not pushed.** A node with multiple incoming connections receives the concatenation in deterministic edge order; `core.merge` exists for explicit semantics.
+- **Disabled nodes pass through** (AF-M9-04). A node with `Node.disabled = true` is never executed. It is traced `SKIPPED` with reason `"Skipped: node is disabled"` — visibly, per P1, because a node missing from the trace is indistinguishable from one that never existed — and its input passes to its successors rather than severing the branch, matching n8n. Three consequences worth stating:
+  - **Reachability wins.** The disabled check runs *after* the branch-taken check, so a disabled node on an untaken branch is skipped as unreachable and its edges are **not** marked taken. Marking them would resurrect the tail of a branch the run never entered.
+  - **Pass-through takes the first declared output.** For a disabled branching node there is no condition left to evaluate; taking every output would execute a graph the author never drew.
+  - **A disabled node is exempt from config and required-input validation.** It cannot fail a run it does not take part in, and turning a node off is the normal way to park work in progress. Structural checks (cycles, unknown types) still apply, because the engine resolves every node's registration to build the plan.
+
+  **Not covered: disabling a trigger.** The decision to start a run is taken upstream of the engine — in the webhook route, the cron evaluator, or the Run button — and none of them consult `disabled`. A disabled trigger is therefore skipped and passes through *once the run has already been dispatched*, which is not what a user disabling a trigger expects. Tracked as a follow-up, not fixed in AF-M9-04.
 
 ### 3.4 Finalize
 

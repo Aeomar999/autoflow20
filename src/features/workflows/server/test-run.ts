@@ -17,6 +17,8 @@ export type DraftNode = {
   id: string;
   type: string;
   data?: unknown;
+  /** Persisted `Node.disabled` (AF-M9-04); the engine skips these. */
+  disabled?: boolean;
 };
 
 export type DraftEdge = {
@@ -31,6 +33,7 @@ export type GraphNode = {
   name: string;
   type: string;
   data: Record<string, unknown>;
+  disabled?: boolean;
 };
 
 export type GraphConnection = {
@@ -77,6 +80,7 @@ export function buildTestGraph(
       name: n.type,
       type: n.type,
       data: (n.data as Record<string, unknown> | null | undefined) ?? {},
+      disabled: n.disabled === true,
     })),
     connections: edges.map((e) => ({
       fromNodeId: e.source,

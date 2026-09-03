@@ -33,6 +33,9 @@ describe("toGraph — canvas draft to validator graph", () => {
         name: "Fetch",
         type: "HTTP_REQUEST",
         data: { endpoint: "https://example.com" },
+        // AF-M9-04: carried through so the canvas lint exempts a disabled
+        // node's config exactly as the server does.
+        disabled: false,
       },
     ]);
     expect(graph.connections).toEqual([

@@ -18,6 +18,7 @@ import {
   isMeteredRun,
   quotaBreachMessage,
 } from "@/lib/quotas";
+import { defaultOutputId } from "@/nodes/ports";
 import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
@@ -84,6 +85,7 @@ function buildExecutionPlan(sortedNodes: TraceNode[]): GraphNodeExecution[] {
       timeoutMs,
       retry: retryPolicy,
       continueOnFail,
+      disabled: node.disabled === true,
     };
   });
 }
@@ -334,6 +336,7 @@ export async function executeWorkflowHandler({
           name: string;
           type: string;
           data?: unknown;
+          disabled?: boolean;
         }>;
         connections?: Array<{
           fromNodeId: string;
@@ -353,6 +356,7 @@ export async function executeWorkflowHandler({
           name: n.name,
           type: n.type,
           data: (n.data as Record<string, unknown> | undefined) ?? {},
+          disabled: n.disabled === true,
         }));
         connectionRows = (snapshot.connections ?? []).map((c) => ({
           fromNodeId: c.fromNodeId,
@@ -373,6 +377,7 @@ export async function executeWorkflowHandler({
           name: n.name,
           type: n.type,
           data: (n.data ?? {}) as Record<string, unknown>,
+          disabled: n.disabled,
         }));
         connectionRows = workflow.connections.map((c) => ({
           fromNodeId: c.fromNodeId,
@@ -539,6 +544,34 @@ export async function executeWorkflowHandler({
         order: index,
         reason: "Skipped: not reachable via taken branches",
       });
+      continue;
+    }
+
+    // AF-M9-04 (gap G10): `Node.disabled` has been written by the editor's
+    // "Enabled" toggle and persisted by `saveGraph` since M1, and the engine
+    // ignored it — a disabled node still ran. Deliberately AFTER the
+    // reachability check: a disabled node on an untaken branch is skipped as
+    // unreachable, and marking its edges taken there would resurrect the tail
+    // of a branch the run never entered.
+    //
+    // Semantics are n8n's: the node does not execute, and its input passes
+    // through to its successors rather than severing the branch. `context` is
+    // left untouched, so the next node sees the last executed node's output.
+    // Pass-through takes the node's FIRST declared output — for a disabled
+    // branching node there is no condition left to evaluate, so "both branches"
+    // would be a graph the author never drew.
+    if (nodeExec.disabled) {
+      skippedNodes.push({
+        node,
+        order: index,
+        reason: "Skipped: node is disabled",
+      });
+      markTakenEdges(
+        node.id,
+        defaultOutputId(node.type),
+        adjacency,
+        takenEdges,
+      );
       continue;
     }
 

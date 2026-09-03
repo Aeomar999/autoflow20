@@ -50,6 +50,8 @@ type CanvasNodeLike = {
   type?: string | null;
   name?: string | null;
   data?: Record<string, unknown> | null;
+  /** AF-M9-04: a disabled node is exempt from config/required-input lint. */
+  disabled?: boolean;
 };
 
 type CanvasEdgeLike = {
@@ -81,6 +83,7 @@ export function toGraph(
       name: node.name ?? node.type ?? node.id,
       type: node.type ?? "UNKNOWN",
       data: node.data ?? {},
+      disabled: node.disabled === true,
     })),
     connections: edges.map((edge) => ({
       fromNodeId: edge.source,

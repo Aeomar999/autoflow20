@@ -421,4 +421,187 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       );
     });
   });
+
+  // ------------------------------------------------------------------
+  // Suite 5 — Node.disabled (AF-M9-04, gap G10)
+  // ------------------------------------------------------------------
+  describe("disabled nodes", () => {
+    it("skips a disabled middle node and passes its input through", async () => {
+      // The editor has shipped an "Enabled" toggle since M1 and `saveGraph`
+      // has always persisted it; the engine ignored the column entirely, so
+      // disabling a node did nothing at run time.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-d",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "seed-d",
+            name: "Seed",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "marker", value: "from-upstream" }],
+              _timeoutMs: 1000,
+            },
+          },
+          {
+            id: "off-d",
+            name: "Off",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            disabled: true,
+            // Would overwrite `marker` if it ran — that is the assertion.
+            data: {
+              mappings: [{ key: "marker", value: "from-disabled" }],
+              _timeoutMs: 1000,
+            },
+          },
+          {
+            id: "done-d",
+            name: "Done",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+        ],
+        edges: [
+          { source: "trigger-d", target: "seed-d", sourceHandle: "main" },
+          { source: "seed-d", target: "off-d", sourceHandle: "main" },
+          { source: "off-d", target: "done-d", sourceHandle: "main" },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      // Skipped VISIBLY — a node missing from the trace is indistinguishable
+      // from one that never existed.
+      const off = nodeExecutions.find((n) => n.nodeName === "Off");
+      expect(off?.status).toBe(NodeExecutionStatus.SKIPPED);
+      expect(off?.skipReason).toBe("Skipped: node is disabled");
+
+      // Pass-through: the branch is not severed and Done still runs.
+      const done = nodeExecutions.find((n) => n.nodeName === "Done");
+      expect(done?.status).toBe(NodeExecutionStatus.SUCCESS);
+
+      // Done received the UPSTREAM payload, not the disabled node's.
+      expect((execution.output as Record<string, unknown> | null)?.marker).toBe(
+        "from-upstream",
+      );
+
+      // Every node is present in the trace exactly once.
+      expect(nodeExecutions).toHaveLength(4);
+    });
+
+    it("does not run a disabled node's executor at all", async () => {
+      // A disabled node whose config could not possibly execute: if the engine
+      // still ran it, this would fail the run instead of skipping it.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-x",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "broken-x",
+            name: "Broken",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            disabled: true,
+            // No operator — the executor throws NonRetriableError when run.
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "done-x",
+            name: "Done",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+        ],
+        edges: [
+          { source: "trigger-x", target: "broken-x", sourceHandle: "main" },
+          { source: "broken-x", target: "done-x", sourceHandle: "true" },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+      expect(nodeExecutions.find((n) => n.nodeName === "Broken")?.status).toBe(
+        NodeExecutionStatus.SKIPPED,
+      );
+      // Pass-through on a branching node takes its FIRST declared output.
+      expect(nodeExecutions.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+    });
+
+    it("does not resurrect a branch that was never taken", async () => {
+      // A disabled node on an untaken branch must stay skipped-as-unreachable;
+      // marking its outgoing edges taken would run the false branch's tail.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-u",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "cond-u",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "a",
+              _timeoutMs: 1000,
+            },
+          },
+          {
+            id: "off-u",
+            name: "OffOnFalse",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            disabled: true,
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+          {
+            id: "tail-u",
+            name: "Tail",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 1000 },
+          },
+        ],
+        edges: [
+          { source: "trigger-u", target: "cond-u", sourceHandle: "main" },
+          { source: "cond-u", target: "off-u", sourceHandle: "false" },
+          { source: "off-u", target: "tail-u", sourceHandle: "main" },
+        ],
+      };
+
+      const { nodeExecutions } = await runGraph(graph);
+
+      const off = nodeExecutions.find((n) => n.nodeName === "OffOnFalse");
+      expect(off?.status).toBe(NodeExecutionStatus.SKIPPED);
+      // Unreachable beats disabled: the reason names the real cause.
+      expect(off?.skipReason).toBe("Skipped: not reachable via taken branches");
+
+      const tail = nodeExecutions.find((n) => n.nodeName === "Tail");
+      expect(tail?.status).toBe(NodeExecutionStatus.SKIPPED);
+    });
+  });
 });
