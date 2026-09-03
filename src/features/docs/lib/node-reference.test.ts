@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nodeManifest } from "@/nodes/manifest";
+import { outputPorts } from "@/nodes/ports";
 import {
   CATEGORY_ORDER,
   findNodeReference,
@@ -76,6 +77,22 @@ describe("nodeReference", () => {
           "type",
         ]);
       }
+    }
+  });
+
+  it("resolves documented outputs through the same shared helper (AF-M9-09)", () => {
+    // Config-dependent nodes (SWITCH, ...) have dynamic ports. The reference
+    // must not describe a third, divergent port set — it must come from
+    // `outputPorts`, the helper the editor, validator and engine all use.
+    for (const node of nodeManifest) {
+      const entry = findNodeReference(node.type);
+      const expectedIds = outputPorts(node.type, node.defaults).map(
+        (port) => port.id,
+      );
+      expect(
+        entry?.outputs.map((output) => output.id),
+        node.type,
+      ).toEqual(expectedIds);
     }
   });
 });

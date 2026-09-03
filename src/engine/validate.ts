@@ -3,6 +3,7 @@ import {
   EXPRESSION_HELPERS,
   getTemplateRoots,
 } from "@/features/executions/template";
+import { outputPorts } from "@/nodes/ports";
 import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
 /**
@@ -109,6 +110,7 @@ export function validate(
   if (registry) {
     checkUnknownTypes(nodes, registry, errors);
     checkConfigs(nodes, registry, errors);
+    checkOrphanedEdges(nodes, connections, registry, errors);
   }
 
   // --- Template root inference (AF-M9-07) ---
@@ -246,6 +248,49 @@ function checkConfigs(
       }
     } catch {
       // Unknown type — already reported by checkUnknownTypes.
+    }
+  }
+}
+
+/**
+ * (AF-M9-09) Reject a connection whose source output port no longer exists on
+ * its source node's resolved ports.
+ *
+ * This is the guard against silently detaching edges. Renaming a SWITCH rule's
+ * `outputKey` removes that port; without this check the edge would simply match
+ * nothing at run time and the user would never be told. Each offending edge is
+ * reported with its source node and the (now orphaned) port so the user can
+ * re-point or delete it.
+ *
+ * Resolution goes through the SAME shared helper the engine and editor use —
+ * `outputPorts(type, node.data)` — so a port that is legal on the canvas is
+ * legal at run time. Unknown types are already flagged by
+ * `checkUnknownTypes`, so their edges are skipped here to avoid a noisy
+ * duplicate. Unreachable/disconnected nodes are reported separately by
+ * `checkDisconnected`.
+ */
+function checkOrphanedEdges(
+  nodes: GraphNode[],
+  connections: GraphConnection[],
+  registry: ValidationRegistry,
+  errors: ValidationError[],
+): void {
+  for (const node of nodes) {
+    if (!registry.has(node.type)) continue;
+
+    const outgoing = connections.filter((c) => c.fromNodeId === node.id);
+    if (outgoing.length === 0) continue;
+
+    const ids = new Set(outputPorts(node.type, node.data).map((p) => p.id));
+
+    for (const conn of outgoing) {
+      if (ids.has(conn.fromOutput)) continue;
+      errors.push({
+        nodeId: node.id,
+        path: `outputs.${conn.fromOutput}`,
+        severity: "error",
+        message: `Output port "${conn.fromOutput}" no longer exists on this ${node.type} node. The edge to "${conn.toNodeId}" would be silently detached — rename the rule's output key back, or delete the edge.`,
+      });
     }
   }
 }

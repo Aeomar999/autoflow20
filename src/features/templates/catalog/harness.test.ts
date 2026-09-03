@@ -22,7 +22,7 @@ import {
  * `seed:templates` runs the same harness before it writes.
  */
 
-const EXPECTED_TEMPLATE_COUNT = 20;
+const EXPECTED_TEMPLATE_COUNT = 21;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {

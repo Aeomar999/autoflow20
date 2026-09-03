@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { configSchema as switchConfigSchema } from "@/nodes/core/switch/definition";
 import { type Graph, type ValidationRegistry, validate } from "./validate";
 
 /**
@@ -374,6 +375,74 @@ describe("validate — config validation with a real registry", () => {
       e.message.includes("input"),
     );
     expect(inputErrors).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Orphaned SWITCH output ports (AF-M9-09, gap: renaming detaches edges)
+// ---------------------------------------------------------------------------
+
+describe("validate — orphaned SWITCH output ports", () => {
+  const registry: ValidationRegistry = {
+    has: (type) => type === "MANUAL_TRIGGER" || type === "SWITCH",
+    resolve: (type) => {
+      if (type === "MANUAL_TRIGGER") {
+        return { configSchema: z.object({}), inputs: [] };
+      }
+      if (type === "SWITCH") {
+        return {
+          configSchema: switchConfigSchema,
+          inputs: [{ id: "main", required: true }],
+        };
+      }
+      throw new Error(`Unknown node type: "${type}".`);
+    },
+  };
+
+  const validRules = [
+    { outputKey: "low", left: "{{x}}", operator: "lte", right: "10" },
+  ];
+
+  it("accepts an edge whose source output still exists", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("sw", "SWITCH", "Route", {
+          rules: validRules,
+          fallback: "none",
+        }),
+      ],
+      connections: [makeEdge("sw", "t1", "low")],
+    };
+    const result = validate(graph, registry);
+    expect(
+      errorsOf(result).filter((e) =>
+        e.message.includes("would be silently detached"),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("reports an edge to a renamed (orphaned) output port", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("sw", "SWITCH", "Route", {
+          // Rule was renamed from "oldBranch" (the edge still targets it) to "low".
+          rules: validRules,
+          fallback: "none",
+        }),
+      ],
+      // Edge still points at the pre-rename output key.
+      connections: [makeEdge("sw", "t1", "oldBranch")],
+    };
+    const result = validate(graph, registry);
+    const orphaned = errorsOf(result).filter((e) =>
+      e.message.includes("would be silently detached"),
+    );
+    expect(orphaned).toHaveLength(1);
+    expect(orphaned[0].nodeId).toBe("sw");
+    expect(orphaned[0].path).toBe("outputs.oldBranch");
+    expect(orphaned[0].message).toContain('Output port "oldBranch"');
   });
 });
 

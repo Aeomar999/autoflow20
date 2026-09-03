@@ -80,6 +80,19 @@ export type GraphEdge = {
 export const OUTPUT_PORT_KEY = "_outputPort" as const;
 
 /**
+ * Reserved `_outputPort` value a branching node returns to signal "no branch
+ * was taken" (AF-M9-09). SWITCH emits it when no rule matched and its
+ * `fallback` is `"none"`. `markTakenEdges` treats it specially: it marks NO
+ * outgoing edge, so every downstream node is `SKIPPED` via reachability and
+ * the run still ends `SUCCESS` (a SWITCH that deliberately routes to nobody is
+ * not a failure). It must never be a legal user-facing output port id — the
+ * SWITCH `configSchema` forbids it as an `outputKey`, so no authored edge can
+ * collide with the sentinel. It is guaranteed non-empty so the normal
+ * `if (outputPort)` branching path never treats it as an implicit "main".
+ */
+export const UNMATCHED_OUTPUT_PORT = "__switch_unmatched__" as const;
+
+/**
  * Convention for token & cost capture across nodes (AF-M5-05).
  * Nodes performing AI calls or metering attach this to the returned context.
  */
@@ -226,6 +239,16 @@ export function markTakenEdges(
 ): void {
   const edges = adjacency.get(nodeId) ?? [];
   if (edges.length === 0) return;
+
+  if (outputPort === UNMATCHED_OUTPUT_PORT) {
+    // No branch taken (AF-M9-09): a SWITCH with `fallback: "none"` matched no
+    // rule. Mark nothing — no downstream edge is exercised, so every node
+    // below the SWITCH becomes SKIPPED by reachability. Deliberately checked
+    // BEFORE the generic `if (outputPort)` branch below, which would otherwise
+    // match zero edges anyway; this early return is the explicit contract so
+    // the behaviour is pinned by tests and can't silently change.
+    return;
+  }
 
   if (outputPort) {
     // Branching node: mark only edges from the declared output port.

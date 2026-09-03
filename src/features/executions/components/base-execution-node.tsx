@@ -33,6 +33,7 @@ export const BaseExecutionNode = memo(
   ({
     id,
     type,
+    data,
     icon: Icon,
     name,
     description,
@@ -84,12 +85,12 @@ export const BaseExecutionNode = memo(
                 <Icon className="size-4 text-muted-foreground" />
               )}
               {children}
-              <NodePortHandles type={type} />
+              <NodePortHandles type={type} data={data} />
               {/* A node with one output has an unambiguous "next". With two or
                   more, appending would have to guess a branch, and the port
                   labels occupy this spot — so the user drags from the port they
                   mean instead. */}
-              {outputPorts(type).length === 1 && (
+              {outputPorts(type, data).length === 1 && (
                 <button
                   type="button"
                   onClick={handleAppend}

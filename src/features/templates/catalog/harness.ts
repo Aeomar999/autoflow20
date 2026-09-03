@@ -5,6 +5,7 @@ import {
 } from "@/features/workflows/server/test-run";
 import { parseModelChain } from "@/lib/ai/fallback";
 import { AI_PROVIDERS, findAiModel } from "@/lib/ai/registry";
+import { outputPorts } from "@/nodes/ports";
 import { nodeRegistry } from "@/nodes/registry";
 
 import { TEMPLATE_CATEGORIES } from "../constants";
@@ -276,7 +277,10 @@ function checkGraphShape(spec: TemplateSpec, issues: TemplateIssue[]): void {
     }
     const sourceNode = nodes.find((n) => n.id === edge.source);
     if (!sourceNode || !nodeRegistry.has(sourceNode.type)) continue;
-    const outputs = nodeRegistry.resolve(sourceNode.type).outputs;
+    // Config-dependent nodes (SWITCH) derive their ports from config, so the
+    // port set must be resolved through the same shared helper the editor,
+    // validator and engine use — the static `outputs` array is empty for them.
+    const outputs = outputPorts(sourceNode.type, sourceNode.data);
     const handle = edge.sourceHandle ?? "main";
     if (!outputs.some((port) => port.id === handle)) {
       issues.push({

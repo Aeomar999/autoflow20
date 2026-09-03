@@ -227,7 +227,9 @@ export function NodeSelector({
           source: sourceNode.id,
           // React Flow types `Node.type` as optional; an untyped node falls
           // back to the "main" default rather than emitting a null handle.
-          sourceHandle: defaultOutputId(sourceNode.type ?? ""),
+          // AF-M9-09: pass the source node's config so config-dependent nodes
+          // (SWITCH) land on their first real branch, not an invented port.
+          sourceHandle: defaultOutputId(sourceNode.type ?? "", sourceNode.data),
           target: newNodeId,
           targetHandle: defaultInputId(selection.type),
         };

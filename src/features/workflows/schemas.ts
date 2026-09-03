@@ -66,6 +66,7 @@ export const updateNodeSchemas = [
   makeNodeSchema("SCHEDULE_TRIGGER", configOf("SCHEDULE_TRIGGER")),
   makeNodeSchema("SET", configOf("SET")),
   makeNodeSchema("CONDITION", configOf("CONDITION")),
+  makeNodeSchema("SWITCH", configOf("SWITCH")),
   makeNodeSchema("MERGE", configOf("MERGE")),
   makeNodeSchema("GOOGLE_FORM_TRIGGER", configOf("GOOGLE_FORM_TRIGGER")),
   makeNodeSchema("STRIPE_TRIGGER", configOf("STRIPE_TRIGGER")),

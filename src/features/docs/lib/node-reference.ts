@@ -4,6 +4,7 @@ import {
   UnsupportedConfigFieldError,
 } from "@/features/editor/lib/config-schema";
 import { nodeManifest } from "@/nodes/manifest";
+import { outputPorts } from "@/nodes/ports";
 import type { NodeCategory, NodeDefinition } from "@/nodes/types";
 
 /**
@@ -99,7 +100,7 @@ const toEntry = (definition: NodeDefinition): NodeReferenceEntry => {
       required: port.required ?? false,
       description: port.description,
     })),
-    outputs: definition.outputs.map((port) => ({
+    outputs: outputPorts(definition.type, definition.defaults).map((port) => ({
       id: port.id,
       label: port.label,
       description: port.description,

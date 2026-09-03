@@ -406,4 +406,96 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "deployment-env-router",
+    name: "Deployment environment router",
+    description:
+      "Accepts a deployment webhook, reads the environment field out of its payload, and forwards the delivery to the target for that environment — so prod, staging, and dev builds each land where they belong.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["deployment", "webhook", "switch", "routing", "ops"],
+    graph: {
+      nodes: [
+        {
+          id: "deploy",
+          type: "WEBHOOK_TRIGGER",
+          name: "Deployment webhook",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "route-env",
+          type: "SWITCH",
+          name: "Route by environment",
+          position: { x: 260, y: 0 },
+          data: {
+            rules: [
+              {
+                outputKey: "prod",
+                left: "{{webhook.body.environment}}",
+                operator: "equals",
+                right: "prod",
+              },
+              {
+                outputKey: "staging",
+                left: "{{webhook.body.environment}}",
+                operator: "equals",
+                right: "staging",
+              },
+              {
+                outputKey: "dev",
+                left: "{{webhook.body.environment}}",
+                operator: "equals",
+                right: "dev",
+              },
+            ],
+            fallback: "none",
+          },
+        },
+        {
+          id: "deliver-prod",
+          type: "WEBHOOK_OUT",
+          name: "Forward to prod channel",
+          position: { x: 560, y: -120 },
+          data: {
+            variableName: "prodDelivery",
+            url: "https://hooks.example.com/prod/REPLACE_WITH_WEBHOOK",
+            body: '{"environment":"prod","commit":"{{webhook.body.commit}}"}',
+          },
+        },
+        {
+          id: "deliver-staging",
+          type: "WEBHOOK_OUT",
+          name: "Forward to staging channel",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "stagingDelivery",
+            url: "https://hooks.example.com/staging/REPLACE_WITH_WEBHOOK",
+            body: '{"environment":"staging","commit":"{{webhook.body.commit}}"}',
+          },
+        },
+        {
+          id: "deliver-dev",
+          type: "WEBHOOK_OUT",
+          name: "Forward to dev channel",
+          position: { x: 560, y: 120 },
+          data: {
+            variableName: "devDelivery",
+            url: "https://hooks.example.com/dev/REPLACE_WITH_WEBHOOK",
+            body: '{"environment":"dev","commit":"{{webhook.body.commit}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "deploy", target: "route-env" },
+        { source: "route-env", target: "deliver-prod", sourceHandle: "prod" },
+        {
+          source: "route-env",
+          target: "deliver-staging",
+          sourceHandle: "staging",
+        },
+        { source: "route-env", target: "deliver-dev", sourceHandle: "dev" },
+      ],
+    },
+  },
 ];

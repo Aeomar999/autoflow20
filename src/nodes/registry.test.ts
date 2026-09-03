@@ -142,7 +142,18 @@ describe("production node registry + manifest", () => {
       if (definition.category === "TRIGGER") {
         expect(definition.inputs).toHaveLength(0);
       }
-      expect(definition.outputs.length).toBeGreaterThan(0);
+      // Config-dependent nodes (SWITCH) declare `outputs: []` and derive their
+      // real ports from resolveOutputs — an empty default is legitimate for a
+      // fresh SWITCH with no branches. The reachability guarantee is therefore
+      // "a non-deriving node declares ≥1 output, a deriving node returns an
+      // array": the same invariant ports.test enforces.
+      if (typeof definition.resolveOutputs === "function") {
+        expect(
+          Array.isArray(definition.resolveOutputs(definition.defaults)),
+        ).toBe(true);
+      } else {
+        expect(definition.outputs.length).toBeGreaterThan(0);
+      }
     }
   });
 

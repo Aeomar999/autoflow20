@@ -8,6 +8,7 @@ import { definition as coreManualTrigger } from "./core/manual-trigger/definitio
 import { definition as coreMerge } from "./core/merge/definition";
 import { definition as coreScheduleTrigger } from "./core/schedule-trigger/definition";
 import { definition as coreSet } from "./core/set/definition";
+import { definition as coreSwitch } from "./core/switch/definition";
 import { definition as coreWebhookTrigger } from "./core/webhook-trigger/definition";
 import { definition as discordSendMessage } from "./discord/send-message/definition";
 import { definition as emailSend } from "./email/send/definition";
@@ -37,6 +38,7 @@ export const nodeManifest: NodeDefinition[] = [
   coreSet,
   coreCondition,
   coreMerge,
+  coreSwitch,
   formsGoogleForm,
   googleSheetsAppend,
   airtableCreateRecord,
