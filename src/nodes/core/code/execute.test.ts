@@ -99,6 +99,42 @@ describe("CODE execute", () => {
     });
   });
 
+  it("contains every cross-realm vm escape vector (AF-M9-13, sandbox escape fix)", async () => {
+    // A host-realm object injected into the vm context leaks its `constructor`
+    // chain back to the worker thread's Function, so
+    // `x.constructor.constructor("return process")()` reaches the worker's
+    // process (env, filesystem, arbitrary commands). Regression: the input was
+    // passed as a host object and this escape returned the real process.
+    // Each vector must be contained — the sandboxed code may not name `process`.
+    const result = await run({
+      code: [
+        "const tryEscape = (label, getObj) => {",
+        "  try {",
+        "    const p = getObj().constructor.constructor('return process')();",
+        "    return p ? label + ':LEAK' : label + ':no';",
+        "  } catch {",
+        "    return label + ':contained';",
+        "  }",
+        "};",
+        "return {",
+        "  via_input: tryEscape('i', () => input),",
+        "  via_nested_input: tryEscape('n', () => input.items[0]),",
+        "  via_literal_object: tryEscape('o', () => ({})),",
+        "  via_literal_array: tryEscape('a', () => []),",
+        "  via_json_parse: tryEscape('j', () => JSON.parse('{\"a\":1}')),",
+        "}",
+      ].join("\n"),
+      context: { items: [{ id: 1 }] },
+    });
+    expect(result).toEqual({
+      via_input: "i:contained",
+      via_nested_input: "n:contained",
+      via_literal_object: "o:contained",
+      via_literal_array: "a:contained",
+      via_json_parse: "j:contained",
+    });
+  });
+
   it("contains prototype pollution inside the sandbox realm (AF-M9-13)", async () => {
     const result = await run({
       code: 'Object.prototype.polluted = "yes"; return { done: true }',

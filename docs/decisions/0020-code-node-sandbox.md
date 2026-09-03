@@ -17,6 +17,8 @@ Three candidate directions from §6: a separate hardened service with per-execut
 
 **2. The sandbox exposes no host bindings.** The `vm` context is a fresh realm with the standard intrinsics (`Math`, `JSON`, `Number`, `Array`, `Object`, `String`, `Date`, …) and **nothing else** injected. No `require`, no `import`, no `process`, no `buffer`, no `setTimeout`/`setInterval`, no `fetch`, no `global`/`globalThis` assignment target worth having. There is no path to the filesystem, the network, child processes, or the parent realm's `Object.prototype` (prototype pollution stays inside the sandbox realm; structured clone only ships the returned value).
 
+**2a. The input is materialized in the vm realm — never injected as a host object.** `node:vm` has one canonical escape: cross-realm object leaks. Any host-created object placed into a vm context carries its `constructor` chain back to the worker thread's `Function`, so `x.constructor.constructor("return process")()` resolves to the worker's `process` — and from there `process.getBuiltinModule("fs")` reads arbitrary files, `child_process` runs arbitrary commands, and `process.env` exposes every secret in the worker's environment. An initial implementation passed the node input into the worker via `workerData` (a host-realm object) and injected it directly, so this escape returned the real worker `process`. The shipped design therefore passes the input as a **JSON string** (`workerData.inputJson`) and `JSON.parse`s it **inside** the vm context: the user's code only ever reaches vm-realm objects, and the vm's own intrinsics cannot name the host. An adversarial regression test (`execute.test.ts`, "contains every cross-realm vm escape vector") pumps `constructor.constructor("return process")()` through the input, nested input, object/array literals, and `JSON.parse`, and asserts every one is contained.
+
 **3. Hard caps, every one a loud `NonRetriableError`, never silent truncation.** Defaults, freely configurable per node within the listed ceilings:
 
 | Cap | Default | Ceiling | Enforced where |
@@ -27,7 +29,7 @@ Three candidate directions from §6: a separate hardened service with per-execut
 
 A breach throws a `NonRetriableError` naming the limit ("exceeded the 5000ms wall-clock limit", "exceeded the 64MB heap limit", "exceeded the 1048576-byte output limit"). These run inside the node's own `step.run`, so the engine's existing per-node timeout and ADR-0018 output cap remain as outer backstops, not replacements.
 
-**4. Input is the node's resolved context, read-only.** The worker receives `nodeInputValue` (AF-M9-12) via structured clone; the sandbox hands it to the user's code as a frozen `input`. The code is the body of a function `(input) => { … }`. It returns either an object (merged into the node output) or an array (stored under `items` for the downstream SPLIT_OUT contract).
+**4. Input is the node's resolved context, read-only.** The worker receives `nodeInputValue` (AF-M9-12) serialized to JSON; the sandbox materializes it in the vm realm (see 2a) and hands it to the user's code as a read-only `input`. The code is the body of a function `(input) => { … }`. It returns either an object (merged into the node output) or an array (stored under `items` for the downstream SPLIT_OUT contract).
 
 **5. Errors carry the user's line number.** The wrapper is generated with a known prefix-line count, so a thrown `Error`'s stack line is rebased to the user's source line, and that (plus the message) is what reaches `NodeExecution.error` — with no internal path names or payload echoed.
 
@@ -45,7 +47,7 @@ A breach throws a `NonRetriableError` naming the limit ("exceeded the 5000ms wal
 
 - The main process is never exposed to a user's parse/execution stack at full privilege; the worst a runaway does is starve a single Worker, which the parent kills on timeout.
 - `docs/architecture/security.md` §6 is updated to record the carve-out: "no vm in the main Node process" remains, with the CODE-worker exception documented alongside.
-- A security test suite (`src/nodes/core/code/sandbox.test.ts`) locks in the required behaviours: infinite loop killed, allocation bomb killed, `process`/`require`/`fetch`/`setTimeout` undefined, prototype pollution contained, network impossible.
+- A security test suite (`src/nodes/core/code/execute.test.ts`) locks in the required behaviours: infinite loop killed, allocation bomb killed, `process`/`require`/`fetch`/`setTimeout` undefined, prototype pollution contained, network impossible, and **every cross-realm vm escape vector contained** (§2a).
 - A genuine tenant isolation / hardening upgrade (per-execution container, WASM, vendor sandbox) can replace the worker without changing the node's public contract — the sandbox is confined to one module, `runUserCode`.
 
 ## Alternatives considered

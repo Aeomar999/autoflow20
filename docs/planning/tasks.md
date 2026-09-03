@@ -1408,6 +1408,7 @@ this is arbitrary tenant JS running on our worker.
 - [x] Errors surface the user's line number in `NodeExecution.error` — a code node that fails opaquely is unusable.
 - [ ] CPU time is recorded on the `NodeExecution` so AF-M7-04 can meter it later. Not billed in M9. *(Deferred — `worker.resourceLimits` gives no accurate CPU readout; wall-clock `durationMs` is already in the trace. Documented follow-up.)*
 - [x] Security tests: an infinite loop is killed at the cap; an allocation bomb is killed; `process.env` is `undefined`; a network attempt fails; prototype-pollution attempts do not escape.
+- [x] **Sandbox escape found and fixed (AF-M9-13 follow-up, 2026-09-03).** The initial implementation injected a host-realm `input` object (deserialized from `workerData`) into the vm context, which let `input.constructor.constructor("return process")()` reach the worker thread's real `process` (env, filesystem, arbitrary commands). Fixed by passing the input as a JSON string and materializing it inside the vm realm; an adversarial regression test pumps `constructor.constructor("return process")()` through the input, literals, and `JSON.parse` and asserts containment. ADR-0020 §2a, `security.md` §6.
 - [x] ADR-0020 records the sandbox choice and what it explicitly does **not** defend against.
 - [x] `docs/architecture/security.md` gains a Code-node section.
 - [x] progress.md updated
