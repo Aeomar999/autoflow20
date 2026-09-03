@@ -4,6 +4,7 @@ import aiExtract from "./ai/extract";
 import aiLlm from "./ai/llm";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
+import coreCode from "./core/code";
 import coreCondition from "./core/condition";
 import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
@@ -161,6 +162,7 @@ export const nodeRegistry = createNodeRegistry(
     coreWebhookTrigger,
     coreScheduleTrigger,
     coreSet,
+    coreCode,
     coreCondition,
     coreMerge,
     coreSwitch,

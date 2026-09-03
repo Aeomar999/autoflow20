@@ -1370,16 +1370,16 @@ G3. `?sync=true` returns a fixed envelope and 500 ms-polls for up to 20 s.
 - [ ] Integration tests: sync POST → 200 with the composed body; a 404-composing branch returns 404; a run with no respond node still returns the legacy envelope; an oversized body is rejected, not truncated.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-11 · `MERGE` v2 — real multi-input ports · 2d
+### ✅ AF-M9-11 · `MERGE` v2 — real multi-input ports · 2d · **DONE 2026-09-03**
 G4. One input port today, with the result reconstructed from the flat bag.
 
 **Depends on:** AF-M9-03, AF-M9-12
 **Acceptance**
-- [ ] `MERGE` declares `inputCount` (2–5) via `resolveInputs(config)`, rendering `input-0…input-n`.
-- [ ] Modes: `byInput` (`{ input0, input1, … }` — the W2 shape), `append`, `mergeByKey`. The existing single-input `append`/`mergeByKey`/`combine` behaviour is preserved for saved nodes via `definition.migrate` from `version: 1`.
-- [ ] An input port with no arriving branch resolves to `null`, **not** to a missing key — a skipped branch must be distinguishable from an empty one.
-- [ ] Engine tests: two branches merge byInput in declared port order regardless of topological order; one branch skipped yields `{ input0: {...}, input1: null }`; a `version: 1` saved MERGE still produces its old output.
-- [ ] progress.md updated
+- [x] `MERGE` declares `inputCount` (2–5) via `resolveInputs(config)`, rendering `input-0…input-n`.
+- [x] Modes: `byInput` (`{ input0, input1, … }` — the W2 shape), `append`, `mergeByKey`. The existing single-input `append`/`mergeByKey`/`combine` behaviour is preserved for saved nodes via `definition.migrate` from `version: 1`.
+- [x] An input port with no arriving branch resolves to `null`, **not** to a missing key — a skipped branch must be distinguishable from an empty one.
+- [x] Engine tests: two branches merge byInput in declared port order regardless of topological order; one branch skipped yields `{ input0: {...}, input1: null }`; a `version: 1` saved MERGE still produces its old output.
+- [x] progress.md updated
 
 ### ✅ AF-M9-12 · Branch isolation: resolve each node's input from its incoming edges · 3d · **DONE 2026-09-03**
 G5, and the structural precondition for AF-M9-11. Today the runner keeps one
@@ -1401,16 +1401,16 @@ this is arbitrary tenant JS running on our worker.
 
 **Depends on:** AF-M9-05
 **Acceptance**
-- [ ] Runs in `node:vm` inside a **`worker_threads` worker** with `resourceLimits`, or an equivalent isolate. Not bare `vm` on the main thread — `vm` alone stops neither `while(true)` nor an OOM.
-- [ ] No `require`, no `import`, no `process`, no `fetch`, no timers outliving the call, no filesystem. Only the resolved input, a frozen `$json`, and pure helpers.
-- [ ] Hard caps, configurable per node within engine ceilings: wall clock (default 5 s, max 30 s), heap (default 64 MB), output size (default 1 MB). Every breach is a `NonRetriableError` naming the limit — never a silent truncation.
-- [ ] The node returns either an object or an array; an array is stored under `items` so `SPLIT_OUT` can consume it.
-- [ ] Errors surface the user's line number in `NodeExecution.error` — a code node that fails opaquely is unusable.
-- [ ] CPU time is recorded on the `NodeExecution` so AF-M7-04 can meter it later. Not billed in M9.
-- [ ] Security tests: an infinite loop is killed at the cap; an allocation bomb is killed; `process.env` is `undefined`; a network attempt fails; prototype-pollution attempts do not escape.
-- [ ] ADR-0020 records the sandbox choice and what it explicitly does **not** defend against.
-- [ ] `docs/architecture/security.md` gains a Code-node section.
-- [ ] progress.md updated
+- [x] Runs in `node:vm` inside a **`worker_threads` worker** with `resourceLimits`, or an equivalent isolate. Not bare `vm` on the main thread — `vm` alone stops neither `while(true)` nor an OOM.
+- [x] No `require`, no `import`, no `process`, no `fetch`, no timers outliving the call, no filesystem. Only the resolved input, a frozen `$json`, and pure helpers.
+- [x] Hard caps, configurable per node within engine ceilings: wall clock (default 5 s, max 30 s), heap (default 64 MB), output size (default 1 MB). Every breach is a `NonRetriableError` naming the limit — never a silent truncation.
+- [x] The node returns either an object or an array; an array is stored under `items` so `SPLIT_OUT` can consume it.
+- [x] Errors surface the user's line number in `NodeExecution.error` — a code node that fails opaquely is unusable.
+- [ ] CPU time is recorded on the `NodeExecution` so AF-M7-04 can meter it later. Not billed in M9. *(Deferred — `worker.resourceLimits` gives no accurate CPU readout; wall-clock `durationMs` is already in the trace. Documented follow-up.)*
+- [x] Security tests: an infinite loop is killed at the cap; an allocation bomb is killed; `process.env` is `undefined`; a network attempt fails; prototype-pollution attempts do not escape.
+- [x] ADR-0020 records the sandbox choice and what it explicitly does **not** defend against.
+- [x] `docs/architecture/security.md` gains a Code-node section.
+- [x] progress.md updated
 
 ### ⬜ AF-M9-14 · Bounded item fan-out: `SPLIT_OUT` → segment iteration → `AGGREGATE` · 4d · **highest risk**
 G6. Decision D deferred loops/fan-out "until post-beta"; M9 is post-beta, and this

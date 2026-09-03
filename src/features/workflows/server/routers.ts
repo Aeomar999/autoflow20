@@ -208,8 +208,10 @@ export const workflowsRouter = createTRPCRouter({
       // graph the validator approves is byte-for-byte the graph that is stored
       // and later executed. Also translates the pre-AF-M9-03 `source-1`/
       // `target-1` handles a stale browser tab can still post.
-      const typeOfNode = (nodeId: string) =>
-        nodes.find((n) => n.id === nodeId)?.type;
+      const typeOfNode = (nodeId: string) => {
+        const node = nodes.find((n) => n.id === nodeId);
+        return node ? { type: node.type, data: node.data } : undefined;
+      };
       const edgePorts = new Map(
         edges.map((e) => [e, resolveEdgePorts(e, typeOfNode)] as const),
       );

@@ -74,8 +74,12 @@ export function toGraph(
   nodes: CanvasNodeLike[],
   edges: CanvasEdgeLike[],
 ): Graph {
-  const typeOfNode = (nodeId: string) =>
-    nodes.find((n) => n.id === nodeId)?.type ?? undefined;
+  const typeOfNode = (nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId);
+    return node
+      ? { type: node.type ?? undefined, data: node.data ?? undefined }
+      : undefined;
+  };
 
   return {
     nodes: nodes.map((node) => ({

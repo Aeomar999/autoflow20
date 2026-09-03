@@ -144,8 +144,10 @@ export async function runGraph(
   // `buildTestGraph` use, so the harness executes the graph a real save would
   // have persisted — including translating a pre-AF-M9-03 `source-1` handle
   // onto the node's first declared port.
-  const typeOfNode = (nodeId: string) =>
-    spec.nodes.find((n) => n.id === nodeId)?.type;
+  const typeOfNode = (nodeId: string) => {
+    const node = spec.nodes.find((n) => n.id === nodeId);
+    return node ? { type: node.type, data: node.data } : undefined;
+  };
 
   const connections = spec.edges.map((e) => ({
     fromNodeId: e.source,

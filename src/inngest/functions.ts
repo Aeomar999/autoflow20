@@ -18,7 +18,7 @@ import {
   isMeteredRun,
   quotaBreachMessage,
 } from "@/lib/quotas";
-import { defaultOutputId } from "@/nodes/ports";
+import { defaultOutputId, inputPorts } from "@/nodes/ports";
 import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
 import { resolveRunPolicy } from "@/nodes/shared/run-policy";
 import { anthropicChannel } from "./channels/anthropic";
@@ -86,20 +86,6 @@ function buildNodeInput(
   idToName: Map<string, string>,
   fallbackContext: Record<string, unknown>,
 ): Record<string, unknown> {
-  const edges = incoming.get(node.id);
-  if (!edges || edges.length === 0) {
-    return fallbackContext;
-  }
-
-  // Group edges by toInput port.
-  const groups = new Map<string, GraphEdge[]>();
-  for (const edge of edges) {
-    const port = edge.toInput || "main";
-    const list = groups.get(port) ?? [];
-    list.push(edge);
-    groups.set(port, list);
-  }
-
   // Merge a list of edges' upstream outputs into one flat object, left to
   // right. Later edges overwrite earlier ones on key collisions (deterministic
   // because edges keep their persisted order).
@@ -116,6 +102,38 @@ function buildNodeInput(
     }
     return merged;
   };
+
+  // AF-M9-11: a node with config-derived input ports (MERGE v2) receives EVERY
+  // declared port as a key — unattached or skipped branches resolve to `null`
+  // so the executor can tell "this branch was not taken" from "it produced an
+  // empty object" (an empty `{}` would be indistinguishable from a real merge).
+  // All other nodes keep the pre-existing flat semantics below; nothing that
+  // consumes the flat `context` expects a keyed wrapper.
+  if (getNodeRegistration(node.type).resolveInputs) {
+    const edges = incoming.get(node.id);
+    const result: Record<string, unknown> = {};
+    for (const port of inputPorts(node.type, node.data ?? {})) {
+      const portEdges = edges?.filter((e) => (e.toInput || "main") === port.id);
+      const merged =
+        portEdges && portEdges.length > 0 ? mergeEdges(portEdges) : {};
+      result[port.id] = Object.keys(merged).length > 0 ? merged : null;
+    }
+    return result;
+  }
+
+  const edges = incoming.get(node.id);
+  if (!edges || edges.length === 0) {
+    return fallbackContext;
+  }
+
+  // Group edges by toInput port.
+  const groups = new Map<string, GraphEdge[]>();
+  for (const edge of edges) {
+    const port = edge.toInput || "main";
+    const list = groups.get(port) ?? [];
+    list.push(edge);
+    groups.set(port, list);
+  }
 
   // Single "main" port: merge directly (flat).
   if (groups.size === 1 && groups.has("main")) {

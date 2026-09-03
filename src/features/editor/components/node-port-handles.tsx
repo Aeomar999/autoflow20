@@ -28,7 +28,7 @@ export function NodePortHandles({
   type: string;
   data?: Record<string, unknown>;
 }) {
-  const inputs = inputPorts(type);
+  const inputs = inputPorts(type, data);
   const outputs = outputPorts(type, data);
 
   return (

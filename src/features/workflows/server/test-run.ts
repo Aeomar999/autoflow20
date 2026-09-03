@@ -71,8 +71,10 @@ export function buildTestGraph(
 ): TestGraph {
   // AF-M9-03: resolve handles through the same path `saveGraph` uses, so an
   // in-editor test run takes the same branch the saved workflow would.
-  const typeOfNode = (nodeId: string) =>
-    nodes.find((n) => n.id === nodeId)?.type;
+  const typeOfNode = (nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId);
+    return node ? { type: node.type, data: node.data } : undefined;
+  };
 
   return {
     nodes: nodes.map((n) => ({

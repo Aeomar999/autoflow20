@@ -32,13 +32,19 @@ export const LEGACY_TARGET_HANDLE = "target-1";
 /**
  * Declared input ports for `type`.
  *
+ * (AF-M9-11) `config` is threaded through like `outputPorts`, so a node with
+ * config-dependent input ports (MERGE v2) implements `resolveInputs(config)`
+ * and this helper routes through it; every other node falls back to the static
+ * `inputs` array.
+ *
  * A trigger legitimately declares `inputs: []`; that empty array is returned as-is.
  * The `DEFAULT_INPUT` fallback applies only to a type the manifest does not know,
  * which would otherwise render a node nothing can connect to.
  */
-export function inputPorts(type: string): PortDef[] {
+export function inputPorts(type: string, config?: unknown): PortDef[] {
   const def = findManifestEntry(type);
   if (!def) return [DEFAULT_INPUT];
+  if (def.resolveInputs) return def.resolveInputs(config as never);
   return def.inputs;
 }
 
@@ -78,8 +84,8 @@ export function defaultOutputId(type: string, config?: unknown): string {
 }
 
 /** The port an incoming edge attaches to by default. See `defaultOutputId`. */
-export function defaultInputId(type: string): string {
-  return inputPorts(type)[0]?.id ?? DEFAULT_INPUT.id;
+export function defaultInputId(type: string, config?: unknown): string {
+  return inputPorts(type, config)[0]?.id ?? DEFAULT_INPUT.id;
 }
 
 /**
@@ -93,8 +99,12 @@ export function normalizePortId(
   type: string,
   handleId: string | null | undefined,
   direction: "source" | "target",
+  config?: unknown,
 ): string | null {
-  const ports = direction === "source" ? outputPorts(type) : inputPorts(type);
+  const ports =
+    direction === "source"
+      ? outputPorts(type, config)
+      : inputPorts(type, config);
 
   // No handle recorded at all — the pre-port-aware default.
   if (!handleId) return ports[0]?.id ?? null;
@@ -118,6 +128,17 @@ export interface EdgePorts {
 }
 
 /**
+ * A node descriptor used by `resolveEdgePorts` to look up both a node's type
+ * and its config (AF-M9-11). Config is needed because a node's INPUT ports can
+ * now depend on its config (e.g. MERGE v2's `inputCount`), and the edge's
+ * `targetHandle` must be normalized against those config-derived ports.
+ */
+export interface NodeDescriptor {
+  type?: string;
+  data?: unknown;
+}
+
+/**
  * Resolve a canvas edge to the `{ fromOutput, toInput }` pair that gets
  * persisted and that the engine matches against.
  *
@@ -129,18 +150,22 @@ export interface EdgePorts {
  */
 export function resolveEdgePorts(
   edge: EdgePorts,
-  typeOf: (nodeId: string) => string | undefined,
+  typeOf: (nodeId: string) => NodeDescriptor | undefined,
 ): { fromOutput: string; toInput: string } {
-  const sourceType = typeOf(edge.source) ?? "";
-  const targetType = typeOf(edge.target) ?? "";
+  const source = typeOf(edge.source);
+  const target = typeOf(edge.target);
+  const sourceType = source?.type ?? "";
+  const targetType = target?.type ?? "";
+  const sourceConfig = source?.data;
+  const targetConfig = target?.data;
 
   return {
     fromOutput:
-      normalizePortId(sourceType, edge.sourceHandle, "source") ??
+      normalizePortId(sourceType, edge.sourceHandle, "source", sourceConfig) ??
       edge.sourceHandle ??
       DEFAULT_OUTPUT.id,
     toInput:
-      normalizePortId(targetType, edge.targetHandle, "target") ??
+      normalizePortId(targetType, edge.targetHandle, "target", targetConfig) ??
       edge.targetHandle ??
       DEFAULT_INPUT.id,
   };

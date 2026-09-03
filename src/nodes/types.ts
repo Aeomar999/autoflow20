@@ -65,8 +65,17 @@ export interface NodeDefinition<TConfig = unknown> {
   configSchema: z.ZodType<TConfig>;
   /** Must satisfy configSchema.parse(). */
   defaults: TConfig;
-  /** [] for triggers. */
+  /** [] for triggers. A config-dependent input set is resolved via `resolveInputs`. */
   inputs: PortDef[];
+  /**
+   * (AF-M9-11) Resolve this node's input ports from its config. Optional — when
+   * absent, call sites use the static `inputs` array. Mirror of
+   * `resolveOutputs` for nodes whose input ports are config-dependent (e.g.
+   * MERGE v2, whose `input-0…input-n` count is set by `inputCount`). Must be
+   * deterministic and side-effect free so the editor can call it on every
+   * keystroke and the engine on every compile.
+   */
+  resolveInputs?: (config: TConfig) => PortDef[];
   /**
    * Static output ports (AF-M9-09). `[]` for triggers.
    *

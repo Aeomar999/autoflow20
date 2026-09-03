@@ -3,6 +3,7 @@ import { definition as aiExtract } from "./ai/extract/definition";
 import { definition as aiLlm } from "./ai/llm/definition";
 import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
+import { definition as coreCode } from "./core/code/definition";
 import { definition as coreCondition } from "./core/condition/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
 import { definition as coreMerge } from "./core/merge/definition";
@@ -36,6 +37,7 @@ export const nodeManifest: NodeDefinition[] = [
   coreWebhookTrigger,
   coreScheduleTrigger,
   coreSet,
+  coreCode,
   coreCondition,
   coreMerge,
   coreSwitch,
