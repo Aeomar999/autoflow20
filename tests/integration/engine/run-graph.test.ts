@@ -1096,4 +1096,242 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       expect(input1?.fromC).toBe("c-val");
     });
   });
+
+  describe("MERGE multi-input (AF-M9-11)", () => {
+    const mkTrigger = (id: string) => ({
+      id,
+      name: "Trigger",
+      type: "MANUAL_TRIGGER",
+      position: { x: 0, y: 0 },
+      data: { _run: { timeoutMs: 1000 } },
+    });
+
+    it("byInput: port order is preserved regardless of node/topo order", async () => {
+      const graph: TemplateGraph = {
+        nodes: [
+          mkTrigger("t-m"),
+          {
+            id: "first-m",
+            name: "B", // named deliberately so id order != port order
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "fromB", value: "b-val" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "second-m",
+            name: "A",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "fromA", value: "a-val" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "merge-m",
+            name: "Merge",
+            type: "MERGE",
+            position: { x: 0, y: 0 },
+            data: {
+              mode: "byInput",
+              inputCount: 2,
+              _run: { timeoutMs: 1000 },
+            },
+          },
+        ],
+        edges: [
+          { source: "t-m", target: "first-m", sourceHandle: "main" },
+          { source: "t-m", target: "second-m", sourceHandle: "main" },
+          // The branch that resolves FIRST in node order lands on port 1, and
+          // the other on port 0 — the executor must map them by port, not by
+          // arrival/topo order.
+          {
+            source: "first-m",
+            target: "merge-m",
+            sourceHandle: "main",
+            targetHandle: "input-1",
+          },
+          {
+            source: "second-m",
+            target: "merge-m",
+            sourceHandle: "main",
+            targetHandle: "input-0",
+          },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const merge = nodeExecutions.find((n) => n.nodeName === "Merge");
+      expect(merge?.status).toBe(NodeExecutionStatus.SUCCESS);
+
+      // Per-port engine context: keyed by port id (input-0 / input-1).
+      const ctx = merge?.input as Record<string, unknown> | null;
+      expect((ctx?.["input-0"] as Record<string, unknown>)?.fromA).toBe(
+        "a-val",
+      );
+      expect((ctx?.["input-1"] as Record<string, unknown>)?.fromB).toBe(
+        "b-val",
+      );
+
+      // W2 byInput output: keyed input0 / input1 (no dash), port order intact.
+      const out = merge?.output as Record<string, unknown> | null;
+      expect((out?.input0 as Record<string, unknown>)?.fromA).toBe("a-val");
+      expect((out?.input1 as Record<string, unknown>)?.fromB).toBe("b-val");
+    });
+
+    it("skipped branch resolves to null, not a missing key", async () => {
+      const graph: TemplateGraph = {
+        nodes: [
+          mkTrigger("t-s"),
+          {
+            id: "a-s",
+            name: "A",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "fromA", value: "a-val" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "cond-s",
+            name: "Cond",
+            type: "CONDITION",
+            position: { x: 0, y: 0 },
+            data: {
+              left: "a",
+              operator: "equals",
+              right: "b", // evaluated false → true branch is skipped
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "b-s",
+            name: "B",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "fromB", value: "b-val" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "merge-s",
+            name: "Merge",
+            type: "MERGE",
+            position: { x: 0, y: 0 },
+            data: {
+              mode: "byInput",
+              inputCount: 2,
+              _run: { timeoutMs: 1000 },
+            },
+          },
+        ],
+        edges: [
+          { source: "t-s", target: "a-s", sourceHandle: "main" },
+          { source: "t-s", target: "cond-s", sourceHandle: "main" },
+          {
+            source: "a-s",
+            target: "merge-s",
+            sourceHandle: "main",
+            targetHandle: "input-0",
+          },
+          // B sits on the CONDITION's TRUE (source-1) branch, which is not
+          // taken, so its edge exists but its upstream never produced output.
+          {
+            source: "cond-s",
+            target: "b-s",
+            sourceHandle: "source-1",
+            targetHandle: "main",
+          },
+          {
+            source: "b-s",
+            target: "merge-s",
+            sourceHandle: "main",
+            targetHandle: "input-1",
+          },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const merge = nodeExecutions.find((n) => n.nodeName === "Merge");
+      expect(merge?.status).toBe(NodeExecutionStatus.SUCCESS);
+
+      // The skipped branch is present as the key `input-1` set to null — not
+      // absent — so the executor can tell "branch not taken" from "empty {}".
+      const ctx = merge?.input as Record<string, unknown> | null;
+      expect(ctx?.["input-0"]).toEqual({ fromA: "a-val" });
+      expect(ctx?.["input-1"]).toBeNull();
+
+      const out = merge?.output as Record<string, unknown> | null;
+      expect(out?.input0).toEqual({ fromA: "a-val" });
+      expect(out?.input1).toBeNull();
+    });
+
+    it("a legacy v1-style config still executes on the v2 engine", async () => {
+      // A pre-M9-11 node saved `{ mode: "combine", combineKey }` with no
+      // inputCount. After migration it gains a default port count; the engine
+      // must still run it and produce the combine (wrapped-key) output rather
+      // than failing on the unknown mode.
+      const graph: TemplateGraph = {
+        nodes: [
+          mkTrigger("t-c"),
+          {
+            id: "a-c",
+            name: "A",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "fromA", value: "a-val" }],
+              _run: { timeoutMs: 1000 },
+            },
+          },
+          {
+            id: "merge-c",
+            name: "Merge",
+            type: "MERGE",
+            position: { x: 0, y: 0 },
+            data: {
+              mode: "combine",
+              combineKey: "left",
+              _run: { timeoutMs: 1000 },
+            },
+          },
+        ],
+        edges: [
+          { source: "t-c", target: "a-c", sourceHandle: "main" },
+          {
+            source: "a-c",
+            target: "merge-c",
+            sourceHandle: "main",
+            targetHandle: "input-0",
+          },
+        ],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const merge = nodeExecutions.find((n) => n.nodeName === "Merge");
+      expect(merge?.status).toBe(NodeExecutionStatus.SUCCESS);
+
+      const out = merge?.output as Record<string, unknown> | null;
+      // combine wraps every branch object (including null for an unattached
+      // port) under `combineKey`.
+      expect(out?.left).toEqual({
+        "input-0": { fromA: "a-val" },
+        "input-1": null,
+      });
+    });
+  });
 });

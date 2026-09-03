@@ -135,7 +135,8 @@ describe("resolveEdgePorts", () => {
     cond: "CONDITION",
     set: "SET",
   };
-  const typeOf = (id: string) => types[id];
+  const typeOf = (id: string) =>
+    types[id] ? { type: types[id], data: {} } : undefined;
 
   it("translates a legacy canvas edge onto real ports", () => {
     expect(

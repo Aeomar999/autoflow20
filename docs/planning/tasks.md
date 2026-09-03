@@ -1370,16 +1370,16 @@ G3. `?sync=true` returns a fixed envelope and 500 ms-polls for up to 20 s.
 - [ ] Integration tests: sync POST → 200 with the composed body; a 404-composing branch returns 404; a run with no respond node still returns the legacy envelope; an oversized body is rejected, not truncated.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-11 · `MERGE` v2 — real multi-input ports · 2d
+### ✅ AF-M9-11 · `MERGE` v2 — real multi-input ports · 2d · **DONE 2026-09-03**
 G4. One input port today, with the result reconstructed from the flat bag.
 
 **Depends on:** AF-M9-03, AF-M9-12
 **Acceptance**
-- [ ] `MERGE` declares `inputCount` (2–5) via `resolveInputs(config)`, rendering `input-0…input-n`.
-- [ ] Modes: `byInput` (`{ input0, input1, … }` — the W2 shape), `append`, `mergeByKey`. The existing single-input `append`/`mergeByKey`/`combine` behaviour is preserved for saved nodes via `definition.migrate` from `version: 1`.
-- [ ] An input port with no arriving branch resolves to `null`, **not** to a missing key — a skipped branch must be distinguishable from an empty one.
-- [ ] Engine tests: two branches merge byInput in declared port order regardless of topological order; one branch skipped yields `{ input0: {...}, input1: null }`; a `version: 1` saved MERGE still produces its old output.
-- [ ] progress.md updated
+- [x] `MERGE` declares `inputCount` (2–5) via `resolveInputs(config)`, rendering `input-0…input-n`.
+- [x] Modes: `byInput` (`{ input0, input1, … }` — the W2 shape), `append`, `mergeByKey`. The existing single-input `append`/`mergeByKey`/`combine` behaviour is preserved for saved nodes via `definition.migrate` from `version: 1`.
+- [x] An input port with no arriving branch resolves to `null`, **not** to a missing key — a skipped branch must be distinguishable from an empty one.
+- [x] Engine tests: two branches merge byInput in declared port order regardless of topological order; one branch skipped yields `{ input0: {...}, input1: null }`; a `version: 1` saved MERGE still produces its old output.
+- [x] progress.md updated
 
 ### ✅ AF-M9-12 · Branch isolation: resolve each node's input from its incoming edges · 3d · **DONE 2026-09-03**
 G5, and the structural precondition for AF-M9-11. Today the runner keeps one

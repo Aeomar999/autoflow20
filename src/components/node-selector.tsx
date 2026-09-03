@@ -231,7 +231,7 @@ export function NodeSelector({
           // (SWITCH) land on their first real branch, not an invented port.
           sourceHandle: defaultOutputId(sourceNode.type ?? "", sourceNode.data),
           target: newNodeId,
-          targetHandle: defaultInputId(selection.type),
+          targetHandle: defaultInputId(selection.type, newNode.data),
         };
         setEdges((prev) => [...prev, newEdge]);
       }
