@@ -67,6 +67,70 @@ const ENGINE_RUN_DEFAULTS = {
   timeoutMs: DEFAULT_NODE_TIMEOUT_MS,
 };
 
+// ---------------------------------------------------------------------------
+// AF-M9-12: per-node input resolution from incoming edges
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a node's resolved input from its incoming edges.
+ *
+ * One incoming edge → that node's output. Several edges into the same port →
+ * merged left-to-right in deterministic edge order. Several ports → keyed by
+ * port id (`toInput`). Nodes with no incoming edges (triggers) receive the
+ * flat rolling `context` — the initial event data before any node has run.
+ */
+function buildNodeInput(
+  node: TraceNode,
+  incoming: Map<string, GraphEdge[]>,
+  nodeOutputs: Record<string, Record<string, unknown>>,
+  idToName: Map<string, string>,
+  fallbackContext: Record<string, unknown>,
+): Record<string, unknown> {
+  const edges = incoming.get(node.id);
+  if (!edges || edges.length === 0) {
+    return fallbackContext;
+  }
+
+  // Group edges by toInput port.
+  const groups = new Map<string, GraphEdge[]>();
+  for (const edge of edges) {
+    const port = edge.toInput || "main";
+    const list = groups.get(port) ?? [];
+    list.push(edge);
+    groups.set(port, list);
+  }
+
+  // Merge a list of edges' upstream outputs into one flat object, left to
+  // right. Later edges overwrite earlier ones on key collisions (deterministic
+  // because edges keep their persisted order).
+  const mergeEdges = (portEdges: GraphEdge[]): Record<string, unknown> => {
+    const merged: Record<string, unknown> = {};
+    for (const edge of portEdges) {
+      const upstreamName = idToName.get(edge.fromNodeId);
+      const upstreamOutput = upstreamName
+        ? nodeOutputs[upstreamName]
+        : undefined;
+      if (upstreamOutput) {
+        Object.assign(merged, upstreamOutput);
+      }
+    }
+    return merged;
+  };
+
+  // Single "main" port: merge directly (flat).
+  if (groups.size === 1 && groups.has("main")) {
+    const mainEdges = groups.get("main");
+    return mainEdges ? mergeEdges(mainEdges) : fallbackContext;
+  }
+
+  // Multiple ports: keyed by port id.
+  const result: Record<string, unknown> = {};
+  for (const [portKey, portEdges] of groups) {
+    result[portKey] = mergeEdges(portEdges);
+  }
+  return result;
+}
+
 function buildExecutionPlan(sortedNodes: TraceNode[]): GraphNodeExecution[] {
   return sortedNodes.map((node) => {
     const def = getNodeRegistration(node.type);
@@ -439,7 +503,11 @@ export async function executeWorkflowHandler({
   const plan = buildExecutionPlan(sortedNodes);
 
   // Build graph maps for branch-taken reachability.
-  const { adjacency } = buildGraphMaps(edges);
+  const { adjacency, incoming } = buildGraphMaps(edges);
+
+  // AF-M9-12: map node IDs to names for edge-derived input resolution.
+  const idToName = new Map(sortedNodes.map((n) => [n.id, n.name]));
+
   const allNodeIds = sortedNodes.map((n) => n.id);
   const triggerIds = sortedNodes
     .filter((n) => n.type.endsWith("_TRIGGER"))
@@ -550,6 +618,20 @@ export async function executeWorkflowHandler({
       continue;
     }
 
+    // AF-M9-12: The node's input is resolved from its incoming edges —
+    // one incoming edge → that node's output; several into one port →
+    // merged left-to-right in deterministic edge order; several ports →
+    // keyed by port id. Nodes with no incoming edges (triggers) receive
+    // the flat rolling `context` (initial event data). Computed before the
+    // disabled check so a skipped node can record its pass-through input.
+    const nodeInputValue = buildNodeInput(
+      node,
+      incoming,
+      nodeOutputs,
+      idToName,
+      context,
+    );
+
     // AF-M9-04 (gap G10): `Node.disabled` has been written by the editor's
     // "Enabled" toggle and persisted by `saveGraph` since M1, and the engine
     // ignored it — a disabled node still ran. Deliberately AFTER the
@@ -569,6 +651,11 @@ export async function executeWorkflowHandler({
         order: index,
         reason: "Skipped: node is disabled",
       });
+      // Crucial for AF-M9-12 edge resolution: successors build their input
+      // from `nodeOutputs`, so a disabled node must expose its pass-through
+      // value there (its resolved input) rather than being absent — otherwise
+      // the branch would appear severed and downstream inputs collapse to {}.
+      nodeOutputs[node.name] = nodeInputValue;
       markTakenEdges(
         node.id,
         defaultOutputId(node.type, node.data),
@@ -579,10 +666,6 @@ export async function executeWorkflowHandler({
     }
 
     const { execute, credentials } = getNodeRegistration(node.type);
-    // AF-M9-18: The node's input is the flat rolling context it received,
-    // captured BEFORE the executor runs (context is reassigned to `result`
-    // below). Persisted alongside `result` in `trace-end`.
-    const nodeInputValue = context;
     let startedAtMs = Date.now();
     // AF-M9-06: the attempt the node actually finished on. `trace-start` seeds
     // the row with the INNGEST function attempt, which is 1 for every node on a
@@ -621,7 +704,14 @@ export async function executeWorkflowHandler({
       // persisted into nodeOutputs, Execution.output and every
       // NodeExecution — and `$json` self-references the context, so it
       // re-nested at every hop and the stored payload grew superlinearly.
-      const resolveTemplate = makeResolver(context, nodeOutputs, templateMeta);
+      // AF-M9-12: the enriched view is built from this node's edge-derived
+      // input, so templates resolve against per-node input (not the flat
+      // rolling context).
+      const resolveTemplate = makeResolver(
+        nodeInputValue,
+        nodeOutputs,
+        templateMeta,
+      );
 
       // AF-M3-04: Decrypt this node's required credentials exactly once,
       // before execution. The result is passed to the executor and never
@@ -659,7 +749,7 @@ export async function executeWorkflowHandler({
                 nodeId: node.id,
                 userId,
                 organizationId,
-                context,
+                context: nodeInputValue,
                 resolve: resolveTemplate,
                 step,
                 publish,

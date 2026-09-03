@@ -986,4 +986,114 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       expect(no?.output).toBeNull();
     });
   });
+
+  // ------------------------------------------------------------------
+  // Suite — Branch isolation (AF-M9-12)
+  // ------------------------------------------------------------------
+  describe("branch isolation (AF-M9-12)", () => {
+    const fanOutGraph: TemplateGraph = {
+      nodes: [
+        {
+          id: "t-bi",
+          name: "Trigger",
+          type: "MANUAL_TRIGGER",
+          position: { x: 0, y: 0 },
+          data: { _run: { timeoutMs: 1000 } },
+        },
+        {
+          id: "a-bi",
+          name: "A",
+          type: "SET",
+          position: { x: 0, y: 0 },
+          data: {
+            mappings: [{ key: "fromA", value: "a-val" }],
+            _run: { timeoutMs: 1000 },
+          },
+        },
+        {
+          id: "b-bi",
+          name: "B",
+          type: "SET",
+          position: { x: 0, y: 0 },
+          data: {
+            mappings: [{ key: "fromB", value: "b-val" }],
+            _run: { timeoutMs: 1000 },
+          },
+        },
+        {
+          id: "c-bi",
+          name: "C",
+          type: "SET",
+          position: { x: 0, y: 0 },
+          data: {
+            mappings: [{ key: "fromC", value: "c-val" }],
+            _run: { timeoutMs: 1000 },
+          },
+        },
+        {
+          id: "d-bi",
+          name: "D",
+          type: "SET",
+          position: { x: 0, y: 0 },
+          data: {
+            mappings: [{ key: "fromD", value: "d-val" }],
+            _run: { timeoutMs: 1000 },
+          },
+        },
+      ],
+      edges: [
+        { source: "t-bi", target: "a-bi", sourceHandle: "main" },
+        { source: "a-bi", target: "b-bi", sourceHandle: "main" },
+        { source: "a-bi", target: "c-bi", sourceHandle: "main" },
+        { source: "b-bi", target: "d-bi", sourceHandle: "main" },
+        { source: "c-bi", target: "d-bi", sourceHandle: "main" },
+      ],
+    };
+
+    it("in A → (B,C) → D, C's input is A's output, not B's", async () => {
+      const { execution, nodeExecutions } = await runGraph(fanOutGraph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const c = nodeExecutions.find((n) => n.nodeName === "C");
+      expect(c?.status).toBe(NodeExecutionStatus.SUCCESS);
+      const cInput = c?.input as Record<string, unknown> | null;
+      // C's resolved input is A's output alone — the prior rolling-context
+      // behaviour would have leaked B's field into C.
+      expect(cInput?.fromA).toBe("a-val");
+      expect(cInput?.fromB).toBeUndefined();
+    });
+
+    it("D receives both B's and C's outputs", async () => {
+      const { execution, nodeExecutions } = await runGraph(fanOutGraph);
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const d = nodeExecutions.find((n) => n.nodeName === "D");
+      expect(d?.status).toBe(NodeExecutionStatus.SUCCESS);
+      const dInput = d?.input as Record<string, unknown> | null;
+      // D has two incoming edges into its single `main` port; they merge
+      // left-to-right so both branches' fields reach it.
+      expect(dInput?.fromA).toBe("a-val");
+      expect(dInput?.fromB).toBe("b-val");
+      expect(dInput?.fromC).toBe("c-val");
+    });
+
+    it("two incoming edges into one port merge deterministically across repeated runs", async () => {
+      const first = await runGraph(fanOutGraph);
+      const second = await runGraph(fanOutGraph);
+
+      const d1 = first.nodeExecutions.find((n) => n.nodeName === "D");
+      const d2 = second.nodeExecutions.find((n) => n.nodeName === "D");
+
+      const input1 = d1?.input as Record<string, unknown> | null;
+      const input2 = d2?.input as Record<string, unknown> | null;
+      expect(input1).toEqual(input2);
+      // Same edges in the same order yield the same merged input every run,
+      // so the fan-out merge is a pure function of the persisted graph.
+      expect(input1?.fromA).toBe("a-val");
+      expect(input1?.fromB).toBe("b-val");
+      expect(input1?.fromC).toBe("c-val");
+    });
+  });
 });

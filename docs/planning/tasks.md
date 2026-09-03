@@ -980,7 +980,7 @@ Every row was verified against the code on 2026-09-01, not against a spec.
 | **G2** | No `SWITCH` / n-way router, and `NodeDefinition.outputs` is a **static** array — a node whose output count depends on its config cannot be declared. | `src/nodes/types.ts` (`outputs: PortDef[]`), `src/nodes/manifest.ts` | W1 | AF-M9-09 |
 | **G3** | **No "Respond to Webhook".** `?sync=true` polls the execution row and returns a fixed envelope `{success, executionId, error}` — the workflow's own output never reaches the caller. No status/header control; POST-only; 500 ms poll for up to 20 s. | `src/app/api/webhooks/[workflowId]/[path]/route.ts` | W1, W2 | AF-M9-10 |
 | **G4** | **`MERGE` has one input port** and reconstructs its result from the flat rolling context. `index: 1` (the second input) is inexpressible; `combineByPosition` has no analogue. | `src/nodes/core/merge/definition.ts:34`, `src/nodes/core/merge/execute.ts` | W2 | AF-M9-11 |
-| **G5** | **Branches are sequential and share one mutable bag.** The runner does `context = result` after each node, so a fan-out's second branch receives the *first* branch's output as its input. Not parallel, not isolated. | `src/inngest/functions.ts:417,594,595` | W2 | AF-M9-12 |
+| **G5** | **Branches are sequential and share one mutable bag.** The runner does `context = result` after each node, so a fan-out's second branch receives the *first* branch's output as its input. Not parallel, not isolated. **Resolved by AF-M9-12** (per-node input from incoming edges; flat `context` retained as a read-only compat view). | `src/inngest/functions.ts` | W2 | AF-M9-12 |
 | **G6** | **No items model.** `NodeRun` returns one `WorkflowContext`; the runner's `for` loop executes each node exactly once. A node that produces N rows cannot produce N downstream runs. (Decision D deferred this "until post-beta" — M9 *is* post-beta.) | `src/nodes/types.ts` (`NodeRun`), `src/inngest/functions.ts` node loop | W3 | AF-M9-14 |
 | **G7** | **No Code/Function node.** Nothing in `src/nodes/` executes user-supplied JS. This is n8n's most-used node and appears in roughly one in five library workflows. | `src/nodes/manifest.ts` | W3 | AF-M9-13 |
 | **G8** | **Expressions are Handlebars-only, string-valued, and HTML-escaped.** No `?.`, no `\|\|` default, no arithmetic, no object literals — W1/W2 use all four. `{{ $json }}` renders `[object Object]`. Default escaping corrupts any JSON body containing `&`, `"`, `<`. `SET` writes only strings, so `ok: true` persists as `"true"` and `payload: object` as `"[object Object]"`. | `src/features/executions/template.ts:95-102`, `src/nodes/core/set/execute.ts:30,33` | W1, W2, W3 | AF-M9-07, AF-M9-08 |
@@ -1381,19 +1381,19 @@ G4. One input port today, with the result reconstructed from the flat bag.
 - [ ] Engine tests: two branches merge byInput in declared port order regardless of topological order; one branch skipped yields `{ input0: {...}, input1: null }`; a `version: 1` saved MERGE still produces its old output.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-12 · Branch isolation: resolve each node's input from its incoming edges · 3d
+### ✅ AF-M9-12 · Branch isolation: resolve each node's input from its incoming edges · 3d · **DONE 2026-09-03**
 G5, and the structural precondition for AF-M9-11. Today the runner keeps one
 `context` variable and overwrites it after every node, so in `A → (B, C) → D`, node C
 receives B's output and D receives only C's.
 
 **Depends on:** AF-M9-05
 **Acceptance**
-- [ ] The runner keeps `nodeOutputs` (already present) as the source of truth and builds each node's input from its **incoming edges**: one incoming edge → that node's output; several into one port → merged left-to-right in deterministic edge order; several ports → keyed by port id.
-- [ ] The flat rolling context is retained **as an additional read-only view**, so every existing template and every seeded catalogue template keeps resolving. This is a compatibility guarantee with an engine test per existing catalogue template proving it.
-- [ ] Execution stays sequential in topological order. **Concurrency is explicitly out of scope** — the deliverable is isolation, not parallelism. Say so in the task record so nobody reads "fan-out" as "parallel".
-- [ ] Engine tests: in `A → (B, C) → D`, C's input is A's output (not B's); D receives both; a node with two incoming edges into one port merges deterministically across repeated runs.
-- [ ] ADR-0019 records per-node input resolution, what it supersedes in `docs/architecture/execution_engine.md`, and the compatibility view.
-- [ ] progress.md updated
+- [x] The runner keeps `nodeOutputs` (already present) as the source of truth and builds each node's input from its **incoming edges**: one incoming edge → that node's output; several into one port → merged left-to-right in deterministic edge order; several ports → keyed by port id.
+- [x] The flat rolling context is retained **as an additional read-only view**, so every existing template and every seeded catalogue template keeps resolving. This is a compatibility guarantee with an engine test per existing catalogue template proving it.
+- [x] Execution stays sequential in topological order. **Concurrency is explicitly out of scope** — the deliverable is isolation, not parallelism. Say so in the task record so nobody reads "fan-out" as "parallel".
+- [x] Engine tests: in `A → (B, C) → D`, C's input is A's output (not B's); D receives both; a node with two incoming edges into one port merges deterministically across repeated runs.
+- [x] ADR-0019 records per-node input resolution, what it supersedes in `docs/architecture/execution_engine.md`, and the compatibility view.
+- [x] progress.md updated
 
 ### ⬜ AF-M9-13 · `CODE` node — sandboxed, no network, hard caps · 3d
 G7. The most-used node in the source library, and the one with real blast radius:
