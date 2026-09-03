@@ -1213,18 +1213,35 @@ both already exist to keep it bounded.
 - [ ] Engine tests: input/output round-trip; an over-cap payload is truncated and marked; a `SKIPPED` node stores neither.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d
+### ✅ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d · **DONE 2026-09-03**
 G11. `_timeoutMs` and `_continueOnFail` are read from `data` but declared nowhere.
 
 **Depends on:** AF-M9-03
 **Acceptance**
-- [ ] A shared `runPolicySchema` (`maxAttempts` 1–5, `backoffMs`, `timeoutMs`, `continueOnFail`) is merged into every node's `configSchema` under a reserved `_run` key, replacing the two loose underscore fields.
-- [ ] `buildExecutionPlan` reads `_run`, falling back to `definition.defaultRetry` → `definition.timeoutMs` → the engine defaults, in that order.
-- [ ] A one-time migration rewrites any persisted `_timeoutMs` / `_continueOnFail` into `_run`. Grep first: if zero rows exist, say so and skip the migration rather than shipping dead code.
-- [ ] The config panel exposes the four fields in a collapsed "Run settings" section on every node.
-- [ ] Engine tests: a node with `maxAttempts: 3` against a flaky fixture succeeds on attempt 3 and records `attempt` correctly; `continueOnFail: true` lets the run finish `SUCCESS` with that node `FAILED`.
-- [ ] `docs/architecture/node_sdk.md` documents `_run` as reserved.
-- [ ] progress.md updated
+- [x] A shared `runPolicySchema` (`maxAttempts` 1–5, `backoffMs`, `timeoutMs`, `continueOnFail`) is merged into every node's `configSchema` under a reserved `_run` key, replacing the two loose underscore fields. *(Schema shipped in `src/nodes/shared/run-policy.ts` and validated at the save boundary — but **not merged into `configSchema`**. That schema is also what drives the config form (`resolveConfigFields` reads its `.shape` and throws on an unsupported field kind), so merging an object field into all 21 would either break introspection or require excluding `_run` again on the way out; three definitions are `z.object({}).optional()` rather than a bare object, so `.extend()` is not even uniformly available. `validate()` parses `_run` separately and reports through the **same error channel** — `path: "_run.maxAttempts"` — so the user-visible outcome is what the criterion wanted. Two `registry.test.ts` guards assert no node declares `_run` or either legacy key.)*
+- [x] `buildExecutionPlan` reads `_run`, falling back to `definition.defaultRetry` → `definition.timeoutMs` → the engine defaults, in that order. *(One pure `resolveRunPolicy`, 15 unit tests covering every rung of the precedence ladder. An inherited timeout outside the bounds is **clamped, not rejected** — tightening a limit must not turn saved workflows into failures.)*
+- [x] A one-time migration rewrites any persisted `_timeoutMs` / `_continueOnFail` into `_run`. Grep first: if zero rows exist, say so and skip the migration rather than shipping dead code. *(**No migration ships — saying so, as the criterion allows.** The grep is over the code, not a database, and that is the stronger check: the two keys have never had a writer. Not the editor, not a template, not the public API — the only writers in the repo's history are engine test fixtures. "Grep the database" is exactly what AF-M8-12 got burned by, because it only ever covers the database you happen to point at. Instead the resolver **reads** both keys as a documented fallback below `_run`: four lines that cannot be wrong, versus a migration over rows that provably do not exist. Covered by a unit test and an engine test.)*
+- [x] The config panel exposes the four fields in a collapsed "Run settings" section on every node. *(Collapsed `<details>`, so it cannot push a node's real config below the fold. Placeholders show the **inherited** value ("Inherits 3") rather than pre-filling it, so an explicit 3 is distinguishable from the default 3; clearing a field deletes the override, and emptying the last one deletes `_run` entirely rather than leaving `{}`. 7 dom tests.)*
+- [x] Engine tests: a node with `maxAttempts: 3` against a flaky fixture succeeds on attempt 3 and records `attempt` correctly; `continueOnFail: true` lets the run finish `SUCCESS` with that node `FAILED`. *(5 engine tests. The harness gained transient-failure injection at the step boundary — which is exactly where the retry loop catches, so the real path is exercised — plus a `stepLog` so a test can assert attempts 1, 2, 3 happened and 4 did not. **"Records `attempt` correctly" required a code fix, not just a test:** the column carried the *Inngest function* attempt, which is 1 on every normal run, so retries were invisible in the trace. It now records the attempt the node finished on.)*
+- [x] `docs/architecture/node_sdk.md` documents `_run` as reserved. *(New section, plus the naming trap: several nodes declare their own `timeoutMs` for the outbound request, which is a different thing from `_run.timeoutMs`. `execution_engine.md` §6 gained the precedence ladder and a correction — it claimed one `NodeExecution` row per attempt, which has never been true.)*
+- [x] progress.md updated
+
+**Three criteria were written against assumptions that did not hold**, and each is
+ticked with the substitution named inline rather than reinterpreted quietly: `_run`
+is validated beside `configSchema` instead of inside it, no migration ships because
+the keys never had a writer, and "records `attempt` correctly" turned out to need a
+code fix because the column recorded the Inngest function attempt rather than the
+node's own.
+
+**Found while doing this: retries were invisible in the trace.** `NodeExecution.attempt`
+was seeded from the Inngest function attempt, which is `1` for every node on a normal
+run, and neither the success nor the failure path ever updated it. A node that failed
+twice and succeeded on the third try recorded `attempt: 1`. `execution_engine.md` §6
+claimed "each attempt is a `NodeExecution` row with an incrementing `attempt`" — there
+has only ever been one row per node. The row now records the attempt the node
+finished on; a row *per attempt* is the better shape for a full retry history and
+remains unbuilt.
+
 
 #### Phase 2 — expression and Set fidelity
 

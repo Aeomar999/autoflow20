@@ -1,4 +1,5 @@
 import toposort from "toposort";
+import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
 /**
  * Shared graph validator (AF-M2-02). One implementation, three call sites:
@@ -196,6 +197,29 @@ function checkConfigs(
     // one must not block saving or running the rest of the workflow — turning
     // a node off is the normal way to park work in progress.
     if (node.disabled) continue;
+
+    // AF-M9-06: the run policy lives under a reserved key alongside the node's
+    // own config, not inside its `configSchema`. Validating it separately is
+    // deliberate — `configSchema` is also what drives the config form, and
+    // merging an object field into every node's schema would either break the
+    // form's introspection or require excluding the key again on the way out.
+    // Same error channel, so a bad retry count surfaces exactly where a bad
+    // endpoint does.
+    const rawPolicy = node.data?.[RUN_POLICY_KEY];
+    if (rawPolicy !== undefined && rawPolicy !== null) {
+      const policyResult = runPolicySchema.safeParse(rawPolicy);
+      if (!policyResult.success) {
+        for (const issue of policyResult.error.issues) {
+          errors.push({
+            nodeId: node.id,
+            path: [RUN_POLICY_KEY, ...issue.path].join("."),
+            severity: "error",
+            message: `Run settings: ${issue.message}`,
+          });
+        }
+      }
+    }
+
     try {
       const registration = registry.resolve(node.type);
       const result = registration.configSchema.safeParse(node.data);

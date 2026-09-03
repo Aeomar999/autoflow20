@@ -23,9 +23,28 @@ type HandlerCtx = Parameters<typeof executeWorkflowHandler>[0];
  * node be visible in an earlier node's recorded output, which real Inngest
  * would never do.
  */
-function makeStep() {
+function makeStep(opts?: {
+  /** Throw for the first `times` step.run calls whose name starts with this. */
+  failSteps?: { prefix: string; times: number };
+  /** Every step.run name, in order — lets a test assert what was attempted. */
+  log?: string[];
+}) {
+  let failures = 0;
   return {
     run: async (_name: string, fn: () => unknown) => {
+      opts?.log?.push(_name);
+      const failSpec = opts?.failSteps;
+      if (
+        failSpec &&
+        _name.startsWith(failSpec.prefix) &&
+        failures < failSpec.times
+      ) {
+        failures += 1;
+        // Fails at the step boundary, which is exactly where the engine's
+        // per-node retry loop catches — so the retry path is genuinely
+        // exercised rather than simulated.
+        throw new Error(`injected transient failure #${failures}`);
+      }
       const value = await fn();
       if (value === undefined || value === null) return value;
       try {
@@ -63,10 +82,14 @@ export async function runGraph(
     userId?: string;
     /** Reuse this workflow id instead of creating one. Requires orgId. */
     workflowId?: string;
+    /** Inject transient failures at the step boundary (AF-M9-06 retry tests). */
+    failSteps?: { prefix: string; times: number };
   },
 ): Promise<{
   execution: Awaited<ReturnType<typeof prisma.execution.findUniqueOrThrow>>;
   nodeExecutions: Awaited<ReturnType<typeof prisma.nodeExecution.findMany>>;
+  /** Every `step.run` name in order, so a test can assert what was attempted. */
+  stepLog: string[];
 }> {
   const userId = opts?.userId ?? `user-eng-${Date.now()}`;
 
@@ -146,7 +169,8 @@ export async function runGraph(
     },
   };
 
-  const step = makeStep();
+  const stepLog: string[] = [];
+  const step = makeStep({ failSteps: opts?.failSteps, log: stepLog });
 
   await executeWorkflowHandler({
     event,
@@ -166,5 +190,5 @@ export async function runGraph(
     orderBy: { order: "asc" },
   });
 
-  return { execution, nodeExecutions };
+  return { execution, nodeExecutions, stepLog };
 }

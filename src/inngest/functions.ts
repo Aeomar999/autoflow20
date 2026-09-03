@@ -20,6 +20,7 @@ import {
 } from "@/lib/quotas";
 import { defaultOutputId } from "@/nodes/ports";
 import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
+import { resolveRunPolicy } from "@/nodes/shared/run-policy";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
 import { geminiChannel } from "./channels/gemini";
@@ -58,33 +59,34 @@ const DEFAULT_BACKOFF_MS = 1_000;
  * Build `GraphNodeExecution[]` from persisted node rows. Resolves
  * per-node config overrides and falls back to definition defaults.
  */
+/** Engine-wide fallbacks, the last step of the AF-M9-06 precedence chain. */
+const ENGINE_RUN_DEFAULTS = {
+  maxAttempts: ENGINE_RETRIES,
+  backoffMs: DEFAULT_BACKOFF_MS,
+  timeoutMs: DEFAULT_NODE_TIMEOUT_MS,
+};
+
 function buildExecutionPlan(sortedNodes: TraceNode[]): GraphNodeExecution[] {
   return sortedNodes.map((node) => {
     const def = getNodeRegistration(node.type);
     const data = (node.data ?? {}) as Record<string, unknown>;
 
-    // Per-node overrides from data (future: editor exposes these).
-    const timeoutMs =
-      typeof data._timeoutMs === "number" && data._timeoutMs > 0
-        ? data._timeoutMs
-        : (def.timeoutMs ?? DEFAULT_NODE_TIMEOUT_MS);
-
-    const retryPolicy = def.defaultRetry ?? {
-      maxAttempts: ENGINE_RETRIES,
-      backoffMs: DEFAULT_BACKOFF_MS,
-    };
-
-    const continueOnFail =
-      typeof data._continueOnFail === "boolean" ? data._continueOnFail : false;
+    // AF-M9-06: one resolver, one documented precedence order —
+    // node `_run` > legacy `_timeoutMs`/`_continueOnFail` > definition >
+    // engine defaults. Previously inlined here against two undeclared keys.
+    const policy = resolveRunPolicy(data, def, ENGINE_RUN_DEFAULTS);
 
     return {
       id: node.id,
       name: node.name,
       type: node.type,
       data,
-      timeoutMs,
-      retry: retryPolicy,
-      continueOnFail,
+      timeoutMs: policy.timeoutMs,
+      retry: {
+        maxAttempts: policy.maxAttempts,
+        backoffMs: policy.backoffMs,
+      },
+      continueOnFail: policy.continueOnFail,
       disabled: node.disabled === true,
     };
   });
@@ -577,6 +579,13 @@ export async function executeWorkflowHandler({
 
     const { execute, credentials } = getNodeRegistration(node.type);
     let startedAtMs = Date.now();
+    // AF-M9-06: the attempt the node actually finished on. `trace-start` seeds
+    // the row with the INNGEST function attempt, which is 1 for every node on a
+    // normal run — so without this a node that failed twice and succeeded on the
+    // third try recorded `attempt: 1`, leaving the retry invisible in the trace
+    // and contradicting "every attempt recorded". Declared out here because the
+    // failure path in `catch` records it too.
+    let attemptUsed = 1;
 
     try {
       startedAtMs = await step.run(`trace-start:${node.id}`, async () => {
@@ -633,6 +642,7 @@ export async function executeWorkflowHandler({
       const { maxAttempts, backoffMs } = nodeExec.retry;
 
       for (let attemptNum = 1; attemptNum <= maxAttempts; attemptNum++) {
+        attemptUsed = attemptNum;
         try {
           // Wrap executor in step.run with a per-node timeout via
           // Promise.race. step.run itself has no timeout option.
@@ -717,6 +727,7 @@ export async function executeWorkflowHandler({
           },
           data: {
             status: NodeExecutionStatus.SUCCESS,
+            attempt: attemptUsed,
             finishedAt: new Date(finishedAtMs),
             durationMs: computeDurationMs(startedAtMs, finishedAtMs),
             tokensIn: usage.tokensIn,
@@ -751,6 +762,7 @@ export async function executeWorkflowHandler({
           },
           data: {
             status: NodeExecutionStatus.FAILED,
+            attempt: attemptUsed,
             error: message,
             finishedAt: new Date(finishedAtMs),
             durationMs: computeDurationMs(startedAtMs, finishedAtMs),

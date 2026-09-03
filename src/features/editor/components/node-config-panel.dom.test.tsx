@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { EditorNode } from "@/features/editor/store/atoms";
 import { definition as aiExtractDefinition } from "@/nodes/ai/extract/definition";
@@ -294,5 +294,98 @@ describe("NodeConfigForm — AI_EXTRACT (AF-M5-03)", () => {
     });
     fireEvent.click(removeButtons[1]);
     expect(screen.queryByLabelText("Fields Name 2")).toBeNull();
+  });
+});
+
+describe("NodeConfigPanel — Run settings (AF-M9-06)", () => {
+  const patch = vi.fn();
+
+  beforeEach(() => {
+    patch.mockClear();
+  });
+
+  function renderPanel(node: EditorNode = httpNode) {
+    return render(
+      <NodeConfigPanel
+        node={node}
+        definition={httpDefinition}
+        onNodeChange={patch}
+      />,
+    );
+  }
+
+  it("exposes all four policy fields", () => {
+    renderPanel();
+    expect(screen.getByLabelText(/max attempts/i)).toBeTruthy();
+    expect(screen.getByLabelText(/retry backoff/i)).toBeTruthy();
+    expect(screen.getByLabelText(/attempt timeout/i)).toBeTruthy();
+    expect(screen.getByLabelText(/continue on fail/i)).toBeTruthy();
+  });
+
+  it("is collapsed by default so it cannot bury the node's own config", () => {
+    const { container } = renderPanel();
+    const section = container.querySelector("details");
+    expect(section).toBeTruthy();
+    expect((section as HTMLDetailsElement).open).toBe(false);
+  });
+
+  it("shows the inherited value as a placeholder, not as a value", () => {
+    // A node with no policy of its own must read as "inherits", otherwise the
+    // user cannot tell an explicit 3 from the default 3.
+    renderPanel();
+    const attempts = screen.getByLabelText(/max attempts/i) as HTMLInputElement;
+    expect(attempts.value).toBe("");
+    expect(attempts.placeholder).toMatch(/inherits/i);
+  });
+
+  it("writes an override under the reserved _run key", () => {
+    renderPanel();
+    fireEvent.change(screen.getByLabelText(/max attempts/i), {
+      target: { value: "4" },
+    });
+    expect(patch).toHaveBeenCalledWith({
+      data: { ...httpNode.data, _run: { maxAttempts: 4 } },
+    });
+  });
+
+  it("clearing a field removes the override rather than writing 0", () => {
+    const withPolicy: EditorNode = {
+      ...httpNode,
+      data: { ...httpNode.data, _run: { maxAttempts: 4 } },
+    };
+    renderPanel(withPolicy);
+    fireEvent.change(screen.getByLabelText(/max attempts/i), {
+      target: { value: "" },
+    });
+    // The whole key goes when it empties out — an empty object would make
+    // every node's data differ from a node that never had a policy.
+    expect(patch).toHaveBeenCalledWith({ data: httpNode.data });
+  });
+
+  it("toggles continueOnFail on and back off to nothing", () => {
+    renderPanel();
+    fireEvent.click(screen.getByLabelText(/continue on fail/i));
+    expect(patch).toHaveBeenCalledWith({
+      data: { ...httpNode.data, _run: { continueOnFail: true } },
+    });
+
+    patch.mockClear();
+    renderPanel({
+      ...httpNode,
+      data: { ...httpNode.data, _run: { continueOnFail: true } },
+    });
+    fireEvent.click(screen.getAllByLabelText(/continue on fail/i)[1]);
+    expect(patch).toHaveBeenCalledWith({ data: httpNode.data });
+  });
+
+  it("keeps the node's own config fields untouched when editing the policy", () => {
+    renderPanel();
+    fireEvent.change(screen.getByLabelText(/attempt timeout/i), {
+      target: { value: "5000" },
+    });
+    const [[arg]] = patch.mock.calls;
+    expect((arg.data as Record<string, unknown>).endpoint).toBe(
+      "https://api.example.com/users",
+    );
   });
 });

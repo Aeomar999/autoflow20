@@ -45,21 +45,21 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "set-1",
             name: "Set",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
           {
             id: "done-1",
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -101,21 +101,21 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "cond-fail",
             name: "CondNoOp",
             type: "CONDITION",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "done-2",
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -210,7 +210,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [],
@@ -252,7 +252,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "cond-g1",
@@ -263,7 +263,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
               left: "trigger",
               operator: "equals",
               right: "trigger",
-              _timeoutMs: 1000,
+              _run: { timeoutMs: 1000 },
             },
           },
           {
@@ -271,7 +271,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -318,7 +318,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "cond-b",
@@ -329,7 +329,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
               left: "a",
               operator: "equals",
               right: "a",
-              _timeoutMs: 1000,
+              _run: { timeoutMs: 1000 },
             },
           },
           {
@@ -337,14 +337,14 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Yes",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
           {
             id: "no-b",
             name: "No",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -375,7 +375,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "cond-f",
@@ -386,7 +386,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
               left: "a",
               operator: "equals",
               right: "b",
-              _timeoutMs: 1000,
+              _run: { timeoutMs: 1000 },
             },
           },
           {
@@ -394,14 +394,14 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Yes",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
           {
             id: "no-f",
             name: "No",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -437,7 +437,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "seed-d",
@@ -446,7 +446,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             position: { x: 0, y: 0 },
             data: {
               mappings: [{ key: "marker", value: "from-upstream" }],
-              _timeoutMs: 1000,
+              _run: { timeoutMs: 1000 },
             },
           },
           {
@@ -458,7 +458,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             // Would overwrite `marker` if it ran — that is the assertion.
             data: {
               mappings: [{ key: "marker", value: "from-disabled" }],
-              _timeoutMs: 1000,
+              _run: { timeoutMs: 1000 },
             },
           },
           {
@@ -466,7 +466,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -509,7 +509,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "broken-x",
@@ -518,14 +518,14 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             position: { x: 0, y: 0 },
             disabled: true,
             // No operator — the executor throws NonRetriableError when run.
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "done-x",
             name: "Done",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -556,7 +556,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             name: "Trigger",
             type: "MANUAL_TRIGGER",
             position: { x: 0, y: 0 },
-            data: { _timeoutMs: 1000 },
+            data: { _run: { timeoutMs: 1000 } },
           },
           {
             id: "cond-u",
@@ -567,7 +567,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
               left: "a",
               operator: "equals",
               right: "a",
-              _timeoutMs: 1000,
+              _run: { timeoutMs: 1000 },
             },
           },
           {
@@ -576,14 +576,14 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             type: "SET",
             position: { x: 0, y: 0 },
             disabled: true,
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
           {
             id: "tail-u",
             name: "Tail",
             type: "SET",
             position: { x: 0, y: 0 },
-            data: { mappings: [], _timeoutMs: 1000 },
+            data: { mappings: [], _run: { timeoutMs: 1000 } },
           },
         ],
         edges: [
@@ -631,7 +631,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
           name: "Trigger",
           type: "MANUAL_TRIGGER",
           position: { x: 0, y: 0 },
-          data: { _timeoutMs: 1000 },
+          data: { _run: { timeoutMs: 1000 } },
         },
       ];
       const edges: TemplateGraph["edges"] = [];
@@ -648,7 +648,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
             mappings: [
               { key: `field${i}`, value: `value-${i} {{$execution.id}}` },
             ],
-            _timeoutMs: 1000,
+            _run: { timeoutMs: 1000 },
           },
         });
         edges.push({ source: previous, target: id, sourceHandle: "main" });
@@ -725,6 +725,152 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
         expect(ne.input).toBeNull();
         expect(ne.output).toBeNull();
       }
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Suite 7 - Per-node run policy (AF-M9-06, gap G11)
+  // ------------------------------------------------------------------
+  describe("run policy", () => {
+    /** Trigger -> Flaky(SET) -> Done(SET). */
+    function retryGraph(policy: Record<string, unknown>): TemplateGraph {
+      return {
+        nodes: [
+          {
+            id: "trigger-r",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: {},
+          },
+          {
+            id: "flaky-r",
+            name: "Flaky",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: {
+              mappings: [{ key: "ok", value: "yes" }],
+              _run: policy,
+            },
+          },
+          {
+            id: "done-r",
+            name: "Done",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [] },
+          },
+        ],
+        edges: [
+          { source: "trigger-r", target: "flaky-r", sourceHandle: "main" },
+          { source: "flaky-r", target: "done-r", sourceHandle: "main" },
+        ],
+      };
+    }
+
+    it("retries a transient failure and succeeds on the third attempt", async () => {
+      const { execution, nodeExecutions, stepLog } = await runGraph(
+        retryGraph({ maxAttempts: 3, backoffMs: 0 }),
+        // The first two `node:flaky-r:attempt:*` steps throw.
+        { failSteps: { prefix: "node:flaky-r:attempt:", times: 2 } },
+      );
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const flaky = nodeExecutions.find((n) => n.nodeName === "Flaky");
+      expect(flaky?.status).toBe(NodeExecutionStatus.SUCCESS);
+      // AF-M9-06: the recorded attempt is the one it FINISHED on. Before this,
+      // the row carried the Inngest function attempt (always 1), so a retry was
+      // invisible in the trace.
+      expect(flaky?.attempt).toBe(3);
+
+      // All three attempts really were made, in order.
+      expect(stepLog).toContain("node:flaky-r:attempt:1");
+      expect(stepLog).toContain("node:flaky-r:attempt:2");
+      expect(stepLog).toContain("node:flaky-r:attempt:3");
+      expect(stepLog).not.toContain("node:flaky-r:attempt:4");
+
+      // Downstream still ran.
+      expect(nodeExecutions.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+    });
+
+    it("honours maxAttempts: 1 as no retry at all", async () => {
+      const { stepLog } = await runGraph(
+        retryGraph({ maxAttempts: 1, backoffMs: 0 }),
+        { failSteps: { prefix: "node:flaky-r:attempt:", times: 0 } },
+      );
+      expect(stepLog).toContain("node:flaky-r:attempt:1");
+      expect(stepLog).not.toContain("node:flaky-r:attempt:2");
+    });
+
+    it("stops at maxAttempts and fails the run when every attempt fails", async () => {
+      let threw = false;
+      try {
+        await runGraph(retryGraph({ maxAttempts: 2, backoffMs: 0 }), {
+          failSteps: { prefix: "node:flaky-r:attempt:", times: 99 },
+        });
+      } catch {
+        threw = true;
+      }
+      expect(threw).toBe(true);
+
+      const rows = await prisma.nodeExecution.findMany({
+        orderBy: { order: "asc" },
+      });
+      const flaky = rows.find((n) => n.nodeName === "Flaky");
+      expect(flaky?.status).toBe(NodeExecutionStatus.FAILED);
+      // The failure records the last attempt tried, not the first.
+      expect(flaky?.attempt).toBe(2);
+      expect(rows.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SKIPPED,
+      );
+    });
+
+    it("continueOnFail lets the run finish SUCCESS with the node FAILED", async () => {
+      const graph = retryGraph({ maxAttempts: 1, continueOnFail: true });
+      const { execution, nodeExecutions } = await runGraph(graph, {
+        failSteps: { prefix: "node:flaky-r:attempt:", times: 99 },
+      });
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+      expect(nodeExecutions.find((n) => n.nodeName === "Flaky")?.status).toBe(
+        NodeExecutionStatus.FAILED,
+      );
+      // The whole point: downstream keeps going.
+      expect(nodeExecutions.find((n) => n.nodeName === "Done")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
+    });
+
+    it("a legacy _timeoutMs node still runs, with no migration", async () => {
+      // AF-M9-06 ships no data migration; rows predating it must keep working.
+      const graph: TemplateGraph = {
+        nodes: [
+          {
+            id: "trigger-l",
+            name: "Trigger",
+            type: "MANUAL_TRIGGER",
+            position: { x: 0, y: 0 },
+            data: { _timeoutMs: 1000 },
+          },
+          {
+            id: "set-l",
+            name: "Legacy",
+            type: "SET",
+            position: { x: 0, y: 0 },
+            data: { mappings: [], _timeoutMs: 2000, _continueOnFail: true },
+          },
+        ],
+        edges: [{ source: "trigger-l", target: "set-l", sourceHandle: "main" }],
+      };
+
+      const { execution, nodeExecutions } = await runGraph(graph);
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+      expect(nodeExecutions.find((n) => n.nodeName === "Legacy")?.status).toBe(
+        NodeExecutionStatus.SUCCESS,
+      );
     });
   });
 });

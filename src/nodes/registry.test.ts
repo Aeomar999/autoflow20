@@ -268,3 +268,31 @@ describe("executor context hygiene (AF-M9-05)", () => {
     }
   });
 });
+
+describe("reserved config keys (AF-M9-06)", () => {
+  it("no node declares the reserved `_run` key as its own config field", () => {
+    // `_run` is the per-node run policy, validated separately from the node's
+    // configSchema. A node declaring it would give one key two owners and two
+    // validation rules.
+    for (const def of nodeManifest) {
+      const shape =
+        (def.configSchema as unknown as { shape?: Record<string, unknown> })
+          .shape ?? {};
+      expect(
+        Object.keys(shape),
+        `${def.type} must not declare "_run"`,
+      ).not.toContain("_run");
+    }
+  });
+
+  it("no node declares the legacy underscore keys either", () => {
+    for (const def of nodeManifest) {
+      const shape =
+        (def.configSchema as unknown as { shape?: Record<string, unknown> })
+          .shape ?? {};
+      const keys = Object.keys(shape);
+      expect(keys, `${def.type}`).not.toContain("_timeoutMs");
+      expect(keys, `${def.type}`).not.toContain("_continueOnFail");
+    }
+  });
+});

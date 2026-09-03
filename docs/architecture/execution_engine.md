@@ -164,9 +164,22 @@ Per-node policy, from `definition.defaultRetry` overridden by user config:
 { maxAttempts: 3, backoffMs: 1000 }   // attempts at 0s, 1s, 2s, 4s (capped)
 ```
 
+**Where a node's policy comes from** (AF-M9-06). It lives under the reserved key `_run` in `Node.data`, is described by `runPolicySchema` (`src/nodes/shared/run-policy.ts`), and is resolved by `resolveRunPolicy` in this precedence, highest first:
+
+1. the node's own `_run` — `maxAttempts` (1–5), `backoffMs`, `timeoutMs` (250 ms – 5 min), `continueOnFail`
+2. the legacy `_timeoutMs` / `_continueOnFail` keys, read-only
+3. `definition.defaultRetry` / `definition.timeoutMs`
+4. the engine defaults (`ENGINE_RETRIES`, 1 s backoff, 60 s timeout)
+
+`_run` is validated at the save boundary by `validate()` and edited in the config panel's collapsed **Run settings** section. It is deliberately *not* merged into each node's `configSchema`: that schema also drives the config form, so an object field in it would either break the form's introspection or have to be excluded again on the way out.
+
+The two legacy keys are read but never written, and **no data migration ships**. They were never written by the editor, a template, or the public API — the only writers in the repo's history are engine test fixtures — so a migration would be dead code, and "grep the database" is the check AF-M8-12 got burned by, since it only covers the database you point at. Reading four extra keys cannot be wrong; migrating rows that provably do not exist can be.
+
+An inherited timeout that falls outside the bounds is **clamped, not rejected**: tightening a limit must not turn saved workflows into failures.
+
 - **Retryable** errors: network failures, 429, 5xx, explicit `retryable: true`. Determined by the node, not guessed by the engine.
 - **Non-retryable**: 4xx other than 429, config errors, auth failures. Retrying these wastes time and can trip rate limits.
-- Each attempt is a `NodeExecution` row with an incrementing `attempt`, so the trace shows the full retry history rather than only the final outcome.
+- ~~Each attempt is a `NodeExecution` row with an incrementing `attempt`~~. **Reality (AF-M9-06):** there is one row per node, and `attempt` records the attempt it *finished* on — 3 for a node that failed twice and succeeded on the third try, or the last attempt tried for one that failed. Before AF-M9-06 the column carried the Inngest *function* attempt, which is 1 on every normal run, so retries were invisible in the trace entirely. A row per attempt is the better shape for "the full retry history" and remains unbuilt.
 - `continueOnFail`: the node records `FAILED`, emits `{ json: { error } }` items, and the run continues. Off by default — failing loudly is the correct default for automation.
 - **Error output port** (M4+): nodes may declare an `error` output so users can build explicit error branches.
 

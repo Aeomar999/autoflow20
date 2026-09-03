@@ -518,3 +518,106 @@ describe("validate — disabled nodes", () => {
     expect(cycleErrors).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Run policy (AF-M9-06)
+// ---------------------------------------------------------------------------
+
+describe("validate — run policy", () => {
+  const registry: ValidationRegistry = {
+    has: (type) => type === "MANUAL_TRIGGER" || type === "HTTP_REQUEST",
+    resolve: (type) => {
+      if (type === "MANUAL_TRIGGER") {
+        return { configSchema: z.object({}), inputs: [] };
+      }
+      if (type === "HTTP_REQUEST") {
+        return {
+          configSchema: z.object({ endpoint: z.url().optional() }),
+          inputs: [{ id: "main" }],
+        };
+      }
+      throw new Error(`Unknown node type: "${type}".`);
+    },
+  };
+
+  function graphWithPolicy(policy: unknown): Graph {
+    return {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com",
+          _run: policy,
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+  }
+
+  function policyErrors(graph: Graph) {
+    return errorsOf(validate(graph, registry)).filter((e) =>
+      e.message.startsWith("Run settings:"),
+    );
+  }
+
+  it("accepts a valid policy", () => {
+    expect(
+      policyErrors(
+        graphWithPolicy({
+          maxAttempts: 3,
+          backoffMs: 500,
+          timeoutMs: 5000,
+          continueOnFail: true,
+        }),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("accepts a node with no policy at all", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", {
+          endpoint: "https://example.com",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    expect(policyErrors(graph)).toHaveLength(0);
+  });
+
+  it("reports an out-of-range attempt count against the reserved path", () => {
+    // Same error channel as a bad endpoint, so the config panel can point at
+    // the offending field rather than showing a generic save failure.
+    const found = policyErrors(graphWithPolicy({ maxAttempts: 99 }));
+    expect(found).toHaveLength(1);
+    expect(found[0].nodeId).toBe("n1");
+    expect(found[0].path).toBe("_run.maxAttempts");
+  });
+
+  it("reports a timeout below the floor", () => {
+    const found = policyErrors(graphWithPolicy({ timeoutMs: 1 }));
+    expect(found).toHaveLength(1);
+    expect(found[0].path).toBe("_run.timeoutMs");
+  });
+
+  it("reports a policy that is not an object", () => {
+    expect(policyErrors(graphWithPolicy("fast")).length).toBeGreaterThan(0);
+  });
+
+  it("does not report the policy of a disabled node", () => {
+    // Consistent with AF-M9-04: a node that cannot run cannot fail a run.
+    const graph = graphWithPolicy({ maxAttempts: 99 });
+    graph.nodes[1] = { ...graph.nodes[1], disabled: true };
+    expect(policyErrors(graph)).toHaveLength(0);
+  });
+
+  it("does not let the reserved key trip the node's own config schema", () => {
+    // `_run` is not a field any node declares; a non-strict Zod object strips
+    // it, and this pins that so a future `.strict()` cannot silently break
+    // every saved node that carries a policy.
+    const configErrors = errorsOf(
+      validate(graphWithPolicy({ maxAttempts: 2 }), registry),
+    ).filter((e) => e.message.startsWith("Config error:"));
+    expect(configErrors).toHaveLength(0);
+  });
+});

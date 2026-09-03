@@ -140,6 +140,32 @@ export type NodeExecute<TConfig> =
   (ctx: NodeExecutionContext<TConfig>) => Promise<NodeResult>;
 ```
 
+### `_run` is a reserved config key  *(AF-M9-06)*
+
+`Node.data` carries the node's own config **and** one reserved key, `_run`, holding
+the per-node run policy:
+
+```ts
+{ maxAttempts?: 1..5; backoffMs?: number; timeoutMs?: 250..300_000; continueOnFail?: boolean }
+```
+
+**A node definition must never declare `_run`, `_timeoutMs`, or `_continueOnFail` as
+its own config field** — `registry.test.ts` fails the build if one does. The policy
+is owned by the engine, described once by `runPolicySchema`
+(`src/nodes/shared/run-policy.ts`), validated by `validate()`, and edited in the
+config panel's "Run settings" section. A node declaring the same key would give it
+two owners and two validation rules.
+
+A node influences the policy through its *definition*, not through its config
+schema: `defaultRetry` and `timeoutMs` on `NodeDefinition` are the fallback a user's
+`_run` overrides. Set them when a node's sensible retry or timeout differs from the
+engine default — a Slack post is not an LLM call.
+
+One naming trap worth knowing: several nodes declare their own `timeoutMs` config
+field for the *outbound request* (HTTP Request, Webhook). That is a different thing
+from `_run.timeoutMs`, which is the engine's wall clock for one attempt of the whole
+node. The config panel labels the latter "Attempt timeout" for exactly this reason.
+
 ### Ports are a persisted contract  *(AF-M9-03)*
 
 `PortDef.id` is one identifier used by four surfaces, and they must agree:
