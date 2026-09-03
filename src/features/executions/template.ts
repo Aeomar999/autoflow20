@@ -219,9 +219,26 @@ Handlebars.registerHelper("formatDate", (value: unknown, pattern: unknown) => {
   return dateFnsFormat(date, format);
 });
 
+/**
+ * `{{{json x}}}` — serialize a value as JSON text.
+ *
+ * `JSON.stringify` returns the JS value `undefined` (not a string) for
+ * `undefined`, a function, or a symbol, and Handlebars then renders that as
+ * the bare word `undefined` — which is **not valid JSON**. Because the usual
+ * use of this helper is to build a JSON payload (an HTTP body, a typed `SET`
+ * assignment), that silently produced a malformed document whenever a
+ * templated path happened to be absent: the far end got a syntax error it
+ * could not attribute, and a typed `SET` failed with `resolved to "undefined"`.
+ *
+ * Emitting `null` instead is the correct JSON representation of "no value"
+ * and is always parseable. Found by the AF-M9-16 acceptance suite, where a
+ * `ping` request carrying no `payload` crashed W1.
+ */
 Handlebars.registerHelper("json", (context) => {
   const jsonString = JSON.stringify(context, null, 2);
-  return new Handlebars.SafeString(jsonString);
+  return new Handlebars.SafeString(
+    jsonString === undefined ? "null" : jsonString,
+  );
 });
 
 /**

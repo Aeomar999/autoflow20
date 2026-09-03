@@ -35,6 +35,10 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue>({
   theme: DEFAULT_THEME,
   resolvedTheme: "dark",
+  // Intentional no-op: this is the default value used only when a consumer is
+  // rendered outside `ThemeProvider`, where there is no theme state to set.
+  // Not a swallowed failure — the provider always overrides it.
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: documented default-context no-op
   setTheme: () => {},
 });
 

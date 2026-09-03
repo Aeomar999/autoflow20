@@ -42,7 +42,14 @@ export const definition: NodeDefinition = {
     "batch",
   ],
   configSchema,
-  defaults: { path: "", maxItems: 100 },
+  /**
+   * `path` refines to non-empty, so `path: ""` failed the node's own schema —
+   * the same defect `CODE` had, caught by `registry.test.ts`. `"items"` is not
+   * an arbitrary placeholder: the `CODE` node stores an array return under
+   * `items` (ADR-0021), so the documented CODE → SPLIT_OUT pairing now works
+   * the moment both nodes are dropped on the canvas.
+   */
+  defaults: { path: "items", maxItems: 100 },
   inputs: [{ id: "main", label: "In" }],
   outputs: [{ id: "main", label: "Out" }],
 };

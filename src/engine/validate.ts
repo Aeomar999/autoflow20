@@ -118,6 +118,7 @@ export function validate(
   checkRequiredInputs(nodes, connections, registry, errors);
   checkDisconnected(nodes, connections, errors);
   checkSegments(nodes, connections, errors);
+  checkRespondNodes(nodes, connections, errors);
 
   // --- Registry-dependent checks (server only) ---
 
@@ -148,6 +149,93 @@ export function validate(
 // Individual checks
 // ---------------------------------------------------------------------------
 
+/** Node type of the AF-M9-10 respond node, matched structurally. */
+const RESPOND_NODE_TYPE = "RESPOND_TO_WEBHOOK";
+
+/**
+ * Warn about respond nodes that cannot do what their author expects
+ * (AF-M9-10).
+ *
+ * Two shapes, both warnings rather than errors: each produces a workflow that
+ * runs correctly and simply does not respond the way it looks like it will, so
+ * blocking a save would be heavy-handed — and a half-built graph passes
+ * through both states on the way to a finished one.
+ *
+ *  1. **No webhook trigger.** A composed response is only ever read by the
+ *     synchronous webhook route. In a schedule- or manual-triggered workflow
+ *     the node runs, writes `Execution.response`, and nobody ever reads it.
+ *
+ *  2. **Two respond nodes on one path.** The engine takes last-writer-wins, so
+ *     the second silently overwrites the first. Respond nodes on *different*
+ *     branches are fine and common (the whole point of W1's router shape), so
+ *     the check is ancestry, not a count.
+ */
+function checkRespondNodes(
+  nodes: GraphNode[],
+  connections: GraphConnection[],
+  errors: ValidationError[],
+): void {
+  const respondNodes = nodes.filter(
+    (n) => n.type === RESPOND_NODE_TYPE && !n.disabled,
+  );
+  if (respondNodes.length === 0) return;
+
+  const hasWebhookTrigger = nodes.some(
+    (n) => n.type === "WEBHOOK_TRIGGER" && !n.disabled,
+  );
+  if (!hasWebhookTrigger) {
+    for (const node of respondNodes) {
+      errors.push({
+        nodeId: node.id,
+        severity: "warning",
+        message: `"${node.name}" responds to a webhook, but this workflow has no enabled webhook trigger. The response will be composed and stored, but nothing will read it.`,
+      });
+    }
+  }
+
+  if (respondNodes.length < 2) return;
+
+  // Forward adjacency, built once and shared by every reachability walk.
+  const outgoing = new Map<string, string[]>();
+  for (const c of connections) {
+    const targets = outgoing.get(c.fromNodeId);
+    if (targets) {
+      targets.push(c.toNodeId);
+    } else {
+      outgoing.set(c.fromNodeId, [c.toNodeId]);
+    }
+  }
+
+  const respondIds = new Set(respondNodes.map((n) => n.id));
+
+  for (const start of respondNodes) {
+    // BFS from this respond node. `seen` also guards against a cycle, which
+    // `checkCycles` reports separately — this check must not hang on one.
+    const seen = new Set<string>([start.id]);
+    const queue = [...(outgoing.get(start.id) ?? [])];
+
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      if (seen.has(current)) continue;
+      seen.add(current);
+
+      if (respondIds.has(current)) {
+        const downstream = nodes.find((n) => n.id === current);
+        errors.push({
+          nodeId: current,
+          severity: "warning",
+          message: `"${downstream?.name ?? current}" is downstream of another Respond to Webhook node ("${start.name}"). Only the last response to run is returned; the earlier one is overwritten.`,
+        });
+        // Do not walk past it: anything further downstream is that node's
+        // problem to report, not a second complaint about this pair.
+        continue;
+      }
+
+      queue.push(...(outgoing.get(current) ?? []));
+    }
+  }
+}
+
 function checkTriggers(nodes: GraphNode[], errors: ValidationError[]): void {
   if (nodes.length === 0) return;
 
@@ -172,6 +260,18 @@ function checkTriggers(nodes: GraphNode[], errors: ValidationError[]): void {
         message: `Multiple trigger nodes found. Only one trigger is allowed per workflow.`,
       });
     }
+  } else if (triggers[0].disabled) {
+    // AF-M9-17: a workflow whose ONLY trigger is disabled cannot fire — a
+    // webhook POST and a cron tick both skip a disabled trigger before any
+    // execution is created, and a manual run refuses up front. Warn on the
+    // canvas (and at save) so it is visible before the trigger is published,
+    // not discovered by silence. Warning severity: never blocks saving, matches
+    // the informational posture of the other unreachable-node warnings.
+    errors.push({
+      nodeId: triggers[0].id,
+      severity: "warning",
+      message: `Workflow's only trigger "${triggers[0].name}" is disabled. No events will start this workflow until it is enabled.`,
+    });
   }
 }
 

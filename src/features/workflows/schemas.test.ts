@@ -331,3 +331,121 @@ describe("saveable types track the registry (AF-M8-24)", () => {
     expect(saveable.size).toBeGreaterThan(10);
   });
 });
+
+describe("saveWorkflowInputSchema — per-node run policy (AF-M9-06)", () => {
+  /**
+   * Regression: `_run` used to be stripped here.
+   *
+   * `configOf` returned the node's bare `configSchema`, and Zod strips unknown
+   * keys — so the run policy the config panel writes was discarded on every
+   * save. Setting retries in the UI appeared to work and silently did nothing,
+   * and all three M9 reference templates shipped a `_run` that never survived
+   * installation. This is the same class of defect AF-M9-06 was written to end
+   * (`_timeoutMs`/`_continueOnFail` "appeared in no configSchema", so "the save
+   * boundary was free to drop them") reappearing in the key that replaced them.
+   */
+  it("persists a run policy through the save boundary", () => {
+    const parsed = saveWorkflowInputSchema.parse({
+      ...validSave,
+      nodes: [
+        {
+          ...validSave.nodes[1],
+          data: {
+            ...validSave.nodes[1].data,
+            _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10_000 },
+          },
+        },
+      ],
+    });
+
+    expect(parsed.nodes[0].data).toMatchObject({
+      _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10_000 },
+    });
+  });
+
+  it("keeps the node's own config alongside the policy", () => {
+    const parsed = saveWorkflowInputSchema.parse({
+      ...validSave,
+      nodes: [
+        {
+          ...validSave.nodes[1],
+          data: {
+            ...validSave.nodes[1].data,
+            _run: { continueOnFail: true },
+          },
+        },
+      ],
+    });
+
+    const data = parsed.nodes[0].data as Record<string, unknown>;
+    expect(data.variableName).toBe("response");
+    expect(data._run).toEqual({ continueOnFail: true });
+  });
+
+  it("omits the key entirely when no policy is set", () => {
+    const parsed = saveWorkflowInputSchema.parse(validSave);
+    expect(parsed.nodes[1].data).not.toHaveProperty("_run");
+  });
+
+  it("rejects an out-of-bounds policy instead of dropping it", () => {
+    // Silently discarding a bad value would be the old behaviour wearing a
+    // different hat: the user must be told, not quietly ignored.
+    const result = saveWorkflowInputSchema.safeParse({
+      ...validSave,
+      nodes: [
+        {
+          ...validSave.nodes[1],
+          data: { ...validSave.nodes[1].data, _run: { maxAttempts: 99 } },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.includes("_run"))).toBe(
+        true,
+      );
+    }
+  });
+
+  it("still rejects an invalid node config", () => {
+    // The split-and-rejoin must not weaken the config half.
+    const result = saveWorkflowInputSchema.safeParse({
+      ...validSave,
+      nodes: [
+        {
+          ...validSave.nodes[1],
+          data: { variableName: "not a valid name!", _run: { maxAttempts: 2 } },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a run policy on every registered node type", () => {
+    // A shape-agnostic implementation is the point: `triggerDataSchema` is
+    // `z.object({}).optional()` and AGGREGATE's is `z.object({}).default({})`,
+    // neither of which exposes `.extend`.
+    const broken: string[] = [];
+    for (const def of nodeManifest) {
+      const schema = updateNodeSchemas.find(
+        (s) => s.shape.type.value === def.type,
+      );
+      if (!schema) continue;
+      const result = schema.safeParse({
+        id: "n1",
+        type: def.type,
+        position,
+        data: { ...(def.defaults as object), _run: { maxAttempts: 2 } },
+      });
+      const data = result.success
+        ? (result.data.data as Record<string, unknown>)
+        : undefined;
+      if (!result.success || data?._run === undefined) {
+        broken.push(def.type);
+      }
+    }
+    expect(broken).toEqual([]);
+  });
+});

@@ -200,7 +200,7 @@ export function runUserCode(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      const text = (err && err.message) || String(err);
+      const text = err?.message || String(err);
       const isHeap = /heap|memory|allocation failed|out of memory/i.test(text);
       reject(
         new CodeExecutionError(

@@ -391,6 +391,13 @@ model Execution {
 
   output Json?
 
+  /// AF-M9-10: the response a RESPOND_TO_WEBHOOK node composed for this run,
+  /// as `{ statusCode, contentType, headers, body }`. Read by the webhook
+  /// route in `?sync=true` mode and returned verbatim. NULL means the run
+  /// never reached a respond node — the route then keeps the legacy
+  /// `{success, executionId, error}` envelope, so the pre-M9 contract holds.
+  response Json?
+
   nodeExecutions   NodeExecution[]
   approvalRequests ApprovalRequest[]
 

@@ -63,4 +63,16 @@ if (!process.env.TEST_DATABASE_URL) {
   // otherwise @/lib/db binds to .env's dev/prod DATABASE_URL — a truncated
   // production database is the failure mode we refuse to make possible.
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+
+  // AF-M9-16: the reference-workflow acceptance suite drives real
+  // `HTTP_REQUEST` nodes at the loopback fixture server, which the AF-M9-02
+  // egress guard blocks by default. Set per worker rather than at the job
+  // level so a developer running `npm run test:integration` locally gets the
+  // same behaviour as CI without editing their `.env`.
+  //
+  // Safe by construction: `allowLoopbackEgress()` permits ONLY 127.0.0.1/::1
+  // (metadata, private and CGNAT ranges stay blocked) and throws outright when
+  // `NODE_ENV === "production"`, so this line cannot widen anything beyond the
+  // test process it runs in.
+  process.env.ALLOW_LOOPBACK_EGRESS = "1";
 }

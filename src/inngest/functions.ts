@@ -14,6 +14,7 @@ import { notifyExecutionFinished } from "@/features/notifications/server/executi
 import {
   ExecutionStatus,
   NodeExecutionStatus,
+  type Prisma,
 } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import {
@@ -22,7 +23,7 @@ import {
   isMeteredRun,
   quotaBreachMessage,
 } from "@/lib/quotas";
-import { defaultOutputId, inputPorts } from "@/nodes/ports";
+import { defaultOutputId, inputPorts, outputPorts } from "@/nodes/ports";
 import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
 import { resolveRunPolicy } from "@/nodes/shared/run-policy";
 import { anthropicChannel } from "./channels/anthropic";
@@ -48,11 +49,14 @@ import {
   computeDurationMs,
   computeSkippableNodes,
   extractStepUsage,
+  extractWebhookResponse,
   type GraphEdge,
   type GraphNodeExecution,
   markTakenEdges,
   OUTPUT_PORT_KEY,
   type TraceNode,
+  UNMATCHED_OUTPUT_PORT,
+  type WebhookResponse,
 } from "./trace";
 
 /** Default per-node wall-clock timeout (60 s). */
@@ -83,6 +87,35 @@ const ENGINE_RUN_DEFAULTS = {
  * port id (`toInput`). Nodes with no incoming edges (triggers) receive the
  * flat rolling `context` — the initial event data before any node has run.
  */
+/**
+ * The output port a node declared it took, or `undefined` when it does not
+ * branch (AF-M9-16).
+ *
+ * A node may only route to a port it actually declares. Anything else is
+ * either stale state or a bug, and honouring it is uniquely destructive:
+ * `markTakenEdges` would match no outgoing edge, so the node's whole
+ * downstream becomes unreachable and is skipped — silently, with a run that
+ * still reports SUCCESS. Falling back to "non-branching" instead marks the
+ * node's edges normally, which is the correct reading of "this node did not
+ * choose a branch".
+ *
+ * The engine's own no-match sentinel is passed through untouched: it means
+ * "deliberately route nowhere" and is not a declared port by design.
+ */
+function declaredOutputPort(
+  node: TraceNode,
+  result: unknown,
+): string | undefined {
+  const raw = (result as Record<string, unknown> | null | undefined)?.[
+    OUTPUT_PORT_KEY
+  ];
+  if (typeof raw !== "string") return undefined;
+  if (raw === UNMATCHED_OUTPUT_PORT) return raw;
+  return outputPorts(node.type, node.data ?? {}).some((p) => p.id === raw)
+    ? raw
+    : undefined;
+}
+
 function buildNodeInput(
   node: TraceNode,
   incoming: Map<string, GraphEdge[]>,
@@ -104,6 +137,17 @@ function buildNodeInput(
         Object.assign(merged, upstreamOutput);
       }
     }
+    // `_outputPort` is a control signal the engine consumes at the node that
+    // PRODUCED it, never data. Copying it downstream was a live defect: every
+    // executor returns `{ ...input, … }`, so the node after a CONDITION or
+    // SWITCH re-emitted the branch's port id as its own, `markTakenEdges` then
+    // matched none of that node's outgoing edges (which are `main`), and its
+    // entire downstream was marked "not reachable via taken branches".
+    //
+    // Concretely: any graph that branched and then REJOINED silently dropped
+    // everything after the join — the canonical route-then-respond shape.
+    // Found by the AF-M9-16 acceptance suite on W1.
+    delete merged[OUTPUT_PORT_KEY];
     return merged;
   };
 
@@ -600,6 +644,48 @@ export async function executeWorkflowHandler({
   // Track nodes that need a SKIPPED trace written after the loop.
   const skippedNodes: { node: TraceNode; order: number; reason: string }[] = [];
 
+  /**
+   * Persist a response composed by a RESPOND_TO_WEBHOOK node (AF-M9-10).
+   *
+   * Written **eagerly**, at the moment the node runs, rather than at settle
+   * time. Two reasons, both load-bearing:
+   *   - `onFailure` is a separate Inngest context with no access to this
+   *     closure, so a settle-time write would silently lose the response
+   *     whenever a node downstream of the respond node failed — exactly the
+   *     "respond early, then do slow work" shape the node exists to enable.
+   *   - it survives cancellation, which suppresses every terminal-status
+   *     write (AF-M8-27).
+   *
+   * Harvested per node rather than read off the terminal context because
+   * AF-M9-12 gives each node its own input: a respond node on a branch that
+   * is not the last to run would otherwise vanish.
+   *
+   * Last writer wins. `validate()` warns when two respond nodes are reachable
+   * on the same path, so this only decides an ordering the author was already
+   * warned about.
+   */
+  const persistWebhookResponse = async (
+    result: unknown,
+    stepSuffix: string,
+  ): Promise<void> => {
+    const composed: WebhookResponse | null = extractWebhookResponse(result);
+    if (!composed) return;
+    await step.run(`webhook-response:${stepSuffix}`, async () =>
+      prisma.execution.update({
+        where: { id: execution.id },
+        data: {
+          // `WebhookResponse` is a closed interface, so it does not satisfy
+          // Prisma's `InputJsonValue` index signature structurally. Every
+          // field is a JSON primitive — `extractWebhookResponse` narrows each
+          // one — so the cast attests a shape already checked, matching how
+          // `graphSnapshot` and audit payloads are written.
+          response: composed as unknown as Prisma.InputJsonValue,
+        },
+        select: { id: true },
+      }),
+    );
+  };
+
   // AF-M2-08: Explicit skip/stop policy (retry-from-node, single-node
   // test runs). Nodes in skipNodeSet are marked SKIPPED up front; when
   // endAfterNodeId is set the engine stops scheduling right after it.
@@ -804,12 +890,16 @@ export async function executeWorkflowHandler({
 
     nodeOutputs[node.name] = result;
 
+    // AF-M9-10: a respond node inside a fan-out segment composes one response
+    // per item; the last item's wins, matching the last-writer rule outside a
+    // segment. Authors are warned off this shape by `validate()`.
+    await persistWebhookResponse(result, `${node.id}:${suffix}`);
+
     // AF-M2-04: mark outgoing edges taken based on output port, so the
     // downstream of this segment becomes reachable.
-    const outputPort = (result as Record<string, unknown>)[OUTPUT_PORT_KEY];
     markTakenEdges(
       node.id,
-      typeof outputPort === "string" ? outputPort : undefined,
+      declaredOutputPort(node, result),
       adjacency,
       takenEdges,
     );
@@ -1244,11 +1334,14 @@ export async function executeWorkflowHandler({
       nodeOutputs[node.name] = result;
       context = result;
 
+      // AF-M9-10: persist a composed synchronous webhook response, if this
+      // node was a RESPOND_TO_WEBHOOK. Cheap key probe for every other node.
+      await persistWebhookResponse(result, node.id);
+
       // AF-M2-04: Mark outgoing edges as taken based on output port.
-      const outputPort = (result as Record<string, unknown>)[OUTPUT_PORT_KEY];
       markTakenEdges(
         node.id,
-        typeof outputPort === "string" ? outputPort : undefined,
+        declaredOutputPort(node, result),
         adjacency,
         takenEdges,
       );

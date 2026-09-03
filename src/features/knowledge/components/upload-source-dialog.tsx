@@ -1,5 +1,6 @@
 "use client";
 
+import { TRPCClientError } from "@trpc/client";
 import { FileUp, Globe, Loader2, Sparkles, Type, Upload } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -128,7 +129,25 @@ export function UploadSourceDialog({
       setTextName("");
       setTextContent("");
       onOpenChange(false);
-    } catch {}
+    } catch (error) {
+      // The mutation hooks toast their own failures
+      // (`use-knowledge-sources.ts` sets `onError` on all three), so a failed
+      // mutation is already visible and this catch only has to stop the reset
+      // and close below from running.
+      //
+      // Everything ELSE thrown inside the try has no reporter: reading the
+      // file (`arrayBuffer()`) and base64-encoding it happen here, and when
+      // one of those failed the dialog sat open with no toast, no error, and
+      // no explanation — a silent failure of exactly the kind
+      // `engineering_rules.md` calls the top-priority defect class.
+      if (!(error instanceof TRPCClientError)) {
+        toast.error(
+          error instanceof Error
+            ? `Could not read that file: ${error.message}`
+            : "Could not read that file",
+        );
+      }
+    }
   };
 
   return (

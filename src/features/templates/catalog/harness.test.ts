@@ -22,7 +22,8 @@ import {
  * `seed:templates` runs the same harness before it writes.
  */
 
-const EXPECTED_TEMPLATE_COUNT = 21;
+/** 21 from AF-M7-02, plus the three AF-M9-15 reference-parity templates. */
+const EXPECTED_TEMPLATE_COUNT = 24;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {

@@ -84,6 +84,19 @@ export async function runGraph(
     workflowId?: string;
     /** Inject transient failures at the step boundary (AF-M9-06 retry tests). */
     failSteps?: { prefix: string; times: number };
+    /**
+     * Seed context the run starts from — the engine reads it as
+     * `event.data.initialData` (`src/inngest/functions.ts`), which is exactly
+     * where the webhook, Stripe, Google-Form and public-API entry points put
+     * their trigger payloads.
+     *
+     * Without this, a trigger payload can only be faked through a node's
+     * config, so a webhook-triggered graph cannot be tested at all — the
+     * reopened acceptance box on AF-M9-01, closed here because AF-M9-10 is
+     * the first task that needs it. Pass the same shape the route sends, e.g.
+     * `{ webhook: { path, method, headers, query, body } }`.
+     */
+    initialData?: Record<string, unknown>;
   },
 ): Promise<{
   execution: Awaited<ReturnType<typeof prisma.execution.findUniqueOrThrow>>;
@@ -168,6 +181,7 @@ export async function runGraph(
       executionId,
       mode,
       graphSnapshot,
+      ...(opts?.initialData ? { initialData: opts.initialData } : {}),
     },
   };
 

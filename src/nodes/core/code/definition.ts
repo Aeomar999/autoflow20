@@ -79,7 +79,18 @@ export const definition: NodeDefinition = {
   icon: "Code",
   keywords: ["code", "js", "javascript", "transform", "script", "function"],
   configSchema,
-  defaults: { code: "" },
+  /**
+   * A starter body, not an empty string: `code` is `min(1)`, so
+   * `defaults: { code: "" }` failed the node's own schema — which
+   * `registry.test.ts` asserts every definition satisfies, and which the save
+   * boundary re-checks. Weakening the schema instead would let an empty Code
+   * node reach the sandbox and fail at run time, which is later and worse.
+   * The snippet also documents the return contract in the place the user
+   * first looks.
+   */
+  defaults: {
+    code: "// `input` is the resolved context from upstream nodes.\n// Return an object to pass downstream, or an array to fan out\n// with a Split Out node.\nreturn { ...input };\n",
+  },
   inputs: [{ id: "main", label: "In" }],
   outputs: [{ id: "main", label: "Out" }],
 };

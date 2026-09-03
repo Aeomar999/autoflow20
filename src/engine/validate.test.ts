@@ -180,6 +180,38 @@ describe("validate — trigger checks", () => {
     expect(triggerErrors).toHaveLength(2);
   });
 
+  it("warns when the only trigger is disabled (AF-M9-17)", () => {
+    const graph: Graph = {
+      nodes: [
+        { ...makeNode("t1", "WEBHOOK_TRIGGER", "Webhook"), disabled: true },
+      ],
+      connections: [],
+    };
+    const result = validate(graph);
+    expect(errorsOf(result)).toHaveLength(0);
+    const warning = warningsOf(result).filter((e) =>
+      e.message.includes("only trigger"),
+    );
+    expect(warning).toHaveLength(1);
+    expect(warning[0].nodeId).toBe("t1");
+    expect(warning[0].message).toContain("Webhook");
+  });
+
+  it("does not warn when a non-trigger node is disabled (AF-M9-17)", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        { ...makeNode("n1", "HTTP_REQUEST", "Fetch"), disabled: true },
+      ],
+      connections: [makeEdge("t1", "n1")],
+    };
+    const result = validate(graph);
+    const warning = warningsOf(result).filter((e) =>
+      e.message.includes("only trigger"),
+    );
+    expect(warning).toHaveLength(0);
+  });
+
   it("recognizes GOOGLE_FORM_TRIGGER as a trigger", () => {
     const graph: Graph = {
       nodes: [makeNode("t1", "GOOGLE_FORM_TRIGGER", "Form")],
@@ -1086,5 +1118,153 @@ describe("validate — fan-out segment shape (AF-M9-14)", () => {
     );
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toContain('"Interior" → "Outside"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RESPOND_TO_WEBHOOK checks (AF-M9-10)
+// ---------------------------------------------------------------------------
+
+describe("validate — respond-to-webhook checks (AF-M9-10)", () => {
+  it("warns when a respond node has no webhook trigger to answer", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t", "SCHEDULE_TRIGGER"),
+        makeNode("r", "RESPOND_TO_WEBHOOK", "Respond"),
+      ],
+      connections: [makeEdge("t", "r")],
+    };
+
+    const warnings = warningsOf(validate(graph));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].nodeId).toBe("r");
+    expect(warnings[0].message).toContain("no enabled webhook trigger");
+    // A warning only — the workflow still runs correctly, it just responds
+    // to nobody, so a save must not be blocked.
+    expect(errorsOf(validate(graph))).toHaveLength(0);
+  });
+
+  it("does not warn when a webhook trigger is present", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t", "WEBHOOK_TRIGGER"),
+        makeNode("r", "RESPOND_TO_WEBHOOK", "Respond"),
+      ],
+      connections: [makeEdge("t", "r")],
+    };
+
+    expect(warningsOf(validate(graph))).toHaveLength(0);
+  });
+
+  it("treats a DISABLED webhook trigger as absent", () => {
+    // A disabled trigger never dispatches (AF-M9-17), so the response would
+    // still go unread. Two warnings: the disabled-only-trigger one and ours.
+    const graph: Graph = {
+      nodes: [
+        { ...makeNode("t", "WEBHOOK_TRIGGER"), disabled: true },
+        makeNode("r", "RESPOND_TO_WEBHOOK", "Respond"),
+      ],
+      connections: [makeEdge("t", "r")],
+    };
+
+    const messages = warningsOf(validate(graph)).map((w) => w.message);
+    expect(messages.some((m) => m.includes("no enabled webhook trigger"))).toBe(
+      true,
+    );
+  });
+
+  it("ignores a DISABLED respond node entirely", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t", "SCHEDULE_TRIGGER"),
+        { ...makeNode("r", "RESPOND_TO_WEBHOOK", "Respond"), disabled: true },
+      ],
+      connections: [makeEdge("t", "r")],
+    };
+
+    expect(warningsOf(validate(graph))).toHaveLength(0);
+  });
+
+  it("warns when one respond node is downstream of another", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t", "WEBHOOK_TRIGGER"),
+        makeNode("r1", "RESPOND_TO_WEBHOOK", "First"),
+        makeNode("s", "SET"),
+        makeNode("r2", "RESPOND_TO_WEBHOOK", "Second"),
+      ],
+      connections: [
+        makeEdge("t", "r1"),
+        makeEdge("r1", "s"),
+        makeEdge("s", "r2"),
+      ],
+    };
+
+    const warnings = warningsOf(validate(graph));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].nodeId).toBe("r2");
+    expect(warnings[0].message).toContain('"First"');
+    expect(warnings[0].message).toContain("overwritten");
+  });
+
+  it("does NOT warn for respond nodes on sibling branches", () => {
+    // This is W1's router shape: one respond node per branch, exactly one of
+    // which runs. Flagging it would make the milestone's own template noisy.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t", "WEBHOOK_TRIGGER"),
+        makeNode("sw", "SWITCH"),
+        makeNode("r1", "RESPOND_TO_WEBHOOK", "Ping response"),
+        makeNode("r2", "RESPOND_TO_WEBHOOK", "Process response"),
+      ],
+      connections: [
+        makeEdge("t", "sw"),
+        makeEdge("sw", "r1", "ping"),
+        makeEdge("sw", "r2", "process"),
+      ],
+    };
+
+    expect(warningsOf(validate(graph))).toHaveLength(0);
+  });
+
+  it("reports each downstream pair once, not transitively", () => {
+    // r1 → r2 → r3. r2 is reported against r1 and r3 against r2, but the walk
+    // stops at each respond node, so r3 is not ALSO reported against r1.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t", "WEBHOOK_TRIGGER"),
+        makeNode("r1", "RESPOND_TO_WEBHOOK", "One"),
+        makeNode("r2", "RESPOND_TO_WEBHOOK", "Two"),
+        makeNode("r3", "RESPOND_TO_WEBHOOK", "Three"),
+      ],
+      connections: [
+        makeEdge("t", "r1"),
+        makeEdge("r1", "r2"),
+        makeEdge("r2", "r3"),
+      ],
+    };
+
+    const warnings = warningsOf(validate(graph));
+    expect(warnings).toHaveLength(2);
+    expect(warnings.map((w) => w.nodeId).sort()).toEqual(["r2", "r3"]);
+  });
+
+  it("does not hang on a cycle between respond nodes", () => {
+    // `checkCycles` reports the cycle; this check must terminate regardless.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t", "WEBHOOK_TRIGGER"),
+        makeNode("r1", "RESPOND_TO_WEBHOOK", "One"),
+        makeNode("r2", "RESPOND_TO_WEBHOOK", "Two"),
+      ],
+      connections: [
+        makeEdge("t", "r1"),
+        makeEdge("r1", "r2"),
+        makeEdge("r2", "r1"),
+      ],
+    };
+
+    const result = validate(graph);
+    expect(result.errors.some((e) => e.message.includes("cycle"))).toBe(true);
   });
 });

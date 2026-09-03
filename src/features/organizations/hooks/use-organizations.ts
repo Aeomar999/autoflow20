@@ -139,3 +139,13 @@ export function useAuditLogs(params?: {
   const trpc = useTRPC();
   return useQuery(trpc.organizations.listAuditLogs.queryOptions(params ?? {}));
 }
+
+/**
+ * The organization this session resolved to, plus the caller's role in it
+ * (AF-M6-07). Used to highlight the active workspace in the switcher and to
+ * hide admin-only settings tabs. Not a permission check — see `getActive`.
+ */
+export function useActiveOrganization() {
+  const trpc = useTRPC();
+  return useQuery(trpc.organizations.getActive.queryOptions());
+}

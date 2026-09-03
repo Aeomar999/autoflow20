@@ -19,7 +19,8 @@
     "rules": {
       "recommended": true,
       "suspicious": {
-        "noUnknownAtRules": "off"
+        "noUnknownAtRules": "off",
+        "noEmptyBlockStatements": "error"
       }
     },
     "domains": {
@@ -70,6 +71,22 @@
       ],
       "linter": {
         "enabled": false
+      }
+    },
+    {
+      "includes": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.dom.test.tsx",
+        "tests/**",
+        "vitest.setup.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noEmptyBlockStatements": "off"
+          }
+        }
       }
     }
   ]

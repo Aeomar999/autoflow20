@@ -9,6 +9,7 @@ import coreCode from "./core/code";
 import coreCondition from "./core/condition";
 import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
+import coreRespondToWebhook from "./core/respond-to-webhook";
 import coreScheduleTrigger from "./core/schedule-trigger";
 import coreSet from "./core/set";
 import coreSplitOut from "./core/split-out";
@@ -170,6 +171,7 @@ export const nodeRegistry = createNodeRegistry(
     coreSwitch,
     coreSplitOut,
     coreAggregate,
+    coreRespondToWebhook,
     formsGoogleForm,
     googleSheetsAppend,
     airtableCreateRecord,

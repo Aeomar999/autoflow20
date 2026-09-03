@@ -8,6 +8,7 @@ import { definition as coreCode } from "./core/code/definition";
 import { definition as coreCondition } from "./core/condition/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
 import { definition as coreMerge } from "./core/merge/definition";
+import { definition as coreRespondToWebhook } from "./core/respond-to-webhook/definition";
 import { definition as coreScheduleTrigger } from "./core/schedule-trigger/definition";
 import { definition as coreSet } from "./core/set/definition";
 import { definition as coreSplitOut } from "./core/split-out/definition";
@@ -45,6 +46,7 @@ export const nodeManifest: NodeDefinition[] = [
   coreSwitch,
   coreSplitOut,
   coreAggregate,
+  coreRespondToWebhook,
   formsGoogleForm,
   googleSheetsAppend,
   airtableCreateRecord,
