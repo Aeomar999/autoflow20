@@ -430,6 +430,13 @@ model NodeExecution {
   attempt Int                 @default(0)
   order   Int
 
+  /// Fan-out item index (AF-M9-14, ADR-0021). NULL for a node that ran outside
+  /// a segment — and for the SPLIT_OUT/AGGREGATE boundary nodes themselves,
+  /// which run exactly once per segment, not once per item. When set, the row
+  /// is one per-item execution of a segment *interior* node, keyed by
+  /// `{executionId, nodeId, itemIndex}`.
+  itemIndex Int?
+
   input  Json?
   output Json?
 
@@ -456,6 +463,7 @@ model NodeExecution {
 
   @@index([executionId, order])
   @@index([executionId, startedAt(sort: Desc)])
+  @@index([executionId, nodeId, itemIndex])
   @@index([status])
   @@index([model, startedAt(sort: Desc)])
 }

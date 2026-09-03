@@ -1,11 +1,15 @@
 import { type Context, type Handler, NonRetriableError } from "inngest";
+import { planSegments } from "@/engine/segments";
 import {
   type GraphConnection,
   type GraphNode,
   validate,
 } from "@/engine/validate";
 import { resolveNodeCredentials } from "@/features/executions/server/credential-resolver";
-import { makeResolver } from "@/features/executions/template";
+import {
+  type ItemFanoutScope,
+  makeResolver,
+} from "@/features/executions/template";
 import { notifyExecutionFinished } from "@/features/notifications/server/execution-notifier";
 import {
   ExecutionStatus,
@@ -535,6 +539,55 @@ export async function executeWorkflowHandler({
   // which nodes are reachable.
   const takenEdges = new Set<string>();
 
+  // AF-M9-14 (ADR-0021): fan-out segment plan. The engine routes a SPLIT_OUT
+  // through `runSegment` instead of the single-node path, and tracks every
+  // interior + AGGREGATE node it executed so the main loop does not
+  // re-process (or re-check reachability on) them. A segment that is skipped
+  // (unreachable / disabled / skipNodeSet) does NOT populate this set, so its
+  // interior nodes fall through to the normal loop and get a SKIPPED trace.
+  const segmentPlan = planSegments(sortedNodes, edges);
+  const handledBySegment = new Set<string>();
+
+  // Lookups the AF-M9-14 segment runner uses to fetch a node's registration
+  // and config by id without rebuilding them per item.
+  const sortedNodeById = new Map(sortedNodes.map((n) => [n.id, n]));
+  const sortedNodeIdToIndex = new Map(sortedNodes.map((n, i) => [n.id, i]));
+  const nodeExecById = new Map<string, GraphNodeExecution>(
+    plan.map((p, i) => [sortedNodes[i].id, p]),
+  );
+
+  // AF-M9-14: guarded lookups for nodes the segment planner guarantees exist.
+  // An absent entry is an invariant violation (the planner derived the ids from
+  // this same node set), so it surfaces as a clean, loud failure — never a
+  // silently-undefined lookup that would poison the run.
+  const requireSegmentNode = (nodeId: string): TraceNode => {
+    const found = sortedNodeById.get(nodeId);
+    if (!found) {
+      throw new NonRetriableError(
+        `Fan-out segment referenced an unknown node (${nodeId}). Re-save the workflow.`,
+      );
+    }
+    return found;
+  };
+  const requireSegmentExec = (nodeId: string): GraphNodeExecution => {
+    const found = nodeExecById.get(nodeId);
+    if (!found) {
+      throw new NonRetriableError(
+        `Fan-out segment referenced an unplanned node (${nodeId}). Re-save the workflow.`,
+      );
+    }
+    return found;
+  };
+  const requireSegmentIndex = (nodeId: string): number => {
+    const found = sortedNodeIdToIndex.get(nodeId);
+    if (found === undefined) {
+      throw new NonRetriableError(
+        `Fan-out segment referenced a node outside the plan (${nodeId}). Re-save the workflow.`,
+      );
+    }
+    return found;
+  };
+
   // Initialize context with any initial data from the trigger.
   let context = event.data.initialData || {};
   // Per-node output map for $node["Name"] resolution (AF-M2-03).
@@ -581,6 +634,357 @@ export async function executeWorkflowHandler({
       skipReason: reason,
     }));
 
+  // ---------------------------------------------------------------------------
+  // AF-M9-14 (ADR-0021): bounded fan-out segment runner
+  // ---------------------------------------------------------------------------
+  // The main loop executes a SPLIT_OUT by routing it to `runSegment`, which
+  // runs the SPLIT_OUT once, then every interior node once per item with
+  // `$item` / `$itemIndex` in scope, then closes the AGGREGATE. Participants
+  // are recorded in `handledBySegment` so the loop never re-processes them.
+  //
+  // The per-node mechanics (retry + timeout, credential resolution, output
+  // bound, trace start/end) are mirrored from the main loop — keyed to a
+  // per-item `itemIndex` — rather than extracted, so the well-tested
+  // single-node path (AF-M2-04/08) stays pristine.
+
+  // `runSegmentItemNode`: one node, one item. Mutates `nodeOutputs` (by name)
+  // and `takenEdges` like the main path, so a linear interior chain resolves
+  // each node's input from the previous node's per-item output and downstream
+  // nodes become reachable once the aggregate closes.
+  const runSegmentItemNode = async (args: {
+    nodeExec: GraphNodeExecution;
+    node: TraceNode;
+    orderIndex: number;
+    itemIndex: number | null;
+    itemScope?: ItemFanoutScope;
+    // AF-M9-14 / ADR-0021: the AGGREGATE's output is computed by the engine
+    // (it closes the segment by collecting per-item outputs), never by the
+    // node's own `execute()`. Callers pass it here so the single row (itemIndex
+    // null) is still written with the real value, keeping the executions UI in
+    // parity with every other box on the canvas.
+    overrideOutput?: Record<string, unknown>;
+  }): Promise<Record<string, unknown>> => {
+    const { nodeExec, node, orderIndex, itemIndex, itemScope, overrideOutput } =
+      args;
+    const { execute, credentials: credentialsDef } = getNodeRegistration(
+      node.type,
+    );
+
+    // Edge-derived input like the main loop (AF-M9-12). Interior nodes always
+    // have incoming edges, so the flat `{}` fallback is never used.
+    const nodeInputValue = buildNodeInput(
+      node,
+      incoming,
+      nodeOutputs,
+      idToName,
+      {},
+    );
+
+    // AF-M9-14: `$item` / `$itemIndex` enter the enriched template scope.
+    const resolveTemplate = makeResolver(
+      nodeInputValue,
+      nodeOutputs,
+      templateMeta,
+      itemScope,
+    );
+
+    let startedAtMs = Date.now();
+    let attemptUsed = 1;
+
+    const suffix = itemIndex === null ? "root" : String(itemIndex);
+
+    await step.run(`segment-trace-start:${node.id}:${suffix}`, async () => {
+      // A replayed attempt may have left a FAILED row for this exact item;
+      // replace it so this attempt starts from a clean RUNNING state. Scoped
+      // to `itemIndex` so it never touches another item's rows for the node.
+      const where = {
+        executionId: execution.id,
+        nodeId: node.id,
+        itemIndex,
+      };
+      await prisma.nodeExecution.deleteMany({ where });
+      const row = await prisma.nodeExecution.create({
+        data: {
+          executionId: execution.id,
+          nodeId: node.id,
+          nodeName: node.name,
+          nodeType: node.type,
+          status: NodeExecutionStatus.RUNNING,
+          attempt,
+          order: orderIndex,
+          itemIndex,
+        },
+      });
+      startedAtMs = row.startedAt.getTime();
+    });
+
+    // When `overrideOutput` is supplied (AGGREGATE), the engine already produced
+    // the value — skip credential resolution and the execute/retry loop entirely,
+    // but still run the shared output-bound + trace-end tail below.
+    let result: Record<string, unknown> | undefined;
+    let lastError: unknown;
+
+    if (overrideOutput !== undefined) {
+      result = overrideOutput;
+    } else {
+      // AF-M3-04: decrypt this node's required credentials exactly once.
+      const credentialsForNode = await step.run(
+        `segment-resolve-credentials:${node.id}:${suffix}`,
+        async () =>
+          resolveNodeCredentials({
+            requirements: credentialsDef,
+            nodeData: nodeExec.data,
+            userId,
+            loadCredentialRow: async (credentialId) =>
+              prisma.credential.findUnique({
+                where: { id: credentialId, organizationId },
+              }),
+          }),
+      );
+
+      // AF-M2-04: per-node retry loop with timeout.
+      const { maxAttempts, backoffMs } = nodeExec.retry;
+
+      for (let attemptNum = 1; attemptNum <= maxAttempts; attemptNum++) {
+        attemptUsed = attemptNum;
+        try {
+          result = (await step.run(
+            `segment-node:${node.id}:${suffix}:attempt:${attemptNum}`,
+            async () => {
+              const executorPromise = execute({
+                data: nodeExec.data,
+                nodeId: node.id,
+                userId,
+                organizationId,
+                context: nodeInputValue,
+                resolve: resolveTemplate,
+                step,
+                publish,
+                credentials: credentialsForNode,
+              });
+              const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(
+                  () =>
+                    reject(
+                      new Error(
+                        `Node "${node.name}" timed out after ${nodeExec.timeoutMs}ms`,
+                      ),
+                    ),
+                  nodeExec.timeoutMs,
+                );
+              });
+              return Promise.race([executorPromise, timeoutPromise]);
+            },
+          )) as Record<string, unknown>;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (attemptNum < maxAttempts) {
+            const delay = backoffMs * 2 ** (attemptNum - 1);
+            await step.sleep(
+              `segment-retry-delay:${node.id}:${suffix}:${attemptNum}`,
+              delay,
+            );
+          }
+        }
+      }
+
+      if (result === undefined) {
+        throw lastError;
+      }
+    }
+
+    // AF-M2-09: bound node output at the executor boundary.
+    const outputBytes = serializedBytes(result);
+    if (nodeOutputIsOverLimit(outputBytes)) {
+      throw new NonRetriableError(
+        `Node "${node.name}" returned ${outputBytes} bytes of output, exceeding the ${MAX_NODE_OUTPUT_BYTES}-byte limit (ADR-0018). Reduce the node's payload or split the workflow into smaller nodes.`,
+      );
+    }
+
+    nodeOutputs[node.name] = result;
+
+    // AF-M2-04: mark outgoing edges taken based on output port, so the
+    // downstream of this segment becomes reachable.
+    const outputPort = (result as Record<string, unknown>)[OUTPUT_PORT_KEY];
+    markTakenEdges(
+      node.id,
+      typeof outputPort === "string" ? outputPort : undefined,
+      adjacency,
+      takenEdges,
+    );
+
+    const usage = extractStepUsage(result);
+    await step.run(`segment-trace-end:${node.id}:${suffix}`, async () => {
+      const finishedAtMs = Date.now();
+      return prisma.nodeExecution.updateMany({
+        where: {
+          executionId: execution.id,
+          nodeId: node.id,
+          itemIndex,
+        },
+        data: {
+          status: NodeExecutionStatus.SUCCESS,
+          attempt: attemptUsed,
+          finishedAt: new Date(finishedAtMs),
+          durationMs: computeDurationMs(startedAtMs, finishedAtMs),
+          tokensIn: usage.tokensIn,
+          tokensOut: usage.tokensOut,
+          costUsd: usage.costUsd,
+          cacheHit: usage.cacheHit,
+          model: usage.model ?? null,
+          input: boundTraceValue(nodeInputValue),
+          output: boundTraceValue(result),
+        },
+      });
+    });
+
+    return result;
+  };
+
+  // `runSegment`: drive one SPLIT_OUT segment to completion.
+  const runSegment = async (
+    splitExec: GraphNodeExecution,
+    splitNode: TraceNode,
+    splitIndex: number,
+  ): Promise<void> => {
+    const segment = segmentPlan.segments.find(
+      (s) => s.splitNodeId === splitNode.id,
+    );
+    if (!segment) return;
+
+    // Run the SPLIT_OUT once (retry/timeout/credentials/output-bound/trace),
+    // then read `{ items, count }` from its output to size the fan-out.
+    const splitOutput = await runSegmentItemNode({
+      nodeExec: splitExec,
+      node: splitNode,
+      orderIndex: splitIndex,
+      itemIndex: null,
+    });
+
+    const items = Array.isArray(splitOutput.items)
+      ? (splitOutput.items as unknown[])
+      : null;
+    if (!items) {
+      throw new NonRetriableError(
+        `SPLIT_OUT "${splitNode.name}" produced no array to iterate.`,
+      );
+    }
+
+    // AF-M9-14: hard cap. Exceeding it fails the whole run cleanly rather than
+    // truncating the array (a half-fanned run reported as success is the exact
+    // failure ADR-0021 forbids).
+    const rawCap = Number(splitExec.data?.maxItems);
+    const maxItems =
+      Number.isFinite(rawCap) && (rawCap as number) > 0
+        ? Math.min(1000, Math.floor(rawCap as number))
+        : 100;
+    if (items.length > maxItems) {
+      throw new NonRetriableError(
+        `SPLIT_OUT "${splitNode.name}" produced ${items.length} items, exceeding its ${maxItems}-item cap (maxItems). The run stopped cleanly; raise the node's cap or reduce the array.`,
+      );
+    }
+
+    // The whole segment is handled here — the main loop must never re-run
+    // these nodes (and never re-check their reachability, which would see
+    // their edges already marked taken anyway).
+    for (const interiorId of segment.interiorNodeIds) {
+      handledBySegment.add(interiorId);
+    }
+    handledBySegment.add(segment.aggregateNodeId);
+
+    const aggregateNode = requireSegmentNode(segment.aggregateNodeId);
+    const count = items.length;
+    const succeededOutputs: unknown[] = [];
+    const failedIndices: number[] = [];
+
+    // Sequential per-item execution (ADR-0021 explicitly rules out parallel
+    // items). `continueOnFail` on an interior node lets a failing item move on
+    // without aborting the run; the item's index is recorded as failed and the
+    // rest of the chain for that item is skipped.
+    for (let i = 0; i < count; i++) {
+      const item = items[i];
+      let itemOutput: unknown = item; // identity when there are no interior nodes
+      let itemFailed = false;
+
+      for (const interiorId of segment.interiorNodeIds) {
+        const interiorNode = requireSegmentNode(interiorId);
+        const interiorExec = requireSegmentExec(interiorId);
+        const interiorIndex = requireSegmentIndex(interiorId);
+        try {
+          itemOutput = await runSegmentItemNode({
+            nodeExec: interiorExec,
+            node: interiorNode,
+            orderIndex: interiorIndex,
+            itemIndex: i,
+            itemScope: { $item: item, $itemIndex: i },
+          });
+        } catch (error) {
+          if (interiorExec.continueOnFail) {
+            // Record the item as failed and write a FAILED trace-end for this
+            // interior node's item row (runSegmentItemNode left it RUNNING
+            // when it threw). Scoped to `itemIndex` so it never touches
+            // another item's rows for the same node.
+            itemFailed = true;
+            failedIndices.push(i);
+            const message =
+              error instanceof Error ? error.message : String(error);
+            await step.run(
+              `segment-trace-fail:${interiorId}:${i}`,
+              async () => {
+                return prisma.nodeExecution.updateMany({
+                  where: {
+                    executionId: execution.id,
+                    nodeId: interiorNode.id,
+                    itemIndex: i,
+                  },
+                  data: {
+                    status: NodeExecutionStatus.FAILED,
+                    error: message,
+                    finishedAt: new Date(),
+                  },
+                });
+              },
+            );
+            break;
+          }
+          throw error;
+        }
+      }
+
+      if (!itemFailed) {
+        succeededOutputs.push(itemOutput);
+      }
+    }
+
+    // AGGREGATE contract (AF-M9-14 / ADR-0021): `{ items, count, failed }`.
+    // Every box on the canvas maps to at least one inspectable row (the
+    // AGGREGATE node itself gets one row, itemIndex null, via runSegmentItemNode
+    // below, keyed through the normal edge-derived write path).
+    const aggregateResult = {
+      items: succeededOutputs,
+      count,
+      failed: failedIndices,
+    };
+
+    // Make the aggregate resolvable + reachable downstream exactly like the
+    // main loop would for any executed node. It gets its own single row
+    // (itemIndex null) via runSegmentItemNode — which also sets its output in
+    // `nodeOutputs` and marks its edges — while the engine-supplied value is
+    // passed through `overrideOutput` (its own `execute()` is only a contract
+    // fallback). The flat context then carries the collection downstream.
+    const aggregateExec = requireSegmentExec(segment.aggregateNodeId);
+    const aggregateIndex = requireSegmentIndex(segment.aggregateNodeId);
+    await runSegmentItemNode({
+      nodeExec: aggregateExec,
+      node: aggregateNode,
+      orderIndex: aggregateIndex,
+      itemIndex: null,
+      overrideOutput: aggregateResult,
+    });
+    context = aggregateResult;
+  };
+
   // Execute each node with a per-node trace (AF-A-05). Trace writes are
   // their own steps so they are replay-safe and never re-fire.
   for (const [index, nodeExec] of plan.entries()) {
@@ -607,6 +1011,14 @@ export async function executeWorkflowHandler({
         })),
       );
       break;
+    }
+
+    // AF-M9-14 (ADR-0021): an interior or AGGREGATE node already executed by
+    // `runSegment` for every item (which also marked its edges taken) must not
+    // be re-run or double-checked by the main loop. Sits before `skipNodeSet`
+    // so a `runSegment`'d node is never re-scheduled.
+    if (handledBySegment.has(node.id)) {
+      continue;
     }
 
     // AF-M2-08: Explicit skip (retry-from-node / single-node tests).
@@ -680,6 +1092,17 @@ export async function executeWorkflowHandler({
         adjacency,
         takenEdges,
       );
+      continue;
+    }
+
+    // AF-M9-14 (ADR-0021): fan-out segment start. When the loop reaches a
+    // SPLIT_OUT on a reachable path (it has passed the skip/reachability/
+    // disabled checks above), run the whole segment — SPLIT_OUT once, then each
+    // interior node once per item with $item/$itemIndex in scope, then the
+    // AGGREGATE — instead of this single-node path. All segment participants
+    // are recorded in `handledBySegment` so the loop skips them.
+    if (segmentPlan.segmentStartIds.has(node.id)) {
+      await runSegment(nodeExec, node, index);
       continue;
     }
 
