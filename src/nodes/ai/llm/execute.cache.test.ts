@@ -37,6 +37,7 @@ vi.mock("@/lib/ai/cache", async (importOriginal) => {
   };
 });
 
+import { withResolve } from "@/nodes/shared/test-params";
 import { execute } from "./execute";
 
 const step = {
@@ -55,7 +56,7 @@ const makeParams = (
   // to a defaulted parameter would silently restore the default org.
   orgOverride?: { organizationId?: string },
 ): NodeRunParams<LlmData> =>
-  ({
+  withResolve({
     nodeId: "node_1",
     userId: "user_1",
     organizationId: orgOverride ? orgOverride.organizationId : "org_1",

@@ -1164,18 +1164,53 @@ limit — it just skips the trigger node and passes through.
 - [ ] Integration tests for all three dispatch paths asserting **no** `Execution` row is created.
 - [ ] progress.md updated
 
-### ⬜ AF-M9-05 · Stop leaking `$json`/`$node` into node output and traces · 1d
+### ✅ AF-M9-05 · Stop leaking `$json`/`$node` into node output and traces · 1d · **DONE 2026-09-03**
 G9. `enrichedContext` is handed to executors as `context`, and executors spread it
 into their return value, so template scaffolding is persisted and re-nested at every
 hop.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] The runner passes the plain accumulated context to `execute()` and builds the enriched view **only** where a template is compiled — `NodeRunParams` gains `resolve(template: string): string` (or a separate `templateContext` field) and `context` stays clean.
-- [ ] Every executor currently doing `compileTemplate(x)(context)` is migrated; a static check (extend `registry.test.ts`) fails if an executor returns a key starting with `$`.
-- [ ] Engine test: after a 4-node run, no `NodeExecution.output` and no `Execution.output` contains `$json`, `$node`, `$execution`, `$workflow` or `$now`.
-- [ ] Engine test: total stored output for a 6-node linear graph is within 2× the largest single node output (today it compounds).
-- [ ] `docs/architecture/execution_engine.md` corrected — it currently describes the rolling context without noting the leak.
+- [x] The runner passes the plain accumulated context to `execute()` and builds the enriched view **only** where a template is compiled — `NodeRunParams` gains `resolve(template: string): string` (or a separate `templateContext` field) and `context` stays clean.
+- [x] Every executor currently doing `compileTemplate(x)(context)` is migrated; a static check (extend `registry.test.ts`) fails if an executor returns a key starting with `$`. *(All 14 migrated. **The check is not the one specified, because that one is not writable:** whether a returned object has a `$`-prefixed key is a runtime property, not a static one. What IS static, and is strictly stronger, is that no `execute.ts` may import `compileTemplate`, `buildTemplateContext` or `makeResolver` — `context` no longer carries the scaffolding, so those imports are the only route back to it. Two guards in `registry.test.ts`: no executor reaches for the template module, and every executor that calls `resolve()` destructures it. Both walk the tree rather than using a hand-list, so neither can fail open.)*
+- [x] Engine test: after a 4-node run, no `NodeExecution.output` and no `Execution.output` contains `$json`, `$node`, `$execution`, `$workflow` or `$now`. *(Walks every key at every depth, not just the top level. **Honest caveat:** the `NodeExecution` half holds vacuously — those columns are never written (see AF-M9-18) — and a second test pins that so the assertion is already guarding them the day they are. A third test proves `$execution.id` still **resolves**, since deleting the scaffolding outright would otherwise satisfy the first test.)*
+- [x] Engine test: total stored output for a 6-node linear graph is within 2× the largest single node output (today it compounds). *(**Bound restated, because the specified one is unmeasurable:** per-node output is not persisted, so "the largest single node output" is `null` for every row. The test instead runs a 2-node and a 6-node graph and asserts growth is bounded by data, not node count — 6 nodes < 4× the 2-node output, plus an absolute ceiling so both runs cannot bloat together and still pass the ratio.)*
+- [x] `docs/architecture/execution_engine.md` corrected — it currently describes the rolling context without noting the leak. *(§5 now states the `context`/`resolve` split, why executors must never import the template module, and the compounding mechanism. §8 corrected for the AF-M9-18 finding.)*
+- [x] progress.md updated
+
+**Two acceptance criteria were written against assumptions that do not hold.** Both
+are ticked with the substitution named inline rather than quietly reinterpreted: a
+"static check that an executor returns no `$` key" cannot be written statically, and
+"within 2× the largest single node output" cannot be measured because per-node
+output is not stored. The replacements are stronger and weaker respectively, and it
+matters which is which.
+
+**Found while doing this: `NodeExecution.input`/`output` are never written.** The
+columns exist, `executions.getOne` returns them to the client, and the runner
+persists only `Execution.output` — so per-node IO is permanently `null` in the UI.
+"What did this node actually receive?" is the first question anyone debugging asks,
+and correctness property P4 claims every node records its input and output. Filed as
+**AF-M9-18**.
+
+### ⬜ AF-M9-18 · Persist per-node input/output on `NodeExecution` · 1.5d · *(added 2026-09-03, found during AF-M9-05)*
+`NodeExecution.input` and `NodeExecution.output` are declared in the schema,
+selected by `executions.getOne`, documented in `execution_engine.md` §8, and
+promised by correctness property P4 — and the runner never writes either. Every
+per-node IO panel in the executions UI is therefore rendering `null`, and AF-A-05's
+"per-node execution traces" is complete only for status, timing, and cost.
+
+This is deliberately not a one-line write: node IO is customer data, it is the
+largest thing a run can store, and AF-M8-06 retention plus the ADR-0018 output cap
+both already exist to keep it bounded.
+
+**Depends on:** AF-M9-05
+**Acceptance**
+- [ ] The runner writes `input` (the node's resolved input) and `output` (its return) on each `NodeExecution`, inside the existing `trace-end` step so a retry cannot double-write.
+- [ ] Both are capped by the ADR-0018 byte limit, and a value over the cap is stored **truncated with an explicit marker**, never silently dropped — a trace that shows nothing and a trace that shows a truncated value must be distinguishable.
+- [ ] Credentials cannot reach either field: the AF-M3-04 resolved-credential map is never merged into `context`, and a test asserts a run with a credentialed node stores no secret material.
+- [ ] AF-M8-06's `ioRetentionDays` nulling already targets these columns — verify it does, rather than assuming.
+- [ ] `executions.getOne` keeps returning them; the per-node panel renders real values.
+- [ ] Engine tests: input/output round-trip; an over-cap payload is truncated and marked; a `SKIPPED` node stores neither.
 - [ ] progress.md updated
 
 ### ⬜ AF-M9-06 · Per-node run policy in the SDK, the schema, and the UI · 1.5d

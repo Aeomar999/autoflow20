@@ -131,7 +131,27 @@ export interface NodeRunParams<TData = Record<string, unknown>> {
    * that needs it must degrade, not guess.
    */
   organizationId?: string;
+  /**
+   * The accumulated output of upstream nodes — and nothing else.
+   *
+   * AF-M9-05: this used to be the *enriched* context, carrying `$json`,
+   * `$node`, `$execution`, `$workflow` and `$now` alongside the real data.
+   * Because every executor returns `{ ...context, … }`, that scaffolding was
+   * persisted into `nodeOutputs`, `Execution.output` and every
+   * `NodeExecution.input/output`, and `$json` (which self-references the
+   * context) re-nested at each hop — so the stored payload grew
+   * superlinearly with node count, against the ADR-0018 per-node byte cap.
+   *
+   * Executors must NOT compile templates against this. Use `resolve`.
+   */
   context: WorkflowContext;
+  /**
+   * Resolve a Handlebars template against the enriched view of `context`
+   * (`$json`, `$node`, `$execution`, `$workflow`, `$now` — see
+   * `buildTemplateContext`). The enriched object exists only inside this
+   * closure, so it can never be returned by an executor and persisted.
+   */
+  resolve: (template: string) => string;
   step: StepTools;
   publish: Realtime.PublishFn;
   /**

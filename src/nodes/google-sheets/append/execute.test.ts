@@ -39,6 +39,7 @@ vi.mock("@/inngest/channels/google-sheets-append", () => ({
   }),
 }));
 
+import { withResolve } from "@/nodes/shared/test-params";
 import { execute } from "./execute";
 
 const step = {
@@ -60,16 +61,17 @@ const baseData = {
   values: '[["{{data.email}}", "Jane", 42], ["row", "b", true]]',
 };
 
-const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams => ({
-  nodeId: "node_1",
-  userId: "user_1",
-  context: { data: { email: "ada@example.com" } },
-  credentials: { credentialId: googleSecret },
-  data: baseData,
-  step,
-  publish,
-  ...overrides,
-});
+const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams =>
+  withResolve({
+    nodeId: "node_1",
+    userId: "user_1",
+    context: { data: { email: "ada@example.com" } },
+    credentials: { credentialId: googleSecret },
+    data: baseData,
+    step,
+    publish,
+    ...overrides,
+  });
 
 beforeEach(() => {
   fetchMock.mockClear();

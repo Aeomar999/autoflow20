@@ -5,7 +5,7 @@ import {
   validate,
 } from "@/engine/validate";
 import { resolveNodeCredentials } from "@/features/executions/server/credential-resolver";
-import { buildTemplateContext } from "@/features/executions/template";
+import { makeResolver } from "@/features/executions/template";
 import { notifyExecutionFinished } from "@/features/notifications/server/execution-notifier";
 import {
   ExecutionStatus,
@@ -600,13 +600,14 @@ export async function executeWorkflowHandler({
         return row.startedAt.getTime();
       });
 
-      // AF-M2-03: Build enriched context with $json, $node, $execution,
-      // $workflow, $now before passing to the executor.
-      const enrichedContext = buildTemplateContext(
-        context,
-        nodeOutputs,
-        templateMeta,
-      );
+      // AF-M2-03 builds the enriched view ($json, $node, $execution,
+      // $workflow, $now). AF-M9-05: it is captured by `resolveTemplate` and
+      // NEVER handed to the executor as `context`. Executors return
+      // `{ ...context, … }`, so anything reachable through `context` is
+      // persisted into nodeOutputs, Execution.output and every
+      // NodeExecution — and `$json` self-references the context, so it
+      // re-nested at every hop and the stored payload grew superlinearly.
+      const resolveTemplate = makeResolver(context, nodeOutputs, templateMeta);
 
       // AF-M3-04: Decrypt this node's required credentials exactly once,
       // before execution. The result is passed to the executor and never
@@ -643,7 +644,8 @@ export async function executeWorkflowHandler({
                 nodeId: node.id,
                 userId,
                 organizationId,
-                context: enrichedContext,
+                context,
+                resolve: resolveTemplate,
                 step,
                 publish,
                 credentials: credentialsForNode,

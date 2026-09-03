@@ -41,6 +41,7 @@ vi.mock("@/inngest/channels/hubspot-create-contact", () => ({
   }),
 }));
 
+import { withResolve } from "@/nodes/shared/test-params";
 import { execute } from "./execute";
 
 const step = {
@@ -60,16 +61,17 @@ const baseData = {
     '{"email": "{{data.email}}", "firstname": "Jane", "lastname": "Doe"}',
 };
 
-const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams => ({
-  nodeId: "node_1",
-  userId: "user_1",
-  context: { data: { name: "Jane Doe", email: "ada@example.com" } },
-  credentials: { credentialId: hubspotSecret },
-  data: baseData,
-  step,
-  publish,
-  ...overrides,
-});
+const makeParams = (overrides: Partial<NodeRunParams> = {}): NodeRunParams =>
+  withResolve({
+    nodeId: "node_1",
+    userId: "user_1",
+    context: { data: { name: "Jane Doe", email: "ada@example.com" } },
+    credentials: { credentialId: hubspotSecret },
+    data: baseData,
+    step,
+    publish,
+    ...overrides,
+  });
 
 beforeEach(() => {
   fetchMock.mockClear();

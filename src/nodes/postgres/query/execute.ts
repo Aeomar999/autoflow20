@@ -1,7 +1,6 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
 import { Client as PgClient } from "pg";
-import { compileTemplate } from "@/features/executions/template";
 import { postgresQueryChannel } from "@/inngest/channels/postgres-query";
 import type { NodeRun } from "@/nodes/types";
 
@@ -23,6 +22,7 @@ export const execute: NodeRun<PostgresQueryData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
   credentials,
@@ -103,7 +103,7 @@ export const execute: NodeRun<PostgresQueryData> = async ({
           );
         }
         values = parsed.map((entry) =>
-          typeof entry === "string" ? compileTemplate(entry)(context) : entry,
+          typeof entry === "string" ? resolve(entry) : entry,
         );
       }
 

@@ -129,3 +129,28 @@ export const buildTemplateContext = (
     $now: new Date().toISOString(),
   };
 };
+
+/**
+ * The `resolve` a node executor receives (AF-M9-05).
+ *
+ * The enriched context is built once, here, and captured by the returned
+ * closure — it is never passed to the executor as `context`, so it cannot be
+ * spread into a return value and persisted. That is the whole point: before
+ * AF-M9-05 executors compiled templates against the enriched object *and*
+ * returned `{ ...context, … }`, so `$json` (which self-references the context)
+ * re-nested at every hop and the stored payload grew superlinearly with node
+ * count, eating into the ADR-0018 per-node output cap.
+ *
+ * The engine and the node unit tests both build their resolver here, so a test
+ * cannot drift from what the runner actually does.
+ */
+export type TemplateResolver = (template: string) => string;
+
+export const makeResolver = (
+  accumulatedContext: Record<string, unknown>,
+  nodeOutputs: NodeOutputMap,
+  meta: TemplateMeta,
+): TemplateResolver => {
+  const enriched = buildTemplateContext(accumulatedContext, nodeOutputs, meta);
+  return (template: string) => compileTemplate(template)(enriched);
+};

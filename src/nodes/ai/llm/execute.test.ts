@@ -1,5 +1,6 @@
 import { NonRetriableError } from "inngest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withResolve } from "@/nodes/shared/test-params";
 import type { NodeRunParams } from "@/nodes/types";
 import type { LlmData } from "./definition";
 
@@ -84,7 +85,7 @@ const makeParams = (
   overrides: MakeParamsOverrides = {},
 ): NodeRunParams<LlmData> => {
   const { data: dataOverride, ...rest } = overrides;
-  return {
+  return withResolve({
     nodeId: "node_1",
     userId: "user_1",
     context: {
@@ -101,7 +102,7 @@ const makeParams = (
     step,
     publish: vi.fn(async () => {}),
     ...rest,
-  } as NodeRunParams<LlmData>;
+  }) as NodeRunParams<LlmData>;
 };
 
 const storedReply = <T>(result: Record<string, unknown>, key: string): T =>

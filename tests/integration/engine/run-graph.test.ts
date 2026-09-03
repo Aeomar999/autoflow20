@@ -604,4 +604,127 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       expect(tail?.status).toBe(NodeExecutionStatus.SKIPPED);
     });
   });
+
+  // ------------------------------------------------------------------
+  // Suite 6 - Context hygiene (AF-M9-05, gap G9)
+  // ------------------------------------------------------------------
+  describe("context hygiene", () => {
+    const SCAFFOLDING = ["$json", "$node", "$execution", "$workflow", "$now"];
+
+    /** Every key at every depth of a stored JSON payload. */
+    function allKeys(value: unknown, acc = new Set<string>()): Set<string> {
+      if (Array.isArray(value)) {
+        for (const v of value) allKeys(v, acc);
+      } else if (value && typeof value === "object") {
+        for (const [k, v] of Object.entries(value)) {
+          acc.add(k);
+          allKeys(v, acc);
+        }
+      }
+      return acc;
+    }
+
+    function linearGraph(count: number): TemplateGraph {
+      const nodes: TemplateGraph["nodes"] = [
+        {
+          id: "trigger-h",
+          name: "Trigger",
+          type: "MANUAL_TRIGGER",
+          position: { x: 0, y: 0 },
+          data: { _timeoutMs: 1000 },
+        },
+      ];
+      const edges: TemplateGraph["edges"] = [];
+      let previous = "trigger-h";
+      for (let i = 0; i < count; i++) {
+        const id = `set-h-${i}`;
+        nodes.push({
+          id,
+          name: `Set${i}`,
+          type: "SET",
+          position: { x: 0, y: 0 },
+          // A real template, so the node genuinely goes through `resolve`.
+          data: {
+            mappings: [
+              { key: `field${i}`, value: `value-${i} {{$execution.id}}` },
+            ],
+            _timeoutMs: 1000,
+          },
+        });
+        edges.push({ source: previous, target: id, sourceHandle: "main" });
+        previous = id;
+      }
+      return { nodes, edges };
+    }
+
+    it("keeps template scaffolding out of every stored payload", async () => {
+      const { execution, nodeExecutions } = await runGraph(linearGraph(3));
+
+      expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+      const executionKeys = allKeys(execution.output);
+      for (const key of SCAFFOLDING) {
+        expect(executionKeys.has(key), `Execution.output leaked ${key}`).toBe(
+          false,
+        );
+      }
+
+      for (const ne of nodeExecutions) {
+        for (const field of [ne.input, ne.output]) {
+          const keys = allKeys(field);
+          for (const key of SCAFFOLDING) {
+            expect(
+              keys.has(key),
+              `NodeExecution(${ne.nodeName}) leaked ${key}`,
+            ).toBe(false);
+          }
+        }
+      }
+    });
+
+    it("still resolves $-prefixed expressions even though they are not stored", () => {
+      // The scaffolding must be absent from the OUTPUT, not from the resolver.
+      // Without this, deleting `$execution` entirely would pass the test above.
+      return runGraph(linearGraph(1)).then(({ execution }) => {
+        const output = execution.output as Record<string, unknown>;
+        expect(typeof output.field0).toBe("string");
+        // "value-0 <executionId>" - the id resolved, so $execution still works.
+        expect(output.field0 as string).toMatch(/^value-0 .+/);
+        expect(output.field0 as string).not.toBe("value-0 ");
+      });
+    });
+
+    it("does not compound stored output as the graph gets longer", async () => {
+      // Before AF-M9-05 each node returned `{ ...context }` including `$json`,
+      // which self-references the context - so every hop re-nested the whole
+      // previous payload and the stored size grew superlinearly with node
+      // count, against the ADR-0018 per-node byte cap.
+      const { execution: shortRun } = await runGraph(linearGraph(2));
+      await prisma.$executeRawUnsafe(TRUNCATE);
+      const { execution: longRun, nodeExecutions } = await runGraph(
+        linearGraph(6),
+      );
+
+      const sizeOf = (v: unknown) => JSON.stringify(v ?? null).length;
+
+      // Growth from 2 SET nodes to 6 must track the DATA (four more small
+      // fields), not the node count. Each `SET` here writes ~20 bytes, so a
+      // linear result lands near 3x; the pre-fix nesting was far worse,
+      // because every hop embedded the entire previous context under `$json`.
+      expect(sizeOf(longRun.output)).toBeLessThan(4 * sizeOf(shortRun.output));
+
+      // Absolute bound too, so the ratio cannot pass by both runs bloating.
+      expect(sizeOf(longRun.output)).toBeLessThan(600);
+
+      // `NodeExecution.input`/`output` are columns the engine does not write
+      // today (only `Execution.output` is persisted) - see AF-M9-18. The
+      // hygiene assertions above therefore hold vacuously for those two
+      // fields; this pins that fact so the day they start being written, the
+      // scaffolding check above is already guarding them.
+      for (const ne of nodeExecutions) {
+        expect(ne.input).toBeNull();
+        expect(ne.output).toBeNull();
+      }
+    });
+  });
 });

@@ -1,7 +1,6 @@
 import "server-only";
 import { generateObject, generateText, jsonSchema } from "ai";
 import { NonRetriableError } from "inngest";
-import { compileTemplate } from "@/features/executions/template";
 import { WORKFLOW_USAGE_KEY } from "@/inngest/trace";
 import { buildAiCacheKey, normalizeCacheTtlSeconds } from "@/lib/ai/cache";
 import {
@@ -18,6 +17,7 @@ const DEFAULT_SYSTEM_PROMPT =
 export const execute: NodeRun<LlmData> = async ({
   data,
   context,
+  resolve,
   organizationId,
   step,
   credentials,
@@ -35,9 +35,9 @@ export const execute: NodeRun<LlmData> = async ({
   }
 
   const resolvedSystem = data.systemPrompt
-    ? compileTemplate(data.systemPrompt)(context).trim()
+    ? resolve(data.systemPrompt).trim()
     : DEFAULT_SYSTEM_PROMPT;
-  const resolvedPrompt = compileTemplate(data.userPrompt)(context).trim();
+  const resolvedPrompt = resolve(data.userPrompt).trim();
 
   let parsedSchema: Parameters<typeof jsonSchema>[0] | undefined;
   if (data.jsonMode) {

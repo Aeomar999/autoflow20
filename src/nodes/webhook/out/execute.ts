@@ -7,7 +7,6 @@ import {
   resolveTimeoutMs,
   safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
-import { compileTemplate } from "@/features/executions/template";
 import { webhookOutChannel } from "@/inngest/channels/webhook-out";
 import type { NodeRun } from "@/nodes/types";
 
@@ -24,6 +23,7 @@ export const execute: NodeRun<WebhookOutData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
 }) => {
@@ -58,7 +58,7 @@ export const execute: NodeRun<WebhookOutData> = async ({
         );
       }
 
-      const endpoint = compileTemplate(data.url)(context);
+      const endpoint = resolve(data.url);
       const url = await assertSafeEndpoint(endpoint);
 
       const options: KyOptions = {
@@ -70,14 +70,14 @@ export const execute: NodeRun<WebhookOutData> = async ({
       if (data.headers) {
         const resolvedHeaders: Record<string, string> = {};
         for (const [key, value] of Object.entries(data.headers)) {
-          resolvedHeaders[key] = compileTemplate(value)(context);
+          resolvedHeaders[key] = resolve(value);
         }
         options.headers = resolvedHeaders;
       }
 
       // Body must be valid JSON after templating — a malformed template is a
       // config error, so it fails non-retriably instead of burning retries.
-      const resolvedBody = compileTemplate(data.body || "{}")(context);
+      const resolvedBody = resolve(data.body || "{}");
       try {
         JSON.parse(resolvedBody);
       } catch {

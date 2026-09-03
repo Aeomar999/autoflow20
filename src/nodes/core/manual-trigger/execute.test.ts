@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { withResolve } from "@/nodes/shared/test-params";
 import type { StepTools } from "@/nodes/types";
 import { execute } from "./execute";
 
@@ -9,14 +10,16 @@ describe("MANUAL_TRIGGER execute", () => {
   const publish = vi.fn().mockResolvedValue(undefined);
 
   it("passes context through when no payload is provided", async () => {
-    const result = await execute({
-      nodeId: "node-1",
-      data: {},
-      userId: "user-1",
-      context: { existing: "value" },
-      step,
-      publish,
-    });
+    const result = await execute(
+      withResolve({
+        nodeId: "node-1",
+        data: {},
+        userId: "user-1",
+        context: { existing: "value" },
+        step,
+        publish,
+      }),
+    );
 
     expect(result).toEqual({ existing: "value" });
     expect(publish).toHaveBeenCalledTimes(2);
@@ -24,14 +27,16 @@ describe("MANUAL_TRIGGER execute", () => {
 
   it("parses valid JSON string payload and injects into trigger context", async () => {
     const payload = JSON.stringify({ email: "user@example.com", count: 42 });
-    const result = await execute({
-      nodeId: "node-1",
-      data: { payload },
-      userId: "user-1",
-      context: { existing: "value" },
-      step,
-      publish,
-    });
+    const result = await execute(
+      withResolve({
+        nodeId: "node-1",
+        data: { payload },
+        userId: "user-1",
+        context: { existing: "value" },
+        step,
+        publish,
+      }),
+    );
 
     expect(result).toEqual({
       existing: "value",
@@ -43,14 +48,16 @@ describe("MANUAL_TRIGGER execute", () => {
 
   it("falls back to raw string trigger when payload is not JSON", async () => {
     const payload = "simple-raw-text";
-    const result = await execute({
-      nodeId: "node-1",
-      data: { payload },
-      userId: "user-1",
-      context: { existing: "value" },
-      step,
-      publish,
-    });
+    const result = await execute(
+      withResolve({
+        nodeId: "node-1",
+        data: { payload },
+        userId: "user-1",
+        context: { existing: "value" },
+        step,
+        publish,
+      }),
+    );
 
     expect(result).toEqual({
       existing: "value",

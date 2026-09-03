@@ -6,7 +6,6 @@ import {
   assertSafeEndpoint,
   safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
-import { compileTemplate } from "@/features/executions/template";
 import { discordChannel } from "@/inngest/channels/discord";
 import type { NodeRun } from "@/nodes/types";
 
@@ -21,6 +20,7 @@ export const execute: NodeRun<DiscordData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
 }) => {
@@ -41,11 +41,9 @@ export const execute: NodeRun<DiscordData> = async ({
     throw new NonRetriableError("Discord node: Message content is required");
   }
 
-  const rawContent = compileTemplate(data.content)(context);
+  const rawContent = resolve(data.content);
   const content = decode(rawContent);
-  const username = data.username
-    ? decode(compileTemplate(data.username)(context))
-    : undefined;
+  const username = data.username ? decode(resolve(data.username)) : undefined;
 
   try {
     const result = await step.run("discord-webhook", async () => {

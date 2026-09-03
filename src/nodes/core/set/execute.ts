@@ -1,5 +1,4 @@
 import "server-only";
-import { compileTemplate } from "@/features/executions/template";
 import { manualTriggerChannel } from "@/inngest/channels/manual-trigger";
 import type { NodeRun } from "@/nodes/types";
 
@@ -16,6 +15,7 @@ export const execute: NodeRun<SetData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
 }) => {
@@ -30,7 +30,7 @@ export const execute: NodeRun<SetData> = async ({
     const out = { ...context };
 
     for (const mapping of data.mappings ?? []) {
-      const resolved = compileTemplate(mapping.value)(context);
+      const resolved = resolve(mapping.value);
       setNestedValue(out, mapping.key, resolved);
     }
 

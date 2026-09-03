@@ -11,11 +11,17 @@ type HandlerCtx = Parameters<typeof executeWorkflowHandler>[0];
  * No replay, no memoisation; the executor is invoked exactly once.
  *
  * The result is deep-cloned via JSON round-trip, mirroring real Inngest
- * serialization semantics: the executor's `buildTemplateContext` adds a
- * `$json` field that self-references the accumulated context, so without
- * this clone the subsequent `serializedBytes` (JSON.stringify) would throw
- * "Converting circular structure to JSON". Cloning also keeps later nodes'
- * contexts independent of earlier ones, matching persisted-step behaviour.
+ * serialization semantics: a persisted step returns a fresh value, so later
+ * nodes' contexts stay independent of earlier ones.
+ *
+ * Until AF-M9-05 the clone was also load-bearing for a second reason: the
+ * executor received the *enriched* context, whose `$json` self-references it,
+ * so `serializedBytes` (JSON.stringify) threw "Converting circular structure
+ * to JSON" without it. That is fixed at the source — the enriched view now
+ * lives only inside the injected `resolve` — so the clone is back to being
+ * only a fidelity measure. Keep it: dropping it would let a mutation in one
+ * node be visible in an earlier node's recorded output, which real Inngest
+ * would never do.
  */
 function makeStep() {
   return {

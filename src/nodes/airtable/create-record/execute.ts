@@ -1,6 +1,5 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
-import { compileTemplate } from "@/features/executions/template";
 import { airtableCreateRecordChannel } from "@/inngest/channels/airtable-create-record";
 import type { NodeRun } from "@/nodes/types";
 
@@ -20,6 +19,7 @@ export const execute: NodeRun<AirtableCreateRecordData> = async ({
   data,
   nodeId,
   context,
+  resolve,
   step,
   publish,
   credentials,
@@ -94,10 +94,10 @@ export const execute: NodeRun<AirtableCreateRecordData> = async ({
         );
       }
 
-      const baseId = compileTemplate(data.baseId)(context);
-      const tableId = compileTemplate(data.tableId)(context);
+      const baseId = resolve(data.baseId);
+      const tableId = resolve(data.tableId);
 
-      const fieldsSource = compileTemplate(data.fields || "{}")(context);
+      const fieldsSource = resolve(data.fields || "{}");
       let parsedFields: unknown;
       try {
         parsedFields = JSON.parse(fieldsSource);
@@ -133,7 +133,7 @@ export const execute: NodeRun<AirtableCreateRecordData> = async ({
         Object.entries(parsedFields as Record<string, unknown>).map(
           ([key, value]) => [
             key,
-            typeof value === "string" ? compileTemplate(value)(context) : value,
+            typeof value === "string" ? resolve(value) : value,
           ],
         ),
       );

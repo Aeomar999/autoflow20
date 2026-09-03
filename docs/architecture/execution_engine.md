@@ -136,6 +136,10 @@ Rules:
 
 Config values may contain `{{ ... }}` templates, resolved immediately before `execute`. All templates compile through `compileTemplate` in `src/features/executions/template.ts` (ADR-0007); the `$`-prefixed context is built by `buildTemplateContext` (AF-M2-03).
 
+**The enriched context is never handed to an executor** (AF-M9-05). The runner builds it once per node inside `makeResolver` and passes the executor two separate things: `context`, the plain accumulated output of upstream nodes, and `resolve(template)`, a closure over the enriched view. Executors must template through `resolve` and must never import `compileTemplate` or `buildTemplateContext` — `registry.test.ts` fails the build if one does.
+
+The reason is that every executor returns `{ ...context, … }`. When `context` *was* the enriched object, `$json`/`$node`/`$execution`/`$workflow`/`$now` were returned with it, and `$json` self-references the accumulated context — so each hop embedded the previous hop's entire payload, the stored `Execution.output` grew superlinearly with node count, and the ADR-0018 per-node output cap was spent on scaffolding the user never asked for. Keeping the enriched view inside a closure makes that structurally impossible rather than a rule to remember.
+
 | Expression | Resolves to | Status |
 |---|---|---|
 | `{{ $json.field }}` | Field on the accumulated context (alias for the flat upstream bag). | ✅ Shipped |
@@ -205,7 +209,7 @@ Execution
 NodeExecution
   id, executionId, nodeId, nodeName, nodeType, typeVersion
   status, attempt
-  input Json?, output Json?   -- truncated above the cap
+  input Json?, output Json?   -- truncated above the cap; NOT WRITTEN YET, see below
   error Json?, skipReason String?
   startedAt, finishedAt, durationMs
   tokensIn, tokensOut, costUsd
@@ -214,6 +218,8 @@ NodeExecution
 `graphSnapshot` is what makes history immutable: the run is interpreted against the graph as it was, not as it is now. Without it, "why did this run fail last Tuesday?" is unanswerable after any edit.
 
 **Never `select` `graphSnapshot`, `input`, or `output` in list queries.** They are large. List views read scalar columns only.
+
+**`NodeExecution.input` and `NodeExecution.output` are declared but never written** (found 2026-09-03 during AF-M9-05). The runner persists only `Execution.output`; the per-node columns are always `null`, and `executions.getOne` returns the whole `NodeExecution` row, so the API ships two permanently-null fields to the client. Per-node IO is what makes a trace debuggable — "what did this node actually receive?" is the first question anyone asks — so this is a real hole in AF-A-05, not a cosmetic one. Tracked as **AF-M9-18**; it needs a size cap and a retention story (AF-M8-06, ADR-0018) rather than a naive write.
 
 ---
 
