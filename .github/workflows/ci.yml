@@ -18,6 +18,19 @@ jobs:
       # container below is the only database in the job, so pointing the test
       # DB at it is safe: there is no dev or production data to truncate.
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/autoflow_test
+      # AF-M9-16: the reference-workflow acceptance suite drives real
+      # HTTP_REQUEST nodes at a loopback fixture server started by the
+      # integration global setup, which the AF-M9-02 egress guard blocks by
+      # default. This job IS the integration job — there is one — so the flag
+      # is set here.
+      #
+      # It cannot widen anything: `allowLoopbackEgress()` permits ONLY
+      # 127.0.0.1/::1 (cloud-metadata, private and CGNAT ranges stay blocked)
+      # and THROWS at boot when NODE_ENV=production, so a deploy that
+      # inherited this variable would refuse to start rather than run
+      # permissive. `vitest.integration.setup.ts` sets the same flag per
+      # worker, so a local `npm run test:integration` behaves identically.
+      ALLOW_LOOPBACK_EGRESS: "1"
     services:
       postgres:
         image: pgvector/pgvector:pg16

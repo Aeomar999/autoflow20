@@ -498,4 +498,274 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  /**
+   * W1 (AF-M9-15). Derives from
+   * `n8n-workflows/workflows/Templates/9001_Scalable_Webhook_Orchestrator_Webhook.json`
+   * — one of only four files in that 2,061-workflow library whose `connections`
+   * survived intact (see M9 §0), and credential-free, so it runs in CI.
+   *
+   * Deviations from the source, all deliberate:
+   *  - The source pins the receiver path in the trigger's config
+   *    (`template/scalable-orchestrator`). `WEBHOOK_TRIGGER` takes no path
+   *    config — the URL is derived from the workflow id — so the path is
+   *    omitted rather than faked.
+   *  - `?sync=true` is a query parameter on the call, not node config, so it
+   *    is documented in the description instead of encoded in the graph.
+   */
+  {
+    slug: "api-router-sync-response",
+    name: "Sync API endpoint with action routing",
+    description:
+      "Turns a workflow into a real HTTP endpoint: it reads an `action` from the request body, routes to the branch that handles it, and returns that branch's own JSON response to the caller, status code included. Call the webhook with `?sync=true` to get the response back on the same request. Ships with two actions, `ping` and `process` — add a Switch rule and a branch for each new one.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["webhook", "api", "router", "switch", "sync", "endpoint"],
+    featured: true,
+    graph: {
+      nodes: [
+        {
+          id: "inbound",
+          type: "WEBHOOK_TRIGGER",
+          name: "Inbound",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "parse-input",
+          type: "SET",
+          name: "Parse input",
+          position: { x: 260, y: 0 },
+          data: {
+            mappings: [
+              {
+                key: "action",
+                value: '{{default webhook.body.action "ping"}}',
+                type: "string",
+              },
+              {
+                key: "payload",
+                // `{{#if}}` rather than a bare `{{{json …}}}`: the field is
+                // typed `object`, and a request with no payload at all (every
+                // `ping`) would otherwise resolve to `null`, which AF-M9-08
+                // correctly refuses to coerce into an object. An absent
+                // payload means "an empty one", and that has to be said.
+                value:
+                  "{{#if webhook.body.payload}}{{{json webhook.body.payload}}}{{else}}{}{{/if}}",
+                type: "object",
+              },
+            ],
+          },
+        },
+        {
+          id: "route-by-action",
+          type: "SWITCH",
+          name: "Route by action",
+          position: { x: 520, y: 0 },
+          data: {
+            rules: [
+              {
+                outputKey: "ping",
+                left: "{{action}}",
+                operator: "equals",
+                right: "ping",
+              },
+              {
+                outputKey: "process",
+                left: "{{action}}",
+                operator: "equals",
+                right: "process",
+              },
+            ],
+            // "none": an unrecognised action takes no branch, so the run ends
+            // SUCCESS having done nothing, rather than falling through into a
+            // handler written for a different action.
+            fallback: "none",
+          },
+        },
+        {
+          id: "compose-ping",
+          type: "SET",
+          name: "Compose ping",
+          position: { x: 800, y: -120 },
+          data: {
+            mappings: [
+              { key: "ok", value: "true", type: "boolean" },
+              { key: "message", value: "pong", type: "string" },
+            ],
+          },
+        },
+        {
+          id: "service-a",
+          type: "HTTP_REQUEST",
+          name: "Service A",
+          position: { x: 800, y: 120 },
+          data: {
+            variableName: "serviceA",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json payload}}}",
+            headers: { "content-type": "application/json" },
+            failOnNon2xx: true,
+            _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10000 },
+          },
+        },
+        {
+          id: "compose-result",
+          type: "SET",
+          name: "Compose result",
+          position: { x: 1060, y: 120 },
+          data: {
+            mappings: [
+              { key: "ok", value: "true", type: "boolean" },
+              {
+                key: "data",
+                value: "{{{json serviceA.httpResponse.data.json}}}",
+                type: "object",
+              },
+              { key: "source", value: "serviceA", type: "string" },
+            ],
+          },
+        },
+        {
+          id: "respond",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "Respond",
+          position: { x: 1320, y: 0 },
+          data: {
+            statusCode: 200,
+            contentType: "application/json",
+            body: "{{{json $json}}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "inbound", target: "parse-input" },
+        { source: "parse-input", target: "route-by-action" },
+        {
+          source: "route-by-action",
+          target: "compose-ping",
+          sourceHandle: "ping",
+        },
+        {
+          source: "route-by-action",
+          target: "service-a",
+          sourceHandle: "process",
+        },
+        { source: "service-a", target: "compose-result" },
+        { source: "compose-ping", target: "respond" },
+        { source: "compose-result", target: "respond" },
+      ],
+    },
+  },
+  /**
+   * W2 (AF-M9-15). Derives from
+   * `n8n-workflows/workflows/Templates/9003_FanOut_Broadcast_and_Merge_Webhook.json`.
+   *
+   * No deviations in shape. The two branches genuinely run against isolated
+   * inputs (AF-M9-12) and land on distinct MERGE input ports (AF-M9-11) — the
+   * pair of gaps that made this graph inexpressible before M9. Same
+   * webhook-path caveat as W1.
+   */
+  {
+    slug: "multi-channel-broadcast-merge",
+    name: "Broadcast to two channels and merge",
+    description:
+      "Fans one inbound message out to two delivery channels at once, waits for both, and returns a single combined result to the caller. Both HTTP nodes point at a request-echo service so the template runs exactly as shipped — repoint each at your real channel (Slack, SMS, a partner API) and the shape is unchanged.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["webhook", "broadcast", "fan-out", "merge", "parallel", "sync"],
+    graph: {
+      nodes: [
+        {
+          id: "inbound",
+          type: "WEBHOOK_TRIGGER",
+          name: "Inbound",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "prepare-message",
+          type: "SET",
+          name: "Prepare message",
+          position: { x: 260, y: 0 },
+          data: {
+            mappings: [
+              {
+                key: "message",
+                value: '{{default webhook.body.message "Hello from AutoFlow"}}',
+                type: "string",
+              },
+            ],
+          },
+        },
+        {
+          id: "broadcast-a",
+          type: "HTTP_REQUEST",
+          name: "Broadcast A",
+          position: { x: 540, y: -120 },
+          data: {
+            variableName: "respA",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: '{"text":"{{message}}","channel":"alpha"}',
+            headers: { "content-type": "application/json" },
+            failOnNon2xx: true,
+            _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10000 },
+          },
+        },
+        {
+          id: "broadcast-b",
+          type: "HTTP_REQUEST",
+          name: "Broadcast B",
+          position: { x: 540, y: 120 },
+          data: {
+            variableName: "respB",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: '{"text":"{{message}}","channel":"beta"}',
+            headers: { "content-type": "application/json" },
+            failOnNon2xx: true,
+            _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10000 },
+          },
+        },
+        {
+          id: "merge-results",
+          type: "MERGE",
+          name: "Merge results",
+          position: { x: 820, y: 0 },
+          // byInput keeps each branch under its own key (`input0`, `input1`)
+          // instead of letting one overwrite the other — the entire reason for
+          // waiting on both.
+          data: { mode: "byInput", inputCount: 2 },
+        },
+        {
+          id: "respond",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "Respond",
+          position: { x: 1080, y: 0 },
+          data: {
+            statusCode: 200,
+            contentType: "application/json",
+            body: "{{{json $json}}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "inbound", target: "prepare-message" },
+        { source: "prepare-message", target: "broadcast-a" },
+        { source: "prepare-message", target: "broadcast-b" },
+        {
+          source: "broadcast-a",
+          target: "merge-results",
+          targetHandle: "input-0",
+        },
+        {
+          source: "broadcast-b",
+          target: "merge-results",
+          targetHandle: "input-1",
+        },
+        { source: "merge-results", target: "respond" },
+      ],
+    },
+  },
 ];

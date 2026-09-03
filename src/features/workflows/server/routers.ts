@@ -60,8 +60,31 @@ export const workflowsRouter = createTRPCRouter({
           id: input.id,
           organizationId: ctx.org.id,
         },
-        select: { id: true, name: true, organizationId: true },
+        select: {
+          id: true,
+          name: true,
+          organizationId: true,
+          nodes: {
+            select: { id: true, name: true, type: true, disabled: true },
+          },
+        },
       });
+
+      // AF-M9-17: a manual run resolves the WORKING DRAFT (`workflow.nodes`)
+      // when no graphSnapshot is supplied, so refuse here on the draft's trigger
+      // state — before an Execution row is created. When the draft's only
+      // trigger is disabled the engine would otherwise create an Execution that
+      // does nothing while still drawing against the org's quota. Name the
+      // trigger so the Run button tells the author what to re-enable.
+      const triggers = workflow.nodes.filter((n) =>
+        n.type.endsWith("_TRIGGER"),
+      );
+      if (triggers.length === 1 && triggers[0].disabled) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `The workflow's only trigger, "${triggers[0].name}", is disabled. Enable it before running.`,
+        });
+      }
 
       const placeholderEventId = createId();
       const execution = await prisma.execution.create({

@@ -98,6 +98,74 @@ export const UNMATCHED_OUTPUT_PORT = "__switch_unmatched__" as const;
  */
 export const WORKFLOW_USAGE_KEY = "__usage" as const;
 
+/**
+ * Convention for the synchronous webhook response (AF-M9-10).
+ * `RESPOND_TO_WEBHOOK` attaches the composed response here; the engine
+ * harvests it at each node boundary and writes the last one seen to
+ * `Execution.response`, which the webhook route returns verbatim in
+ * `?sync=true` mode.
+ *
+ * Harvested at the node boundary rather than read off the terminal context
+ * because AF-M9-12 gives each node its own input: a respond node on a branch
+ * that is not the last to run would otherwise be invisible at settle time.
+ */
+export const WEBHOOK_RESPONSE_KEY = "__webhookResponse" as const;
+
+/** Hard cap on a composed response body (AF-M9-10). Rejected, never truncated. */
+export const MAX_WEBHOOK_RESPONSE_BYTES = 1_000_000;
+
+/**
+ * A response composed by `RESPOND_TO_WEBHOOK`, as persisted on
+ * `Execution.response` and returned by the webhook route.
+ */
+export interface WebhookResponse {
+  statusCode: number;
+  contentType: string;
+  /** Already allowlist-filtered by the node; the route filters again. */
+  headers: Record<string, string>;
+  body: string;
+}
+
+/**
+ * Read a composed webhook response off a node's returned context.
+ *
+ * Returns `null` for every node that is not a respond node, which is the
+ * overwhelming majority — so this is a cheap key probe, not a validation
+ * pass. The shape was already validated by the executor that produced it;
+ * this only guards against a malformed value reaching the DB column.
+ */
+export function extractWebhookResponse(
+  result: unknown,
+): WebhookResponse | null {
+  if (!result || typeof result !== "object") return null;
+  const raw = (result as Record<string, unknown>)[WEBHOOK_RESPONSE_KEY];
+  if (!raw || typeof raw !== "object") return null;
+
+  const rec = raw as Record<string, unknown>;
+  const statusCode = rec.statusCode;
+  const body = rec.body;
+  if (typeof statusCode !== "number" || typeof body !== "string") return null;
+
+  const headers: Record<string, string> = {};
+  if (rec.headers && typeof rec.headers === "object") {
+    for (const [key, value] of Object.entries(
+      rec.headers as Record<string, unknown>,
+    )) {
+      if (typeof value === "string") headers[key] = value;
+    }
+  }
+
+  return {
+    statusCode,
+    contentType:
+      typeof rec.contentType === "string"
+        ? rec.contentType
+        : "application/json",
+    headers,
+    body,
+  };
+}
+
 export interface StepUsage {
   tokensIn: number;
   tokensOut: number;

@@ -94,7 +94,7 @@ describe("SET execute", () => {
       }),
     );
 
-    expect(result.user.name).toBe("Ada");
+    expect((result.user as { name: string }).name).toBe("Ada");
     expect(context.user).toBe(user);
     expect(user.name).toBe("Oracle");
     expect(user.tags).toEqual(["a"]);

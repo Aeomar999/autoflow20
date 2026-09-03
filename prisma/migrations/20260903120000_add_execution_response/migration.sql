@@ -1,0 +1,21 @@
+-- AF-M9-10 (G3). A synchronous webhook call must be able to return the
+-- workflow's OWN response — status, content type, headers and body — instead
+-- of the fixed `{success, executionId, error}` envelope the route has always
+-- sent back.
+--
+-- `RESPOND_TO_WEBHOOK` writes the composed response here; the webhook route
+-- reads it when the run settles in `?sync=true` mode. Storing it on the
+-- Execution (rather than passing it through the run context) is deliberate:
+-- the route polls the row, so the response has to survive the process boundary
+-- between the Inngest worker that composed it and the request handler that
+-- returns it.
+--
+-- Additive and nullable, so every pre-AF-M9-10 row keeps its exact meaning:
+-- NULL means "this run never reached a respond node", which is precisely the
+-- condition under which the route must fall back to the legacy envelope. No
+-- backfill, no default — a default would make "never responded" indistinguish-
+-- able from "responded with an empty body".
+--
+-- Guarded (IF NOT EXISTS) to stay replayable, matching the other additive
+-- migrations in this directory.
+ALTER TABLE "Execution" ADD COLUMN IF NOT EXISTS "response" JSONB;

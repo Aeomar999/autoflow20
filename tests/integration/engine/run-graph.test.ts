@@ -920,7 +920,7 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
       expect(input).not.toBeNull();
       expect(output).not.toBeNull();
 
-      const resolved = output?.field0;
+      const resolved = output?.field0 as string;
       // `input` is the flat context the node RECEIVED (pre-execution) — it does
       // not yet hold the field; `output` is the node's return with the field
       // resolved. Both written, and they genuinely differ for the same node.
@@ -1527,5 +1527,119 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
         /exceeding its 100-item cap/,
       );
     });
+  });
+});
+
+/**
+ * AF-M9-16 regression: branches that REJOIN.
+ *
+ * `_outputPort` is a control signal the engine consumes at the node that
+ * produced it. Because every executor returns `{ ...input, … }`, it used to be
+ * copied into the next node's input and re-emitted as that node's own port —
+ * so `markTakenEdges` matched none of its outgoing edges and everything below
+ * the join was marked "not reachable via taken branches", while the run still
+ * reported SUCCESS.
+ *
+ * That silently broke the single most common branching shape there is: route,
+ * do per-branch work, rejoin. The unit tests in `trace.test.ts` could not have
+ * caught it — they call `markTakenEdges` with hand-built port ids, so the
+ * poisoned value never appears.
+ */
+describe("branch rejoin (AF-M9-16 regression)", () => {
+  beforeEach(async () => {
+    await prisma.nodeExecution.deleteMany({});
+    await prisma.execution.deleteMany({});
+  });
+
+  const rejoinGraph = (left: string): TemplateGraph => ({
+    nodes: [
+      {
+        id: "t",
+        type: "MANUAL_TRIGGER",
+        name: "T",
+        position: { x: 0, y: 0 },
+        data: {},
+      },
+      {
+        id: "c",
+        type: "CONDITION",
+        name: "C",
+        position: { x: 1, y: 0 },
+        data: { left, operator: "equals", right: "yes" },
+      },
+      {
+        id: "a",
+        type: "SET",
+        name: "A",
+        position: { x: 2, y: -1 },
+        data: { mappings: [{ key: "branch", value: "true-side" }] },
+      },
+      {
+        id: "b",
+        type: "SET",
+        name: "B",
+        position: { x: 2, y: 1 },
+        data: { mappings: [{ key: "branch", value: "false-side" }] },
+      },
+      {
+        id: "j",
+        type: "SET",
+        name: "J",
+        position: { x: 3, y: 0 },
+        data: { mappings: [{ key: "joined", value: "{{branch}}" }] },
+      },
+    ],
+    edges: [
+      { source: "t", target: "c" },
+      { source: "c", target: "a", sourceHandle: "true" },
+      { source: "c", target: "b", sourceHandle: "false" },
+      { source: "a", target: "j" },
+      { source: "b", target: "j" },
+    ],
+  });
+
+  it("runs the join node when the TRUE branch was taken", async () => {
+    const { execution, nodeExecutions } = await runGraph(rejoinGraph("yes"));
+
+    expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+    const byName = new Map(nodeExecutions.map((n) => [n.nodeName, n.status]));
+    expect(byName.get("A")).toBe(NodeExecutionStatus.SUCCESS);
+    expect(byName.get("B")).toBe(NodeExecutionStatus.SKIPPED);
+    // The assertion that was failing: the join must RUN.
+    expect(byName.get("J")).toBe(NodeExecutionStatus.SUCCESS);
+
+    // And it must see the branch's data, proving the join consumed the taken
+    // branch's output rather than merely being scheduled.
+    expect((execution.output as Record<string, unknown>).joined).toBe(
+      "true-side",
+    );
+  });
+
+  it("runs the join node when the FALSE branch was taken", async () => {
+    const { execution, nodeExecutions } = await runGraph(rejoinGraph("no"));
+
+    expect(execution.status).toBe(ExecutionStatus.SUCCESS);
+
+    const byName = new Map(nodeExecutions.map((n) => [n.nodeName, n.status]));
+    expect(byName.get("A")).toBe(NodeExecutionStatus.SKIPPED);
+    expect(byName.get("B")).toBe(NodeExecutionStatus.SUCCESS);
+    expect(byName.get("J")).toBe(NodeExecutionStatus.SUCCESS);
+    expect((execution.output as Record<string, unknown>).joined).toBe(
+      "false-side",
+    );
+  });
+
+  it("does not leak the branch control key into a downstream node's output", async () => {
+    const { nodeExecutions } = await runGraph(rejoinGraph("yes"));
+
+    // The CONDITION itself may record which port it took — that is useful in
+    // the trace. Nodes BELOW it must not inherit it.
+    const join = nodeExecutions.find((n) => n.nodeName === "J");
+    const joinOutput = (join?.output ?? {}) as Record<string, unknown>;
+    expect(Object.keys(joinOutput)).not.toContain("_outputPort");
+
+    const joinInput = (join?.input ?? {}) as Record<string, unknown>;
+    expect(Object.keys(joinInput)).not.toContain("_outputPort");
   });
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { nodeRegistry } from "@/nodes/registry";
 import { variableNameSchema } from "@/nodes/shared/config-fields";
+import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
 /**
  * Save-boundary validation (AF-A-04), rebuilt on the node registry (AF-M1-01).
@@ -36,7 +37,74 @@ function makeNodeSchema(type: string, data: z.ZodTypeAny) {
   });
 }
 
-const configOf = (type: string) => nodeRegistry.resolve(type).configSchema;
+/**
+ * A node's `data` schema at the save boundary: its own `configSchema`, plus
+ * the reserved AF-M9-06 run-policy key.
+ *
+ * **This is a bug fix, not a refactor.** `configSchema` is a plain Zod object,
+ * and Zod strips unknown keys — so `_run` was silently discarded on every
+ * save. A user who set retries or a timeout in the config panel watched the
+ * setting vanish the moment they saved, and all three M9 reference templates
+ * shipped `_run` that never survived installation.
+ *
+ * That is precisely the failure AF-M9-06 was written to end: its own note
+ * says the legacy `_timeoutMs`/`_continueOnFail` keys were broken because
+ * they "appeared in no configSchema" and "the save boundary was free to drop
+ * them". The task added the schema, the runner support and the UI, but not
+ * this — so the key it introduced was dropped the same way. Found by the
+ * AF-M9-15 round-trip proof.
+ *
+ * Implemented as a transform rather than `configSchema.extend(...)` because
+ * not every node's schema is a bare `ZodObject`: `triggerDataSchema` is
+ * `z.object({}).optional()` and `AGGREGATE`'s is `z.object({}).default({})`,
+ * neither of which exposes `.extend`. Splitting the key off, validating both
+ * halves, and re-joining works for every shape and keeps each half's error
+ * messages pointing at the right field.
+ *
+ * Legacy `_timeoutMs`/`_continueOnFail` are deliberately NOT preserved here.
+ * `run-policy.ts` keeps reading them so any fixture that still sets them runs,
+ * but nothing in the product has ever written them, so persisting them through
+ * a save would be inventing a migration path for data that does not exist.
+ */
+const configOf = (type: string) => {
+  const config = nodeRegistry.resolve(type).configSchema;
+
+  return z.unknown().transform((raw, ctx) => {
+    const input =
+      raw !== null && typeof raw === "object"
+        ? (raw as Record<string, unknown>)
+        : {};
+    const { [RUN_POLICY_KEY]: rawPolicy, ...rest } = input;
+
+    const parsedConfig = config.safeParse(rest);
+    if (!parsedConfig.success) {
+      for (const issue of parsedConfig.error.issues) {
+        ctx.addIssue({ ...issue, path: [...(issue.path ?? [])] });
+      }
+      return z.NEVER;
+    }
+
+    if (rawPolicy === undefined) {
+      return parsedConfig.data;
+    }
+
+    const parsedPolicy = runPolicySchema.safeParse(rawPolicy);
+    if (!parsedPolicy.success) {
+      for (const issue of parsedPolicy.error.issues) {
+        ctx.addIssue({
+          ...issue,
+          path: [RUN_POLICY_KEY, ...(issue.path ?? [])],
+        });
+      }
+      return z.NEVER;
+    }
+
+    return {
+      ...(parsedConfig.data as Record<string, unknown>),
+      [RUN_POLICY_KEY]: parsedPolicy.data,
+    };
+  });
+};
 
 /**
  * The saveable node types.
@@ -68,6 +136,10 @@ export const updateNodeSchemas = [
   makeNodeSchema("CONDITION", configOf("CONDITION")),
   makeNodeSchema("SWITCH", configOf("SWITCH")),
   makeNodeSchema("MERGE", configOf("MERGE")),
+  makeNodeSchema("CODE", configOf("CODE")),
+  makeNodeSchema("SPLIT_OUT", configOf("SPLIT_OUT")),
+  makeNodeSchema("AGGREGATE", configOf("AGGREGATE")),
+  makeNodeSchema("RESPOND_TO_WEBHOOK", configOf("RESPOND_TO_WEBHOOK")),
   makeNodeSchema("GOOGLE_FORM_TRIGGER", configOf("GOOGLE_FORM_TRIGGER")),
   makeNodeSchema("STRIPE_TRIGGER", configOf("STRIPE_TRIGGER")),
   makeNodeSchema("HTTP_REQUEST", configOf("HTTP_REQUEST")),

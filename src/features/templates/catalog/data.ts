@@ -301,4 +301,95 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  /**
+   * W3 (AF-M9-15). Derives from
+   * `n8n-workflows/workflows/Templates/9002_Rapid_ETL_HTTP_Transform_Deliver_Manual.json`.
+   *
+   * Ships in the **full** form, not the batched fallback M9 §1 reserved: the
+   * AF-M9-14 fan-out landed, so `SPLIT_OUT` → per-item `HTTP_REQUEST` →
+   * `AGGREGATE` is expressible and each record retries independently. No
+   * deviation to record.
+   */
+  {
+    slug: "api-etl-batch-deliver",
+    name: "API to per-record delivery",
+    description:
+      "Pulls a collection from an API, reshapes it in a Code node, then delivers one record at a time — each with its own retry — and collects the outcomes into a single `{ items, count, failed }` summary. Capped at ten records as shipped so a first run cannot surprise you; raise the Split Out limit once you have watched it work. Both endpoints are public test services, so it runs before you configure anything.",
+    category: "Data",
+    domain: "data",
+    tags: ["etl", "api", "fan-out", "split-out", "aggregate", "code", "batch"],
+    graph: {
+      nodes: [
+        {
+          id: "run",
+          type: "MANUAL_TRIGGER",
+          name: "Run",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "fetch-data",
+          type: "HTTP_REQUEST",
+          name: "Fetch data",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "posts",
+            endpoint: "https://jsonplaceholder.typicode.com/posts",
+            method: "GET",
+            failOnNon2xx: true,
+            _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10000 },
+          },
+        },
+        {
+          id: "transform",
+          type: "CODE",
+          name: "Transform",
+          position: { x: 520, y: 0 },
+          data: {
+            // Returns an array, which the engine stores under `items` — the
+            // key Split Out reads by default.
+            code: "const rows = input.posts.httpResponse.data;\nreturn rows.slice(0, 10).map((p) => ({\n  id: p.id,\n  title: p.title,\n  userId: p.userId,\n}));\n",
+          },
+        },
+        {
+          id: "fan-out",
+          type: "SPLIT_OUT",
+          name: "Fan out",
+          position: { x: 780, y: 0 },
+          data: { path: "items", maxItems: 10 },
+        },
+        {
+          id: "deliver",
+          type: "HTTP_REQUEST",
+          name: "Deliver",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "delivery",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json $item}}}",
+            headers: { "content-type": "application/json" },
+            failOnNon2xx: true,
+            // Retries are per item: one flaky record is retried on its own and
+            // does not re-send the nine that already succeeded.
+            _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10000 },
+          },
+        },
+        {
+          id: "collect",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1300, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "run", target: "fetch-data" },
+        { source: "fetch-data", target: "transform" },
+        { source: "transform", target: "fan-out" },
+        { source: "fan-out", target: "deliver" },
+        { source: "deliver", target: "collect" },
+      ],
+    },
+  },
 ];
