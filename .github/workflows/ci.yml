@@ -18,19 +18,17 @@ jobs:
       # container below is the only database in the job, so pointing the test
       # DB at it is safe: there is no dev or production data to truncate.
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/autoflow_test
-      # AF-M9-16: the reference-workflow acceptance suite drives real
-      # HTTP_REQUEST nodes at a loopback fixture server started by the
-      # integration global setup, which the AF-M9-02 egress guard blocks by
-      # default. This job IS the integration job — there is one — so the flag
-      # is set here.
+      # ALLOW_LOOPBACK_EGRESS is deliberately NOT set here.
       #
-      # It cannot widen anything: `allowLoopbackEgress()` permits ONLY
-      # 127.0.0.1/::1 (cloud-metadata, private and CGNAT ranges stay blocked)
-      # and THROWS at boot when NODE_ENV=production, so a deploy that
-      # inherited this variable would refuse to start rather than run
-      # permissive. `vitest.integration.setup.ts` sets the same flag per
-      # worker, so a local `npm run test:integration` behaves identically.
-      ALLOW_LOOPBACK_EGRESS: "1"
+      # The AF-M9-16 acceptance suite does need it: it drives real
+      # HTTP_REQUEST nodes at a loopback fixture server, which the AF-M9-02
+      # egress guard blocks by default. But `vitest.integration.setup.ts`
+      # already sets it per worker, which is the only correct place for it.
+      # `npm test` runs all three projects in one job, so a job-level value
+      # reaches the unit project too, where two egress-guard tests assert that
+      # loopback IS blocked. Setting it here made those two fail on every CI
+      # run while every local run passed — a developer's `.env` does not set
+      # the flag, so the difference was invisible outside CI.
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -49,7 +47,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 24, matching the deployment target (Vercel's Node.js Version is
+          # 24.x) and local development. CI on a different major than
+          # production is how a runtime-only failure gets to stay invisible
+          # here, which is exactly what happened with the AF-M10-12 renderer.
+          # It also satisfies the `^20.19.0 || ^22.12.0 || >=24.0.0` that
+          # `jsdom`, `html-encoding-sniffer` and `@exodus/bytes` declare.
+          #
+          # Node 20 additionally broke the audit step: the npm it ships POSTs
+          # to `/-/npm/v1/security/audits/quick`, which the registry now
+          # answers with 400 Bad Request — so the gate failed on an
+          # infrastructure error while reporting 0 vulnerabilities in the same
+          # run. Newer npm uses the bulk advisory endpoint.
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npx prisma generate
