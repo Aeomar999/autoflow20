@@ -3,6 +3,9 @@ import { definition as aiExtract } from "./ai/extract/definition";
 import { definition as aiLlm } from "./ai/llm/definition";
 import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
+import { definition as apifyGetDataset } from "./apify/get-dataset/definition";
+import { definition as apifyRun } from "./apify/run/definition";
+import { definition as apolloEnrich } from "./apollo/enrich/definition";
 import { definition as calendarTrigger } from "./calendar/trigger/definition";
 import { definition as coreAggregate } from "./core/aggregate/definition";
 import { definition as coreApproval } from "./core/approval/definition";
@@ -36,6 +39,8 @@ import { definition as githubSearchPrs } from "./github/search-prs/definition";
 import { definition as githubTrigger } from "./github/trigger/definition";
 import { definition as gmailSend } from "./gmail/send/definition";
 import { definition as gmailTrigger } from "./gmail/trigger/definition";
+import { definition as googleMapsSearch } from "./google-search/maps/definition";
+import { definition as googleSearch } from "./google-search/search/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
 import { definition as googleSheetsRead } from "./google-sheets/read/definition";
 import { definition as googleSheetsTrigger } from "./google-sheets/trigger/definition";
@@ -134,6 +139,11 @@ export const nodeManifest: NodeDefinition[] = [
   jiraAddAttachment,
   notionCreatePage,
   notionQueryDatabase,
+  apifyRun,
+  apifyGetDataset,
+  apolloEnrich,
+  googleSearch,
+  googleMapsSearch,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

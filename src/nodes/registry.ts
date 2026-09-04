@@ -4,6 +4,9 @@ import aiExtract from "./ai/extract";
 import aiLlm from "./ai/llm";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
+import apifyGetDataset from "./apify/get-dataset";
+import apifyRun from "./apify/run";
+import apolloEnrich from "./apollo/enrich";
 import calendarTrigger from "./calendar/trigger";
 import coreAggregate from "./core/aggregate";
 import coreApproval from "./core/approval";
@@ -37,6 +40,8 @@ import githubSearchPrs from "./github/search-prs";
 import githubTrigger from "./github/trigger";
 import gmailSend from "./gmail/send";
 import gmailTrigger from "./gmail/trigger";
+import googleMapsSearch from "./google-search/maps";
+import googleSearch from "./google-search/search";
 import googleSheetsAppend from "./google-sheets/append";
 import googleSheetsRead from "./google-sheets/read";
 import googleSheetsTrigger from "./google-sheets/trigger";
@@ -259,6 +264,11 @@ export const nodeRegistry = createNodeRegistry(
     jiraAddAttachment,
     notionCreatePage,
     notionQueryDatabase,
+    apifyRun,
+    apifyGetDataset,
+    apolloEnrich,
+    googleSearch,
+    googleMapsSearch,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

@@ -26,18 +26,17 @@ import {
  */
 
 /**
- * 21 from AF-M7-02, the three AF-M9-15 reference-parity templates, and three
- * M10 templates demonstrating the Phase A primitives: file archive
- * (`FILE_DOWNLOAD`), once-only sync (`FILTER` + `DEDUPE`), morning digest
- * (`EXTRACT_DOCUMENT_TEXT` + `WAIT`), contract review (`HTML_TO_PDF`) and
- * intake triage (`FORM_TRIGGER`), a spend gate (`APPROVAL`) and two Sheets
- * flows (`SHEETS_TRIGGER`/`READ`/`UPDATE`/`UPSERT`) and four Google
- * Workspace flows (Drive intake, meeting briefing, inbox triage, weekly
- * report) and six QuickBooks flows (invoice from an order, Slack alerts,
- * invoice PDFs to Drive, a Stripe receipt, an estimate from a sheet, and an
- * expense with its receipt attached).
+ * The catalogue's size, asserted so a template cannot be added or lost without
+ * someone saying so in a diff.
+ *
+ * It stopped being worth enumerating what each entry demonstrates once M10
+ * began adding families a handful at a time — the list went stale faster than
+ * it was read. What the count is FOR is unchanged: 21 shipped with AF-M7-02,
+ * and everything since has been added by a task that also updated this number.
+ * The tests below say what actually matters about the set — every palette node
+ * demonstrated, no deprecated types, the credential rules, the domain floor.
  */
-const EXPECTED_TEMPLATE_COUNT = 57;
+const EXPECTED_TEMPLATE_COUNT = 62;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {

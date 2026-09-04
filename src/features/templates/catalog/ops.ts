@@ -1838,4 +1838,74 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "paced-backfill-over-a-list",
+    name: "Work through a list without tripping a rate limit",
+    description:
+      "Takes a list, processes it one item at a time with a deliberate pause between each, and collects the results — the shape you need when the far end allows a handful of requests a second and will ban you for more. The pause is a durable wait rather than a busy loop, so the worker is free between items and a long backfill survives a redeploy. The aggregate reports which items failed rather than losing them. Nothing to connect.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["backfill", "rate limit", "batch", "pacing", "wait", "http"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a list",
+          position: { x: 0, y: 0 },
+          data: { payload: '{"ids":["a1","a2","a3"]}' },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Build the work list",
+          position: { x: 280, y: 0 },
+          data: {
+            code: "const ids = input.ids ?? [];\n\nreturn {\n  items: ids.map((id, index) => ({ id, index })),\n};\n",
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One at a time",
+          position: { x: 560, y: 0 },
+          data: { path: "items", maxItems: 200 },
+        },
+        {
+          id: "pace",
+          type: "WAIT",
+          name: "Pause between items",
+          position: { x: 840, y: 0 },
+          data: { mode: "duration", seconds: 2 },
+        },
+        {
+          id: "call",
+          type: "HTTP_REQUEST",
+          name: "Process the item",
+          position: { x: 1120, y: 0 },
+          data: {
+            variableName: "processed",
+            endpoint: "https://httpbin.org/anything/{{$item.id}}",
+            method: "GET",
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "done",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1400, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "start", target: "shape" },
+        { source: "shape", target: "each" },
+        { source: "each", target: "pace" },
+        { source: "pace", target: "call" },
+        { source: "call", target: "done" },
+      ],
+    },
+  },
 ];

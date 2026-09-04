@@ -2343,16 +2343,70 @@ receipt. `noTemplateCurlyInString` is turned off for the catalogue directory:
 a template's `code:` field is JavaScript source, so `${…}` inside it is correct
 by construction rather than the mistake the rule looks for.
 
-### ⬜ AF-M10-19 · Data-acquisition family: Apify, Apollo, Google Search/Maps · 2.5d
+### ✅ AF-M10-19 · Data-acquisition family: Apify, Apollo, Google Search/Maps · 2.5d · **DONE 2026-09-04**
 Needed by #2, #3, #5, #6, #7, #22.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] `APIFY_RUN` starts an actor and waits for the dataset, with a bounded wait and a run-timeout that surfaces as a clear error; `APIFY_GET_DATASET` fetches results with pagination. The five automations that use Apify all follow run-then-fetch, so the wait must be a first-class, cancellable step — not a sleep loop.
-- [ ] `APOLLO_ENRICH` (person/organization match), rate-limit aware.
-- [ ] `GOOGLE_SEARCH` (Custom Search JSON API, `cx` from the credential) and `GOOGLE_MAPS_SEARCH` (Places text search).
-- [ ] Per-run result caps and cost notes in the docs — these are metered APIs and an unbounded actor run is a bill, not a bug.
-- [ ] progress.md updated
+- [x] `APIFY_RUN` starts an actor and waits for the dataset, with a bounded wait and a run-timeout that surfaces as a clear error; `APIFY_GET_DATASET` fetches results with pagination. The five automations that use Apify all follow run-then-fetch, so the wait must be a first-class, cancellable step — not a sleep loop.
+- [x] `APOLLO_ENRICH` (person/organization match), rate-limit aware.
+- [x] `GOOGLE_SEARCH` (Custom Search JSON API, `cx` from the credential) and `GOOGLE_MAPS_SEARCH` (Places text search).
+- [x] Per-run result caps and cost notes in the docs — these are metered APIs and an unbounded actor run is a bill, not a bug.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Five nodes over three clients, 51 tests.
+`docs/nodes/data-acquisition.md` written, leading with a cost table because
+every node in this family spends money on every run.
+
+**The Apify wait is durable steps, not a sleep loop**, exactly as the
+acceptance required. Each poll and each sleep is its own step, following the
+`WAIT` node's pattern from AF-M10-08: a wait parked inside one long `step.run`
+cannot notice it was cancelled until that step returns, so "cancel" on a
+ten-minute scrape would mean "cancel in ten minutes". It also frees the worker
+and survives a redeploy.
+
+**Every path that stops waiting aborts the actor run.** This is the part that
+turns the acceptance's "a bill, not a bug" into code: Apify meters compute
+units for as long as an actor is alive, so a timeout or a cancellation that
+merely stops *waiting* leaves a scraper running on the user's money. The node
+calls abort and says in its error whether that succeeded — and when it did not,
+tells the user to stop it in the console rather than letting them find out from
+an invoice. Apify's own run timeout is set just above ours as a backstop for
+the case where this workflow dies between polls. The start call is its own step
+so a retry of a later step cannot launch a second run.
+
+**A failed actor is a successful API call.** Apify reports failure as HTTP 200
+describing a `FAILED` run, so the node checks the terminal state rather than
+the response, or it would report success and hand an empty dataset on. Same
+class of bug as Slack's `ok: false` in AF-M10-17.
+
+**Rate limits that are not rate limits.** Two providers here answer 429 for
+things a retry cannot fix, and both are classified on headers rather than
+status: Apollo's *daily* allowance (as opposed to its per-minute window) and
+Google Custom Search's *daily quota* (as opposed to `rateLimitExceeded`).
+Retrying either spends the whole attempt budget and then reports the wrong
+cause.
+
+**The Places field mask is the price list.** Places (New) bills by SKU
+according to the fields requested, so `*` — the obvious shortcut — puts every
+call on the most expensive tier. The mask is assembled from what the node was
+configured to want, and phone/website/hours are opt-in. Also added
+`googleMaps.apiKey` as its own credential type: a Cloud key restricted to
+Custom Search returns 403 for Places, so reusing the search credential would
+produce a permission error that reads like a bad key.
+
+**Caps everywhere, and truncation reported rather than implied**: 1,000 dataset
+items, 100 search results (Google will not page further anyway), 60 places, one
+Apollo match per run with email reveal off. A workflow that silently processed
+the first thousand of forty thousand rows looks like it worked.
+
+**Catalogue.** Five templates (62 total): a scheduled scrape-and-digest, a
+Maps prospect list, inbound-lead enrichment, a pre-call research brief, and —
+to hold the credential-free floor as three new starter entries pushed it up —
+a paced backfill that walks a list with a durable pause between items. The
+harness's header comment was rewritten: it had been enumerating what each
+template demonstrates and had fallen a milestone behind, so it now explains
+what the count is for and leaves the enumeration to the tests.
 
 ### ⬜ AF-M10-20 · Commerce & list family: Airtable, Shopify, MailerLite, Stripe actions · 3d
 H11. Needed by #9, #16, #17, #24, #25, #33, #34.

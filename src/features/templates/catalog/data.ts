@@ -1176,4 +1176,116 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "scheduled-scrape-to-digest",
+    name: "Run a scraper and summarise what changed",
+    description:
+      "Starts an Apify actor on a schedule, waits for it, and turns the dataset into a digest. The wait is a real durable step rather than a sleep, so cancelling the workflow stops the actor instead of leaving it running — Apify bills for every second an actor is alive, and an orphaned run is a bill rather than a loose end. The dataset fetch is capped and reports truncation, so a partial read never looks like the whole site. Supply an Apify credential.",
+    category: "Data",
+    domain: "data",
+    tags: ["apify", "scrape", "crawl", "dataset", "digest", "schedule"],
+    graph: {
+      nodes: [
+        {
+          id: "nightly",
+          type: "SCHEDULE_TRIGGER",
+          name: "Nightly",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 2 * * *", timezone: "UTC" },
+        },
+        {
+          id: "scrape",
+          type: "APIFY_RUN",
+          name: "Run the scraper",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "run",
+            actorId: "apify/website-content-crawler",
+            input:
+              '{"startUrls":[{"url":"https://example.com"}],"maxCrawlPages":50}',
+            waitForFinish: true,
+            // Ten minutes. The node aborts the actor if it is still going, so
+            // this is a spending limit as much as a timeout.
+            maxWaitSeconds: 600,
+          },
+        },
+        {
+          id: "items",
+          type: "APIFY_GET_DATASET",
+          name: "Fetch the results",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "dataset",
+            datasetId: "{{run.datasetId}}",
+            limit: 500,
+            clean: true,
+          },
+        },
+        {
+          id: "digest",
+          type: "CODE",
+          name: "Summarise",
+          position: { x: 840, y: 0 },
+          data: {
+            code: 'const items = input.dataset?.items ?? [];\n\nreturn {\n  pages: items.length,\n  // Reported so a capped read is visible rather than mistaken for the\n  // whole site.\n  partial: Boolean(input.dataset?.truncated),\n  computeUnits: input.run?.computeUnits ?? null,\n  titles: items\n    .slice(0, 20)\n    .map((item) => item.title || item.url || "(untitled)")\n    .join("\\n"),\n};\n',
+          },
+        },
+      ],
+      edges: [
+        { source: "nightly", target: "scrape" },
+        { source: "scrape", target: "items" },
+        { source: "items", target: "digest" },
+      ],
+    },
+  },
+  {
+    slug: "local-lead-list-from-maps",
+    name: "Build a local prospect list from Maps",
+    description:
+      "Searches Google Maps for a type of business in a place and returns a clean list with ratings, addresses and — when you ask for them — phone numbers and websites. Contact details are opt-in because Google bills them on a higher tier than name-and-address, and the node sends a field mask matching exactly what was asked for rather than requesting everything. Places serves at most 60 results across three billed pages, and the node stops there rather than paging until Google says no. Supply a Google Maps credential.",
+    category: "Revenue",
+    domain: "data",
+    tags: ["google", "maps", "places", "leads", "local", "prospecting"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a search",
+          position: { x: 0, y: 0 },
+          data: {
+            payload: '{"trade":"independent bookshops","place":"Bristol, UK"}',
+          },
+        },
+        {
+          id: "places",
+          type: "GOOGLE_MAPS_SEARCH",
+          name: "Find the businesses",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "found",
+            query: "{{trade}}",
+            region: "{{place}}",
+            limit: 40,
+            // Billed on a higher tier. Worth it for a prospect list, which is
+            // why this template turns it on and says so.
+            includeContactDetails: true,
+          },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Tidy the list",
+          position: { x: 560, y: 0 },
+          data: {
+            code: "const places = input.found?.places ?? [];\n\n// Ranked by how much evidence there is behind the rating: a lone 5.0\n// review is not better than a 4.6 from three hundred people.\nconst ranked = [...places].sort(\n  (a, b) => (b.userRatingCount ?? 0) - (a.userRatingCount ?? 0),\n);\n\nreturn {\n  total: places.length,\n  withPhone: places.filter((p) => p.phone).length,\n  rows: ranked.map((p) => ({\n    name: p.name,\n    address: p.address,\n    rating: p.rating,\n    reviews: p.userRatingCount,\n    phone: p.phone,\n    website: p.website,\n  })),\n};\n",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "places" },
+        { source: "places", target: "shape" },
+      ],
+    },
+  },
 ];

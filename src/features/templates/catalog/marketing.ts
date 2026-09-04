@@ -574,4 +574,139 @@ export const marketingTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "enrich-inbound-lead",
+    name: "Enrich an inbound lead before anyone reads it",
+    description:
+      "Takes a form or webhook signup and asks Apollo who they are — title, company, size, industry — so the first human to look at the lead already knows whether it is worth a call. A miss is reported as found: false rather than failing, because one unknown contact must not stop a batch. Apollo spends a credit per successful match and more to reveal an email, so revealing is off by default and the node refuses a name-only query rather than paying for a guess. Supply an Apollo credential.",
+    category: "Revenue",
+    domain: "marketing",
+    tags: ["apollo", "enrich", "lead", "inbound", "crm", "prospect"],
+    graph: {
+      nodes: [
+        {
+          id: "signup",
+          type: "WEBHOOK_TRIGGER",
+          name: "New signup",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "enrich",
+          type: "APOLLO_ENRICH",
+          name: "Who is this?",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "lead",
+            mode: "person",
+            email: "{{webhook.body.email}}",
+            revealPersonalEmails: false,
+          },
+        },
+        {
+          id: "known",
+          type: "CONDITION",
+          name: "Matched?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{lead.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "score",
+          type: "CODE",
+          name: "Score the lead",
+          position: { x: 840, y: -80 },
+          data: {
+            code: 'const p = input.lead?.person ?? {};\nconst size = p.companyEmployees ?? 0;\nconst title = (p.title ?? "").toLowerCase();\n\nconst senior = /(chief|head|director|vp|founder|owner|manager)/.test(title);\n\nreturn {\n  tier: size >= 200 && senior ? "A" : size >= 50 || senior ? "B" : "C",\n  summary: `${p.name ?? "Unknown"} — ${p.title ?? "no title"} at ${p.companyName ?? "unknown company"} (${size || "?"} staff)`,\n};\n',
+          },
+        },
+        {
+          id: "unknown",
+          type: "CODE",
+          name: "Record the miss",
+          position: { x: 840, y: 100 },
+          data: {
+            code: '// Not a failure. Plenty of real signups are from people Apollo has\n// never heard of, and they still need routing.\nreturn {\n  tier: "unknown",\n  summary: `No Apollo match for ${input.webhook?.body?.email ?? "this address"}`,\n};\n',
+          },
+        },
+      ],
+      edges: [
+        { source: "signup", target: "enrich" },
+        { source: "enrich", target: "known" },
+        { source: "known", target: "score", sourceHandle: "true" },
+        { source: "known", target: "unknown", sourceHandle: "false" },
+      ],
+    },
+  },
+  {
+    slug: "pre-call-company-research",
+    name: "Company research brief before the call",
+    description:
+      "Given a company domain, pulls the firmographics from Apollo and the most recent web coverage from Google, then has a model write a one-page brief for whoever is taking the meeting. Custom Search is metered — a hundred queries a day are free and everything after is billed — so the node caps results and reports how many queries it spent. Supply an Apollo credential and a Google Custom Search credential.",
+    category: "Revenue",
+    domain: "marketing",
+    // Apollo for the firmographics, Google for the coverage.
+    tier: "library",
+    tags: ["apollo", "google", "research", "brief", "sales", "ai"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a domain",
+          position: { x: 0, y: 0 },
+          data: { payload: '{"domain":"example.com"}' },
+        },
+        {
+          id: "company",
+          type: "APOLLO_ENRICH",
+          name: "Firmographics",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "company",
+            mode: "organization",
+            domain: "{{domain}}",
+          },
+        },
+        {
+          id: "news",
+          type: "GOOGLE_SEARCH",
+          name: "Recent coverage",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "coverage",
+            query: "{{company.organization.name}} news",
+            limit: 10,
+            // Last year only: older coverage is rarely what a caller needs.
+            dateRestrict: "y1",
+          },
+        },
+        {
+          id: "brief",
+          type: "AI_LLM",
+          name: "Write the brief",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "brief",
+            model: "anthropic:claude-3-5-sonnet",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You brief salespeople before a call. One page, specific, no filler. If the evidence is thin, say so rather than padding.",
+            userPrompt:
+              "Company: {{company.organization.name}} ({{domain}})\nIndustry: {{company.organization.industry}}\nStaff: {{company.organization.employees}}\n\nRecent coverage:\n{{{json coverage.results}}}\n\nWrite the brief: what they do, what changed recently, and two questions worth asking.",
+            temperature: 0.4,
+            maxTokens: 1200,
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "company" },
+        { source: "company", target: "news" },
+        { source: "news", target: "brief" },
+      ],
+    },
+  },
 ];

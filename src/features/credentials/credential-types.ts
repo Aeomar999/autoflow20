@@ -770,6 +770,17 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
     ],
   },
   {
+    type: "googleMaps.apiKey",
+    kind: "apiKey",
+    label: "Google Maps Platform",
+    description: "API key for the Places API (text search, place details)",
+    logo: "/logos/google-maps.svg",
+    testable: false,
+    notTestableReason:
+      "Every Places call is billed per request, so a connection test would spend the user's money to learn nothing they could not learn from the first run.",
+    fields: [{ key: "apiKey", label: "API key", secret: true }],
+  },
+  {
     type: "shopify.accessToken",
     kind: "apiKey",
     label: "Shopify Admin API token",
