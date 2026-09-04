@@ -178,6 +178,14 @@ export const oauthProviders: Record<string, OAuthProvider> = {
     // automations #28, #29 and #30 — are both impossible under it.
     "https://www.googleapis.com/auth/drive",
   ),
+  "google.youtube": googleProvider(
+    "google.youtube",
+    "YouTube",
+    // `youtube.upload` only — it can add a video and nothing else. The wider
+    // `youtube` scope would also let a workflow delete the channel's back
+    // catalogue, which no automation here needs.
+    "https://www.googleapis.com/auth/youtube.upload",
+  ),
   "google.calendar": googleProvider(
     "google.calendar",
     "Google Calendar",

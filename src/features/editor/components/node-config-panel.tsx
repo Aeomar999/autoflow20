@@ -688,6 +688,20 @@ export function NodeConfigPanel({
         </output>
       ) : null}
 
+      {definition.accountRequirement ? (
+        // AF-M10-22: a requirement of the provider ACCOUNT, which no amount of
+        // reconnecting fixes. X's v2 write endpoints are not on the free tier;
+        // YouTube uploads need a quota increase. Both surface at run time as a
+        // 403 that reads like a permissions bug, so they are said here — while
+        // the node is being configured — instead.
+        <output className="block rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-xs">
+          <p className="font-medium text-foreground">Account requirement</p>
+          <p className="mt-1 text-muted-foreground">
+            {definition.accountRequirement}
+          </p>
+        </output>
+      ) : null}
+
       <div className="flex flex-col gap-1.5">
         <label htmlFor={`${uid}-name`} className="text-xs font-medium">
           Name

@@ -1,7 +1,9 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
+import { Readable } from "node:stream";
 
 /**
  * Blob storage behind one interface (AF-M10-06, ADR-0025).
@@ -11,9 +13,14 @@ import { dirname, join, resolve, sep } from "node:path";
  * env decision made once, in `resolveBlobStore`.
  *
  * **No provider SDK type appears in this interface, or in anything that
- * consumes it.** `Buffer` in, `Buffer` out, string keys. That is what makes the
- * local store a real implementation rather than a mock, and it is why the
- * file-service tests run with no network and no container.
+ * consumes it.** `Buffer` in; `Buffer` or a web `ReadableStream` out; string
+ * keys. That is what makes the local store a real implementation rather than a
+ * mock, and it is why the file-service tests run with no network and no
+ * container.
+ *
+ * `getStream` was added in AF-M10-22 for the social publishing nodes: a video
+ * buffered whole is worker heap proportional to the file, and `Readable.toWeb`
+ * / `transformToWebStream` mean the bytes go store → socket instead.
  */
 
 export interface BlobStore {
@@ -21,6 +28,15 @@ export interface BlobStore {
   readonly backend: string;
   put(key: string, data: Buffer, contentType: string): Promise<void>;
   get(key: string): Promise<Buffer>;
+  /**
+   * Stream an object rather than materialising it (AF-M10-22).
+   *
+   * `get` is fine for a PDF and wrong for a video: a 200 MB upload buffered
+   * whole is 200 MB of worker heap, and several concurrent ones is an OOM.
+   * The social publishing nodes hand this straight to `fetch`, so the bytes go
+   * store → socket without ever being fully resident.
+   */
+  getStream(key: string): Promise<ReadableStream<Uint8Array>>;
   /** Idempotent: deleting an absent key is not an error. */
   delete(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
@@ -87,6 +103,22 @@ export class LocalBlobStore implements BlobStore {
       }
       throw error;
     }
+  }
+
+  async getStream(key: string): Promise<ReadableStream<Uint8Array>> {
+    const path = this.pathFor(key);
+    try {
+      // stat first: createReadStream defers ENOENT to an async 'error' event,
+      // which would surface as an unhandled rejection mid-upload rather than
+      // as a BlobNotFoundError the caller can report.
+      await stat(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new BlobNotFoundError(key);
+      }
+      throw error;
+    }
+    return Readable.toWeb(createReadStream(path)) as ReadableStream<Uint8Array>;
   }
 
   async delete(key: string): Promise<void> {
@@ -180,6 +212,29 @@ export class S3BlobStore implements BlobStore {
         throw new BlobNotFoundError(key);
       }
       return Buffer.from(bytes);
+    } catch (error) {
+      if (error instanceof NoSuchKey) {
+        throw new BlobNotFoundError(key);
+      }
+      throw error;
+    }
+  }
+
+  async getStream(key: string): Promise<ReadableStream<Uint8Array>> {
+    assertSafeKey(key);
+    const { GetObjectCommand, NoSuchKey } = await import("@aws-sdk/client-s3");
+    const client = await this.client();
+    try {
+      const response = await client.send(
+        new GetObjectCommand({ Bucket: this.config.bucket, Key: key }),
+      );
+      // `transformToWebStream` is the whole point: the alternative,
+      // `transformToByteArray`, is exactly the buffering this exists to avoid.
+      const body = response.Body;
+      if (!body) {
+        throw new BlobNotFoundError(key);
+      }
+      return body.transformToWebStream() as ReadableStream<Uint8Array>;
     } catch (error) {
       if (error instanceof NoSuchKey) {
         throw new BlobNotFoundError(key);

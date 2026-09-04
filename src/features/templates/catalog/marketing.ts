@@ -921,4 +921,154 @@ export const marketingTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "one-post-two-networks",
+    name: "Write once, publish to X and LinkedIn",
+    description:
+      "Takes a topic, drafts a post for each network in its own register, and publishes both. The two are written separately on purpose: the same words that work in 280 characters read as terse on LinkedIn, and the LinkedIn version can carry the detail X has no room for. Length is checked before either call — X counts weighted characters, so a post with emoji is longer than it looks, and its rejection does not say by how much. Supply an X credential and a LinkedIn credential; both need account-level permissions the connect flow cannot grant, which the config panel spells out.",
+    category: "Marketing",
+    domain: "marketing",
+    // X to post, LinkedIn to post. Different accounts, different approvals.
+    tier: "library",
+    tags: ["x", "twitter", "linkedin", "social", "publish", "cross-post"],
+    graph: {
+      nodes: [
+        {
+          id: "brief",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a topic",
+          position: { x: 0, y: 0 },
+          data: {
+            payload:
+              '{"topic":"What we learned shipping our automation library","angle":"a lesson, not an announcement"}',
+          },
+        },
+        {
+          id: "draft",
+          type: "AI_LLM",
+          name: "Draft both versions",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "drafts",
+            model: "anthropic:claude-3-5-sonnet",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You write for two audiences at once. The X post is under 240 characters, has no hashtags, and makes one point. The LinkedIn post is three short paragraphs and can carry the detail X has no room for. Never write the same words twice.",
+            userPrompt:
+              "Topic: {{topic}}\nAngle: {{angle}}\n\nReturn the X post first, then a line containing only ---, then the LinkedIn post.",
+            temperature: 0.7,
+            maxTokens: 900,
+          },
+        },
+        {
+          id: "split",
+          type: "CODE",
+          name: "Separate them",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const raw = String(input.drafts?.text ?? "");\nconst [first, ...rest] = raw.split(/^---$/m);\n\n// Falling back to the whole text rather than an empty string: a model that\n// ignored the separator should still produce a publishable post rather than\n// silently posting nothing.\nreturn {\n  xPost: (first ?? raw).trim(),\n  linkedinPost: (rest.join("---") || raw).trim(),\n};\n',
+          },
+        },
+        {
+          id: "x",
+          type: "X_POST",
+          name: "Post to X",
+          position: { x: 840, y: -80 },
+          data: {
+            variableName: "xResult",
+            text: "{{xPost}}",
+          },
+        },
+        {
+          id: "linkedin",
+          type: "LINKEDIN_POST",
+          name: "Post to LinkedIn",
+          position: { x: 840, y: 100 },
+          data: {
+            variableName: "linkedinResult",
+            text: "{{linkedinPost}}",
+            visibility: "PUBLIC",
+          },
+        },
+      ],
+      edges: [
+        { source: "brief", target: "draft" },
+        { source: "draft", target: "split" },
+        { source: "split", target: "x" },
+        { source: "split", target: "linkedin" },
+      ],
+    },
+  },
+  {
+    slug: "publish-video-everywhere",
+    name: "Publish one video to YouTube and Instagram",
+    description:
+      "Fetches a rendered video, uploads it to YouTube, and publishes it through Upload-Post to Instagram and TikTok. The video is streamed from the run's file store to each platform rather than loaded into memory, so a large file costs a buffer instead of its own size — and several concurrent runs do not take the worker down with them. YouTube uploads start as private on purpose: an unverified Google Cloud project forces that anyway, and finding out after a public upload is worse than choosing it. Supply a YouTube credential and an Upload-Post credential.",
+    category: "Marketing",
+    domain: "marketing",
+    // YouTube to upload, Upload-Post to syndicate.
+    tier: "library",
+    tags: ["youtube", "instagram", "video", "upload", "publish", "social"],
+    graph: {
+      nodes: [
+        {
+          id: "ready",
+          type: "WEBHOOK_TRIGGER",
+          name: "Video ready",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "fetch",
+          type: "FILE_DOWNLOAD",
+          name: "Fetch the render",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "video",
+            url: "{{webhook.body.videoUrl}}",
+            // 100 MB — the store's own per-file ceiling, which binds before
+            // any platform limit. The upload streams from there, so this
+            // bounds what is STORED rather than what is held in memory.
+            maxBytes: 104857600,
+          },
+        },
+        {
+          id: "youtube",
+          type: "YOUTUBE_UPLOAD",
+          name: "Upload to YouTube",
+          position: { x: 560, y: -80 },
+          data: {
+            variableName: "youtube",
+            // Three braces: the file reference is an object.
+            videoRef: "{{{json video.file}}}",
+            title: "{{webhook.body.title}}",
+            description: "{{webhook.body.description}}",
+            tags: "automation,workflow",
+            // Private first. An unverified project forces this regardless, and
+            // discovering that after a public upload is the worse order.
+            privacyStatus: "private",
+          },
+        },
+        {
+          id: "social",
+          type: "UPLOAD_POST_PUBLISH",
+          name: "Publish to Instagram",
+          position: { x: 560, y: 120 },
+          data: {
+            variableName: "social",
+            profile: "REPLACE_WITH_UPLOAD_POST_PROFILE",
+            platforms: "instagram,tiktok",
+            caption: "{{webhook.body.title}}",
+            mediaRef: "{{{json video.file}}}",
+            isVideo: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "ready", target: "fetch" },
+        { source: "fetch", target: "youtube" },
+        { source: "fetch", target: "social" },
+      ],
+    },
+  },
 ];
