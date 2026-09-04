@@ -79,7 +79,12 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
     expect(screen.getByText("Triggers")).toBeTruthy();
     expect(screen.getByText("AI Models")).toBeTruthy();
     expect(screen.getByText("Actions & Integrations")).toBeTruthy();
-  });
+    // The assertions above are linear (one DOM walk), but RENDERING the whole
+    // palette in jsdom is not free and gets slower with every family M10 adds.
+    // vitest's 5s default is meant for unit tests; this one mounts ~100
+    // components on purpose, so it gets a bound suited to what it does rather
+    // than failing intermittently under load.
+  }, 30_000);
 
   it("never offers a deprecated node type (AF-M5-09)", () => {
     // Latent by design since AF-M8-12 retired the last deprecated types: the

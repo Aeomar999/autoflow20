@@ -2478,15 +2478,67 @@ that re-checks before escalating, and a retry-with-backoff chain — the last tw
 credential-free, to hold the one-third floor as four new starter entries pushed
 it up.
 
-### ⬜ AF-M10-21 · Messaging family: Telegram, WhatsApp (WAHA) · 2d
+### ✅ AF-M10-21 · Messaging family: Telegram, WhatsApp (WAHA) · 2d · **DONE 2026-09-04**
 Needed by #23 and #31.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] Telegram: `TELEGRAM_TRIGGER` (webhook with a secret path token), `TELEGRAM_SEND_MESSAGE`, `TELEGRAM_GET_FILE` → `FileRef` (#23 uploads a PDF).
-- [ ] WAHA: `WAHA_TRIGGER` (inbound message webhook), `WAHA_SEND_MESSAGE`, against a user-supplied base URL that is egress-guarded like any other.
-- [ ] Inbound webhook bodies are size-capped and validated before dispatch; an unverified Telegram update is dropped, not run.
-- [ ] progress.md updated
+- [x] Telegram: `TELEGRAM_TRIGGER` (webhook with a secret path token), `TELEGRAM_SEND_MESSAGE`, `TELEGRAM_GET_FILE` → `FileRef` (#23 uploads a PDF).
+- [x] WAHA: `WAHA_TRIGGER` (inbound message webhook), `WAHA_SEND_MESSAGE`, against a user-supplied base URL that is egress-guarded like any other.
+- [x] Inbound webhook bodies are size-capped and validated before dispatch; an unverified Telegram update is dropped, not run.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Five nodes over two clients, 43 tests.
+`docs/nodes/messaging.md` written.
+
+**Neither provider signs its webhooks**, and that is worth stating plainly
+rather than papering over: GitHub and Intuit send an HMAC, Telegram and WAHA
+send nothing. The only proof is a shared secret, so anyone who learns it can
+forge a delivery. Both routes are built accordingly — one endpoint per
+workflow carrying the workflow's OWN secret (never a deployment-wide one, so a
+leak is contained), constant-time comparison, verification **before the body is
+read** so an unauthenticated request cannot make the process allocate, a 1 MB
+cap, and a 404 for every reason a delivery cannot run so the endpoint is not an
+oracle for which workflow ids exist. A Telegram `secret_token` under 16
+characters is refused outright: Telegram permits one character, and accepting
+that would make the header a formality.
+
+**The WAHA base URL is user input, so it goes through the same egress guard as
+`HTTP_REQUEST`.** A self-hosted URL pointing at `169.254.169.254` would turn a
+WhatsApp node into a cloud-metadata reader, and one pointing at an internal
+host into a port scanner with the server's network position. `safeFetch`
+resolves, refuses loopback/private/link-local/CGNAT, pins the connection to the
+address it vetted and re-vets each redirect hop; the URL is also checked up
+front so a bad credential fails with a sentence rather than a connection error
+mid-run.
+
+**WAHA delivers the bot's own outbound messages back as events.** A workflow
+replying to what it receives would reply to its own replies, forever. The route
+drops `fromMe` before dispatch — a route-level filter rather than something
+every template has to remember, which is the difference between a safe default
+and a documented footgun.
+
+**Telegram failure is an `ok: false` envelope**, like Slack: an HTTP 200 can
+describe a refusal. Its 403 gets a real sentence, because "bot was blocked by
+the user" does not say that a bot cannot start a chat, cannot message someone
+who blocked it, and must be a group member to post there. Long messages are
+**split, not truncated** — Telegram rejects anything over 4096 characters, so
+the alternative to splitting is sending nothing — and a photo is taken from the
+END of Telegram's ascending size array, since taking the first would silently
+fetch a thumbnail.
+
+**Two test-suite bounds set rather than worked around.** The runtime-dependency
+guards and the palette DOM test both analyse or render the WHOLE codebase, and
+both began timing out under load while passing alone as M10 grew it — which
+reads as a broken guard rather than a slow one. Parse and module-resolution
+results are memoised, and the three whole-tree walks now carry an explicit
+30-second bound with a comment saying why vitest's 5-second unit-test default
+was never a meaningful limit for them.
+
+**Catalogue.** Three templates (72 total): a Telegram document assistant that
+downloads a PDF and replies with a summary (#23's shape), a WhatsApp
+out-of-hours responder, and a credential-free meeting-notes-to-action-list flow
+to hold the one-third floor.
 
 ### ⬜ AF-M10-22 · Social publishing family: X, LinkedIn, YouTube, Upload-Post · 2.5d
 Needed by #32, #34, #35.
