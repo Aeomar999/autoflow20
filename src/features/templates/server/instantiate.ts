@@ -41,12 +41,38 @@ export interface PendingCredential {
   optional: boolean;
 }
 
+/**
+ * A config value the installer must supply before the workflow can run
+ * (AF-M10-25).
+ *
+ * Credentials are not the only thing a template cannot ship. A spreadsheet id,
+ * a Drive folder, a QuickBooks account or item id, a Slack channel — these are
+ * per-installation values, and baking a real one in would either leak the
+ * author's workspace or, worse, quietly point somebody's books at a sandbox
+ * company that accepts the write and loses it.
+ *
+ * The catalogue's convention is a literal `REPLACE_WITH_*` placeholder in the
+ * config, which was previously visible only to somebody reading the JSON. This
+ * makes it visible on the template page and after install, next to the
+ * credentials, because both answer the same question: what do I still owe this
+ * workflow before it will run?
+ */
+export interface PendingSetupValue {
+  nodeId: string;
+  nodeName: string;
+  /** Config path, dotted for nesting, e.g. `mappings.0.value`. */
+  field: string;
+  /** The placeholder token itself, e.g. `REPLACE_WITH_SPREADSHEET_ID`. */
+  placeholder: string;
+}
+
 /** Output of `prepareTemplateGraph`: a graph rotated to fresh ids. */
 export interface PreparedTemplate {
   nodes: TemplateNode[];
   edges: TemplateEdge[];
   idMap: ReadonlyMap<string, string>;
   pendingCredentials: PendingCredential[];
+  pendingSetup: PendingSetupValue[];
 }
 
 const NODE_REF_PREFIX = "$node.";
@@ -180,7 +206,68 @@ export function prepareTemplateGraph(graph: TemplateGraph): PreparedTemplate {
     edges,
     idMap,
     pendingCredentials: collectPendingCredentials(nodes),
+    pendingSetup: collectPendingSetup(nodes),
   };
+}
+
+/**
+ * The `REPLACE_WITH_*` token a template leaves for the installer.
+ *
+ * Uppercase and underscore-only after the prefix, so it cannot match prose in a
+ * prompt or a comment that happens to mention replacing something.
+ */
+const PENDING_SETUP_PATTERN = /REPLACE_WITH_[A-Z0-9_]+/g;
+
+/**
+ * Every setup placeholder in a graph, in node order.
+ *
+ * The walk is recursive because a placeholder is rarely a top-level string: it
+ * appears inside a `mappings` array, inside the JSON body of a `values` field,
+ * and inside `code`. Reporting only top-level config keys would have missed
+ * most of them and told the installer a template was ready when it was not.
+ *
+ * A field carrying two placeholders reports twice; the same placeholder used in
+ * five nodes reports five times, because the installer has to edit five nodes.
+ */
+export function collectPendingSetup(
+  nodes: TemplateNode[],
+): PendingSetupValue[] {
+  const pending: PendingSetupValue[] = [];
+
+  const walk = (value: unknown, node: TemplateNode, path: string): void => {
+    if (typeof value === "string") {
+      for (const match of value.matchAll(PENDING_SETUP_PATTERN)) {
+        pending.push({
+          nodeId: node.id,
+          nodeName: node.name ?? node.type,
+          field: path,
+          placeholder: match[0],
+        });
+      }
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((entry, index) => {
+        walk(entry, node, path ? `${path}.${index}` : String(index));
+      });
+      return;
+    }
+
+    if (value !== null && typeof value === "object") {
+      for (const [key, entry] of Object.entries(
+        value as Record<string, unknown>,
+      )) {
+        walk(entry, node, path ? `${path}.${key}` : key);
+      }
+    }
+  };
+
+  for (const node of nodes) {
+    walk(node.data ?? {}, node, "");
+  }
+
+  return pending;
 }
 
 /**
