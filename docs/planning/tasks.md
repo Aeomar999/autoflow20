@@ -2861,12 +2861,23 @@ reads the invoice returns 0.95 for everything.
   source has no such guard, and without one, publishing against an existing
   sheet files a receipt for every historical sale at once.
 
-### ⬜ AF-M10-26 · Templates: Engineering & DevOps (#18–#20) · 1d
+### 🟡 AF-M10-26 · Templates: Engineering & DevOps (#18–#20) · 1d · **AUTHORED 2026-09-04**
 **Depends on:** AF-M10-18, AF-M10-17
 **Acceptance**
-- [ ] Three specs; the multi-repo variant (#18) routes by repository through `SWITCH` rather than duplicating branches.
-- [ ] Jira transitions are by name (AF-M10-18), so an installed template works against a project whose status ids differ.
-- [ ] progress.md updated
+- [x] Three specs; the multi-repo variant (#18) routes by repository through `SWITCH` rather than duplicating branches.
+- [x] Jira transitions are by name (AF-M10-18), so an installed template works against a project whose status ids differ.
+- [ ] **Fixture-server suites — carried by AF-M10-34**, per the amended Phase C note above.
+- [x] progress.md updated
+
+**Status 2026-09-04 — authored, not proven.** Three new templates in
+`catalog/engineering.ts` (96 total), all in the GitHub/Jira/Slack/Notion/
+Gemini/SMTP node family. #18 routes by repository through `SWITCH`; the
+single-repo variant is #19, and #20 announces release notes via Gemini + email.
+Jira transitions are by name — a shipped template cannot know a project's
+status ids, and a template carrying foreign ids fails install with a useless
+400. Harness gained a gate reading every value a SET node writes (dead SET
+config is the same defect class as the dead CONDITION keys AF-M10-24 found),
+and `EXPECTED_TEMPLATE_COUNT` moved 93 → 96.
 
 ### ⬜ AF-M10-27 · Templates: Data Extraction & AI (#21–#23) · 1d
 **Depends on:** AF-M10-14, AF-M10-11, AF-M10-13, AF-M10-21

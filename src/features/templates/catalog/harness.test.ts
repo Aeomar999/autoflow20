@@ -39,7 +39,13 @@ import {
  * The tests below say what actually matters about the set — every palette node
  * demonstrated, no deprecated types, the credential rules, the domain floor.
  */
-const EXPECTED_TEMPLATE_COUNT = 93;
+const EXPECTED_TEMPLATE_COUNT = 96;
+
+/** A `{{ ... }}` expression; the capture is its body. */
+const EXPRESSION = /\{\{+([^}]*)\}\}+/g;
+
+/** A bare name inside an expression or a Code body. */
+const IDENTIFIER = /[A-Za-z_$][A-Za-z0-9_$]*/g;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
@@ -311,6 +317,85 @@ describe("template catalogue", () => {
           value.placeholder,
           `${template.slug}/${value.nodeId}.${value.field}`,
         ).toMatch(/^REPLACE_WITH_[A-Z][A-Z0-9_]*[A-Z0-9]$/);
+      }
+    }
+  });
+
+  it("reads every value a SET node writes", () => {
+    // AF-M10-26. A SET mapping nothing ever references is dead config that
+    // reads as meaningful: somebody installing the template sees a value
+    // being computed per branch and assumes it matters. Same class as the
+    // dead CONDITION keys AF-M10-24 found — a key the schema accepts, that
+    // no code path consults.
+    //
+    // The check is whole-graph rather than downstream-only: a SET whose only
+    // purpose is the workflow's final output is still a value a reader of a
+    // *template* would expect to see used.
+    for (const template of templateCatalog) {
+      const written = new Map<string, string>();
+
+      for (const node of template.graph.nodes) {
+        if (node.type !== "SET") continue;
+        const mappings = (node.data?.mappings ?? []) as Array<{
+          key?: unknown;
+        }>;
+        for (const mapping of mappings) {
+          if (typeof mapping.key === "string")
+            written.set(mapping.key, node.id);
+        }
+      }
+
+      if (written.size === 0) continue;
+
+      // Names appearing anywhere a value can be READ: inside a `{{ }}`
+      // expression, or in a Code node's body. Collected as identifiers
+      // rather than matched with a per-key regex — a key interpolated into
+      // a pattern IS a pattern, and a word boundary written inside a
+      // template literal is a backspace character rather than a boundary,
+      // which is how the first version of this rule passed everything.
+      const read = new Set<string>();
+      const addNames = (source: string): void => {
+        for (const name of source.match(IDENTIFIER) ?? []) read.add(name);
+      };
+
+      const walk = (value: unknown): void => {
+        if (typeof value === "string") {
+          for (const match of value.matchAll(EXPRESSION)) addNames(match[1]);
+          return;
+        }
+        if (Array.isArray(value)) {
+          value.forEach(walk);
+          return;
+        }
+        if (value && typeof value === "object") {
+          for (const [field, entry] of Object.entries(
+            value as Record<string, unknown>,
+          )) {
+            // A SET's own `key` is the write, not a read. Counting it
+            // would make every mapping trivially referenced.
+            if (field === "key") continue;
+            if (field === "code" && typeof entry === "string") {
+              addNames(entry);
+              continue;
+            }
+            walk(entry);
+          }
+        }
+      };
+      for (const node of template.graph.nodes) walk(node.data ?? {});
+
+      // `$json` serialises the whole context, so a node that returns it reads
+      // every value the graph has set — by shape rather than by name. An API
+      // template answering `{{{json $json}}}` is the ordinary case, and
+      // demanding a by-name reference would push authors to enumerate keys
+      // that are already all being returned.
+      if (read.has("$json")) continue;
+
+      for (const [key, nodeId] of written) {
+        expect(
+          read.has(key),
+          `${template.slug}/${nodeId} sets "${key}" and nothing reads it`,
+        ).toBe(true);
       }
     }
   });
