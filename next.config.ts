@@ -9,6 +9,26 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "@xyflow/react", "date-fns"],
   },
+
+  /**
+   * `pdfjs-dist` (reached through `pdf-parse`) loads `@napi-rs/canvas` with a
+   * `createRequire` it constructs at runtime. Neither webpack nor Vercel's file
+   * tracer can see through that, so the package installs during the build and
+   * is then absent from the lambda - at which point pdfjs cannot polyfill
+   * `DOMMatrix` and throws while its module body evaluates.
+   *
+   * Only the Inngest runner ever parses a PDF (knowledge ingestion and the
+   * EXTRACT_TEXT / AI attachment executors), so only its trace needs the
+   * native package. Both linux-x64 variants are listed because the build image
+   * picks one and naming the wrong one alone would fail silently.
+   */
+  outputFileTracingIncludes: {
+    "/api/inngest": [
+      "./node_modules/@napi-rs/canvas/**/*",
+      "./node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
+      "./node_modules/@napi-rs/canvas-linux-x64-musl/**/*",
+    ],
+  },
 };
 
 export default withSentryConfig(nextConfig, {

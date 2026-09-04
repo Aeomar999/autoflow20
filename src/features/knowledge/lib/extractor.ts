@@ -1,6 +1,5 @@
 import { decode } from "html-entities";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 import {
   assertSafeEndpoint,
   safeFetch,
@@ -79,6 +78,21 @@ export async function extractTextFromBuffer(
 
   if (identifier.includes("pdf") || identifier.endsWith(".pdf")) {
     detectedMime = "application/pdf";
+    // Imported here rather than at module scope. `pdf-parse` pulls in
+    // `pdfjs-dist`, which reaches for `@napi-rs/canvas` through a `createRequire`
+    // it builds at runtime and touches `DOMMatrix` while its module body
+    // evaluates. Neither webpack nor Vercel's file tracer can see that
+    // require, so the package never reaches the lambda and the reference throws
+    // on import - taking down every route whose graph reached this file, which
+    // `src/nodes/registry.ts` (it imports every executor) makes into all of
+    // them. Only the runner ever parses a PDF; a parser this heavy has no
+    // business loading for a request that never sees one.
+    //
+    // Deliberately outside the try below: a module that fails to load is an
+    // environment fault, and reporting it as "this PDF is corrupt" would be the
+    // same dishonesty DocumentExtractionError exists to avoid.
+    const { PDFParse } = await import("pdf-parse");
+
     try {
       const parser = new PDFParse({ data: buffer });
       const res = await parser.getText();

@@ -277,3 +277,72 @@ describe("runtime dependencies are production dependencies", () => {
     );
   });
 });
+
+/**
+ * Packages that must never load while a route's module graph is evaluating.
+ *
+ * `pdf-parse` reaches `pdfjs-dist`, which asks for `@napi-rs/canvas` through a
+ * `createRequire` it builds at runtime. Neither webpack nor Vercel's file
+ * tracer can see through that, so the package installs during the build and is
+ * absent from the lambda; pdfjs then cannot polyfill `DOMMatrix` and throws
+ * `ReferenceError: DOMMatrix is not defined` while its module body evaluates.
+ *
+ * Because it throws at module initialisation rather than on use, it took down
+ * every route that merely *reached* the file — `src/nodes/registry.ts` imports
+ * every executor, so that was all of them — while `/`, `/login` and
+ * `/api/health` stayed up. `next build` passes and every local run passes,
+ * because `@napi-rs/canvas` is installed in both.
+ *
+ * The rule is not "do not depend on pdf-parse". It is that only the runner
+ * ever parses a PDF, so it must be reached by `await import()` inside the
+ * branch that needs it, never by a static import that a page can pull in.
+ */
+const DEFERRED_ONLY = ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"];
+
+/** Static-import chains from `entrypoints` that reach `packageName`. */
+function findStaticReach(entrypoints: string[], packageName: string): string[] {
+  const chains: string[] = [];
+  const seen = new Set<string>();
+
+  const walk = (file: string, chain: string[]): void => {
+    if (seen.has(file)) return;
+    seen.add(file);
+
+    for (const { specifier, typeOnly } of importsOf(file)) {
+      if (typeOnly) continue;
+      if (packageNameOf(specifier) === packageName) {
+        chains.push([...chain, rel(file)].join("\n    → "));
+        continue;
+      }
+      const local = resolveLocal(file, specifier);
+      if (local) walk(local, [...chain, rel(file)]);
+    }
+  };
+
+  for (const entry of entrypoints) walk(entry, []);
+  return chains;
+}
+
+describe("heavy native packages stay off the module-init path", () => {
+  const entrypoints = findEntrypoints(SRC);
+
+  it.each(DEFERRED_ONLY)(
+    "no server entrypoint statically imports %s",
+    (packageName) => {
+      const chains = [...new Set(findStaticReach(entrypoints, packageName))];
+
+      expect(
+        chains,
+        chains.length > 0
+          ? `Reached at module scope, so it evaluates before any request is served. Load it with \`await import()\` in the branch that needs it:\n\n${chains.join("\n\n")}`
+          : "",
+      ).toEqual([]);
+    },
+  );
+
+  it("detects a static import when one exists", () => {
+    // Guards that can only pass are worthless. `mammoth` is legitimately a
+    // static import in the same extractor, so it proves the walker fires.
+    expect(findStaticReach(entrypoints, "mammoth").length).toBeGreaterThan(0);
+  });
+});
