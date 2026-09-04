@@ -81,7 +81,12 @@ import { definition as slackInvite } from "./slack/invite/definition";
 import { definition as slackListChannels } from "./slack/list-channels/definition";
 import { definition as slackPost } from "./slack/post/definition";
 import { definition as slackSendMessage } from "./slack/send-message/definition";
+import { definition as telegramGetFile } from "./telegram/get-file/definition";
+import { definition as telegramSendMessage } from "./telegram/send-message/definition";
+import { definition as telegramTrigger } from "./telegram/trigger/definition";
 import type { NodeDefinition } from "./types";
+import { definition as wahaSendMessage } from "./waha/send-message/definition";
+import { definition as wahaTrigger } from "./waha/trigger/definition";
 import { definition as webhookOut } from "./webhook/out/definition";
 
 /**
@@ -162,6 +167,11 @@ export const nodeManifest: NodeDefinition[] = [
   stripeFindOrCreateCustomer,
   stripeCreatePaymentLink,
   stripeGetCustomer,
+  telegramTrigger,
+  telegramSendMessage,
+  telegramGetFile,
+  wahaTrigger,
+  wahaSendMessage,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

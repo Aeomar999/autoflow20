@@ -82,7 +82,12 @@ import slackInvite from "./slack/invite";
 import slackListChannels from "./slack/list-channels";
 import slackPost from "./slack/post";
 import slackSendMessage from "./slack/send-message";
+import telegramGetFile from "./telegram/get-file";
+import telegramSendMessage from "./telegram/send-message";
+import telegramTrigger from "./telegram/trigger";
 import type { NodeCategory, NodeRegistration } from "./types";
+import wahaSendMessage from "./waha/send-message";
+import wahaTrigger from "./waha/trigger";
 import webhookOut from "./webhook/out";
 
 /**
@@ -287,6 +292,11 @@ export const nodeRegistry = createNodeRegistry(
     stripeFindOrCreateCustomer,
     stripeCreatePaymentLink,
     stripeGetCustomer,
+    telegramTrigger,
+    telegramSendMessage,
+    telegramGetFile,
+    wahaTrigger,
+    wahaSendMessage,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

@@ -959,4 +959,151 @@ export const supportTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "telegram-document-assistant",
+    name: "Send the bot a PDF, get a summary back",
+    description:
+      "A Telegram bot that accepts a document, reads it, and replies with a summary in the same chat. Deliveries are dropped unless they carry the workflow's own secret token — Telegram does not sign its webhooks, so that header is the only proof a delivery is genuine. The file branch matters: plenty of messages are just text, and asking Telegram for a file id that was never there fails the run for no reason. Replies over 4096 characters are split rather than rejected, which is what Telegram does to an over-long message.",
+    category: "Support",
+    domain: "support",
+    tags: ["telegram", "bot", "pdf", "document", "summary", "assistant"],
+    graph: {
+      nodes: [
+        {
+          id: "message",
+          type: "TELEGRAM_TRIGGER",
+          name: "Message to the bot",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "has-file",
+          type: "CONDITION",
+          name: "Did they attach one?",
+          position: { x: 280, y: 0 },
+          data: {
+            left: "{{telegram.fileId}}",
+            operator: "is_not_empty",
+          },
+        },
+        {
+          id: "fetch",
+          type: "TELEGRAM_GET_FILE",
+          name: "Download it",
+          position: { x: 560, y: -80 },
+          data: {
+            variableName: "attachment",
+            fileId: "{{telegram.fileId}}",
+          },
+        },
+        {
+          id: "read",
+          type: "EXTRACT_DOCUMENT_TEXT",
+          name: "Read the document",
+          position: { x: 840, y: -80 },
+          data: {
+            variableName: "document",
+            // Three braces: the file reference is an object, and two braces
+            // would HTML-escape it into something unparseable.
+            file: "{{{json attachment.file}}}",
+            maxCharacters: 100000,
+          },
+        },
+        {
+          id: "summarise",
+          type: "AI_LLM",
+          name: "Summarise",
+          position: { x: 1120, y: -80 },
+          data: {
+            variableName: "summary",
+            model: "anthropic:claude-3-5-sonnet",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You summarise documents for someone who has not read them. Lead with what it is and what it asks of the reader. No preamble.",
+            userPrompt:
+              "Summarise this document in under 200 words.\n\n{{document.text}}",
+            temperature: 0.3,
+            maxTokens: 800,
+          },
+        },
+        {
+          id: "reply",
+          type: "TELEGRAM_SEND_MESSAGE",
+          name: "Reply in the chat",
+          position: { x: 1400, y: -80 },
+          data: {
+            variableName: "reply",
+            chatId: "{{telegram.chatId}}",
+            text: "*{{attachment.filename}}*\n\n{{summary.text}}",
+            parseMode: "plain",
+          },
+        },
+        {
+          id: "no-file",
+          type: "TELEGRAM_SEND_MESSAGE",
+          name: "Ask for one",
+          position: { x: 560, y: 140 },
+          data: {
+            variableName: "prompt",
+            chatId: "{{telegram.chatId}}",
+            text: "Send me a PDF and I will summarise it.",
+            parseMode: "plain",
+          },
+        },
+      ],
+      edges: [
+        { source: "message", target: "has-file" },
+        { source: "has-file", target: "fetch", sourceHandle: "true" },
+        { source: "fetch", target: "read" },
+        { source: "read", target: "summarise" },
+        { source: "summarise", target: "reply" },
+        { source: "has-file", target: "no-file", sourceHandle: "false" },
+      ],
+    },
+  },
+  {
+    slug: "whatsapp-auto-responder",
+    name: "Answer WhatsApp out of hours",
+    description:
+      "Replies to inbound WhatsApp messages through a self-hosted WAHA instance, with a different answer inside and outside working hours. The bot's own outbound messages are dropped before anything runs — WAHA delivers them back as events, so a workflow that replies to everything it receives would reply to its own replies forever. Phone numbers are normalised to WAHA's chat-id form, which it otherwise accepts and silently fails to deliver to. Supply a WAHA credential; its base URL must be a public host, since a self-hosted URL is user input and is checked against the same egress rules as any other outbound call.",
+    category: "Support",
+    domain: "support",
+    tags: ["whatsapp", "waha", "auto-reply", "out of hours", "support", "chat"],
+    graph: {
+      nodes: [
+        {
+          id: "inbound",
+          type: "WAHA_TRIGGER",
+          name: "WhatsApp message",
+          position: { x: 0, y: 0 },
+          data: { session: "default" },
+        },
+        {
+          id: "hours",
+          type: "CODE",
+          name: "Are we open?",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const now = new Date();\nconst day = now.getUTCDay();\nconst hour = now.getUTCHours();\n\n// Monday-Friday, 09:00-17:00 UTC. Change to your own hours.\nconst open = day >= 1 && day <= 5 && hour >= 9 && hour < 17;\n\nreturn {\n  open,\n  reply: open\n    ? "Thanks — someone will pick this up shortly."\n    : "Thanks for messaging. We are closed right now and will reply when we open at 9am.",\n};\n',
+          },
+        },
+        {
+          id: "respond",
+          type: "WAHA_SEND_MESSAGE",
+          name: "Reply",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "sent",
+            chatId: "{{whatsapp.chatId}}",
+            text: "{{reply}}",
+            session: "default",
+          },
+        },
+      ],
+      edges: [
+        { source: "inbound", target: "hours" },
+        { source: "hours", target: "respond" },
+      ],
+    },
+  },
 ];

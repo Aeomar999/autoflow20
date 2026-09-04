@@ -2006,4 +2006,105 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "meeting-notes-to-action-list",
+    name: "Paste meeting notes, get an action list",
+    description:
+      "Publishes a form, pulls the decisions and owners out of whatever was pasted into it, and renders a one-page action list you can circulate. Extraction is structured rather than a free-text summary, so the output is fields a later step can branch on — an owner, a due date, a priority — instead of a paragraph somebody has to read. Values are escaped before they reach the HTML, because a name with an ampersand should not be able to break the layout. Nothing to connect; add an email or Slack node on the end when you want it delivered.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["meeting", "notes", "actions", "extract", "pdf", "minutes"],
+    graph: {
+      nodes: [
+        {
+          id: "notes",
+          type: "FORM_TRIGGER",
+          name: "Paste the notes",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Turn meeting notes into actions",
+            description:
+              "Paste the raw notes. You will get back a tidy action list.",
+            submitLabel: "Extract actions",
+            successMessage: "Working on it — your action list is generating.",
+            fields: [
+              {
+                name: "title",
+                label: "Meeting",
+                type: "text",
+                required: true,
+              },
+              {
+                name: "notes",
+                label: "The notes",
+                type: "textarea",
+                required: true,
+                maxLength: 20000,
+              },
+            ],
+          },
+        },
+        {
+          id: "extract",
+          type: "AI_EXTRACT",
+          name: "Pull out the actions",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "extracted",
+            model: "openai:gpt-4o-mini",
+            fallbackModels:
+              "anthropic:claude-3-5-haiku,google:gemini-1.5-flash",
+            content: "{{form.fields.notes}}",
+            fields: [
+              {
+                name: "decisions",
+                type: "string",
+                description:
+                  "The decisions actually made, one per line. Empty if none were.",
+              },
+              {
+                name: "actions",
+                type: "string",
+                description:
+                  "Action items as 'Owner — task — due date', one per line. Use 'Unassigned' when no owner was named rather than guessing.",
+              },
+              {
+                name: "risks",
+                type: "string",
+                description:
+                  "Anything flagged as a risk or a blocker, one per line. Empty if none were.",
+              },
+            ],
+          },
+        },
+        {
+          id: "render",
+          type: "CODE",
+          name: "Lay it out",
+          position: { x: 600, y: 0 },
+          data: {
+            code: 'const f = input.form?.fields ?? {};\nconst x = input.extracted ?? {};\n\n// Escaped before it reaches the HTML: a name containing & or < would\n// otherwise break the layout.\nconst esc = (v) =>\n  String(v ?? "")\n    .replace(/&/g, "&amp;")\n    .replace(/</g, "&lt;")\n    .replace(/>/g, "&gt;");\n\nconst list = (value) => {\n  const lines = String(value ?? "")\n    .split("\n")\n    .map((line) => line.trim())\n    .filter(Boolean);\n  return lines.length > 0\n    ? `<ul>${lines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>`\n    : "<p><em>None recorded.</em></p>";\n};\n\nreturn {\n  actionCount: String(x.actions ?? "").split("\n").filter((l) => l.trim()).length,\n  actionHtml: `<html><body style="font-family:sans-serif">\n  <h1>${esc(f.title)}</h1>\n  <h2>Decisions</h2>${list(x.decisions)}\n  <h2>Actions</h2>${list(x.actions)}\n  <h2>Risks</h2>${list(x.risks)}\n</body></html>`,\n};\n',
+          },
+        },
+        {
+          id: "pdf",
+          type: "HTML_TO_PDF",
+          name: "Render the list",
+          position: { x: 900, y: 0 },
+          data: {
+            variableName: "actionList",
+            html: "{{actionHtml}}",
+            filename: "actions.pdf",
+            pageSize: "A4",
+            orientation: "portrait",
+          },
+        },
+      ],
+      edges: [
+        { source: "notes", target: "extract" },
+        { source: "extract", target: "render" },
+        { source: "render", target: "pdf" },
+      ],
+    },
+  },
 ];
