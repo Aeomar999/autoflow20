@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NonRetriableError } from "inngest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { LocalBlobStore } from "@/features/files/server/blob-store";
 import { formatBytes, parseSingleFileRef } from "./upload-stream";
 

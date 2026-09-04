@@ -37,12 +37,9 @@ interface AirtableErrorBody {
   error?: { type?: string; message?: string } | string;
 }
 
-function classify(
-  status: number,
-  headers: Headers,
-  body: AirtableErrorBody,
-  where: string,
-) {
+// No `headers` parameter: Airtable never sends Retry-After, so nothing here
+// reads the response headers. See the 429 branch below.
+function classify(status: number, body: AirtableErrorBody, where: string) {
   const error = body.error;
   const type = typeof error === "string" ? error : (error?.type ?? "");
   const message = typeof error === "string" ? "" : (error?.message ?? "");
@@ -132,7 +129,7 @@ export async function airtableFetch<T>(
     AirtableErrorBody;
 
   if (!response.ok) {
-    throw classify(response.status, response.headers, payload, request.where);
+    throw classify(response.status, payload, request.where);
   }
 
   return payload;

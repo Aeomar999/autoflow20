@@ -107,7 +107,9 @@ export function toFormBody(
     if (raw === undefined || raw === null) return;
 
     if (Array.isArray(raw)) {
-      raw.forEach((entry, index) => append(`${key}[${index}]`, entry));
+      raw.forEach((entry, index) => {
+        append(`${key}[${index}]`, entry);
+      });
       return;
     }
     if (typeof raw === "object") {

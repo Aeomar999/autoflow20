@@ -9,6 +9,19 @@ import {
 } from "./telegram-client";
 import { parseTelegramUpdate, verifyTelegramSecret } from "./webhook";
 
+/**
+ * `parseTelegramUpdate` returns undefined for an update it does not
+ * recognise. Asserting here turns that into a named failure instead of a
+ * property access on undefined several lines later.
+ */
+function parsed(raw: unknown) {
+  const update = parseTelegramUpdate(raw);
+  if (!update) {
+    throw new Error(`fixture did not parse: ${JSON.stringify(raw)}`);
+  }
+  return update;
+}
+
 const secret = { botToken: "123456:AA-test" };
 
 function stubTelegram(
@@ -146,10 +159,10 @@ describe("matchTelegramTrigger (AF-M10-21)", () => {
   });
 
   const update = (over: Record<string, unknown> = {}) =>
-    parseTelegramUpdate({
+    parsed({
       update_id: 1,
       message: { chat: { id: 42 }, text: "/report", ...over },
-    })!;
+    });
 
   it("matches when no filters are set", () => {
     const match = matchTelegramTrigger({
@@ -355,13 +368,13 @@ describe("downloadTelegramFile (AF-M10-21)", () => {
 
 describe("telegramTriggerContext (AF-M10-21)", () => {
   it("carries the file id, which is what makes Get File usable", () => {
-    const update = parseTelegramUpdate({
+    const update = parsed({
       update_id: 9,
       message: {
         chat: { id: 5 },
         document: { file_id: "doc-9", file_name: "report.pdf" },
       },
-    })!;
+    });
 
     const context = telegramTriggerContext({ update, body: { update_id: 9 } });
 

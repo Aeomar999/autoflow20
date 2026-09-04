@@ -2674,20 +2674,97 @@ first time a media node has been able to be.
 
 Authored as `TemplateSpec` entries under `src/features/templates/catalog/`, gated by
 `harness.test.ts`. **A template is not done when it is authored — it is done when
-AF-M10-34 runs it green.** Each batch adds its templates *and* their fixture-server
-suites in the same task; splitting authoring from proving is how a catalogue fills up
-with graphs nobody has run.
+AF-M10-34 runs it green.**
+
+**Amended 2026-09-04 (AF-M10-24).** This originally required each batch to add its
+templates *and* their fixture-server suites in the same task. That is not currently
+possible: the fixture server redirects a graph by rewriting `node.data.endpoint`, which
+only `HTTP_REQUEST` has, while every Phase B service client holds its base URL as a
+module constant with no seam to point elsewhere. Building that seam is infrastructure,
+and AF-M10-34 already owns "no network access, no credentials", so **C-24…C-32 author
+and D-34 proves**. The rule the original wording defended still stands — a batch's task
+stays 🟡 with its fixture box unticked until AF-M10-34 runs it, so no template is
+counted done on the strength of having been typed.
 
 Every entry must also state, in its `description`, any deviation from the source
 document — the way AF-M9's W3 fallback was required to.
 
-### ⬜ AF-M10-24 · Templates: Sales & Marketing (#1–#7) · 2d
+### 🟡 AF-M10-24 · Templates: Sales & Marketing (#1–#7) · 2d · **AUTHORED 2026-09-04**
 **Depends on:** AF-M10-15, AF-M10-19
 **Acceptance**
-- [ ] Seven specs: `outreach-personalized-gmail`, `upwork-proposal-generator`, `lead-gen-apollo-gpt4`, `cold-outreach-gemini`, `linkedin-profile-research`, `lead-gen-google-search-maps`, `outreach-from-job-signals`.
-- [ ] Each carries the source doc's prerequisites in its `description`, including required sheet columns.
-- [ ] `harness.test.ts` passes for all seven (schema, ports, credentials, no dangling edges).
-- [ ] progress.md updated
+- [x] Seven specs: `outreach-personalized-gmail`, `upwork-proposal-generator`, `lead-gen-apollo-gpt4`, `cold-outreach-gemini`, `linkedin-profile-research`, `lead-gen-google-search-maps`, `outreach-from-job-signals`.
+- [x] Each carries the source doc's prerequisites in its `description`, including required sheet columns.
+- [x] `harness.test.ts` passes for all seven (schema, ports, credentials, no dangling edges).
+- [ ] **Fixture-server suites — blocked, see below.** Carried by AF-M10-34.
+- [x] progress.md updated
+
+**Status 2026-09-04 — authored, not proven.** Seven templates (85 total), all
+seven `library` tier. Deliberately left open rather than ticked: by the Phase C
+rule above, a template is done when AF-M10-34 runs it green, and the fixture
+suites this task was supposed to add **cannot be written yet**. See "Phase C's
+per-batch fixture rule is not currently achievable" below.
+
+**Deviations from the source, and why each was necessary.** Every one is stated
+in the template's own `description`, so an operator installing it reads it
+without opening this file:
+
+- **#1 (`outreach-personalized-gmail`)** — the source reads the Gmail account's
+  display name and syncs it onto the send. That is a *read* this product has no
+  node for, so the From address is node config instead. The source also has no
+  already-sent guard; a Sent column and a filter on it are added here, because a
+  cold-outreach flow on a schedule without one emails the same list every hour.
+- **#4 (`cold-outreach-gemini`)** — same guard, same reason.
+- **#5 (`linkedin-profile-research`)** — rows that already hold Profile Data are
+  skipped, which the source does not do. An Apify run per row costs credits, and
+  a scheduled read that re-scrapes the same twenty profiles hourly is an
+  expensive way to get an answer already in the sheet.
+- **#6 (`lead-gen-google-search-maps`)** — the source triggers from a chat
+  interface; this uses `FORM_TRIGGER`, the equivalent this product ships. Also
+  worth stating plainly in the template: Custom Search and Places need **two
+  separate Google keys** — a Custom Search key is refused by Places — and the
+  `cx` search-engine id lives on the credential, not in node config. Both APIs
+  are metered, so the result caps are deliberate.
+- **#7 (`outreach-from-job-signals`)** — the source filters by company size and
+  industry off the scrape. Apify actors differ in whether they return either, so
+  the filter moved to after Apollo enrichment where the number is reliable, and
+  Apollo misses skip rather than fail: a fifty-company list must not stop at the
+  first unknown company.
+
+**One credential-free entry per batch, still holding.** #6 is not it — it needs
+three. The floor is met from the existing catalogue; the next batch owes one.
+
+**Phase C's per-batch fixture rule is not currently achievable.** The preamble
+says each batch adds its templates *and* their fixture-server suites. It cannot,
+and this is worth recording rather than quietly skipping:
+`tests/integration/fixtures/http-fixture-server.ts` redirects a graph by
+rewriting `node.data.endpoint`, which only exists on `HTTP_REQUEST`. Every
+service client added in Phase B holds its base URL as a **module constant** —
+`const APIFY_API = "https://api.apify.com/v2"`, and the same for Apollo,
+Google, Gmail, Sheets, Stripe, Shopify, Airtable, Telegram, WAHA and the rest —
+so there is no seam a test can point at a local server. Six of this batch's
+seven templates call at least one such client.
+
+Building that seam is a piece of infrastructure, not a line in a template task,
+and AF-M10-34 already owns "no network access, no credentials". So the
+redirection belongs there, and **AF-M10-24 through AF-M10-32 author; AF-M10-34
+proves**. The Phase C preamble is corrected above to say so. This does not
+weaken the rule the preamble was defending — nothing here is ticked as done on
+the strength of having been typed.
+
+**A lint failure I had reported as clean.** `npm run lint` was failing at HEAD
+with one error and five warnings, all in files from AF-M10-20/21/22, and I had
+reported those three commits as lint clean. They were not. Fixed in this commit:
+a `forEach` callback returning a value in the Stripe form encoder, an unused
+`headers` parameter in the Airtable error classifier (Airtable never sends
+Retry-After, so nothing read it), an unused `vi` import, and two non-null
+assertions in the Telegram tests replaced by a helper that throws a named error
+when a fixture fails to parse. The `mimeType` that Upload-Post was reading and
+discarding now sets the multipart part's content type, which is what
+Upload-Post actually checks — a generated video arrives under whatever name the
+generator gave it, so the filename extension is not a reliable substitute.
+
+The cause was running `biome check` on a path subset instead of `npm run lint`.
+Gate commands are now taken from `package.json`, not composed by hand.
 
 ### ⬜ AF-M10-25 · Templates: Finance & Accounting (#8–#17) · 2.5d
 **Depends on:** AF-M10-16, AF-M10-20, AF-M10-15
@@ -2762,7 +2839,8 @@ The milestone's definition of done.
 **Depends on:** Phase C, AF-M10-33
 **Acceptance**
 - [ ] `tests/integration/automations/` drives each of the 35 catalogue graphs through `runGraph` against the fixture server, asserting terminal `SUCCESS` and the expected `NodeExecution` count, order and statuses.
-- [ ] Trigger payloads are injected through the `initialData` option that AF-M9-01 still owes (its first reopened acceptance box) — this task cannot close until that lands.
+- [ ] Trigger payloads are injected through `runGraph`'s `initialData` option. ~~This task cannot close until AF-M9-01 lands it.~~ **Unblocked 2026-09-03** — that box closed with AF-M9-10; the note above was stale when AF-M10-24 checked it.
+- [ ] **Client base-URL redirection, moved here from Phase C (2026-09-04).** The fixture server only redirects `node.data.endpoint`, so it can reach `HTTP_REQUEST` and nothing else; every Phase B client (`const APIFY_API = …`, and the same for Apollo, Google, Gmail, Sheets, Stripe, Shopify, Airtable, Telegram, WAHA) hardcodes its base URL as a module constant. Without a seam, ~30 of the 35 cannot be driven offline at all. This is the task's real first step, not a detail of it.
 - [ ] No network access, no credentials, no manual intervention; suite runs in the existing `integration` project.
 - [ ] A staging checklist records which of the 35 have additionally been run against real accounts, with dates — CI-green and provider-green are different claims and the docs must not blur them.
 - [ ] progress.md updated

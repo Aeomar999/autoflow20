@@ -1286,4 +1286,869 @@ export const marketingTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "outreach-personalized-gmail",
+    name: "Hyper-personalized email outreach",
+    description:
+      "Reference automation #1. Reads prospect rows from a Google Sheet, drafts a tailored reply with a model, sends it through Gmail, and marks the row done so the same lead is never emailed twice. PREREQUISITES: Google credentials covering Sheets and Gmail (they are separate scoped credentials here, so connect both), an AI provider key, and a sheet with the columns First Name, Email ID, Inquiry Intent, Original Inquiry, plus a Sent column this workflow writes back to. DEVIATIONS FROM THE SOURCE: the source syncs the Gmail sender display name from the account before sending — that is a read this product has no node for, so the From address is configured on the node instead. The source has no already-sent guard; the Sent column and the filter on it are added here, because a sheet-polling trigger that re-reads a row after an edit would otherwise email the same person again.",
+    category: "Revenue",
+    domain: "marketing",
+    // Sheets to read and write, Gmail to send. The AI key is optional.
+    tier: "library",
+    tags: ["outreach", "gmail", "sheets", "ai", "personalization", "leads"],
+    graph: {
+      nodes: [
+        {
+          id: "new-lead",
+          type: "SHEETS_TRIGGER",
+          name: "New prospect row",
+          position: { x: 0, y: 0 },
+          data: {
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            range: "Leads!A:F",
+            // The email is the row's identity, so a re-ordered sheet does not
+            // replay rows that were already handled.
+            keyColumn: "Email ID",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "unsent",
+          type: "CONDITION",
+          name: "Not already sent?",
+          position: { x: 280, y: 0 },
+          data: {
+            left: "{{row.fields.Sent}}",
+            operator: "is_empty",
+          },
+        },
+        {
+          id: "draft",
+          type: "AI_LLM",
+          name: "Draft the reply",
+          position: { x: 560, y: -60 },
+          data: {
+            variableName: "draft",
+            model: "openai:gpt-4o",
+            fallbackModels: "anthropic:claude-3-5-sonnet",
+            systemPrompt:
+              "You write short, specific replies to inbound enquiries. Answer what they actually asked, propose one concrete next step, and never open with a compliment. No subject line, no signature.",
+            userPrompt:
+              "Reply to this enquiry.\n\nName: {{row.fields.[First Name]}}\nWhat they want: {{row.fields.[Inquiry Intent]}}\n\nTheir message:\n{{row.fields.[Original Inquiry]}}",
+            temperature: 0.6,
+            maxTokens: 700,
+          },
+        },
+        {
+          id: "send",
+          type: "GMAIL_SEND",
+          name: "Send it",
+          position: { x: 840, y: -60 },
+          data: {
+            variableName: "sent",
+            to: "{{row.fields.[Email ID]}}",
+            subject: "Re: {{row.fields.[Inquiry Intent]}}",
+            text: "{{draft.text}}",
+          },
+        },
+        {
+          id: "mark-sent",
+          type: "SHEETS_UPDATE",
+          name: "Mark the row sent",
+          position: { x: 1120, y: -60 },
+          data: {
+            variableName: "marked",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Leads",
+            rowNumber: "{{row.rowNumber}}",
+            // Written AFTER the send, so a failed send leaves the row eligible
+            // for a retry rather than silently skipping the lead.
+            values: '{"Sent": "{{$now.iso}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "new-lead", target: "unsent" },
+        { source: "unsent", target: "draft", sourceHandle: "true" },
+        { source: "draft", target: "send" },
+        { source: "send", target: "mark-sent" },
+      ],
+    },
+  },
+  {
+    slug: "upwork-proposal-generator",
+    name: "Upwork proposal drafts from scraped jobs",
+    description:
+      "Reference automation #2. Runs an Apify actor to collect Upwork jobs matching your criteria, drafts a proposal for each against your company knowledge base, writes the draft back to the sheet for review, and emails a 'proposals ready' notification. Nothing is submitted automatically — the sheet is the review step. PREREQUISITES: an Apify account with API credits, a Google Sheet with the columns Title, URL, Description, Skills, Questions, Applied, Proposal Template, a Google Sheets credential, a Gmail credential, and an AI provider key. DEVIATIONS FROM THE SOURCE: the source notes it uses n8n community nodes and is self-hosted only — that constraint does not apply here, since Apify is a first-class node. The source scrapes and logs in one workflow then reads the sheet back; this runs the actor and drafts in one pass, because the intermediate write existed only to cross an n8n execution boundary.",
+    category: "Revenue",
+    domain: "marketing",
+    // Apify to scrape, Sheets to log, Gmail to notify.
+    tier: "library",
+    tags: ["upwork", "apify", "proposal", "sheets", "freelance", "ai"],
+    graph: {
+      nodes: [
+        {
+          id: "daily",
+          type: "SCHEDULE_TRIGGER",
+          name: "Every morning",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 7 * * *", timezone: "UTC" },
+        },
+        {
+          id: "scrape",
+          type: "APIFY_RUN",
+          name: "Scrape Upwork jobs",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "run",
+            actorId: "REPLACE_WITH_UPWORK_ACTOR",
+            input: '{"searchQuery":"n8n automation","maxItems":25}',
+            waitForFinish: true,
+            maxWaitSeconds: 600,
+          },
+        },
+        {
+          id: "jobs",
+          type: "APIFY_GET_DATASET",
+          name: "Read the jobs",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "jobs",
+            datasetId: "{{run.datasetId}}",
+            limit: 50,
+            clean: true,
+          },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Shape the list",
+          position: { x: 780, y: 0 },
+          data: {
+            code: 'const jobs = input.jobs?.items ?? [];\n\nreturn {\n  items: jobs.map((job) => ({\n    title: job.title ?? "",\n    url: job.url ?? "",\n    description: (job.description ?? "").slice(0, 4000),\n    skills: Array.isArray(job.skills) ? job.skills.join(", ") : "",\n  })),\n  found: jobs.length,\n};\n',
+          },
+        },
+        {
+          id: "each-job",
+          type: "SPLIT_OUT",
+          name: "One job at a time",
+          position: { x: 1040, y: 0 },
+          data: { path: "items", maxItems: 25 },
+        },
+        {
+          id: "propose",
+          type: "AI_LLM",
+          name: "Draft the proposal",
+          position: { x: 1300, y: 0 },
+          data: {
+            variableName: "proposal",
+            model: "google:gemini-1.5-pro",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You write Upwork proposals. Open with the client's actual problem, not with your credentials. Name one thing you would do first. Under 200 words. Replace the knowledge base below with your own.\n\nKNOWLEDGE BASE: We build workflow automations. Ten years across integrations and data pipelines. Fixed-price discovery, then delivery.",
+            userPrompt:
+              "Job: {{$item.title}}\nSkills wanted: {{$item.skills}}\n\n{{$item.description}}",
+            temperature: 0.7,
+            maxTokens: 600,
+          },
+        },
+        {
+          id: "log",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Log for review",
+          position: { x: 1560, y: 0 },
+          data: {
+            variableName: "logged",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Jobs",
+            values:
+              '{"Title": "{{$item.title}}", "URL": "{{$item.url}}", "Skills": "{{$item.skills}}", "Applied": "", "Proposal Template": "{{proposal.text}}"}',
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1820, y: 0 },
+          data: {},
+        },
+        {
+          id: "notify",
+          type: "GMAIL_SEND",
+          name: "Proposals ready",
+          position: { x: 2080, y: 0 },
+          data: {
+            variableName: "notified",
+            to: "REPLACE_WITH_YOUR_EMAIL",
+            subject: "{{found}} Upwork proposals ready to review",
+            text: "{{found}} jobs were scraped and drafted. Review them in the sheet before submitting — nothing has been sent.",
+          },
+        },
+      ],
+      edges: [
+        { source: "daily", target: "scrape" },
+        { source: "scrape", target: "jobs" },
+        { source: "jobs", target: "shape" },
+        { source: "shape", target: "each-job" },
+        { source: "each-job", target: "propose" },
+        { source: "propose", target: "log" },
+        { source: "log", target: "collected" },
+        { source: "collected", target: "notify" },
+      ],
+    },
+  },
+  {
+    slug: "lead-gen-apollo-gpt4",
+    name: "Funded-company prospecting with Apollo enrichment",
+    description:
+      "Reference automation #3. Scrapes newly funded companies with Apify, enriches each with Apollo to find a decision-maker and a verified email, drafts cold outreach against the funding signal, and logs the result to a Google Sheet as a ready-to-send list. Nothing is emailed. PREREQUISITES: an Apify account with credits, Apollo.io API credentials, a Google Sheets credential, and an AI provider key. The sheet needs the columns Company, Domain, Contact, Title, Email, Draft. DEVIATIONS FROM THE SOURCE: the source uses GPT-4 by name; this uses the model registry's fallback chain so a workflow does not fail when one provider is down. Apollo misses are reported as found:false and skipped rather than failing the run — enriching a list of fifty companies must not stop because Apollo has never heard of one of them.",
+    category: "Revenue",
+    domain: "marketing",
+    // Apify to scrape, Apollo to enrich, Sheets to log.
+    tier: "library",
+    tags: ["apollo", "apify", "leads", "funding", "outreach", "b2b"],
+    graph: {
+      nodes: [
+        {
+          id: "weekly",
+          type: "SCHEDULE_TRIGGER",
+          name: "Weekly sweep",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 8 * * 1", timezone: "UTC" },
+        },
+        {
+          id: "scrape",
+          type: "APIFY_RUN",
+          name: "Newly funded companies",
+          position: { x: 240, y: 0 },
+          data: {
+            variableName: "run",
+            actorId: "REPLACE_WITH_FUNDING_ACTOR",
+            input: '{"maxItems":50}',
+            waitForFinish: true,
+            maxWaitSeconds: 900,
+          },
+        },
+        {
+          id: "companies",
+          type: "APIFY_GET_DATASET",
+          name: "Read the companies",
+          position: { x: 480, y: 0 },
+          data: {
+            variableName: "companies",
+            datasetId: "{{run.datasetId}}",
+            limit: 100,
+            clean: true,
+          },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Normalise domains",
+          position: { x: 720, y: 0 },
+          data: {
+            code: 'const rows = input.companies?.items ?? [];\n\n// Apollo matches on a bare domain. A homepage URL produces a confident\n// no-match rather than an error, so the normalisation happens here.\nconst domainOf = (value) =>\n  String(value ?? "")\n    .trim()\n    .toLowerCase()\n    .replace(/^https?:\\/\\//, "")\n    .replace(/^www\\./, "")\n    .replace(/\\/.*$/, "");\n\nreturn {\n  items: rows\n    .map((row) => ({\n      company: row.name ?? row.company ?? "",\n      domain: domainOf(row.website ?? row.domain),\n      raised: row.amount ?? row.raised ?? "",\n    }))\n    .filter((row) => row.domain.length > 0),\n};\n',
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One company at a time",
+          position: { x: 960, y: 0 },
+          data: { path: "items", maxItems: 50 },
+        },
+        {
+          id: "enrich",
+          type: "APOLLO_ENRICH",
+          name: "Find a decision-maker",
+          position: { x: 1200, y: 0 },
+          data: {
+            variableName: "org",
+            mode: "organization",
+            domain: "{{$item.domain}}",
+          },
+        },
+        {
+          id: "known",
+          type: "CONDITION",
+          name: "Apollo knows them?",
+          position: { x: 1440, y: 0 },
+          data: {
+            left: "{{org.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "draft",
+          type: "AI_LLM",
+          name: "Draft the outreach",
+          position: { x: 1680, y: -80 },
+          data: {
+            variableName: "draft",
+            model: "openai:gpt-4o",
+            fallbackModels: "anthropic:claude-3-5-sonnet,google:gemini-1.5-pro",
+            systemPrompt:
+              "You write cold emails that reference one specific, checkable fact. No flattery, no 'I hope this finds you well', under 120 words, one question at the end.",
+            userPrompt:
+              "Company: {{org.organization.name}} ({{$item.domain}})\nIndustry: {{org.organization.industry}}\nStaff: {{org.organization.employees}}\nRecently raised: {{$item.raised}}\n\nWrite the email.",
+            temperature: 0.6,
+            maxTokens: 500,
+          },
+        },
+        {
+          id: "log",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Log the lead",
+          position: { x: 1920, y: -80 },
+          data: {
+            variableName: "logged",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Prospects",
+            values:
+              '{"Company": "{{org.organization.name}}", "Domain": "{{$item.domain}}", "Title": "{{org.organization.industry}}", "Draft": "{{draft.text}}"}',
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 2160, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "weekly", target: "scrape" },
+        { source: "scrape", target: "companies" },
+        { source: "companies", target: "shape" },
+        { source: "shape", target: "each" },
+        { source: "each", target: "enrich" },
+        { source: "enrich", target: "known" },
+        { source: "known", target: "draft", sourceHandle: "true" },
+        { source: "draft", target: "log" },
+        { source: "log", target: "collected" },
+        { source: "known", target: "collected", sourceHandle: "false" },
+      ],
+    },
+  },
+  {
+    slug: "cold-outreach-gemini",
+    name: "Personalized cold emails written back to the sheet",
+    description:
+      "Reference automation #4. Reads leads from a Google Sheet, skips the ones already processed, generates a personalized email per lead from fields like company, industry and job title, and writes the subject and body back to the same row. Nothing is sent — the sheet is the output. PREREQUISITES: a Google Sheets credential and an AI provider key. The sheet needs lead columns (Name, Company, Industry, Title) and empty output columns (Subject, Email Body, Processed). DEVIATIONS FROM THE SOURCE: the source names Google Gemini specifically; this uses the registry's fallback chain, so the workflow survives one provider being unavailable. The source parses the model's output into a structured format with a separate parser node — this asks the model for the two fields directly and splits on a marker, which is one node fewer and one fewer place for the format to drift.",
+    category: "Revenue",
+    domain: "marketing",
+    tags: ["outreach", "gemini", "sheets", "cold email", "personalization"],
+    graph: {
+      nodes: [
+        {
+          id: "hourly",
+          type: "SCHEDULE_TRIGGER",
+          name: "Hourly",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 * * * *", timezone: "UTC" },
+        },
+        {
+          id: "leads",
+          type: "SHEETS_READ",
+          name: "Read the leads",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "sheet",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            range: "Leads!A:H",
+            hasHeader: true,
+            limit: 500,
+          },
+        },
+        {
+          id: "pending",
+          type: "FILTER",
+          name: "Skip processed rows",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "pending",
+            items: "{{{json sheet.rows}}}",
+            itemPath: "fields.Processed",
+            operator: "is_empty",
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One lead at a time",
+          position: { x: 780, y: 0 },
+          data: { path: "pending.items", maxItems: 50 },
+        },
+        {
+          id: "write",
+          type: "AI_LLM",
+          name: "Write the email",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "email",
+            model: "google:gemini-1.5-pro",
+            fallbackModels: "openai:gpt-4o,anthropic:claude-3-5-sonnet",
+            systemPrompt:
+              "You write cold emails. Output the subject line, then a line containing only ---, then the body. Under 120 words. No flattery and no 'quick question'.",
+            userPrompt:
+              "Name: {{$item.fields.Name}}\nCompany: {{$item.fields.Company}}\nIndustry: {{$item.fields.Industry}}\nTitle: {{$item.fields.Title}}",
+            temperature: 0.7,
+            maxTokens: 500,
+          },
+        },
+        {
+          id: "split-parts",
+          type: "CODE",
+          name: "Separate subject and body",
+          position: { x: 1300, y: 0 },
+          data: {
+            code: 'const raw = String(input.email?.text ?? "");\nconst [first, ...rest] = raw.split(/^---$/m);\n\n// Falling back to the whole text rather than empty: a model that ignored\n// the separator should still produce something usable in the sheet.\nreturn {\n  subject: (first ?? raw).trim().slice(0, 200),\n  body: (rest.join("---") || raw).trim(),\n};\n',
+          },
+        },
+        {
+          id: "write-back",
+          type: "SHEETS_UPDATE",
+          name: "Write it back",
+          position: { x: 1560, y: 0 },
+          data: {
+            variableName: "updated",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Leads",
+            rowNumber: "{{$item.rowNumber}}",
+            values:
+              '{"Subject": "{{subject}}", "Email Body": "{{body}}", "Processed": "{{$now.iso}}"}',
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1820, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "hourly", target: "leads" },
+        { source: "leads", target: "pending" },
+        { source: "pending", target: "each" },
+        { source: "each", target: "write" },
+        { source: "write", target: "split-parts" },
+        { source: "split-parts", target: "write-back" },
+        { source: "write-back", target: "collected" },
+      ],
+    },
+  },
+  {
+    slug: "linkedin-profile-research",
+    name: "LinkedIn career research into an opening line",
+    description:
+      "Reference automation #5. Reads a shortlist of LinkedIn profile URLs from a Google Sheet, enriches each with career data through an Apify profile scraper, has a model read the career journey and write one specific opening line, and saves the subject and body back to the row. Built for a named shortlist rather than bulk scraping. PREREQUISITES: an Apify account supporting a LinkedIn Profile Scraper actor, a Google Sheets credential, and an AI provider key. The sheet needs the columns First Name, Last Name, LinkedIn, Profile Data, Subject, Email Body. DEVIATIONS FROM THE SOURCE: rows already carrying Profile Data are skipped, which the source does not do — an Apify run per row costs credits, and a scheduled sheet read that re-scrapes the same twenty profiles every hour is an expensive way to get the same answer. Scraping LinkedIn may breach its terms; that is the operator's call and the reason this reads a shortlist you supply rather than discovering profiles itself.",
+    category: "Revenue",
+    domain: "marketing",
+    // Apify to enrich, Sheets to read and write back.
+    tier: "library",
+    tags: ["linkedin", "apify", "research", "sheets", "outreach", "sdr"],
+    graph: {
+      nodes: [
+        {
+          id: "daily",
+          type: "SCHEDULE_TRIGGER",
+          name: "Daily",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 9 * * *", timezone: "UTC" },
+        },
+        {
+          id: "shortlist",
+          type: "SHEETS_READ",
+          name: "Read the shortlist",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "sheet",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            range: "Profiles!A:F",
+            hasHeader: true,
+            limit: 200,
+          },
+        },
+        {
+          id: "unresearched",
+          type: "FILTER",
+          name: "Not yet researched",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "todo",
+            items: "{{{json sheet.rows}}}",
+            // An Apify run per row costs credits. Re-scraping a profile that
+            // already has data is money for an answer we hold.
+            itemPath: "fields.[Profile Data]",
+            operator: "is_empty",
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One profile at a time",
+          position: { x: 780, y: 0 },
+          data: { path: "todo.items", maxItems: 20 },
+        },
+        {
+          id: "scrape",
+          type: "APIFY_RUN",
+          name: "Scrape the profile",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "run",
+            actorId: "REPLACE_WITH_LINKEDIN_PROFILE_ACTOR",
+            input: '{"profileUrls":["{{$item.fields.LinkedIn}}"]}',
+            waitForFinish: true,
+            maxWaitSeconds: 300,
+          },
+        },
+        {
+          id: "profile",
+          type: "APIFY_GET_DATASET",
+          name: "Read the career data",
+          position: { x: 1300, y: 0 },
+          data: {
+            variableName: "profile",
+            datasetId: "{{run.datasetId}}",
+            limit: 1,
+            clean: true,
+          },
+        },
+        {
+          id: "opening",
+          type: "AI_LLM",
+          name: "Write the opening line",
+          position: { x: 1560, y: 0 },
+          data: {
+            variableName: "opening",
+            model: "google:gemini-1.5-pro",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You read a career history and write ONE opening line that could only be written about this person. Reference a move, a span, or a change of direction — never a job title alone. Output the subject line, then a line containing only ---, then the opening line.",
+            userPrompt:
+              "{{$item.fields.[First Name]}} {{$item.fields.[Last Name]}}\n\nCareer data:\n{{{json profile.items}}}",
+            temperature: 0.7,
+            maxTokens: 400,
+          },
+        },
+        {
+          id: "parts",
+          type: "CODE",
+          name: "Separate the parts",
+          position: { x: 1820, y: 0 },
+          data: {
+            code: 'const raw = String(input.opening?.text ?? "");\nconst [first, ...rest] = raw.split(/^---$/m);\n\nreturn {\n  subject: (first ?? raw).trim().slice(0, 200),\n  body: (rest.join("---") || raw).trim(),\n  // Stored so the skip filter above sees this row as done next run.\n  profileSummary: JSON.stringify(input.profile?.items ?? []).slice(0, 4000),\n};\n',
+          },
+        },
+        {
+          id: "write-back",
+          type: "SHEETS_UPDATE",
+          name: "Save to the row",
+          position: { x: 2080, y: 0 },
+          data: {
+            variableName: "saved",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Profiles",
+            rowNumber: "{{$item.rowNumber}}",
+            values:
+              '{"Profile Data": "{{profileSummary}}", "Subject": "{{subject}}", "Email Body": "{{body}}"}',
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 2340, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "daily", target: "shortlist" },
+        { source: "shortlist", target: "unresearched" },
+        { source: "unresearched", target: "each" },
+        { source: "each", target: "scrape" },
+        { source: "scrape", target: "profile" },
+        { source: "profile", target: "opening" },
+        { source: "opening", target: "parts" },
+        { source: "parts", target: "write-back" },
+        { source: "write-back", target: "collected" },
+      ],
+    },
+  },
+  {
+    slug: "lead-gen-google-search-maps",
+    name: "Local lead lists from Google Search and Maps",
+    description:
+      'Reference automation #6. Takes a query like "dentists in Leeds", searches Google and Google Maps for matching businesses, visits each website for contact details, and appends deduplicated leads to a Google Sheet. PREREQUISITES: a Google Cloud project with the Custom Search JSON API enabled, a Programmable Search Engine id (the cx value, which lives on the credential rather than in node config), a Google Maps Platform key with the Places API enabled — a Custom Search key is refused by Places, so these are two credentials — and a Google Sheets credential. The sheet needs Business Name, Email, Phone, URL, Description, Socials, Search Query. DEVIATIONS FROM THE SOURCE: the source is triggered from a chat interface; this uses a hosted form, because that is the equivalent this product ships. Both APIs are metered — Custom Search gives 100 free queries a day and Places bills every request — so the result caps are deliberate and the run reports how many queries it spent.',
+    category: "Revenue",
+    domain: "marketing",
+    // Custom Search, Places and Sheets. Three keys, three enablements.
+    tier: "library",
+    tags: ["google", "maps", "search", "leads", "local", "sheets"],
+    graph: {
+      nodes: [
+        {
+          id: "query",
+          type: "FORM_TRIGGER",
+          name: "What are you looking for?",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Build a local lead list",
+            description:
+              'Describe the businesses you want, e.g. "dentists in Leeds".',
+            submitLabel: "Find them",
+            successMessage: "Searching — results will appear in your sheet.",
+            fields: [
+              {
+                name: "trade",
+                label: "Type of business",
+                type: "text",
+                required: true,
+              },
+              {
+                name: "place",
+                label: "Where?",
+                type: "text",
+                required: true,
+              },
+            ],
+          },
+        },
+        {
+          id: "places",
+          type: "GOOGLE_MAPS_SEARCH",
+          name: "Search Maps",
+          position: { x: 280, y: -80 },
+          data: {
+            variableName: "places",
+            query: "{{form.fields.trade}}",
+            region: "{{form.fields.place}}",
+            limit: 40,
+            // Billed on a higher tier, and the point of a lead list.
+            includeContactDetails: true,
+          },
+        },
+        {
+          id: "web",
+          type: "GOOGLE_SEARCH",
+          name: "Search the web",
+          position: { x: 280, y: 120 },
+          data: {
+            variableName: "web",
+            query: "{{form.fields.trade}} {{form.fields.place}} contact",
+            limit: 20,
+          },
+        },
+        {
+          id: "merge",
+          type: "CODE",
+          name: "Merge and dedupe",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const places = input.places?.places ?? [];\nconst web = input.web?.results ?? [];\n\nconst host = (url) => {\n  try {\n    return new URL(url).hostname.replace(/^www\\./, "").toLowerCase();\n  } catch {\n    return "";\n  }\n};\n\n// Maps entries win: they carry a phone and an address the web result does\n// not. The web results only add businesses Maps did not return.\nconst byHost = new Map();\n\nfor (const place of places) {\n  const key = host(place.website ?? "") || place.name;\n  if (!key) continue;\n  byHost.set(key, {\n    name: place.name,\n    url: place.website ?? "",\n    phone: place.phone ?? "",\n    description: place.address ?? "",\n    rating: place.rating ?? null,\n  });\n}\n\nfor (const result of web) {\n  const key = host(result.link);\n  if (!key || byHost.has(key)) continue;\n  byHost.set(key, {\n    name: result.title,\n    url: result.link,\n    phone: "",\n    description: result.snippet,\n    rating: null,\n  });\n}\n\nreturn {\n  items: [...byHost.values()],\n  fromMaps: places.length,\n  fromWeb: web.length,\n  queriesUsed: input.web?.queriesUsed ?? 0,\n};\n',
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One business at a time",
+          position: { x: 840, y: 0 },
+          data: { path: "items", maxItems: 50 },
+        },
+        {
+          id: "site",
+          type: "HTTP_REQUEST",
+          name: "Fetch the website",
+          position: { x: 1100, y: 0 },
+          data: {
+            variableName: "page",
+            endpoint: "{{$item.url}}",
+            method: "GET",
+            // A business site that is down is not a reason to fail the run;
+            // the row is still worth keeping without an email.
+            failOnNon2xx: false,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "contacts",
+          type: "CODE",
+          name: "Parse contact details",
+          position: { x: 1360, y: 0 },
+          data: {
+            code: 'const html = String(input.page?.httpResponse?.data ?? "");\n\nconst emails = [\n  ...new Set(\n    (html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g) ?? [])\n      .map((e) => e.toLowerCase())\n      // Image filenames and tracking pixels match the pattern too.\n      .filter((e) => !/\\.(png|jpg|jpeg|gif|webp|svg)$/i.test(e)),\n  ),\n];\n\nconst socials = [\n  ...new Set(\n    (html.match(/https?:\\/\\/(www\\.)?(linkedin|facebook|instagram|x|twitter)\\.com\\/[^"\'\\s<>]+/gi) ?? []).slice(0, 5),\n  ),\n];\n\nreturn {\n  email: emails[0] ?? "",\n  socials: socials.join(", "),\n};\n',
+          },
+        },
+        {
+          id: "append",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Add the lead",
+          position: { x: 1620, y: 0 },
+          data: {
+            variableName: "appended",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Leads",
+            values:
+              '{"Business Name": "{{$item.name}}", "Email": "{{email}}", "Phone": "{{$item.phone}}", "URL": "{{$item.url}}", "Description": "{{$item.description}}", "Socials": "{{socials}}", "Search Query": "{{form.fields.trade}} {{form.fields.place}}"}',
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1880, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "query", target: "places" },
+        { source: "query", target: "web" },
+        { source: "places", target: "merge" },
+        { source: "web", target: "merge" },
+        { source: "merge", target: "each" },
+        { source: "each", target: "site" },
+        { source: "site", target: "contacts" },
+        { source: "contacts", target: "append" },
+        { source: "append", target: "collected" },
+      ],
+    },
+  },
+  {
+    slug: "outreach-from-job-signals",
+    name: "Prospect off hiring signals, not cold lists",
+    description:
+      "Reference automation #7. Scrapes LinkedIn job postings for a target role with Apify, filters them into a target-account list, finds a decision-maker at each company through Apollo, and drafts a cold email that references the specific opening. Results go to a Google Sheet as a ready-to-send list; nothing is emailed. PREREQUISITES: an Apify account with a LinkedIn Jobs Scraper actor configured, Apollo.io API credentials, a Google Sheets credential with a spreadsheet id, and an AI provider key. DEVIATIONS FROM THE SOURCE: the source filters by company size and industry from the scrape results; Apify actors differ in which of those they return, so the filter here is on company name being present and the size check moved to after Apollo enrichment, where the number is reliable. Apollo misses are skipped rather than failing the run — a fifty-company list must not stop at the first unknown.",
+    category: "Revenue",
+    domain: "marketing",
+    // Apify to scrape, Apollo to enrich, Sheets to log.
+    tier: "library",
+    tags: ["hiring", "apify", "apollo", "signals", "outreach", "recruiting"],
+    graph: {
+      nodes: [
+        {
+          id: "weekly",
+          type: "SCHEDULE_TRIGGER",
+          name: "Weekly",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 8 * * 2", timezone: "UTC" },
+        },
+        {
+          id: "jobs",
+          type: "APIFY_RUN",
+          name: "Scrape job postings",
+          position: { x: 240, y: 0 },
+          data: {
+            variableName: "run",
+            actorId: "REPLACE_WITH_LINKEDIN_JOBS_ACTOR",
+            input:
+              '{"title":"ML Engineer","location":"United Kingdom","maxItems":50}',
+            waitForFinish: true,
+            maxWaitSeconds: 900,
+          },
+        },
+        {
+          id: "postings",
+          type: "APIFY_GET_DATASET",
+          name: "Read the postings",
+          position: { x: 480, y: 0 },
+          data: {
+            variableName: "postings",
+            datasetId: "{{run.datasetId}}",
+            limit: 100,
+            clean: true,
+          },
+        },
+        {
+          id: "accounts",
+          type: "CODE",
+          name: "Build the account list",
+          position: { x: 720, y: 0 },
+          data: {
+            code: 'const postings = input.postings?.items ?? [];\n\nconst domainOf = (value) =>\n  String(value ?? "")\n    .trim()\n    .toLowerCase()\n    .replace(/^https?:\\/\\//, "")\n    .replace(/^www\\./, "")\n    .replace(/\\/.*$/, "");\n\n// One row per COMPANY, not per posting: three openings at the same firm is\n// one conversation, and three emails is a complaint.\nconst byCompany = new Map();\n\nfor (const job of postings) {\n  const company = job.companyName ?? job.company ?? "";\n  if (!company) continue;\n  if (byCompany.has(company)) continue;\n  byCompany.set(company, {\n    company,\n    domain: domainOf(job.companyWebsite ?? job.companyUrl),\n    role: job.title ?? "",\n    jobUrl: job.url ?? "",\n  });\n}\n\nreturn { items: [...byCompany.values()] };\n',
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One company at a time",
+          position: { x: 960, y: 0 },
+          data: { path: "items", maxItems: 40 },
+        },
+        {
+          id: "contact",
+          type: "APOLLO_ENRICH",
+          name: "Find the hiring manager",
+          position: { x: 1200, y: 0 },
+          data: {
+            variableName: "person",
+            mode: "organization",
+            domain: "{{$item.domain}}",
+          },
+        },
+        {
+          id: "found",
+          type: "CONDITION",
+          name: "Apollo knows them?",
+          position: { x: 1440, y: 0 },
+          data: {
+            left: "{{person.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "draft",
+          type: "AI_LLM",
+          name: "Draft against the opening",
+          position: { x: 1680, y: -80 },
+          data: {
+            variableName: "draft",
+            model: "google:gemini-1.5-pro",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You write cold emails that open on a hiring signal. Reference the specific role and why it implies a need. Never say 'I noticed you're hiring' — say what the hire implies. Under 120 words.",
+            userPrompt:
+              "Company: {{person.organization.name}}\nIndustry: {{person.organization.industry}}\nStaff: {{person.organization.employees}}\nOpen role: {{$item.role}}\nPosting: {{$item.jobUrl}}",
+            temperature: 0.6,
+            maxTokens: 500,
+          },
+        },
+        {
+          id: "log",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Add to the list",
+          position: { x: 1920, y: -80 },
+          data: {
+            variableName: "logged",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Signals",
+            values:
+              '{"Company": "{{person.organization.name}}", "Role": "{{$item.role}}", "Posting": "{{$item.jobUrl}}", "Staff": "{{person.organization.employees}}", "Draft": "{{draft.text}}"}',
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 2160, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "weekly", target: "jobs" },
+        { source: "jobs", target: "postings" },
+        { source: "postings", target: "accounts" },
+        { source: "accounts", target: "each" },
+        { source: "each", target: "contact" },
+        { source: "contact", target: "found" },
+        { source: "found", target: "draft", sourceHandle: "true" },
+        { source: "draft", target: "log" },
+        { source: "log", target: "collected" },
+        { source: "found", target: "collected", sourceHandle: "false" },
+      ],
+    },
+  },
 ];
