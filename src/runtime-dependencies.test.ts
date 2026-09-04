@@ -61,6 +61,12 @@ interface ImportRef {
 /**
  * Read a file's imports.
  *
+ * The clause is `[^;]*?`, not `[\s\S]*?`: a lazy any-character clause
+ * happily spans a statement boundary, so `import "server-only";` followed by
+ * `import type { JSDOM } from "jsdom";` matched as ONE import whose `type`
+ * keyword had been skipped, reporting a type-only import as a value import.
+ * A semicolon ends a statement and never appears inside an import clause.
+ *
  * Deliberately a regex rather than a parser, for the same reason as
  * `src/nodes/client-boundary.test.ts`: these are first-party files with
  * `biome format` applied, the shapes are uniform, and a test that needs its
@@ -71,7 +77,7 @@ function importsOf(file: string): ImportRef[] {
   const refs: ImportRef[] = [];
 
   const pattern =
-    /(?:^|\n)\s*(?:import|export)\s+(type\s+)?([\s\S]*?)?from\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']/g;
+    /(?:^|\n)\s*(?:import|export)\s+(type\s+)?([^;]*?)?from\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']/g;
 
   for (const match of source.matchAll(pattern)) {
     const bareSpecifier = match[4];
@@ -263,18 +269,21 @@ describe("runtime dependencies are production dependencies", () => {
 
   it("treats a type-only import as erased", () => {
     // A guard that flagged `import type` would be turned off within a day:
-    // `@types/*` packages are correctly dev dependencies. `html-to-pdf.ts`
-    // imports `pdfmake` as a value and `pdfmake/interfaces` as a type, so it
-    // pins both halves of the classification against one real file.
+    // `@types/*` packages are correctly dev dependencies.
+    //
+    // `html-to-pdf.ts` opens with a side-effect import followed immediately
+    // by two type-only ones, which is the exact shape that defeated the
+    // earlier clause pattern: it swallowed the newline and reported both type
+    // imports as values, which is how a deferred package slipped back onto the
+    // module-init path unnoticed. Pinning all three stops that returning.
     const htmlToPdf = path.join(SRC, "features/files/server/html-to-pdf.ts");
     const refs = importsOf(htmlToPdf);
+    const typeOnlyOf = (specifier: string) =>
+      refs.find((ref) => ref.specifier === specifier)?.typeOnly;
 
-    expect(
-      refs.find((ref) => ref.specifier === "pdfmake/interfaces")?.typeOnly,
-    ).toBe(true);
-    expect(refs.find((ref) => ref.specifier === "pdfmake")?.typeOnly).toBe(
-      false,
-    );
+    expect(typeOnlyOf("server-only")).toBe(false);
+    expect(typeOnlyOf("jsdom")).toBe(true);
+    expect(typeOnlyOf("pdfmake/interfaces")).toBe(true);
   });
 });
 
@@ -297,7 +306,24 @@ describe("runtime dependencies are production dependencies", () => {
  * ever parses a PDF, so it must be reached by `await import()` inside the
  * branch that needs it, never by a static import that a page can pull in.
  */
-const DEFERRED_ONLY = ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"];
+/**
+ * `jsdom` was the second one, and it failed differently: it reaches
+ * `html-encoding-sniffer`, a CommonJS package that `require()`s the ESM-only
+ * `@exodus/bytes`. All three declare `node: ^20.19.0 || ^22.12.0 || >=24.0.0`,
+ * the versions where `require(esm)` works. Local runs on Node 24 were green;
+ * the deploy ran something older and threw ERR_REQUIRE_ESM on import.
+ *
+ * Two different faults, one shape: a package the runner alone needs, evaluated
+ * while a page boots. That is what this list is for.
+ */
+const DEFERRED_ONLY = [
+  "pdf-parse",
+  "pdfjs-dist",
+  "@napi-rs/canvas",
+  "jsdom",
+  "pdfmake",
+  "html-to-pdfmake",
+];
 
 /** Static-import chains from `entrypoints` that reach `packageName`. */
 function findStaticReach(entrypoints: string[], packageName: string): string[] {
