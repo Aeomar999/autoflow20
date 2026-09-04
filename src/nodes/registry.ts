@@ -4,6 +4,7 @@ import aiExtract from "./ai/extract";
 import aiLlm from "./ai/llm";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
+import calendarTrigger from "./calendar/trigger";
 import coreAggregate from "./core/aggregate";
 import coreApproval from "./core/approval";
 import coreCode from "./core/code";
@@ -20,12 +21,18 @@ import coreSwitch from "./core/switch";
 import coreWait from "./core/wait";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
+import driveDownload from "./drive/download";
+import driveMove from "./drive/move";
+import driveTrigger from "./drive/trigger";
+import driveUpload from "./drive/upload";
 import emailSend from "./email/send";
 import filesDownload from "./files/download";
 import filesExtractText from "./files/extract-text";
 import filesHtmlToPdf from "./files/html-to-pdf";
 import formsGoogleForm from "./forms/google-form";
 import formsHostedForm from "./forms/hosted-form";
+import gmailSend from "./gmail/send";
+import gmailTrigger from "./gmail/trigger";
 import googleSheetsAppend from "./google-sheets/append";
 import googleSheetsRead from "./google-sheets/read";
 import googleSheetsTrigger from "./google-sheets/trigger";
@@ -195,6 +202,13 @@ export const nodeRegistry = createNodeRegistry(
     googleSheetsUpdate,
     googleSheetsUpsert,
     googleSheetsTrigger,
+    gmailSend,
+    gmailTrigger,
+    driveTrigger,
+    driveDownload,
+    driveUpload,
+    driveMove,
+    calendarTrigger,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

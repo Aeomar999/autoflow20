@@ -2059,18 +2059,77 @@ Each family shares one thin client built on the AF-M10-01 auth path. A family ta
 done when its nodes are registered, unit-tested against recorded fixtures, and
 documented in `docs/nodes/`.
 
-### ⬜ AF-M10-15 · Google Workspace family · 4d
+### ✅ AF-M10-15 · Google Workspace family · 4d · **DONE 2026-09-04**
 H10. Needed by 21 of 35 — the widest single dependency in the matrix.
 
 **Depends on:** AF-M10-03, AF-M10-05, AF-M10-06
 **Acceptance**
-- [ ] Sheets: `SHEETS_READ` (range → rows, with header mapping), `SHEETS_UPDATE` (write a specific row), `SHEETS_UPSERT` (match-on-column), `SHEETS_TRIGGER` (new row, via AF-M10-05). Existing `GOOGLE_SHEETS_APPEND` is left untouched.
-- [ ] Gmail: `GMAIL_SEND` (HTML + attachments from `FileRef`), `GMAIL_TRIGGER` (new unread, with the label/query filter #26 needs).
-- [ ] Drive: `DRIVE_TRIGGER` (new file in folder), `DRIVE_DOWNLOAD` → `FileRef`, `DRIVE_UPLOAD`, `DRIVE_MOVE` (#28/#29 move between intake/processing/approved folders).
-- [ ] Calendar: `CALENDAR_TRIGGER` (upcoming events window, with attendee emails).
-- [ ] Google API 429/403-quota responses map to a **retriable** error with backoff; auth failures map to `NonRetriableError`. A test covers both, because getting this backwards burns a user's quota on retry.
-- [ ] Pagination handled inside each node (`nextPageToken`), with a bounded page budget — no unbounded loop.
-- [ ] progress.md updated
+- [x] Sheets: `SHEETS_READ` (range → rows, with header mapping), `SHEETS_UPDATE` (write a specific row), `SHEETS_UPSERT` (match-on-column), `SHEETS_TRIGGER` (new row, via AF-M10-05). Existing `GOOGLE_SHEETS_APPEND` is left untouched.
+- [x] Gmail: `GMAIL_SEND` (HTML + attachments from `FileRef`), `GMAIL_TRIGGER` (new unread, with the label/query filter #26 needs).
+- [x] Drive: `DRIVE_TRIGGER` (new file in folder), `DRIVE_DOWNLOAD` → `FileRef`, `DRIVE_UPLOAD`, `DRIVE_MOVE` (#28/#29 move between intake/processing/approved folders).
+- [x] Calendar: `CALENDAR_TRIGGER` (upcoming events window, with attendee emails).
+- [x] Google API 429/403-quota responses map to a **retriable** error with backoff; auth failures map to `NonRetriableError`. A test covers both, because getting this backwards burns a user's quota on retry.
+- [x] Pagination handled inside each node (`nextPageToken`), with a bounded page budget — no unbounded loop.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Eleven nodes across four services, on three service
+modules (`src/features/google/server/{sheets,gmail,drive,calendar}.ts`) over one
+shared client (`google-client.ts`: error classification, `googleFetch`,
+`googleFetchBytes`, `paginate` with a 20-page budget). 45 tests in
+`src/features/google`.
+
+Three things the source automations forced that were not obvious from the
+acceptance list:
+
+- **Drive has no "move".** It is a parent swap, and the old parent must be named
+  explicitly or the file ends up in both folders — so the watched folder still
+  contains it and the next poll reprocesses the same contract. `moveDriveFile`
+  reads the file first (which also makes a retried step idempotent) and removes
+  *every* current parent, not just the first.
+- **A Google Doc has no bytes.** `alt=media` errors for Docs/Sheets/Slides;
+  they must be exported. `downloadDriveFile` exports to the Office equivalent
+  and reports which happened, so the filename and MIME type match what the
+  caller actually got. A Form or a Site has neither, and is named as such rather
+  than handed over as an empty file.
+- **`DRIVE_TRIGGER` advances to the newest `modifiedTime` it saw**, not to
+  `now` — using the local clock would skip a file written between the request
+  and the response. Sheets and Gmail have no such cursor and use the seen-id
+  window instead.
+
+`GMAIL_TRIGGER` skips fetching bodies on its first poll: the framework
+dispatches nothing on a first sight, so `limit` message-gets would be spent
+against the user's quota for results that are discarded. `CALENDAR_TRIGGER`
+keys an item as `${event.id}@${event.start}`, so a rescheduled meeting briefs
+again, and drops `resource: true` attendees — Calendar counts a meeting room as
+an attendee and a room has no address to look up.
+
+Gmail header handling is where the security work is: `headerValue` strips CR/LF
+(a newline in a templated subject is header injection — `"Hi\nBcc: everyone@"`
+adds a recipient), `encodeHeader` applies RFC 2047 so an em dash or an accented
+name does not arrive as mojibake, and attachment base64 is wrapped at 76
+characters because unwrapped lines breach RFC 5322's 998-character limit and
+some relays mangle them. Drive query values go through `escapeDriveQuery`: a
+folder name with an apostrophe would otherwise close the quoted string and have
+its remainder parsed as query syntax.
+
+**Two corrections this task forced.** (1) `countRequiredCredentials` counted
+credential *bindings*; a Sheets template that reads a row and writes it back
+binds the same credential twice and was scored as two connectors. It now counts
+distinct **types** — what a user actually connects. (2) The catalogue's
+one-credential rule was written when every entry was an onboarding template. The
+M10 library ports automations that are multi-service in the source (#1 is Sheets
+plus Gmail; #27 is Calendar plus Gmail), so `TemplateSpec` gained a `tier`:
+`"starter"` keeps the one-credential onboarding promise, `"library"` is capped
+at four and must need more than one, so the label cannot be used to dodge the
+stricter rule. The credential-free floor is now measured over starter entries,
+which stops it getting easier to clear as M10 adds credential-bound templates.
+
+Four templates ship with it, covering all seven new node types: Drive contract
+intake (`DRIVE_TRIGGER`/`DOWNLOAD`/`MOVE`), inbox triage with a threaded
+acknowledgement (`GMAIL_TRIGGER`/`GMAIL_SEND`), a weekly report archived to
+Drive (`DRIVE_UPLOAD`), and the meeting briefing (`CALENDAR_TRIGGER`, the first
+`library`-tier entry). 36 catalogue entries, 1481 unit/dom tests and 243
+integration tests green; lint and `tsc --noEmit` clean.
 
 ### ⬜ AF-M10-16 · QuickBooks Online family · 3d
 10 of 35 — the largest single-service dependency.

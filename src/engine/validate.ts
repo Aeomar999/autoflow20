@@ -877,6 +877,9 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
    * names its own roots here rather than the sweep guessing them.
    */
   SHEETS_TRIGGER: ["trigger", "row", "sheet"],
+  GMAIL_TRIGGER: ["trigger", "message"],
+  DRIVE_TRIGGER: ["trigger", "file"],
+  CALENDAR_TRIGGER: ["trigger", "event"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */

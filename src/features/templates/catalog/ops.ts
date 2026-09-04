@@ -966,4 +966,157 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "drive-contract-intake-and-file",
+    name: "Drive folder intake, reviewed and filed",
+    description:
+      "Watches a Drive folder, extracts the text of each new document, has a model summarise the obligations it creates, and then MOVES the file to a processed folder. The move is the important part: a watched folder that is never emptied re-reads the same contract on every poll, and the summary arrives again each time. Files already in the folder when you publish are not replayed — the trigger records where the folder was and starts from there. Google Docs are exported to .docx automatically, so a native Doc works the same as an uploaded PDF. Supply a Drive credential, the two folder ids, and an AI credential.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["drive", "intake", "contract", "extract", "move", "review"],
+    graph: {
+      nodes: [
+        {
+          id: "new-file",
+          type: "DRIVE_TRIGGER",
+          name: "New file in intake",
+          position: { x: 0, y: 0 },
+          data: {
+            folderId: "REPLACE_WITH_INTAKE_FOLDER_ID",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "download",
+          type: "DRIVE_DOWNLOAD",
+          name: "Download it",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "downloaded",
+            fileId: "{{file.id}}",
+          },
+        },
+        {
+          id: "read",
+          type: "EXTRACT_DOCUMENT_TEXT",
+          name: "Extract the text",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "extracted",
+            file: "{{{json downloaded.file}}}",
+            maxCharacters: 150000,
+          },
+        },
+        {
+          id: "summarise",
+          type: "AI_LLM",
+          name: "Summarise the obligations",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "summary",
+            model: "anthropic:claude-3-5-haiku",
+            fallbackModels: "openai:gpt-4o-mini",
+            systemPrompt:
+              "Summarise what this document commits the reader to. Lead with obligations and dates. If the text is marked truncated, say so first and never imply you saw all of it.",
+            userPrompt:
+              "File: {{file.name}}\nTruncated: {{extracted.truncated}}\n\n{{extracted.text}}",
+            temperature: 0.2,
+            maxTokens: 900,
+          },
+        },
+        {
+          id: "file-it",
+          type: "DRIVE_MOVE",
+          name: "Move to processed",
+          position: { x: 1120, y: 0 },
+          data: {
+            variableName: "filed",
+            fileId: "{{file.id}}",
+            toFolderId: "REPLACE_WITH_PROCESSED_FOLDER_ID",
+          },
+        },
+      ],
+      edges: [
+        { source: "new-file", target: "download" },
+        { source: "download", target: "read" },
+        { source: "read", target: "summarise" },
+        { source: "summarise", target: "file-it" },
+      ],
+    },
+  },
+  {
+    slug: "meeting-briefing-before-it-starts",
+    name: "Meeting briefing, fifteen minutes before",
+    description:
+      "Watches your calendar two hours ahead and, for each meeting that appears, waits until fifteen minutes before it starts and then emails you a briefing with the attendees and the agenda. The wait is what makes it useful: a briefing sent when the meeting was scheduled is read and forgotten, and one sent as you join is read. Meeting rooms are filtered out of the attendee list — they are attendees to Calendar and not to you. A rescheduled meeting briefs again, because the reminder is keyed to the slot rather than the invitation. Supply a Calendar credential and a Gmail credential.",
+    category: "Ops",
+    domain: "ops",
+    // Calendar to read the meeting, Gmail to deliver the briefing. Two
+    // services is what this automation is; see `TemplateSpec.tier`.
+    tier: "library",
+    tags: ["calendar", "meeting", "briefing", "wait", "gmail", "reminder"],
+    graph: {
+      nodes: [
+        {
+          id: "upcoming",
+          type: "CALENDAR_TRIGGER",
+          name: "Meeting soon",
+          position: { x: 0, y: 0 },
+          data: {
+            calendarId: "primary",
+            lookaheadMinutes: 120,
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "hold",
+          type: "WAIT",
+          name: "Wait until T-15",
+          position: { x: 300, y: 0 },
+          data: {
+            mode: "until",
+            // A time already past resolves immediately, so a meeting found
+            // inside fifteen minutes briefs straight away rather than being
+            // skipped.
+            until: "{{event.start}}",
+          },
+        },
+        {
+          id: "brief",
+          type: "AI_LLM",
+          name: "Write the briefing",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "briefing",
+            model: "openai:gpt-4o-mini",
+            fallbackModels: "anthropic:claude-3-5-haiku",
+            systemPrompt:
+              "Write a short pre-meeting briefing. Lead with who is attending and what the meeting is for. Six lines at most. No preamble.",
+            userPrompt:
+              "Title: {{event.summary}}\nStarts: {{event.start}}\nLocation: {{event.location}}\nAgenda: {{event.description}}\nAttendees: {{{json event.attendees}}}",
+            temperature: 0.3,
+            maxTokens: 400,
+          },
+        },
+        {
+          id: "send",
+          type: "GMAIL_SEND",
+          name: "Email the briefing",
+          position: { x: 900, y: 0 },
+          data: {
+            variableName: "sent",
+            from: "REPLACE_WITH_YOUR_ADDRESS",
+            to: "REPLACE_WITH_YOUR_ADDRESS",
+            subject: "In 15 minutes: {{event.summary}}",
+            html: '<h2>{{event.summary}}</h2><p>{{briefing.text}}</p><p><a href="{{event.htmlLink}}">Open in Calendar</a></p>',
+          },
+        },
+      ],
+      edges: [
+        { source: "upcoming", target: "hold" },
+        { source: "hold", target: "brief" },
+        { source: "brief", target: "send" },
+      ],
+    },
+  },
 ];

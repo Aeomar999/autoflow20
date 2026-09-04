@@ -536,4 +536,73 @@ export const supportTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "inbox-triage-auto-reply",
+    name: "Inbox triage with an acknowledgement",
+    description:
+      "Watches a Gmail mailbox for unread mail matching a search, classifies each message, and replies in the same thread to acknowledge it. Mail already sitting unread when you publish is not replayed — the trigger records where the mailbox was and starts from there, so switching this on does not send two hundred acknowledgements. The reply threads correctly rather than starting a new conversation. Narrow the search to the addresses you actually want handled before you publish; `is:unread` alone means your whole inbox. Supply a Gmail credential and an AI credential.",
+    category: "Support",
+    domain: "support",
+    tags: ["gmail", "triage", "inbox", "auto-reply", "trigger", "classify"],
+    graph: {
+      nodes: [
+        {
+          id: "new-mail",
+          type: "GMAIL_TRIGGER",
+          name: "New support mail",
+          position: { x: 0, y: 0 },
+          data: {
+            query: "is:unread to:support@example.com",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "classify",
+          type: "AI_EXTRACT",
+          name: "Classify it",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "triage",
+            model: "openai:gpt-4o-mini",
+            fallbackModels: "anthropic:claude-3-5-haiku",
+            content:
+              "From: {{message.from}}\nSubject: {{message.subject}}\n\n{{message.body}}",
+            fields: [
+              {
+                name: "category",
+                type: "string",
+                description:
+                  "One of: billing, bug, account, other. Lower case, one word.",
+              },
+              {
+                name: "one_line",
+                type: "string",
+                description: "One sentence a support lead can triage from.",
+              },
+            ],
+          },
+        },
+        {
+          id: "acknowledge",
+          type: "GMAIL_SEND",
+          name: "Acknowledge in-thread",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "replied",
+            from: "support@example.com",
+            to: "{{message.from}}",
+            subject: "Re: {{message.subject}}",
+            // Threading, so the reply lands in the conversation rather than
+            // starting a second one the sender has to reconcile.
+            threadId: "{{message.threadId}}",
+            html: "<p>Thanks — we have your message and have logged it under <strong>{{triage.category}}</strong>.</p><p>Summary we recorded: {{triage.one_line}}</p>",
+          },
+        },
+      ],
+      edges: [
+        { source: "new-mail", target: "classify" },
+        { source: "classify", target: "acknowledge" },
+      ],
+    },
+  },
 ];
