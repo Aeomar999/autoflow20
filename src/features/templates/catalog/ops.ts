@@ -1503,4 +1503,339 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "github-pr-opens-jira-issue",
+    name: "Every pull request gets a Jira issue",
+    description:
+      "When a pull request is opened, files a Jira issue that tracks it, with the author, the branch and a link back to the PR. The issue type is resolved by name against your project, so this works whether your team calls them Tasks, Stories or Bugs. Deliveries are rejected unless GitHub's HMAC signature verifies, so nobody can start your workflows by posting a payload that names your repository. Supply a GitHub credential and an Atlassian credential, and point a repository webhook at the GitHub endpoint.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["github", "jira", "pull request", "issue", "tracking", "webhook"],
+    graph: {
+      nodes: [
+        {
+          id: "pr",
+          type: "GITHUB_TRIGGER",
+          name: "Pull request opened",
+          position: { x: 0, y: 0 },
+          data: {
+            repo: "REPLACE_WITH_OWNER/REPO",
+            events: "pull_request",
+            actions: "opened,reopened",
+          },
+        },
+        {
+          id: "issue",
+          type: "JIRA_CREATE_ISSUE",
+          name: "File the tracking issue",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "tracked",
+            projectKey: "REPLACE_WITH_PROJECT_KEY",
+            issueType: "Task",
+            summary:
+              "Review PR #{{github.payload.pull_request.number}}: {{github.payload.pull_request.title}}",
+            description:
+              "Opened by {{github.sender}} on {{github.repository}}.\n\nBranch: {{github.payload.pull_request.head.ref}} → {{github.payload.pull_request.base.ref}}\n\n{{github.payload.pull_request.html_url}}",
+            labels: "code-review,from-github",
+          },
+        },
+      ],
+      edges: [{ source: "pr", target: "issue" }],
+    },
+  },
+  {
+    slug: "github-merge-closes-jira-issue",
+    name: "Merging the PR moves the Jira issue",
+    description:
+      'When a pull request is merged, moves the Jira issue named in its title or branch to the finished status and leaves a comment saying which PR did it. The transition is looked up by NAME against that issue\'s own workflow at run time — which is what makes this work in more than one project. Transition ids are assigned per workflow scheme, so an automation that hardcodes "31" works where it was written and silently fails everywhere else. Supply a GitHub credential and an Atlassian credential.',
+    category: "Ops",
+    domain: "ops",
+    tags: ["github", "jira", "merge", "transition", "status", "done"],
+    graph: {
+      nodes: [
+        {
+          id: "closed",
+          type: "GITHUB_TRIGGER",
+          name: "Pull request closed",
+          position: { x: 0, y: 0 },
+          data: {
+            repo: "REPLACE_WITH_OWNER/REPO",
+            events: "pull_request",
+            actions: "closed",
+          },
+        },
+        {
+          id: "merged",
+          type: "CONDITION",
+          name: "Actually merged?",
+          position: { x: 280, y: 0 },
+          data: {
+            // A closed PR is not a merged one. Without this the issue would
+            // also move when someone abandons a branch.
+            left: "{{github.payload.pull_request.merged}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "key",
+          type: "CODE",
+          name: "Find the issue key",
+          position: { x: 560, y: -80 },
+          data: {
+            code: 'const pr = input.github?.payload?.pull_request ?? {};\nconst haystack = `${pr.title ?? ""} ${pr.head?.ref ?? ""}`;\n\n// Jira keys look like ENG-123. Take the first one mentioned in the\n// title or the branch name.\nconst match = haystack.match(/[A-Z][A-Z0-9]+-\\d+/);\n\nreturn {\n  issueKey: match ? match[0] : "",\n  found: Boolean(match),\n  prNumber: pr.number ?? null,\n  prUrl: pr.html_url ?? "",\n};\n',
+          },
+        },
+        {
+          id: "named",
+          type: "CONDITION",
+          name: "Names an issue?",
+          position: { x: 840, y: -80 },
+          data: {
+            left: "{{found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "move",
+          type: "JIRA_TRANSITION",
+          name: "Move it to Done",
+          position: { x: 1120, y: -140 },
+          data: {
+            variableName: "moved",
+            issueKey: "{{issueKey}}",
+            // A NAME, not an id. Resolved against this issue's workflow when
+            // the node runs, and matched against the destination status too,
+            // so "Done" works when the transition is called "Finish Work".
+            transition: "Done",
+            comment: "Merged in PR #{{prNumber}} — {{prUrl}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "closed", target: "merged" },
+        { source: "merged", target: "key", sourceHandle: "true" },
+        { source: "key", target: "named" },
+        { source: "named", target: "move", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "auto-pr-for-pushed-branch",
+    name: "Open a pull request for every feature branch",
+    description:
+      "Watches pushes and opens a draft pull request the moment a branch matching your prefix appears, so work in progress is visible before anyone remembers to raise it. Re-running is safe: an open PR for the same branch is returned rather than failing, and a branch with no commits ahead of the base is reported as exactly that rather than as an API error. Only a GitHub credential is needed.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["github", "pull request", "branch", "draft", "automation", "push"],
+    graph: {
+      nodes: [
+        {
+          id: "push",
+          type: "GITHUB_TRIGGER",
+          name: "Branch pushed",
+          position: { x: 0, y: 0 },
+          data: {
+            repo: "REPLACE_WITH_OWNER/REPO",
+            events: "push",
+          },
+        },
+        {
+          id: "branch",
+          type: "CODE",
+          name: "Read the branch",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const ref = input.github?.payload?.ref ?? "";\nconst branch = ref.replace(/^refs\\/heads\\//, "");\nconst commits = input.github?.payload?.commits ?? [];\n\nreturn {\n  branch,\n  // Only branches the team prefixes as work. Change the prefix here.\n  isFeature: branch.startsWith("feat/"),\n  headline: commits.length > 0 ? commits[0].message.split("\\n")[0] : branch,\n};\n',
+          },
+        },
+        {
+          id: "wanted",
+          type: "CONDITION",
+          name: "A feature branch?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{isFeature}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "pr",
+          type: "GITHUB_CREATE_PR",
+          name: "Open a draft PR",
+          position: { x: 840, y: -60 },
+          data: {
+            variableName: "pr",
+            repo: "REPLACE_WITH_OWNER/REPO",
+            title: "{{headline}}",
+            head: "{{branch}}",
+            // Blank base means the repository's default branch, which is not
+            // always "main".
+            body: "Opened automatically when `{{branch}}` was pushed.",
+            draft: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "push", target: "branch" },
+        { source: "branch", target: "wanted" },
+        { source: "wanted", target: "pr", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "stale-pr-digest",
+    name: "Nudge the pull requests nobody reviewed",
+    description:
+      "Every morning, finds open pull requests that have gone quiet and posts one digest to the team channel instead of pinging people individually. The search uses GitHub's own query syntax, so you can narrow it to a team, a label or a path without touching the workflow. GitHub caps a search at 1000 results, and the node reports when it hit that rather than pretending it saw everything. Supply a GitHub credential and a Slack credential.",
+    category: "Ops",
+    domain: "ops",
+    // GitHub to search, Slack to post.
+    tier: "library",
+    tags: ["github", "slack", "pull request", "review", "stale", "digest"],
+    graph: {
+      nodes: [
+        {
+          id: "morning",
+          type: "SCHEDULE_TRIGGER",
+          name: "Weekday mornings",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 9 * * 1-5", timezone: "UTC" },
+        },
+        {
+          id: "stale",
+          type: "GITHUB_SEARCH_PRS",
+          name: "Find the quiet ones",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "stale",
+            repo: "REPLACE_WITH_OWNER/REPO",
+            // GitHub's own qualifiers: untouched for three days, not a draft.
+            query: "draft:false updated:<{{$now.minusDays3.date}}",
+            state: "open",
+            limit: 50,
+          },
+        },
+        {
+          id: "summary",
+          type: "CODE",
+          name: "Write the digest",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const prs = input.stale?.pullRequests ?? [];\n\nif (prs.length === 0) {\n  return { hasStale: false, digest: "" };\n}\n\nconst lines = prs\n  .slice(0, 15)\n  .map((pr) => `• <${pr.url}|#${pr.number}> ${pr.title} — ${pr.author}`);\n\nreturn {\n  hasStale: true,\n  count: prs.length,\n  digest: lines.join("\\n"),\n};\n',
+          },
+        },
+        {
+          id: "any",
+          type: "CONDITION",
+          name: "Anything to say?",
+          position: { x: 840, y: 0 },
+          data: {
+            // No message at all beats a daily "0 stale PRs" nobody reads.
+            left: "{{hasStale}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "post",
+          type: "SLACK_POST",
+          name: "Post the digest",
+          position: { x: 1120, y: -60 },
+          data: {
+            variableName: "posted",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":eyes: *{{count}} pull requests are waiting on review*\n\n{{digest}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "morning", target: "stale" },
+        { source: "stale", target: "summary" },
+        { source: "summary", target: "any" },
+        { source: "any", target: "post", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "fan-out-one-payload-to-many-calls",
+    name: "Split one payload into many calls",
+    description:
+      'Receives a batch — an array of records in one webhook — and makes a separate call per record, then answers the sender with a per-item result rather than a bare 200. Items are processed one at a time so a slow or failing target does not turn into a burst, and the aggregate reports which items failed instead of losing them. This is the shape most "send these 50 things somewhere" jobs actually need. Nothing to connect.',
+    category: "Ops",
+    domain: "ops",
+    tags: ["webhook", "batch", "fan-out", "split", "http", "aggregate"],
+    graph: {
+      nodes: [
+        {
+          id: "batch",
+          type: "WEBHOOK_TRIGGER",
+          name: "Batch arrives",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Normalise the batch",
+          position: { x: 280, y: 0 },
+          data: {
+            code: "const body = input.webhook?.body ?? {};\n\n// Accept either a bare array or { items: [...] }, because senders differ\n// and neither is worth arguing about.\nconst raw = Array.isArray(body) ? body : (body.items ?? []);\n\nreturn {\n  items: raw.map((item, index) => ({\n    index,\n    id: item.id ?? String(index),\n    payload: item,\n  })),\n};\n",
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One at a time",
+          position: { x: 560, y: 0 },
+          data: { path: "items", maxItems: 50 },
+        },
+        {
+          id: "deliver",
+          type: "HTTP_REQUEST",
+          name: "Deliver the item",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "delivery",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json $item.payload}}}",
+            headers: { "Content-Type": "application/json" },
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect the results",
+          position: { x: 1120, y: 0 },
+          data: {},
+        },
+        {
+          id: "reply",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "Answer the sender",
+          position: { x: 1400, y: 0 },
+          data: {
+            statusCode: 200,
+            contentType: "application/json",
+            // The failed count is the point: a bare 200 would hide that three
+            // of fifty items never arrived.
+            body: '{"processed":{{count}},"failed":{{failed}}}',
+          },
+        },
+      ],
+      edges: [
+        { source: "batch", target: "shape" },
+        { source: "shape", target: "each" },
+        { source: "each", target: "deliver" },
+        { source: "deliver", target: "collected" },
+        { source: "collected", target: "reply" },
+      ],
+    },
+  },
 ];

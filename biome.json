@@ -74,6 +74,16 @@
       }
     },
     {
+      "includes": ["src/features/templates/catalog/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": [
         "**/*.test.ts",
         "**/*.test.tsx",

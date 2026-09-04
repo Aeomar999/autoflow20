@@ -30,6 +30,10 @@ import { definition as filesExtractText } from "./files/extract-text/definition"
 import { definition as filesHtmlToPdf } from "./files/html-to-pdf/definition";
 import { definition as formsGoogleForm } from "./forms/google-form/definition";
 import { definition as formsHostedForm } from "./forms/hosted-form/definition";
+import { definition as githubCreatePr } from "./github/create-pr/definition";
+import { definition as githubListCommits } from "./github/list-commits/definition";
+import { definition as githubSearchPrs } from "./github/search-prs/definition";
+import { definition as githubTrigger } from "./github/trigger/definition";
 import { definition as gmailSend } from "./gmail/send/definition";
 import { definition as gmailTrigger } from "./gmail/trigger/definition";
 import { definition as googleSheetsAppend } from "./google-sheets/append/definition";
@@ -39,6 +43,12 @@ import { definition as googleSheetsUpdate } from "./google-sheets/update/definit
 import { definition as googleSheetsUpsert } from "./google-sheets/upsert/definition";
 import { definition as httpHttpRequest } from "./http/request/definition";
 import { definition as hubspotCreateContact } from "./hubspot/create-contact/definition";
+import { definition as jiraAddAttachment } from "./jira/add-attachment/definition";
+import { definition as jiraCreateIssue } from "./jira/create-issue/definition";
+import { definition as jiraSearch } from "./jira/search/definition";
+import { definition as jiraTransition } from "./jira/transition/definition";
+import { definition as notionCreatePage } from "./notion/create-page/definition";
+import { definition as notionQueryDatabase } from "./notion/query-database/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
 import { definition as postgresQuery } from "./postgres/query/definition";
 import { definition as qboAttach } from "./quickbooks/attach/definition";
@@ -114,6 +124,16 @@ export const nodeManifest: NodeDefinition[] = [
   slackCreateChannel,
   slackInvite,
   slackDmByEmail,
+  githubTrigger,
+  githubCreatePr,
+  githubListCommits,
+  githubSearchPrs,
+  jiraCreateIssue,
+  jiraTransition,
+  jiraSearch,
+  jiraAddAttachment,
+  notionCreatePage,
+  notionQueryDatabase,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

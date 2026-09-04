@@ -31,6 +31,10 @@ import filesExtractText from "./files/extract-text";
 import filesHtmlToPdf from "./files/html-to-pdf";
 import formsGoogleForm from "./forms/google-form";
 import formsHostedForm from "./forms/hosted-form";
+import githubCreatePr from "./github/create-pr";
+import githubListCommits from "./github/list-commits";
+import githubSearchPrs from "./github/search-prs";
+import githubTrigger from "./github/trigger";
 import gmailSend from "./gmail/send";
 import gmailTrigger from "./gmail/trigger";
 import googleSheetsAppend from "./google-sheets/append";
@@ -40,6 +44,12 @@ import googleSheetsUpdate from "./google-sheets/update";
 import googleSheetsUpsert from "./google-sheets/upsert";
 import httpHttpRequest from "./http/request";
 import hubspotCreateContact from "./hubspot/create-contact";
+import jiraAddAttachment from "./jira/add-attachment";
+import jiraCreateIssue from "./jira/create-issue";
+import jiraSearch from "./jira/search";
+import jiraTransition from "./jira/transition";
+import notionCreatePage from "./notion/create-page";
+import notionQueryDatabase from "./notion/query-database";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
 import postgresQuery from "./postgres/query";
 import qboAttach from "./quickbooks/attach";
@@ -239,6 +249,16 @@ export const nodeRegistry = createNodeRegistry(
     slackCreateChannel,
     slackInvite,
     slackDmByEmail,
+    githubTrigger,
+    githubCreatePr,
+    githubListCommits,
+    githubSearchPrs,
+    jiraCreateIssue,
+    jiraTransition,
+    jiraSearch,
+    jiraAddAttachment,
+    notionCreatePage,
+    notionQueryDatabase,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

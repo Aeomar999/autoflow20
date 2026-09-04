@@ -2265,16 +2265,83 @@ not connected is a worse introduction than one that just produces the brief.
 Three new credential-free templates restore the one-third floor, which the user
 chose to keep rather than relax.
 
-### ⬜ AF-M10-18 · Dev-tools family: GitHub, Jira, Notion · 3d
+### ✅ AF-M10-18 · Dev-tools family: GitHub, Jira, Notion · 3d · **DONE 2026-09-04**
 Needed by #18, #19, #20, #27, #31.
 
 **Depends on:** AF-M10-04
 **Acceptance**
-- [ ] GitHub: `GITHUB_TRIGGER` (push/PR webhook with HMAC-SHA256 signature verification), `GITHUB_CREATE_PR`, `GITHUB_LIST_COMMITS`, `GITHUB_SEARCH_PRS`.
-- [ ] Jira: `JIRA_CREATE_ISSUE`, `JIRA_TRANSITION` (by transition **name**, resolved per project — the source templates hardcode numeric status ids and break on any other project), `JIRA_SEARCH` (JQL), `JIRA_ADD_ATTACHMENT`.
-- [ ] Notion: `NOTION_CREATE_PAGE`, `NOTION_QUERY_DATABASE`.
-- [ ] Webhook signature verification is shared with the AF-M10-16 QBO verifier — one constant-time comparison, not three.
-- [ ] progress.md updated
+- [x] GitHub: `GITHUB_TRIGGER` (push/PR webhook with HMAC-SHA256 signature verification), `GITHUB_CREATE_PR`, `GITHUB_LIST_COMMITS`, `GITHUB_SEARCH_PRS`.
+- [x] Jira: `JIRA_CREATE_ISSUE`, `JIRA_TRANSITION` (by transition **name**, resolved per project — the source templates hardcode numeric status ids and break on any other project), `JIRA_SEARCH` (JQL), `JIRA_ADD_ATTACHMENT`.
+- [x] Notion: `NOTION_CREATE_PAGE`, `NOTION_QUERY_DATABASE`.
+- [x] Webhook signature verification is shared with the AF-M10-16 QBO verifier — one constant-time comparison, not three.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Ten nodes over three clients, 96 tests.
+`docs/nodes/dev-tools.md` written.
+
+**One signature verifier.** `src/lib/server/webhook-signature.ts` now holds the
+codebase's only constant-time comparison; Intuit's base64 header and GitHub's
+hex-behind-`sha256=` differ only in cosmetics, and the QBO verifier was moved
+onto it. It fails closed on every path, including two that are easy to get
+backwards: an **empty secret** is refused (HMAC with `""` is a valid digest, so
+an unset env var would otherwise verify signatures an attacker can compute), and
+a **short decode** is refused (`Buffer.from` drops invalid characters rather than
+throwing, so garbage becomes a short buffer — the length check is what rejects
+it, not an optimisation).
+
+**GitHub's failure modes are miscategorised by the obvious code.** It runs two
+rate limiters and reports both as 403 — the primary with
+`x-ratelimit-remaining: 0`, the secondary with `retry-after` — so
+`status === 403 → permanent` turns a wait-and-succeed into a failed run. And it
+answers **404, not 403**, for a private repository the token cannot see, so
+"repository not found" sends people after a typo when the cause is a missing
+scope. Both are classified on the headers rather than the status.
+
+The trigger receives on one app-wide endpoint, like Intuit's. **A trigger naming
+no repository is skipped rather than treated as a wildcard** — on a shared
+endpoint a blank repo would fire one workspace's workflow on every other
+workspace's repositories. Only `X-Hub-Signature-256` is accepted; GitHub still
+sends the SHA-1 header for pre-2019 consumers and accepting it would admit
+anyone who can forge the weaker digest.
+
+**Jira transitions by name is the headline.** Transition ids are per workflow
+scheme, so `31` is Done where it was written and nothing anywhere else. The node
+asks the issue what it can currently do, matches case-insensitively, and falls
+back to the destination status name — people say "move it to Done" when the
+transition is called *Finish Work*. A miss lists what is available, which is
+usually enough to see the issue is already there. Two more Jira facts encoded
+where they belong: v3 wants **ADF**, not a string (a plain description is
+rejected with a message that never says so), and an attachment upload needs
+`X-Atlassian-Token: no-check` or Jira answers with an HTML XSRF page that a
+JSON client reports as a parse error.
+
+**Notion's permission model is per-object**, so `object_not_found` is far more
+often "not shared with this integration" than "does not exist", and the error
+says so. `NOTION_CREATE_PAGE` reads the database schema and wraps each plain
+string for its column's declared type, because the property union rejects a
+mismatch without naming the column; an unknown column fails loudly with the real
+names, since Notion is case-sensitive and a row created with columns silently
+missing is worse than none.
+
+**Two defects this exposed in AF-M10-17's own work.** The root inference added
+for `CODE` nodes was wrong twice, and both times it produced the false positive
+it was written to prevent. It matched keys with one regex that consumed the
+delimiting comma, so `{ a, b, c }` yielded only `a`; and it blanked string
+literals before reading keys, which erases **quoted keys** — `{ "delta": 4 }`
+became `{ "": 4 }`. It is now a single string- and comment-aware scan, and it
+skips comments *inside* the literal too, which is what a catalogue template
+tripped over. Four regression tests cover the cases, including one asserting the
+check still catches a real typo in a graph with no `CODE` node, so it cannot
+quietly become a no-op.
+
+**Catalogue.** Eight templates (57 total): PR→Jira issue, merge→transition,
+auto-PR on push, stale-PR digest, release notes→Notion, Notion content
+calendar, a Jira sprint report rendered to PDF and attached back, and — to hold
+the one-third credential-free floor as the dev-tools entries pushed the starter
+count up — an API data-contract monitor, a fan-out proxy and a form-to-PDF
+receipt. `noTemplateCurlyInString` is turned off for the catalogue directory:
+a template's `code:` field is JavaScript source, so `${…}` inside it is correct
+by construction rather than the mistake the rule looks for.
 
 ### ⬜ AF-M10-19 · Data-acquisition family: Apify, Apollo, Google Search/Maps · 2.5d
 Needed by #2, #3, #5, #6, #7, #22.

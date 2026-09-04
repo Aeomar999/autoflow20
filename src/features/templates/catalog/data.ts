@@ -961,4 +961,219 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "release-notes-to-notion",
+    name: "Weekly release notes, written and filed",
+    description:
+      "Collects the week's commits, has a model turn them into release notes a human would read, and files the result as a page in your Notion release database. Merge commits and bot noise are dropped before the model sees them, because a changelog assembled from raw subjects is mostly \"Merge branch main\". Column values are wrapped to match your database's own schema, so you write plain strings rather than Notion's property union. Supply a GitHub credential and a Notion credential, and share the database with the integration.",
+    category: "Ops",
+    domain: "data",
+    // GitHub to read the history, Notion to file the page.
+    tier: "library",
+    tags: ["github", "notion", "release notes", "changelog", "ai", "weekly"],
+    graph: {
+      nodes: [
+        {
+          id: "weekly",
+          type: "SCHEDULE_TRIGGER",
+          name: "Friday afternoon",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 16 * * 5", timezone: "UTC" },
+        },
+        {
+          id: "commits",
+          type: "GITHUB_LIST_COMMITS",
+          name: "This week's commits",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "week",
+            repo: "REPLACE_WITH_OWNER/REPO",
+            since: "{{$now.minusDays7.iso}}",
+            limit: 300,
+          },
+        },
+        {
+          id: "clean",
+          type: "CODE",
+          name: "Drop the noise",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const commits = input.week?.commits ?? [];\n\nconst meaningful = commits.filter((c) => {\n  const s = c.subject ?? "";\n  // Merge commits and dependency bots dominate a raw log and say nothing\n  // a reader wants.\n  if (/^Merge (branch|pull request)/i.test(s)) return false;\n  if (/dependabot|renovate/i.test(c.authorLogin ?? "")) return false;\n  return s.trim().length > 0;\n});\n\nreturn {\n  hasWork: meaningful.length > 0,\n  subjects: meaningful.map((c) => `- ${c.subject} (${c.authorName})`).join("\\n"),\n  total: meaningful.length,\n};\n',
+          },
+        },
+        {
+          id: "shipped",
+          type: "CONDITION",
+          name: "Anything shipped?",
+          position: { x: 840, y: 0 },
+          data: {
+            left: "{{hasWork}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "notes",
+          type: "AI_LLM",
+          name: "Write the notes",
+          position: { x: 1120, y: -60 },
+          data: {
+            variableName: "notes",
+            model: "anthropic:claude-3-5-sonnet",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You write release notes for people who use the product, not for the people who wrote it. Group related commits, describe the effect rather than the diff, and drop anything a user would not notice.",
+            userPrompt:
+              "Turn this week's commits into release notes. Use short sections with headings, and no preamble.\n\n{{subjects}}",
+            temperature: 0.3,
+            maxTokens: 1500,
+          },
+        },
+        {
+          id: "file",
+          type: "NOTION_CREATE_PAGE",
+          name: "File in Notion",
+          position: { x: 1400, y: -60 },
+          data: {
+            variableName: "page",
+            databaseId: "REPLACE_WITH_NOTION_DATABASE_URL",
+            // Column names must match the database exactly — Notion is
+            // case-sensitive, and the node says so if they do not.
+            properties:
+              '{"Name": "Release notes — {{$now.date}}", "Status": "Draft", "Commits": "{{total}}"}',
+            content: "{{notes.text}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "weekly", target: "commits" },
+        { source: "commits", target: "clean" },
+        { source: "clean", target: "shipped" },
+        { source: "shipped", target: "notes", sourceHandle: "true" },
+        { source: "notes", target: "file" },
+      ],
+    },
+  },
+  {
+    slug: "notion-content-calendar-digest",
+    name: "What is due in Notion this week",
+    description:
+      "Reads your Notion content calendar, keeps the rows due in the next seven days, and produces a digest grouped by owner. Property values come back flattened to plain strings, numbers and lists, so downstream steps read them without knowing Notion's property union. Only a Notion credential is needed — share the database with the integration, or it will report that it cannot see it, which is far more often the cause than a wrong id.",
+    category: "Marketing",
+    domain: "data",
+    tags: ["notion", "calendar", "content", "digest", "planning", "due"],
+    graph: {
+      nodes: [
+        {
+          id: "monday",
+          type: "SCHEDULE_TRIGGER",
+          name: "Monday morning",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 8 * * 1", timezone: "UTC" },
+        },
+        {
+          id: "rows",
+          type: "NOTION_QUERY_DATABASE",
+          name: "Read the calendar",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "calendar",
+            databaseId: "REPLACE_WITH_NOTION_DATABASE_URL",
+            sortProperty: "Due",
+            sortDirection: "ascending",
+            limit: 200,
+          },
+        },
+        {
+          id: "digest",
+          type: "CODE",
+          name: "Group by owner",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const items = input.calendar?.items ?? [];\nconst horizon = Date.now() + 7 * 24 * 60 * 60 * 1000;\n\nconst due = items.filter((row) => {\n  const date = row.properties?.Due;\n  if (!date) return false;\n  const at = Date.parse(date);\n  return Number.isFinite(at) && at <= horizon;\n});\n\nconst byOwner = {};\nfor (const row of due) {\n  const owner = (row.properties?.Owner ?? []).join(", ") || "Unassigned";\n  byOwner[owner] = byOwner[owner] ?? [];\n  byOwner[owner].push(`${row.properties?.Name ?? "Untitled"} (${row.properties?.Due})`);\n}\n\nreturn {\n  dueCount: due.length,\n  summary: Object.entries(byOwner)\n    .map(([owner, rows]) => `${owner}:\\n  ${rows.join("\\n  ")}`)\n    .join("\\n\\n"),\n};\n',
+          },
+        },
+      ],
+      edges: [
+        { source: "monday", target: "rows" },
+        { source: "rows", target: "digest" },
+      ],
+    },
+  },
+  {
+    slug: "api-data-contract-monitor",
+    name: "Tell me when an API quietly changes",
+    description:
+      "Calls an endpoint on a schedule and checks the shape of what comes back — required fields present, types right, data fresh enough — then posts an alert only when a check fails. This catches the failure that monitoring misses: the endpoint is up, returns 200, and has quietly dropped a field or gone stale. Edit the Code node to describe your own contract; it returns { ok, failures } and nothing else. Nothing to connect — point the alert step at any webhook URL you already have.",
+    category: "Data",
+    domain: "data",
+    tags: ["monitoring", "api", "contract", "schema", "alert", "schedule"],
+    graph: {
+      nodes: [
+        {
+          id: "every-hour",
+          type: "SCHEDULE_TRIGGER",
+          name: "Hourly",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 * * * *", timezone: "UTC" },
+        },
+        {
+          id: "fetch",
+          type: "HTTP_REQUEST",
+          name: "Call the endpoint",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "probe",
+            endpoint: "https://jsonplaceholder.typicode.com/posts/1",
+            method: "GET",
+            // The contract check below decides pass or fail, so a non-2xx is
+            // one of the things being measured rather than a reason to stop.
+            failOnNon2xx: false,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "contract",
+          type: "CODE",
+          name: "Check the contract",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const res = input.probe?.httpResponse ?? {};\nconst body = res.data ?? {};\nconst failures = [];\n\nif (res.status !== 200) {\n  failures.push(`status was ${res.status}`);\n}\n\n// Required fields. Add your own.\nfor (const field of ["id", "title", "body"]) {\n  if (body[field] === undefined || body[field] === null) {\n    failures.push(`missing field "${field}"`);\n  }\n}\n\n// Types, which is where a silent change usually shows first.\nif (body.id !== undefined && typeof body.id !== "number") {\n  failures.push(`id is ${typeof body.id}, expected number`);\n}\n\nreturn {\n  ok: failures.length === 0,\n  failures: failures.join("; "),\n  checkedAt: new Date().toISOString(),\n};\n',
+          },
+        },
+        {
+          id: "broken",
+          type: "CONDITION",
+          name: "Contract broken?",
+          position: { x: 840, y: 0 },
+          data: {
+            left: "{{ok}}",
+            operator: "equals",
+            right: "false",
+          },
+        },
+        {
+          id: "alert",
+          type: "HTTP_REQUEST",
+          name: "Raise the alert",
+          position: { x: 1120, y: -60 },
+          data: {
+            variableName: "alerted",
+            endpoint: "REPLACE_WITH_YOUR_ALERT_WEBHOOK_URL",
+            method: "POST",
+            body: '{"text":"API contract check failed: {{failures}}"}',
+            headers: { "Content-Type": "application/json" },
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+      ],
+      edges: [
+        { source: "every-hour", target: "fetch" },
+        { source: "fetch", target: "contract" },
+        { source: "contract", target: "broken" },
+        { source: "broken", target: "alert", sourceHandle: "true" },
+      ],
+    },
+  },
 ];

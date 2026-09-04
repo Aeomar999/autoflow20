@@ -881,6 +881,7 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   DRIVE_TRIGGER: ["trigger", "file"],
   CALENDAR_TRIGGER: ["trigger", "event"],
   QBO_WEBHOOK_TRIGGER: ["trigger", "qbo"],
+  GITHUB_TRIGGER: ["github"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */
@@ -968,56 +969,162 @@ function codeReturnRoots(node: GraphNode): string[] | null {
   const code = node.data?.code;
   if (typeof code !== "string" || code.trim() === "") return [];
 
-  // Strip line comments and strings so a `return {` inside either is not read
-  // as the real one.
-  const stripped = code
-    .replace(/\/\/[^\n]*/g, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
-    .replace(/`(?:[^`\\]|\\.)*`/g, "``");
-
-  const returns = [...stripped.matchAll(/\breturn\s*([[{]?)/g)];
-  if (returns.length === 0) return [];
-
   const roots = new Set<string>(["items"]);
+  let sawObjectReturn = false;
 
-  for (const match of returns) {
-    const opener = match[1];
-    if (opener === "[") continue; // array → `items`, already added
-    if (opener !== "{") {
-      // `return someVariable` — the keys are decided at run time.
-      return null;
+  // One string- and comment-aware pass over the source. Blanking strings first
+  // would be simpler, but it erases QUOTED KEYS: `{ "delta": 4 }` becomes
+  // `{ "": 4 }`, the root goes unrecorded, and every reference to it is then
+  // reported as a typo — the exact false positive this function exists to
+  // prevent.
+  let i = 0;
+  while (i < code.length) {
+    const ch = code[i];
+
+    if (ch === "/" && code[i + 1] === "/") {
+      while (i < code.length && code[i] !== "\n") i += 1;
+      continue;
     }
-
-    // Read the object literal's top-level keys, tracking depth so a nested
-    // object's keys are not mistaken for the outer ones.
-    const start = stripped.indexOf("{", match.index ?? 0);
-    let depth = 0;
-    let body = "";
-    for (let i = start; i < stripped.length; i += 1) {
-      const ch = stripped[i];
-      if (ch === "{" || ch === "[" || ch === "(") depth += 1;
-      if (ch === "}" || ch === "]" || ch === ")") {
-        depth -= 1;
-        if (depth === 0) break;
+    if (ch === "/" && code[i + 1] === "*") {
+      i += 2;
+      while (i < code.length && !(code[i] === "*" && code[i + 1] === "/")) {
+        i += 1;
       }
-      if (depth === 1 && ch !== "{") body += ch;
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      i = skipString(code, i);
+      continue;
     }
 
-    for (const key of body.matchAll(
-      /(?:^|,)\s*(?:"([A-Za-z_$][\w$]*)"|'([A-Za-z_$][\w$]*)'|([A-Za-z_$][\w$]*))\s*[:,}]/g,
-    )) {
-      const name = key[1] ?? key[2] ?? key[3];
-      if (name) roots.add(name);
+    if (
+      code.startsWith("return", i) &&
+      !/[\w$]/.test(code[i - 1] ?? "") &&
+      !/[\w$]/.test(code[i + 6] ?? "")
+    ) {
+      let j = i + 6;
+      while (j < code.length && /\s/.test(code[j])) j += 1;
+
+      // An array return is stored under `items`, already allowed above.
+      if (code[j] === "[") {
+        i = j + 1;
+        continue;
+      }
+      // `return someVariable`, `return cond ? a : b` — unknowable.
+      if (code[j] !== "{") return null;
+
+      const entries = topLevelEntries(code, j);
+      if (entries === null) return null;
+      for (const entry of entries) {
+        const name = leadingKey(entry);
+        if (name) roots.add(name);
+      }
+      sawObjectReturn = true;
+      i = j + 1;
+      continue;
     }
-    // Shorthand at the very end (`{ a, b }`) has no trailing comma or colon.
-    for (const key of body.matchAll(/(?:^|,)\s*([A-Za-z_$][\w$]*)\s*$/g)) {
-      roots.add(key[1]);
-    }
+
+    i += 1;
   }
 
-  return [...roots];
+  // No return at all: the node contributes nothing, which is not the same as
+  // "unknowable".
+  return sawObjectReturn ? [...roots] : [];
+}
+
+/** Index just past the string literal starting at `start`. */
+function skipString(code: string, start: number): number {
+  const quote = code[start];
+  let i = start + 1;
+  while (i < code.length && code[i] !== quote) {
+    if (code[i] === "\\") i += 1;
+    i += 1;
+  }
+  return i + 1;
+}
+
+/**
+ * Split an object literal's top-level entries, starting at its `{`.
+ *
+ * Depth and string state are tracked together so a comma inside a nested
+ * object, an array, a call, or a string does not split an entry. Returns null
+ * if the literal never closes, which means this is not something to reason
+ * about statically.
+ */
+function topLevelEntries(code: string, open: number): string[] | null {
+  const entries: string[] = [];
+  let entry = "";
+  let depth = 0;
+  let i = open;
+
+  while (i < code.length) {
+    const ch = code[i];
+
+    // Comments inside the literal are dropped, not accumulated. A commented
+    // line between two properties is ordinary in authored code, and treating
+    // it as part of the following entry hides that entry's key — which then
+    // reads as an unknown root at every reference to it.
+    if (ch === "/" && code[i + 1] === "/") {
+      while (i < code.length && code[i] !== "\n") i += 1;
+      continue;
+    }
+    if (ch === "/" && code[i + 1] === "*") {
+      i += 2;
+      while (i < code.length && !(code[i] === "*" && code[i + 1] === "/")) {
+        i += 1;
+      }
+      i += 2;
+      continue;
+    }
+
+    if (ch === '"' || ch === "'" || ch === "`") {
+      const end = skipString(code, i);
+      entry += code.slice(i, end);
+      i = end;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[" || ch === "(") {
+      depth += 1;
+      if (depth > 1) entry += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "}" || ch === "]" || ch === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        entries.push(entry);
+        return entries;
+      }
+      entry += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "," && depth === 1) {
+      entries.push(entry);
+      entry = "";
+      i += 1;
+      continue;
+    }
+
+    entry += ch;
+    i += 1;
+  }
+
+  return null;
+}
+
+/** The key an object-literal entry declares: `key:`, `"key":`, or shorthand. */
+function leadingKey(entry: string): string | undefined {
+  const match = entry
+    .trim()
+    .match(
+      /^(?:"([A-Za-z_$][\w$]*)"|'([A-Za-z_$][\w$]*)'|([A-Za-z_$][\w$]*))\s*(?::|$)/,
+    );
+  return match?.[1] ?? match?.[2] ?? match?.[3];
 }
 
 /**
