@@ -2606,16 +2606,69 @@ delete the channel's back catalogue, which nothing here needs.
 X-and-LinkedIn, and a video published to YouTube and Instagram from one
 streamed file.
 
-### ⬜ AF-M10-23 · Media generation family: OpenAI Images, Veo, Creatomate, Pollinations, OpenRouter · 2.5d
+### ✅ AF-M10-23 · Media generation family: OpenAI Images, Veo, Creatomate, Pollinations, OpenRouter · 2.5d · **DONE 2026-09-04**
 Needed by #26, #33, #34, #35.
 
 **Depends on:** AF-M10-06, AF-M10-07
 **Acceptance**
-- [ ] `OPENAI_IMAGE` (DALL·E/gpt-image) → `FileRef`; `POLLINATIONS_IMAGE` → `FileRef`.
-- [ ] `VEO_GENERATE` (Vertex AI) and `CREATOMATE_RENDER`: both are long-running jobs — submit, then poll to completion as a bounded, cancellable step with a configurable ceiling, surfacing progress in the trace.
-- [ ] `OPENROUTER_CHAT` registered through the existing `AI_COMPATIBLE` path rather than as a new provider, since OpenRouter is OpenAI-compatible — reuse, don't duplicate (#26's Llama 3).
-- [ ] Generation cost is recorded through the AF-M5 cost pipeline; per-image and per-video pricing entries added to the model registry.
-- [ ] progress.md updated
+- [x] `OPENAI_IMAGE` (DALL·E/gpt-image) → `FileRef`; `POLLINATIONS_IMAGE` → `FileRef`.
+- [x] `VEO_GENERATE` (Vertex AI) and `CREATOMATE_RENDER`: both are long-running jobs — submit, then poll to completion as a bounded, cancellable step with a configurable ceiling, surfacing progress in the trace.
+- [x] `OPENROUTER_CHAT` registered through the existing `AI_COMPATIBLE` path rather than as a new provider, since OpenRouter is OpenAI-compatible — reuse, don't duplicate (#26's Llama 3).
+- [x] Generation cost is recorded through the AF-M5 cost pipeline; per-image and per-video pricing entries added to the model registry.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done. Phase B complete.** Four nodes over three clients,
+22 tests. `docs/nodes/media-generation.md` written.
+
+**OpenRouter needed no node.** The acceptance's "reuse, don't duplicate" is
+right: OpenRouter speaks OpenAI's Chat Completions shape, so a second
+implementation would be a copy that drifts. `OPENAI_COMPATIBLE_CHAT` already
+does this — the change was widening its credential requirement to
+`openaiCompatible.apiKey|openrouter.apiKey`, because an OpenRouter key IS an
+OpenAI-compatible key and making users re-enter it under a second type would be
+paperwork rather than a distinction. Base URL and model id go in the config
+that already exists.
+
+**Per-unit pricing could not live in `AiModelDef`** — `inputCostPer1M` has no
+meaning for a model charging four cents an image — so `aiMediaModels` sits
+beside it in the same file, feeding the same `__usage.costUsd` →
+`NodeExecution.costUsd` path. A workflow that renders a video and then
+summarises it shows one bill rather than two systems' worth. Two deliberate
+choices: a free provider records **zero rather than nothing**, because a cost
+report should say a step was free instead of being silent about it; and an
+unpriced model costs 0 rather than throwing, because a missing price is a
+reporting gap and refusing the run would be a worse one.
+
+**The long-running wait is the AF-M10-19 shape, extracted.** Veo and Creatomate
+both submit-then-poll for minutes and both meter by output, so
+`job-poller.ts` holds it once: each poll and each sleep its own durable step
+(a wait inside one long `step.run` cannot notice cancellation until it
+returns), the node marked `WAITING` so a ten-minute render does not read as a
+hang, a loop bounded by a count computed up front rather than by the clock, and
+every exit path asking the provider to stop — a job nobody will read still
+finishes and still bills. Both nodes submit in their own step so a retry of the
+wait cannot start a second render.
+
+**Four provider behaviours that would otherwise pass as success.** Vertex
+reports a refused generation as `done: true` WITH an `error`, so treating done
+as success hands an empty result downstream. Creatomate's `succeeded` and
+`failed` are both terminal and only one is success. Creatomate's submit answers
+with an ARRAY of renders, one per output format, so reading it as an object
+gives undefined. And Pollinations — free, and therefore under load — answers
+**200 with an HTML error page**, which stored blind becomes a corrupt file
+inside a green run, discovered later when a downstream upload fails.
+
+OpenAI's images are fetched as base64 rather than by URL: `dall-e-3` returns a
+link that expires within the hour, so bytes mean one code path and no dead
+second request. Its prompt rewriting is surfaced as `revisedPrompt`, which is
+the difference between "the image is wrong" and "the model changed the brief",
+and a content-filter refusal fails rather than retrying — the same prompt meets
+the same filter and pays again to be told no again.
+
+**Catalogue.** Four templates (78 total): a keyless free image generator, an
+article hero image, a Creatomate render published to Instagram, and a Veo clip
+uploaded to YouTube. The Pollinations one is credential-free, which is the
+first time a media node has been able to be.
 
 #### Phase C — the 35 templates
 

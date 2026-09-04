@@ -57,6 +57,10 @@ import { definition as jiraSearch } from "./jira/search/definition";
 import { definition as jiraTransition } from "./jira/transition/definition";
 import { definition as mailerliteCreateSubscriber } from "./mailerlite/create-subscriber/definition";
 import { definition as mailerliteFindSubscriber } from "./mailerlite/find-subscriber/definition";
+import { definition as creatomateRender } from "./media/creatomate-render/definition";
+import { definition as openaiImage } from "./media/openai-image/definition";
+import { definition as pollinationsImage } from "./media/pollinations-image/definition";
+import { definition as veoGenerate } from "./media/veo-generate/definition";
 import { definition as notionCreatePage } from "./notion/create-page/definition";
 import { definition as notionQueryDatabase } from "./notion/query-database/definition";
 import { definition as stripeCreatePaymentLink } from "./payments/stripe-create-payment-link/definition";
@@ -180,6 +184,10 @@ export const nodeManifest: NodeDefinition[] = [
   linkedinPost,
   youtubeUpload,
   uploadPostPublish,
+  openaiImage,
+  pollinationsImage,
+  veoGenerate,
+  creatomateRender,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,
