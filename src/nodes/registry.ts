@@ -82,6 +82,10 @@ import slackInvite from "./slack/invite";
 import slackListChannels from "./slack/list-channels";
 import slackPost from "./slack/post";
 import slackSendMessage from "./slack/send-message";
+import linkedinPost from "./social/linkedin-post";
+import uploadPostPublish from "./social/upload-post-publish";
+import xPost from "./social/x-post";
+import youtubeUpload from "./social/youtube-upload";
 import telegramGetFile from "./telegram/get-file";
 import telegramSendMessage from "./telegram/send-message";
 import telegramTrigger from "./telegram/trigger";
@@ -297,6 +301,10 @@ export const nodeRegistry = createNodeRegistry(
     telegramGetFile,
     wahaTrigger,
     wahaSendMessage,
+    xPost,
+    linkedinPost,
+    youtubeUpload,
+    uploadPostPublish,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

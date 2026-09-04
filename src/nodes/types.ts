@@ -134,6 +134,20 @@ export interface NodeDefinition<TConfig = unknown> {
   /** Docs link rendered in the config panel. */
   docsUrl?: string;
   /**
+   * A requirement of the PROVIDER ACCOUNT that no scope or credential can
+   * satisfy (AF-M10-22).
+   *
+   * X's v2 write endpoints are not on the free tier; YouTube uploads need a
+   * quota increase for an unverified project; LinkedIn's UGC posting needs the
+   * app to be approved for a product. None of those are things a user can fix
+   * by reconnecting, and every one of them surfaces as a 403 at run time that
+   * looks like a permissions bug.
+   *
+   * Rendered in the config panel so it is read while the node is being
+   * configured rather than discovered from a failed run.
+   */
+  accountRequirement?: string;
+  /**
    * Retirement marker (AF-M5-09). A deprecated type stays registered and
    * executable — saved workflows and published versions must keep running —
    * but disappears from the palette, so no NEW instance can be created, and

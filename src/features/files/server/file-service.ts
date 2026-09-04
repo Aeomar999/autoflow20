@@ -210,6 +210,51 @@ export async function readFile(args: {
   return { data, filename: row.filename, mimeType: row.mimeType };
 }
 
+/**
+ * Read a stored file as a STREAM (AF-M10-22).
+ *
+ * Same tenant check as `readFile` — the check is the point, and a streaming
+ * variant that skipped it would be a hole in exactly the place that matters.
+ * What differs is that the bytes are never fully resident: the social
+ * publishing nodes hand this straight to `fetch`, so a 200 MB video costs a
+ * buffer, not 200 MB of worker heap.
+ *
+ * The metadata comes back alongside the stream because every caller needs the
+ * size and MIME type for the upload's own headers, and fetching the row twice
+ * would be two queries for one answer.
+ */
+export async function readFileStream(args: {
+  fileId: string;
+  organizationId: string;
+  store?: BlobStore;
+}): Promise<{
+  stream: ReadableStream<Uint8Array>;
+  filename: string;
+  mimeType: string;
+  size: number;
+}> {
+  const row = await prisma.storedFile.findUnique({
+    where: { id: args.fileId },
+  });
+
+  if (!row || row.organizationId !== args.organizationId) {
+    // One message for "does not exist" and "belongs to someone else", as in
+    // readFile: telling them apart is an existence oracle for other tenants.
+    throw new FileAccessDeniedError(
+      `File ${args.fileId} is not available to this workspace.`,
+    );
+  }
+
+  const store = args.store ?? resolveBlobStore();
+
+  return {
+    stream: await store.getStream(row.storageKey),
+    filename: row.filename,
+    mimeType: row.mimeType,
+    size: row.size,
+  };
+}
+
 /** Metadata without the bytes — for a node that only needs to check a size. */
 export async function statFile(args: {
   fileId: string;

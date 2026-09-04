@@ -93,7 +93,7 @@ export const credentialKindLabel = (kind: CredentialKind): string => {
  * (any API, any header, any OAuth provider).
  */
 /**
- * The five scoped Google credential types (AF-M10-03). Every OAuth credential
+ * The scoped Google credential types (AF-M10-03; YouTube added in AF-M10-22). Every OAuth credential
  * has the same three fields, so they are generated rather than copied — the
  * only thing that differs is the service, and that difference lives in
  * `oauth-providers.ts` as the scope set.
@@ -116,7 +116,9 @@ const googleServiceCredential = (
           ? "/logos/google-drive.svg"
           : type === "google.calendar"
             ? "/logos/google-calendar.svg"
-            : "/logos/google-docs.png",
+            : type === "google.youtube"
+              ? "/logos/youtube.svg"
+              : "/logos/google-docs.png",
   oauth: true,
   testable: false,
   notTestableReason:
@@ -148,6 +150,11 @@ const GOOGLE_SERVICE_CREDENTIALS: CredentialTypeDef[] = [
     "google.drive",
     "Google Drive",
     "List, download, upload and move files. Grants Drive scopes only.",
+  ),
+  googleServiceCredential(
+    "google.youtube",
+    "YouTube",
+    "Upload and manage videos on the connected channel. Grants the YouTube upload scope only.",
   ),
   googleServiceCredential(
     "google.calendar",

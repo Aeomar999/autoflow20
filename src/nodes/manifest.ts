@@ -81,6 +81,10 @@ import { definition as slackInvite } from "./slack/invite/definition";
 import { definition as slackListChannels } from "./slack/list-channels/definition";
 import { definition as slackPost } from "./slack/post/definition";
 import { definition as slackSendMessage } from "./slack/send-message/definition";
+import { definition as linkedinPost } from "./social/linkedin-post/definition";
+import { definition as uploadPostPublish } from "./social/upload-post-publish/definition";
+import { definition as xPost } from "./social/x-post/definition";
+import { definition as youtubeUpload } from "./social/youtube-upload/definition";
 import { definition as telegramGetFile } from "./telegram/get-file/definition";
 import { definition as telegramSendMessage } from "./telegram/send-message/definition";
 import { definition as telegramTrigger } from "./telegram/trigger/definition";
@@ -172,6 +176,10 @@ export const nodeManifest: NodeDefinition[] = [
   telegramGetFile,
   wahaTrigger,
   wahaSendMessage,
+  xPost,
+  linkedinPost,
+  youtubeUpload,
+  uploadPostPublish,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

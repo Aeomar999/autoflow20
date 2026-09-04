@@ -2540,16 +2540,71 @@ downloads a PDF and replies with a summary (#23's shape), a WhatsApp
 out-of-hours responder, and a credential-free meeting-notes-to-action-list flow
 to hold the one-third floor.
 
-### ⬜ AF-M10-22 · Social publishing family: X, LinkedIn, YouTube, Upload-Post · 2.5d
+### ✅ AF-M10-22 · Social publishing family: X, LinkedIn, YouTube, Upload-Post · 2.5d · **DONE 2026-09-04**
 Needed by #32, #34, #35.
 
 **Depends on:** AF-M10-04, AF-M10-06
 **Acceptance**
-- [ ] `X_POST` (v2 `POST /2/tweets`, OAuth2 PKCE user context), `LINKEDIN_POST` (UGC post with image upload — a two-step register-then-upload dance), `YOUTUBE_UPLOAD` (resumable upload from a `FileRef`), `UPLOAD_POST_PUBLISH` (Instagram via Upload-Post.com).
-- [ ] Media upload paths stream from the blob store; a video is never buffered whole in memory. A test uploads a fixture larger than the per-node output cap.
-- [ ] Character/media limits validated before the call, with the platform limit named in the error.
-- [ ] Each node documents the account tier its API needs (X v2 write access is not on the free tier) so a user learns it from the config panel, not a 403.
-- [ ] progress.md updated
+- [x] `X_POST` (v2 `POST /2/tweets`, OAuth2 PKCE user context), `LINKEDIN_POST` (UGC post with image upload — a two-step register-then-upload dance), `YOUTUBE_UPLOAD` (resumable upload from a `FileRef`), `UPLOAD_POST_PUBLISH` (Instagram via Upload-Post.com).
+- [x] Media upload paths stream from the blob store; a video is never buffered whole in memory. A test uploads a fixture larger than the per-node output cap.
+- [x] Character/media limits validated before the call, with the platform limit named in the error.
+- [x] Each node documents the account tier its API needs (X v2 write access is not on the free tier) so a user learns it from the config panel, not a 403.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Four nodes over four clients, 38 tests.
+`docs/nodes/social-publishing.md` written.
+
+**Streaming needed new machinery, not a new call.** `readFile` returns a
+Buffer, which is right for a PDF and wrong for a video: 100 MB buffered whole
+is 100 MB of worker heap, and a few concurrent runs is an OOM that takes every
+unrelated run on that worker with it. So `BlobStore` gained `getStream`
+(`Readable.toWeb` locally, `transformToWebStream` on S3) and `file-service`
+gained `readFileStream` — carrying the **same tenant check**, because a
+streaming variant that skipped it would be a hole in precisely the place that
+matters. The acceptance's test uploads an 8 MB fixture, well over the 1 MB
+per-node output cap, and asserts it arrives in more than one chunk with no
+chunk the size of the file: a buffering implementation produces exactly one.
+
+Two consequences are documented rather than discovered: Node's fetch throws on
+a streaming body without `duplex: "half"` and says nothing about streams, and a
+consumed stream cannot be re-sent, which is why the upload helpers take a
+`fileId` rather than a stream.
+
+**The real ceiling is the store's, not the platform's.** `MAX_FILE_BYTES` caps a
+stored file at 100 MB, so the per-node caps (2 GB YouTube, 1 GB Upload-Post)
+are backstops for if that is raised rather than limits a workflow reaches. The
+first template written here tried a 500 MB download and the harness caught it,
+which is the gate doing its job.
+
+**`NodeDefinition.accountRequirement`** is new, and exists because this family
+shares a failure the others do not: a **403 that looks exactly like a scope
+problem and is not**. An X app on the free tier authenticates cleanly, holds
+every scope, and is refused on every post because v2 writes are not sold at
+that tier. Same shape for LinkedIn's product approval, YouTube's project
+verification and Upload-Post's Instagram account type. The requirement renders
+in the config panel, and the runtime errors name the tier before they mention
+scopes.
+
+**Limits are checked the way each platform counts.** X uses *weighted*
+characters — emoji and most non-Latin count as two — so `String.length` would
+let a post through that X then rejects without saying by how much. YouTube's
+title limit, its ban on angle brackets, its mandatory
+`selfDeclaredMadeForKids`, and LinkedIn's 3000 characters are all checked
+before the call with the number in the message.
+
+**Upload-Post answers 200 with a per-platform result map**, so a "successful"
+request can contain a failed Instagram entry — Slack's `ok: false` in a
+different shape. Every platform failing is a failed run; a partial failure is
+reported rather than thrown, since two of three platforms is a real outcome to
+branch on.
+
+Added `google.youtube` as a sixth scoped Google credential, granting
+`youtube.upload` only — the wider `youtube` scope would also let a workflow
+delete the channel's back catalogue, which nothing here needs.
+
+**Catalogue.** Two templates (74 total), both `library`: write-once-publish-to-
+X-and-LinkedIn, and a video published to YouTube and Instagram from one
+streamed file.
 
 ### ⬜ AF-M10-23 · Media generation family: OpenAI Images, Veo, Creatomate, Pollinations, OpenRouter · 2.5d
 Needed by #26, #33, #34, #35.
