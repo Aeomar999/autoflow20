@@ -3,7 +3,7 @@ import { NonRetriableError } from "inngest";
 import { createSalesReceipt } from "@/features/quickbooks/server/entities";
 import { resolveQboConnection } from "@/features/quickbooks/server/qbo-client";
 import type { NodeRun } from "@/nodes/types";
-import { parseQboLines } from "../shared";
+import { parseQboLines } from "../parse";
 
 type SalesDocumentData = {
   variableName?: string;

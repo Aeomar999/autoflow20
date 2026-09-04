@@ -1,6 +1,6 @@
 import { NonRetriableError } from "inngest";
 import { describe, expect, it } from "vitest";
-import { parseQboAmount, parseQboLines } from "./shared";
+import { parseQboAmount, parseQboLines } from "./parse";
 
 const where = "test";
 

@@ -3,7 +3,7 @@ import { NonRetriableError } from "inngest";
 import { createExpense } from "@/features/quickbooks/server/entities";
 import { resolveQboConnection } from "@/features/quickbooks/server/qbo-client";
 import type { NodeRun } from "@/nodes/types";
-import { parseQboAmount } from "../shared";
+import { parseQboAmount } from "../parse";
 
 type QboCreateExpenseData = {
   variableName?: string;
