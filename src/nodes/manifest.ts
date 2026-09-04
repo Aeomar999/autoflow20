@@ -41,6 +41,16 @@ import { definition as httpHttpRequest } from "./http/request/definition";
 import { definition as hubspotCreateContact } from "./hubspot/create-contact/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
 import { definition as postgresQuery } from "./postgres/query/definition";
+import { definition as qboAttach } from "./quickbooks/attach/definition";
+import { definition as qboCreateCustomer } from "./quickbooks/create-customer/definition";
+import { definition as qboCreateEstimate } from "./quickbooks/create-estimate/definition";
+import { definition as qboCreateExpense } from "./quickbooks/create-expense/definition";
+import { definition as qboCreateInvoice } from "./quickbooks/create-invoice/definition";
+import { definition as qboCreateSalesReceipt } from "./quickbooks/create-sales-receipt/definition";
+import { definition as qboFindCustomer } from "./quickbooks/find-customer/definition";
+import { definition as qboGet } from "./quickbooks/get/definition";
+import { definition as qboInvoicePdf } from "./quickbooks/get-invoice-pdf/definition";
+import { definition as qboWebhookTrigger } from "./quickbooks/webhook-trigger/definition";
 import { definition as slackSendMessage } from "./slack/send-message/definition";
 import type { NodeDefinition } from "./types";
 import { definition as webhookOut } from "./webhook/out/definition";
@@ -84,6 +94,16 @@ export const nodeManifest: NodeDefinition[] = [
   driveUpload,
   driveMove,
   calendarTrigger,
+  qboAttach,
+  qboCreateCustomer,
+  qboCreateEstimate,
+  qboCreateExpense,
+  qboCreateInvoice,
+  qboCreateSalesReceipt,
+  qboFindCustomer,
+  qboGet,
+  qboInvoicePdf,
+  qboWebhookTrigger,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

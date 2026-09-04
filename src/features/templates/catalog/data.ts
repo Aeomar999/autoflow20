@@ -705,4 +705,190 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "quickbooks-receipt-from-stripe-payment",
+    name: "Record a Stripe payment as a QuickBooks sales receipt",
+    description:
+      "Turns a completed Stripe payment into a QuickBooks sales receipt. A receipt rather than an invoice, deliberately: the money has already arrived, and raising an invoice would leave a balance somebody has to remember to clear. The customer is matched on the email Stripe supplies; when no match exists the run stops rather than inventing a customer, because a receipt filed against the wrong account is harder to find than one that was never filed. Point the deposit account at wherever Stripe settles in your chart of accounts. Supply a QuickBooks credential; the Stripe trigger uses the platform's own signing secret.",
+    category: "Finance",
+    domain: "data",
+    tags: [
+      "quickbooks",
+      "stripe",
+      "receipt",
+      "payment",
+      "reconcile",
+      "finance",
+    ],
+    graph: {
+      nodes: [
+        {
+          id: "paid",
+          type: "STRIPE_TRIGGER",
+          name: "Payment succeeded",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "customer",
+          type: "QBO_FIND_CUSTOMER",
+          name: "Match the customer",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "customer",
+            email: "{{stripe.raw.billing_details.email}}",
+          },
+        },
+        {
+          id: "matched",
+          type: "CONDITION",
+          name: "Matched?",
+          position: { x: 560, y: 0 },
+          data: {
+            leftValue: "{{customer.found}}",
+            operator: "equals",
+            rightValue: "true",
+          },
+        },
+        {
+          id: "receipt",
+          type: "QBO_CREATE_SALES_RECEIPT",
+          name: "Record the receipt",
+          position: { x: 840, y: -80 },
+          data: {
+            variableName: "receipt",
+            customerId: "{{customer.customerId}}",
+            // Stripe reports in the currency's minor unit, so 4999 is 49.99.
+            lines:
+              '[{"description":"Stripe payment {{stripe.raw.id}}","amount":{{stripe.raw.amount}}}]',
+            customerMemo: "Stripe {{stripe.eventId}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "paid", target: "customer" },
+        { source: "customer", target: "matched" },
+        // Only the matched branch continues. The unmatched one ends here on
+        // purpose: a receipt filed against a guessed customer is worse than
+        // one a person files by hand.
+        { source: "matched", target: "receipt", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "quickbooks-estimate-from-sheet-row",
+    name: "Turn a spreadsheet row into a QuickBooks estimate",
+    description:
+      "Watches a sheet of quote requests and raises a QuickBooks estimate for each new row. An estimate rather than an invoice: nothing posts to the ledger until the customer accepts, so a quote that goes nowhere leaves no trace to reverse. Rows already in the sheet when you publish are not replayed — the trigger records where the sheet was and starts from there. Give the sheet a header row and a stable key column (a quote number or an email); identifying rows by position is only safe on a sheet nobody ever sorts. Headers are addressed as {{row.fields.Quote}}, so a header containing a space needs bracket syntax — {{row.fields.[Quote ID]}} — which is why this template's columns are single words. The customer must already exist in QuickBooks. Supply a Sheets credential and a QuickBooks credential.",
+    category: "Finance",
+    domain: "data",
+    // Sheets to read the request, QuickBooks to raise the estimate.
+    tier: "library",
+    tags: ["quickbooks", "estimate", "quote", "sheets", "trigger", "finance"],
+    graph: {
+      nodes: [
+        {
+          id: "new-row",
+          type: "SHEETS_TRIGGER",
+          name: "New quote request",
+          position: { x: 0, y: 0 },
+          data: {
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            range: "Quotes!A1:F1000",
+            keyColumn: "Quote",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "customer",
+          type: "QBO_FIND_CUSTOMER",
+          name: "Find the customer",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "customer",
+            displayName: "{{row.fields.Customer}}",
+            email: "{{row.fields.Email}}",
+          },
+        },
+        {
+          id: "estimate",
+          type: "QBO_CREATE_ESTIMATE",
+          name: "Raise the estimate",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "estimate",
+            customerId: "{{customer.customerId}}",
+            lines:
+              '[{"description":"{{row.fields.Description}}","amount":"{{row.fields.Amount}}"}]',
+            customerMemo: "Quote {{row.fields.Quote}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "new-row", target: "customer" },
+        { source: "customer", target: "estimate" },
+      ],
+    },
+  },
+  {
+    slug: "quickbooks-expense-with-receipt",
+    name: "Record an expense and attach its receipt",
+    description:
+      "Records a QuickBooks expense from a submitted claim and attaches the receipt image to the same record, so the document and the entry are never separated. QuickBooks calls this a Purchase in its API and an Expense on screen — the same thing under two names, which is worth knowing when reading its docs. Both account ids come from your own chart of accounts: the payment account is where the money left, the expense account is what it is booked against. Amounts arriving with a currency symbol are handled; a blank one stops the run rather than booking a zero. Supply a QuickBooks credential.",
+    category: "Finance",
+    domain: "data",
+    tags: ["quickbooks", "expense", "receipt", "attach", "claim", "finance"],
+    graph: {
+      nodes: [
+        {
+          id: "claim",
+          type: "WEBHOOK_TRIGGER",
+          name: "Expense claim",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "receipt-file",
+          type: "FILE_DOWNLOAD",
+          name: "Fetch the receipt",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "receipt",
+            url: "{{webhook.body.receiptUrl}}",
+          },
+        },
+        {
+          id: "expense",
+          type: "QBO_CREATE_EXPENSE",
+          name: "Record the expense",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "expense",
+            paymentAccountId: "REPLACE_WITH_PAYMENT_ACCOUNT_ID",
+            paymentType: "CreditCard",
+            expenseAccountId: "REPLACE_WITH_EXPENSE_ACCOUNT_ID",
+            amount: "{{webhook.body.amount}}",
+            description: "{{webhook.body.description}}",
+          },
+        },
+        {
+          id: "attach",
+          type: "QBO_ATTACH",
+          name: "Attach the receipt",
+          position: { x: 800, y: 0 },
+          data: {
+            variableName: "attached",
+            entity: "Purchase",
+            entityId: "{{expense.id}}",
+            file: "{{{json receipt.file}}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "claim", target: "receipt-file" },
+        { source: "receipt-file", target: "expense" },
+        { source: "expense", target: "attach" },
+      ],
+    },
+  },
 ];

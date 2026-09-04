@@ -880,6 +880,7 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   GMAIL_TRIGGER: ["trigger", "message"],
   DRIVE_TRIGGER: ["trigger", "file"],
   CALENDAR_TRIGGER: ["trigger", "event"],
+  QBO_WEBHOOK_TRIGGER: ["trigger", "qbo"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */

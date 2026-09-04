@@ -33,9 +33,11 @@ import {
  * intake triage (`FORM_TRIGGER`), a spend gate (`APPROVAL`) and two Sheets
  * flows (`SHEETS_TRIGGER`/`READ`/`UPDATE`/`UPSERT`) and four Google
  * Workspace flows (Drive intake, meeting briefing, inbox triage, weekly
- * report).
+ * report) and six QuickBooks flows (invoice from an order, Slack alerts,
+ * invoice PDFs to Drive, a Stripe receipt, an estimate from a sheet, and an
+ * expense with its receipt attached).
  */
-const EXPECTED_TEMPLATE_COUNT = 36;
+const EXPECTED_TEMPLATE_COUNT = 42;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {

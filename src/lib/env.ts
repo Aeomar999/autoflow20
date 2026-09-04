@@ -77,6 +77,7 @@ const serverEnvSchema = z.object({
   // integration must not widen what the sign-in button asks for.
   INTUIT_CLIENT_ID: z.string().optional(),
   INTUIT_CLIENT_SECRET: z.string().optional(),
+  INTUIT_WEBHOOK_VERIFIER_TOKEN: z.string().optional(),
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
   GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
   ATLASSIAN_CLIENT_ID: z.string().optional(),

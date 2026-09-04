@@ -68,6 +68,40 @@ describe("resolveConfigFields — field kinds (AF-M1-06)", () => {
     expect(fields[0].enumValues).toEqual(["GET", "POST", "PUT"]);
   });
 
+  it("classifies an array of enums as multiEnum (AF-M10-16)", () => {
+    // "Which of these event types?" is a checkbox group, not a row editor.
+    // Added for the QuickBooks trigger's entity/operation filters; the same
+    // shape recurs for every webhook connector that lets you narrow events.
+    const fields = resolveConfigFields(
+      z.object({ operations: z.array(z.enum(["Create", "Update", "Delete"])) }),
+    );
+    expect(fields[0].kind).toBe("multiEnum");
+    expect(fields[0].enumValues).toEqual(["Create", "Update", "Delete"]);
+  });
+
+  it("still rejects an array of bare strings, which has no choices to offer", () => {
+    expect(() =>
+      resolveConfigFields(z.object({ tags: z.array(z.string()) })),
+    ).toThrow(UnsupportedConfigFieldError);
+  });
+
+  it("rejects a multiEnum nested inside a fieldList row", () => {
+    // The row editor renders scalars; a checkbox group inside a table cell is
+    // not a control it has, and silently dropping the column would lose data.
+    expect(() =>
+      resolveConfigFields(
+        z.object({
+          rules: z.array(
+            z.object({
+              name: z.string(),
+              on: z.array(z.enum(["a", "b"])),
+            }),
+          ),
+        }),
+      ),
+    ).toThrow(UnsupportedConfigFieldError);
+  });
+
   it("classifies record<string,string> as kv-list", () => {
     const fields = resolveConfigFields(
       z.object({ headers: z.record(z.string(), z.string()) }),

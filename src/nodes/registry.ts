@@ -42,6 +42,16 @@ import httpHttpRequest from "./http/request";
 import hubspotCreateContact from "./hubspot/create-contact";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
 import postgresQuery from "./postgres/query";
+import qboAttach from "./quickbooks/attach";
+import qboCreateCustomer from "./quickbooks/create-customer";
+import qboCreateEstimate from "./quickbooks/create-estimate";
+import qboCreateExpense from "./quickbooks/create-expense";
+import qboCreateInvoice from "./quickbooks/create-invoice";
+import qboCreateSalesReceipt from "./quickbooks/create-sales-receipt";
+import qboFindCustomer from "./quickbooks/find-customer";
+import qboGet from "./quickbooks/get";
+import qboInvoicePdf from "./quickbooks/get-invoice-pdf";
+import qboWebhookTrigger from "./quickbooks/webhook-trigger";
 import slackSendMessage from "./slack/send-message";
 import type { NodeCategory, NodeRegistration } from "./types";
 import webhookOut from "./webhook/out";
@@ -209,6 +219,16 @@ export const nodeRegistry = createNodeRegistry(
     driveUpload,
     driveMove,
     calendarTrigger,
+    qboAttach,
+    qboCreateCustomer,
+    qboCreateEstimate,
+    qboCreateExpense,
+    qboCreateInvoice,
+    qboCreateSalesReceipt,
+    qboFindCustomer,
+    qboGet,
+    qboInvoicePdf,
+    qboWebhookTrigger,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,
