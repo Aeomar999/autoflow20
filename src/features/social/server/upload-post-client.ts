@@ -113,11 +113,15 @@ export async function publishViaUploadPost(args: {
   // is unavoidable: FormData has no streaming entry in Node's fetch. The
   // stream still means the file is read once, lazily, rather than being held
   // by both readFile and the form.
-  form.append(
-    args.isVideo ? "video" : "photos[]",
-    await new Response(stream).blob(),
-    filename,
-  );
+  //
+  // The content-type header is how a Blob gets its type, and the part's type
+  // is what Upload-Post checks. A generated video arrives under whatever name
+  // the generator gave it, so the extension is not a reliable substitute.
+  const blob = await new Response(stream, {
+    headers: { "content-type": mimeType },
+  }).blob();
+
+  form.append(args.isVideo ? "video" : "photos[]", blob, filename);
 
   const response = await fetch(
     `${UPLOAD_POST_API}/upload${args.isVideo ? "" : "_photos"}`,

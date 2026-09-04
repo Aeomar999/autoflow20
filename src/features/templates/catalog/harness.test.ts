@@ -5,7 +5,10 @@ import { nodeManifest, nodePalette } from "@/nodes/manifest";
 import { nodeRegistry } from "@/nodes/registry";
 
 import { TEMPLATE_CATEGORIES } from "../constants";
-import { prepareTemplateGraph } from "../server/instantiate";
+import {
+  collectPendingSetup,
+  prepareTemplateGraph,
+} from "../server/instantiate";
 import { checkCatalog, checkTemplate, formatIssues } from "./harness";
 import { templateCatalog, toSeedRow } from "./index";
 import {
@@ -36,7 +39,7 @@ import {
  * The tests below say what actually matters about the set — every palette node
  * demonstrated, no deprecated types, the credential rules, the domain floor.
  */
-const EXPECTED_TEMPLATE_COUNT = 78;
+const EXPECTED_TEMPLATE_COUNT = 93;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
@@ -242,6 +245,73 @@ describe("template catalogue", () => {
 
       // Every placeholder still has to correspond to a real requirement.
       expect(required.length).toBeGreaterThanOrEqual(distinctTypes.size);
+    }
+  });
+
+  it("bakes in no workspace ids, only placeholders the install surfaces", () => {
+    // AF-M10-25. A real spreadsheet id, Drive folder, Slack channel or QBO
+    // account id in a shipped template is one of two bugs: it leaks the
+    // author's workspace, or - the finance case - it points somebody's books
+    // at a sandbox company that accepts the write and loses it. The only
+    // per-installation values allowed are REPLACE_WITH_* placeholders, and
+    // every one of them must reach `pendingSetup`, so the install page can
+    // say what is still owed rather than the value hiding in the JSON.
+    const idField =
+      /^(spreadsheetId|baseId|tableId|folderId|channel|customerId|vendorId|itemId|priceId|expenseAccountId|paymentAccountId|depositToAccountId|entityId|invoiceId)$/;
+
+    // A NAME is fine to ship: Airtable takes `Incidents` as a table, Slack
+    // takes `#alerts`, and both are sensible defaults an installer can keep.
+    // An opaque ID is not, because it can only ever have come from one
+    // workspace. So the rule is shaped against the id formats rather than
+    // against everything that is not a placeholder.
+    const looksLikeAnId = [
+      /^(app|tbl|rec|viw|fld)[A-Za-z0-9]{14}$/, // Airtable
+      /^[A-Za-z0-9_-]{25,}$/, // Google file, sheet and folder ids
+      /^[CGD][A-Z0-9]{8,}$/, // Slack channel
+      /^(price|prod|cus|acct)_[A-Za-z0-9]{8,}$/, // Stripe
+      /^\d+$/, // QuickBooks: company, item, account and tax-code ids
+    ];
+
+    for (const template of templateCatalog) {
+      const declared = new Set(
+        collectPendingSetup(template.graph.nodes).map(
+          (v) => `${v.nodeId}:${v.field}:${v.placeholder}`,
+        ),
+      );
+
+      for (const node of template.graph.nodes) {
+        for (const [key, value] of Object.entries(node.data ?? {})) {
+          if (!idField.test(key) || typeof value !== "string") continue;
+          if (value === "" || value.includes("{{")) continue;
+
+          if (value.startsWith("REPLACE_WITH_")) {
+            expect(
+              declared.has(`${node.id}:${key}:${value}`),
+              `${template.slug}/${node.id}.${key} is not reported as pending setup`,
+            ).toBe(true);
+            continue;
+          }
+
+          expect(
+            looksLikeAnId.some((shape) => shape.test(value)),
+            `${template.slug}/${node.id}.${key} = ${JSON.stringify(value)} is an opaque id from somebody's workspace - use a REPLACE_WITH_* placeholder`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("names every setup placeholder in uppercase, so the install page can read it", () => {
+    // `humanisePlaceholder` turns REPLACE_WITH_SPREADSHEET_ID into
+    // "Spreadsheet id". A lowercase or camelCase token renders as noise, and
+    // a bare REPLACE_WITH_ says nothing at all.
+    for (const template of templateCatalog) {
+      for (const value of collectPendingSetup(template.graph.nodes)) {
+        expect(
+          value.placeholder,
+          `${template.slug}/${value.nodeId}.${value.field}`,
+        ).toMatch(/^REPLACE_WITH_[A-Z][A-Z0-9_]*[A-Z0-9]$/);
+      }
     }
   });
 

@@ -2674,28 +2674,192 @@ first time a media node has been able to be.
 
 Authored as `TemplateSpec` entries under `src/features/templates/catalog/`, gated by
 `harness.test.ts`. **A template is not done when it is authored — it is done when
-AF-M10-34 runs it green.** Each batch adds its templates *and* their fixture-server
-suites in the same task; splitting authoring from proving is how a catalogue fills up
-with graphs nobody has run.
+AF-M10-34 runs it green.**
+
+**Amended 2026-09-04 (AF-M10-24).** This originally required each batch to add its
+templates *and* their fixture-server suites in the same task. That is not currently
+possible: the fixture server redirects a graph by rewriting `node.data.endpoint`, which
+only `HTTP_REQUEST` has, while every Phase B service client holds its base URL as a
+module constant with no seam to point elsewhere. Building that seam is infrastructure,
+and AF-M10-34 already owns "no network access, no credentials", so **C-24…C-32 author
+and D-34 proves**. The rule the original wording defended still stands — a batch's task
+stays 🟡 with its fixture box unticked until AF-M10-34 runs it, so no template is
+counted done on the strength of having been typed.
 
 Every entry must also state, in its `description`, any deviation from the source
 document — the way AF-M9's W3 fallback was required to.
 
-### ⬜ AF-M10-24 · Templates: Sales & Marketing (#1–#7) · 2d
+### 🟡 AF-M10-24 · Templates: Sales & Marketing (#1–#7) · 2d · **AUTHORED 2026-09-04**
 **Depends on:** AF-M10-15, AF-M10-19
 **Acceptance**
-- [ ] Seven specs: `outreach-personalized-gmail`, `upwork-proposal-generator`, `lead-gen-apollo-gpt4`, `cold-outreach-gemini`, `linkedin-profile-research`, `lead-gen-google-search-maps`, `outreach-from-job-signals`.
-- [ ] Each carries the source doc's prerequisites in its `description`, including required sheet columns.
-- [ ] `harness.test.ts` passes for all seven (schema, ports, credentials, no dangling edges).
-- [ ] progress.md updated
+- [x] Seven specs: `outreach-personalized-gmail`, `upwork-proposal-generator`, `lead-gen-apollo-gpt4`, `cold-outreach-gemini`, `linkedin-profile-research`, `lead-gen-google-search-maps`, `outreach-from-job-signals`.
+- [x] Each carries the source doc's prerequisites in its `description`, including required sheet columns.
+- [x] `harness.test.ts` passes for all seven (schema, ports, credentials, no dangling edges).
+- [ ] **Fixture-server suites — blocked, see below.** Carried by AF-M10-34.
+- [x] progress.md updated
 
-### ⬜ AF-M10-25 · Templates: Finance & Accounting (#8–#17) · 2.5d
+**Status 2026-09-04 — authored, not proven.** Seven templates (85 total), all
+seven `library` tier. Deliberately left open rather than ticked: by the Phase C
+rule above, a template is done when AF-M10-34 runs it green, and the fixture
+suites this task was supposed to add **cannot be written yet**. See "Phase C's
+per-batch fixture rule is not currently achievable" below.
+
+**Deviations from the source, and why each was necessary.** Every one is stated
+in the template's own `description`, so an operator installing it reads it
+without opening this file:
+
+- **#1 (`outreach-personalized-gmail`)** — the source reads the Gmail account's
+  display name and syncs it onto the send. That is a *read* this product has no
+  node for, so the From address is node config instead. The source also has no
+  already-sent guard; a Sent column and a filter on it are added here, because a
+  cold-outreach flow on a schedule without one emails the same list every hour.
+- **#4 (`cold-outreach-gemini`)** — same guard, same reason.
+- **#5 (`linkedin-profile-research`)** — rows that already hold Profile Data are
+  skipped, which the source does not do. An Apify run per row costs credits, and
+  a scheduled read that re-scrapes the same twenty profiles hourly is an
+  expensive way to get an answer already in the sheet.
+- **#6 (`lead-gen-google-search-maps`)** — the source triggers from a chat
+  interface; this uses `FORM_TRIGGER`, the equivalent this product ships. Also
+  worth stating plainly in the template: Custom Search and Places need **two
+  separate Google keys** — a Custom Search key is refused by Places — and the
+  `cx` search-engine id lives on the credential, not in node config. Both APIs
+  are metered, so the result caps are deliberate.
+- **#7 (`outreach-from-job-signals`)** — the source filters by company size and
+  industry off the scrape. Apify actors differ in whether they return either, so
+  the filter moved to after Apollo enrichment where the number is reliable, and
+  Apollo misses skip rather than fail: a fifty-company list must not stop at the
+  first unknown company.
+
+**One credential-free entry per batch, still holding.** #6 is not it — it needs
+three. The floor is met from the existing catalogue; the next batch owes one.
+
+**Phase C's per-batch fixture rule is not currently achievable.** The preamble
+says each batch adds its templates *and* their fixture-server suites. It cannot,
+and this is worth recording rather than quietly skipping:
+`tests/integration/fixtures/http-fixture-server.ts` redirects a graph by
+rewriting `node.data.endpoint`, which only exists on `HTTP_REQUEST`. Every
+service client added in Phase B holds its base URL as a **module constant** —
+`const APIFY_API = "https://api.apify.com/v2"`, and the same for Apollo,
+Google, Gmail, Sheets, Stripe, Shopify, Airtable, Telegram, WAHA and the rest —
+so there is no seam a test can point at a local server. Six of this batch's
+seven templates call at least one such client.
+
+Building that seam is a piece of infrastructure, not a line in a template task,
+and AF-M10-34 already owns "no network access, no credentials". So the
+redirection belongs there, and **AF-M10-24 through AF-M10-32 author; AF-M10-34
+proves**. The Phase C preamble is corrected above to say so. This does not
+weaken the rule the preamble was defending — nothing here is ticked as done on
+the strength of having been typed.
+
+**A lint failure I had reported as clean.** `npm run lint` was failing at HEAD
+with one error and five warnings, all in files from AF-M10-20/21/22, and I had
+reported those three commits as lint clean. They were not. Fixed in this commit:
+a `forEach` callback returning a value in the Stripe form encoder, an unused
+`headers` parameter in the Airtable error classifier (Airtable never sends
+Retry-After, so nothing read it), an unused `vi` import, and two non-null
+assertions in the Telegram tests replaced by a helper that throws a named error
+when a fixture fails to parse. The `mimeType` that Upload-Post was reading and
+discarding now sets the multipart part's content type, which is what
+Upload-Post actually checks — a generated video arrives under whatever name the
+generator gave it, so the filename extension is not a reliable substitute.
+
+The cause was running `biome check` on a path subset instead of `npm run lint`.
+Gate commands are now taken from `package.json`, not composed by hand.
+
+### 🟡 AF-M10-25 · Templates: Finance & Accounting (#8–#17) · 2.5d · **AUTHORED 2026-09-04**
 **Depends on:** AF-M10-16, AF-M10-20, AF-M10-15
 **Acceptance**
-- [ ] Ten specs covering AP invoice processing, expense sync, Slack invoice alerts, Stripe→QBO receipts, PDF archiving, sheet→QBO customer/receipt/estimate flows, invoice sync, full-cycle invoicing, and Airtable sales orders.
-- [ ] #8's confidence-threshold branch is a real `CONDITION` on the extraction confidence, with the low-confidence path writing an exceptions row and alerting Slack — not a comment saying it should.
-- [ ] No template contains a sandbox company id, item id or tax code; all such values are config the installer must supply, surfaced as pending setup.
-- [ ] progress.md updated
+- [x] Ten specs covering AP invoice processing, expense sync, Slack invoice alerts, Stripe→QBO receipts, PDF archiving, sheet→QBO customer/receipt/estimate flows, invoice sync, full-cycle invoicing, and Airtable sales orders.
+- [x] #8's confidence-threshold branch is a real `CONDITION` on the extraction confidence, with the low-confidence path writing an exceptions row and alerting Slack — not a comment saying it should.
+- [x] No template contains a sandbox company id, item id or tax code; all such values are config the installer must supply, surfaced as pending setup.
+- [ ] **Fixture-server suites — carried by AF-M10-34**, per the amended Phase C note above.
+- [x] progress.md updated
+
+**Status 2026-09-04 — authored, not proven.** Eight new templates in
+`catalog/finance.ts` (93 total) plus two upgraded in place, and the
+pending-setup mechanism the third acceptance box turned out to need.
+
+**Two of the ten already existed, so they were upgraded rather than
+duplicated.** AF-M10-16 authored `quickbooks-receipt-from-stripe-payment` (#11)
+and `quickbooks-estimate-from-sheet-row` (#14) as demonstrations of the
+QuickBooks family, and each implemented a strict subset of its source: #11
+stopped when the payer was unknown, #14 required the customer to exist already.
+Both now carry the source's find-or-create branch. Shipping a second slug that
+differed from an existing one by a single branch would have left the catalogue
+with two answers to the same question and no way to tell which was meant.
+
+The third, `quickbooks-expense-with-receipt`, was left alone: #9's whole point
+is the Airtable approval loop, and a webhook-triggered claim is a different
+flow, not a lesser one. #9 is authored beside it.
+
+**"Surfaced as pending setup" did not exist, so it was built.** The third
+acceptance box asks for two things and only the first was possible: the
+catalogue's `REPLACE_WITH_*` convention keeps sandbox ids out, but nothing
+*surfaced* them — they were visible only to somebody reading the graph JSON.
+Worse, the template page told a credential-free template that it "runs as-is
+once installed", which is false for any template holding a spreadsheet id it
+cannot know.
+
+So `collectPendingSetup` now walks each node's config and reports every
+placeholder, and the install panel lists them beside the credentials, because
+both answer the same question: what do I still owe this workflow before it will
+run. Three details that decided the shape:
+
+- **The walk is recursive.** A placeholder is rarely a top-level string — it
+  sits inside a `mappings` array, inside the JSON of a `values` field, inside
+  `code`. Reporting only top-level keys would have called most of these
+  templates ready.
+- **The pattern requires uppercase after the prefix**, so an AI prompt saying
+  "replace with the customer name" is not reported as setup.
+- **The UI de-duplicates per node, not per occurrence.** A spreadsheet id
+  appears in four nodes of a sheet-driven template and twice within one of
+  them; listing six rows would bury the two other things also owed.
+
+**The harness rule caught a distinction I had drawn wrongly.** The first
+version demanded that every id-shaped field be a placeholder, and it
+immediately failed on `tableId: "Incidents"` — which is correct as it stands,
+because Airtable accepts a table *name*, and `#alerts` is a Slack channel the
+same way. A name is a sensible default an installer keeps; an opaque id can
+only have come from one workspace. The rule is now shaped against the id
+formats themselves — Airtable's `app`/`tbl` prefixes, Google's 25-plus
+character ids, Slack's `C…`, Stripe's `price_`, and QuickBooks' bare digits,
+which is exactly the company/item/account/tax-code shape this box names.
+
+**#8 is the only Advanced automation in the batch and the only one that
+strained the credential cap.** It needs Drive, Sheets, QuickBooks and Slack —
+four, the library ceiling exactly — and fits only because `AI_EXTRACT`'s
+provider keys are optional. Its confidence branch is real: the model returns a
+`confidence` field whose description tells it what the number is *for*, since a
+model asked for a confidence without being told it decides whether a human
+reads the invoice returns 0.95 for everything.
+
+**Deviations, each stated in the template's own description.**
+
+- **#8** — the source also triggers on Gmail attachments. This product reads a
+  Gmail message but has **no node to fetch an attachment's bytes**, so the mail
+  arm would extract nothing; the description points at the Gmail-filter-to-Drive
+  workaround instead of pretending. And the source creates a QuickBooks **Bill**;
+  there is no bill node, so a Purchase is recorded — which books the spend but
+  does not create a payable that ages, and the description says so rather than
+  letting an AP team discover it at month end.
+- **#9** — the source checks `Status = Approved` inside the workflow; here it is
+  the trigger's `filterByFormula`, so an unapproved record never starts a run.
+- **#10** — Balance added to the alert. "Invoice updated" without it is an alert
+  nobody can act on, and the common update IS a payment.
+- **#15** — an upsert keyed on the invoice id rather than the source's "append
+  or update", which is the same intent said precisely: an append-only sheet
+  grows a second row every time an invoice is paid.
+- **#16** — Stripe payment links are built from a **Price**, not an arbitrary
+  amount, so the link points at a configured Price while the QuickBooks invoice
+  carries the deal's real amount. A per-deal variable amount needs a Checkout
+  Session, which is a different API; the description says to send the link by
+  hand in that case rather than quietly billing the wrong number.
+- **#17** — the Airtable trigger replaces the source's Airtable-side webhook,
+  because a polled read with a formula filter reaches the same records with
+  nothing to configure in Airtable.
+- **#13** — rows already in the sheet when you publish are not replayed. The
+  source has no such guard, and without one, publishing against an existing
+  sheet files a receipt for every historical sale at once.
 
 ### ⬜ AF-M10-26 · Templates: Engineering & DevOps (#18–#20) · 1d
 **Depends on:** AF-M10-18, AF-M10-17
@@ -2762,7 +2926,8 @@ The milestone's definition of done.
 **Depends on:** Phase C, AF-M10-33
 **Acceptance**
 - [ ] `tests/integration/automations/` drives each of the 35 catalogue graphs through `runGraph` against the fixture server, asserting terminal `SUCCESS` and the expected `NodeExecution` count, order and statuses.
-- [ ] Trigger payloads are injected through the `initialData` option that AF-M9-01 still owes (its first reopened acceptance box) — this task cannot close until that lands.
+- [ ] Trigger payloads are injected through `runGraph`'s `initialData` option. ~~This task cannot close until AF-M9-01 lands it.~~ **Unblocked 2026-09-03** — that box closed with AF-M9-10; the note above was stale when AF-M10-24 checked it.
+- [ ] **Client base-URL redirection, moved here from Phase C (2026-09-04).** The fixture server only redirects `node.data.endpoint`, so it can reach `HTTP_REQUEST` and nothing else; every Phase B client (`const APIFY_API = …`, and the same for Apollo, Google, Gmail, Sheets, Stripe, Shopify, Airtable, Telegram, WAHA) hardcodes its base URL as a module constant. Without a seam, ~30 of the 35 cannot be driven offline at all. This is the task's real first step, not a detail of it.
 - [ ] No network access, no credentials, no manual intervention; suite runs in the existing `integration` project.
 - [ ] A staging checklist records which of the 35 have additionally been run against real accounts, with dates — CI-green and provider-green are different claims and the docs must not blur them.
 - [ ] progress.md updated

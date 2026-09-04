@@ -709,7 +709,7 @@ export const dataTemplates: TemplateSpec[] = [
     slug: "quickbooks-receipt-from-stripe-payment",
     name: "Record a Stripe payment as a QuickBooks sales receipt",
     description:
-      "Turns a completed Stripe payment into a QuickBooks sales receipt. A receipt rather than an invoice, deliberately: the money has already arrived, and raising an invoice would leave a balance somebody has to remember to clear. The customer is matched on the email Stripe supplies; when no match exists the run stops rather than inventing a customer, because a receipt filed against the wrong account is harder to find than one that was never filed. Point the deposit account at wherever Stripe settles in your chart of accounts. Supply a QuickBooks credential; the Stripe trigger uses the platform's own signing secret.",
+      'Reference automation #11. Turns a completed Stripe payment into a QuickBooks sales receipt, creating the QuickBooks customer first when the payer is new. A receipt rather than an invoice, deliberately: the money has already arrived, and raising an invoice would leave a balance somebody has to remember to clear. Both branches end at the same receipt node, so a first-time payer and a repeat one produce the same record. Point the deposit account at wherever Stripe settles in your chart of accounts. PREREQUISITES: a Stripe account with webhook access and a QuickBooks credential; the Stripe trigger uses the platform\'s own signing secret. DEVIATIONS FROM THE SOURCE: none in shape. The source matches on customer name; this matches on the email Stripe supplies, because a name match on "J Smith" against "John Smith Ltd" fails silently and then creates a duplicate customer.',
     category: "Finance",
     domain: "data",
     tags: [
@@ -751,16 +751,46 @@ export const dataTemplates: TemplateSpec[] = [
           },
         },
         {
+          id: "new-customer",
+          type: "QBO_CREATE_CUSTOMER",
+          name: "Create the customer",
+          position: { x: 840, y: 120 },
+          data: {
+            variableName: "created",
+            displayName: "{{stripe.raw.billing_details.name}}",
+            email: "{{stripe.raw.billing_details.email}}",
+          },
+        },
+        {
+          id: "resolve",
+          type: "SET",
+          name: "Whichever customer we have",
+          position: { x: 1120, y: 0 },
+          data: {
+            // Both branches converge here so the receipt node is written once.
+            // `customer.customerId` is null on the created branch and `created`
+            // is absent on the matched one, so the fallback picks the live one.
+            mappings: [
+              {
+                key: "qboCustomerId",
+                value:
+                  "{{#if customer.found}}{{customer.customerId}}{{else}}{{created.customerId}}{{/if}}",
+              },
+            ],
+          },
+        },
+        {
           id: "receipt",
           type: "QBO_CREATE_SALES_RECEIPT",
           name: "Record the receipt",
-          position: { x: 840, y: -80 },
+          position: { x: 1400, y: 0 },
           data: {
             variableName: "receipt",
-            customerId: "{{customer.customerId}}",
+            customerId: "{{qboCustomerId}}",
             // Stripe reports in the currency's minor unit, so 4999 is 49.99.
             lines:
               '[{"description":"Stripe payment {{stripe.raw.id}}","amount":{{stripe.raw.amount}}}]',
+            depositToAccountId: "REPLACE_WITH_DEPOSIT_ACCOUNT_ID",
             customerMemo: "Stripe {{stripe.eventId}}",
           },
         },
@@ -768,10 +798,13 @@ export const dataTemplates: TemplateSpec[] = [
       edges: [
         { source: "paid", target: "customer" },
         { source: "customer", target: "matched" },
-        // Only the matched branch continues. The unmatched one ends here on
-        // purpose: a receipt filed against a guessed customer is worse than
-        // one a person files by hand.
-        { source: "matched", target: "receipt", sourceHandle: "true" },
+        { source: "matched", target: "resolve", sourceHandle: "true" },
+        // The source's behaviour: an unknown payer becomes a customer rather
+        // than stopping the run. A payment that has already cleared has to be
+        // recorded somewhere, and leaving it unrecorded is the worse error.
+        { source: "matched", target: "new-customer", sourceHandle: "false" },
+        { source: "new-customer", target: "resolve" },
+        { source: "resolve", target: "receipt" },
       ],
     },
   },
@@ -779,7 +812,7 @@ export const dataTemplates: TemplateSpec[] = [
     slug: "quickbooks-estimate-from-sheet-row",
     name: "Turn a spreadsheet row into a QuickBooks estimate",
     description:
-      "Watches a sheet of quote requests and raises a QuickBooks estimate for each new row. An estimate rather than an invoice: nothing posts to the ledger until the customer accepts, so a quote that goes nowhere leaves no trace to reverse. Rows already in the sheet when you publish are not replayed — the trigger records where the sheet was and starts from there. Give the sheet a header row and a stable key column (a quote number or an email); identifying rows by position is only safe on a sheet nobody ever sorts. Headers are addressed as {{row.fields.Quote}}, so a header containing a space needs bracket syntax — {{row.fields.[Quote ID]}} — which is why this template's columns are single words. The customer must already exist in QuickBooks. Supply a Sheets credential and a QuickBooks credential.",
+      "Watches a sheet of quote requests and raises a QuickBooks estimate for each new row. An estimate rather than an invoice: nothing posts to the ledger until the customer accepts, so a quote that goes nowhere leaves no trace to reverse. Rows already in the sheet when you publish are not replayed — the trigger records where the sheet was and starts from there. Give the sheet a header row and a stable key column (a quote number or an email); identifying rows by position is only safe on a sheet nobody ever sorts. Headers are addressed as {{row.fields.Quote}}, so a header containing a space needs bracket syntax — {{row.fields.[Quote ID]}} — which is why this template's columns are single words. PREREQUISITES: a Sheets credential and a QuickBooks credential, and your own itemId and TaxCodeRef values on the estimate node if your QuickBooks file requires them. Columns: Quote, Customer, Email, Phone, Company, Description, Amount. DEVIATIONS FROM THE SOURCE: none in shape — a new customer is created and the estimate raised against it, while a row naming an EXISTING customer stops, which is the source's duplicate guard. That guard is worth understanding before installing: it means this template only ever quotes new customers, so a repeat quote for an existing customer has to be raised by hand.",
     category: "Finance",
     domain: "data",
     // Sheets to read the request, QuickBooks to raise the estimate.
@@ -811,13 +844,37 @@ export const dataTemplates: TemplateSpec[] = [
           },
         },
         {
+          id: "already-known",
+          type: "CONDITION",
+          name: "Already a customer?",
+          position: { x: 600, y: 0 },
+          data: {
+            left: "{{customer.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "new-customer",
+          type: "QBO_CREATE_CUSTOMER",
+          name: "Create the customer",
+          position: { x: 900, y: 80 },
+          data: {
+            variableName: "created",
+            displayName: "{{row.fields.Customer}}",
+            email: "{{row.fields.Email}}",
+            phone: "{{row.fields.Phone}}",
+            companyName: "{{row.fields.Company}}",
+          },
+        },
+        {
           id: "estimate",
           type: "QBO_CREATE_ESTIMATE",
           name: "Raise the estimate",
-          position: { x: 600, y: 0 },
+          position: { x: 1200, y: 80 },
           data: {
             variableName: "estimate",
-            customerId: "{{customer.customerId}}",
+            customerId: "{{created.customerId}}",
             lines:
               '[{"description":"{{row.fields.Description}}","amount":"{{row.fields.Amount}}"}]',
             customerMemo: "Quote {{row.fields.Quote}}",
@@ -826,7 +883,16 @@ export const dataTemplates: TemplateSpec[] = [
       ],
       edges: [
         { source: "new-row", target: "customer" },
-        { source: "customer", target: "estimate" },
+        { source: "customer", target: "already-known" },
+        // The true branch deliberately ends here: the source stops on an
+        // existing customer to prevent a duplicate quote, so a repeat customer
+        // is quoted by hand rather than twice by accident.
+        {
+          source: "already-known",
+          target: "new-customer",
+          sourceHandle: "false",
+        },
+        { source: "new-customer", target: "estimate" },
       ],
     },
   },

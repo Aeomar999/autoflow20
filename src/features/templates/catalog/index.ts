@@ -1,4 +1,5 @@
 import { dataTemplates } from "./data";
+import { financeTemplates } from "./finance";
 import { countRequiredCredentials } from "./harness";
 import { marketingTemplates } from "./marketing";
 import { opsTemplates } from "./ops";
@@ -17,6 +18,7 @@ export const templateCatalog: TemplateSpec[] = [
   ...supportTemplates,
   ...opsTemplates,
   ...dataTemplates,
+  ...financeTemplates,
 ];
 
 /** The row shape `seed:templates` upserts — derived fields already resolved. */

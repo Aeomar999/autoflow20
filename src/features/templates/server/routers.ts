@@ -14,6 +14,7 @@ import {
 
 import {
   collectPendingCredentials,
+  collectPendingSetup,
   type PreparedTemplate,
   prepareTemplateGraph,
   type TemplateGraph,
@@ -163,6 +164,7 @@ export const templatesRouter = createTRPCRouter({
         updatedAt: template.updatedAt,
         nodeSummary,
         pendingCredentials: collectPendingCredentials(rawGraph.nodes),
+        pendingSetup: collectPendingSetup(rawGraph.nodes),
       };
     }),
 
@@ -286,6 +288,7 @@ export const templatesRouter = createTRPCRouter({
         workflowId: workflow.id,
         nodeCount: prepared.nodes.length,
         pendingCredentials: prepared.pendingCredentials,
+        pendingSetup: prepared.pendingSetup,
       };
     }),
 });
