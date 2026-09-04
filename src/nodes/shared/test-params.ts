@@ -15,7 +15,11 @@ import type { NodeRunParams } from "@/nodes/types";
  * files import it; nothing in production code may.
  */
 export function withResolve<
-  T extends { context: NodeRunParams["context"]; resolve?: unknown },
+  T extends {
+    context: NodeRunParams["context"];
+    resolve?: unknown;
+    item?: NodeRunParams["item"];
+  },
 >(params: T): T & { resolve: NodeRunParams["resolve"] } {
   return {
     ...params,
@@ -28,6 +32,14 @@ export function withResolve<
           executionId: "exec_test",
           workflowId: "wf_test",
         },
+        // AF-M10-10: a fixture that supplies `item` is standing in for a node
+        // inside a fan-out segment, and the engine puts `$item`/`$itemIndex`
+        // in the resolver's scope there. Deriving the scope from the same
+        // field the executor reads keeps the two from disagreeing — a test
+        // whose templates resolved to "" would pass for the wrong reason.
+        params.item
+          ? { $item: params.item.value, $itemIndex: params.item.index }
+          : undefined,
       ),
   };
 }

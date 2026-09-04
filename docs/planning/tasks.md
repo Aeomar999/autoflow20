@@ -1855,7 +1855,7 @@ Verified against code on 2026-09-03. `Closed by` names the task below.
 
 #### Phase A — platform capabilities *(nothing in Phase B or C is authorable until these land)*
 
-### ⬜ AF-M10-01 · Credentials on `HTTP_REQUEST` · 1.5d
+### ✅ AF-M10-01 · Credentials on `HTTP_REQUEST` · 1.5d · **DONE 2026-09-03**
 H1. Give the generic node a credential binding so any REST API in the library is
 reachable without pasting a secret into a templated header. This is the milestone's
 keystone: it converts most of Phase B from bespoke integration work into
@@ -1863,169 +1863,195 @@ configuration, and it is the only Phase A task that unblocks work in parallel.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] `configSchema` gains `credentialId` + `authMode` (`none` | `bearer` | `header` | `basic` | `queryParam` | `oauth2`); `credentials: [{ key: "credentialId", type: "*", required: false }]` accepts **any** registered type, resolved through the existing AF-M3-04 injection path.
-- [ ] The executor reads only from `params.credentials` — never `data` — and applies auth per `authMode`; an OAuth2 credential sends `Authorization: Bearer <accessToken>` and honours the AF-M3 refresh path.
-- [ ] Secret material never reaches `NodeExecution.input/output`: a test asserts the persisted row for an authenticated request contains no substring of the secret, including in the echoed request headers.
-- [ ] A credential-typed node still validates when unbound (`authMode: "none"`), so existing saved `HTTP_REQUEST` nodes load unchanged — no migration.
-- [ ] Egress guard, timeout, retry policy (AF-M9-06) and the ADR-0018 byte cap all continue to apply; a redirect hop re-vets *and* re-attaches auth only for the same origin (an auth header must not follow a cross-origin redirect).
-- [ ] `docs/nodes/http-request.md` written, covering the cross-origin-redirect rule.
-- [ ] progress.md updated
+- [x] `configSchema` gains `credentialId` + `authMode` (`none` | `bearer` | `header` | `basic` | `queryParam` | `oauth2`); `credentials: [{ key: "credentialId", type: "*", required: false }]` accepts **any** registered type, resolved through the existing AF-M3-04 injection path.
+- [x] The executor reads only from `params.credentials` — never `data` — and applies auth per `authMode`; an OAuth2 credential sends `Authorization: Bearer <accessToken>` and honours the AF-M3 refresh path.
+- [x] Secret material never reaches `NodeExecution.input/output`: a test asserts the persisted row for an authenticated request contains no substring of the secret, including in the echoed request headers.
+- [x] A credential-typed node still validates when unbound (`authMode: "none"`), so existing saved `HTTP_REQUEST` nodes load unchanged — no migration.
+- [x] Egress guard, timeout, retry policy (AF-M9-06) and the ADR-0018 byte cap all continue to apply; a redirect hop re-vets *and* re-attaches auth only for the same origin (an auth header must not follow a cross-origin redirect).
+- [x] `docs/nodes/http-request.md` written, covering the cross-origin-redirect rule.
+- [x] progress.md updated
 
-### ⬜ AF-M10-02 · Credential types for the library's services · 1.5d
+### ✅ AF-M10-02 · Credential types for the library's services · 1.5d · **DONE 2026-09-03**
 H2. Add the API-key/bearer credential definitions the 35 need. These are data
 entries against the existing registry, not new machinery — batch them.
 
 **Depends on:** —
 **Acceptance**
-- [ ] New types registered in `credential-types.ts`: `apify.apiKey`, `apollo.apiKey`, `mailerlite.apiKey`, `pinecone.apiKey` (+ `environment`, `indexHost`), `openrouter.apiKey`, `creatomate.apiKey`, `telegram.botToken`, `waha.apiKey` (+ `baseUrl`), `uploadPost.apiKey`, `googleCustomSearch.apiKey` (+ `cx`), `shopify.accessToken` (+ `shopDomain`), `jira.apiToken` (+ `email`, `siteUrl`).
-- [ ] Each carries a `logo` pointing at a real file under `public/logos/` (see AF-M10-35 for the 18 that must be added first).
-- [ ] Connection testers registered for every type whose provider exposes a cheap authenticated GET; types without one are explicitly `NOT_TESTABLE` rather than silently untested.
-- [ ] `credential-registry.test.ts` extended: every new type round-trips through `secretFromInput` → vault → `openSecret`, and `computePreview` masks every `secret: true` field.
-- [ ] progress.md updated
+- [x] New types registered in `credential-types.ts`: `apify.apiKey`, `apollo.apiKey`, `mailerlite.apiKey`, `pinecone.apiKey` (+ `environment`, `indexHost`), `openrouter.apiKey`, `creatomate.apiKey`, `telegram.botToken`, `waha.apiKey` (+ `baseUrl`), `uploadPost.apiKey`, `googleCustomSearch.apiKey` (+ `cx`), `shopify.accessToken` (+ `shopDomain`), `jira.apiToken` (+ `email`, `siteUrl`).
+- [x] Each carries a `logo` pointing at a real file under `public/logos/` (see AF-M10-35 for the 18 that must be added first).
+- [x] Connection testers registered for every type whose provider exposes a cheap authenticated GET; types without one are explicitly `NOT_TESTABLE` rather than silently untested.
+- [x] `credential-registry.test.ts` extended: every new type round-trips through `secretFromInput` → vault → `openSecret`, and `computePreview` masks every `secret: true` field.
+- [x] progress.md updated
 
-### ⬜ AF-M10-03 · Scoped Google credentials · 1d
+### ✅ AF-M10-03 · Scoped Google credentials · 1d · **DONE 2026-09-03**
 H3. Split the single `google.oauth2` type into per-service credential types so a
 workflow that appends to a sheet cannot also read the user's mail.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] Types `google.sheets`, `google.gmail`, `google.drive`, `google.calendar`, `google.docs` registered, each with its own `defaultScopes` (e.g. `gmail` → `gmail.readonly gmail.send`, `drive` → `drive.file drive.readonly`).
-- [ ] The existing `google.oauth2` type is **kept and marked deprecated**, not removed: saved `GOOGLE_SHEETS_APPEND` nodes reference it by id and must keep running (ADR-0011 retirement rule). A node's `credentials[].type` accepts either during the overlap.
-- [ ] Consent screen shows only the scopes for the type being connected; a test asserts the authorize URL's `scope` param per type.
-- [ ] `docs/architecture/security.md` §credentials records why one credential per Google service, not one per user.
-- [ ] progress.md updated
+- [x] Types `google.sheets`, `google.gmail`, `google.drive`, `google.calendar`, `google.docs` registered, each with its own `defaultScopes` (e.g. `gmail` → `gmail.readonly gmail.send`, `drive` → `drive.file drive.readonly`).
+- [x] The existing `google.oauth2` type is **kept and marked deprecated**, not removed: saved `GOOGLE_SHEETS_APPEND` nodes reference it by id and must keep running (ADR-0011 retirement rule). A node's `credentials[].type` accepts either during the overlap.
+- [x] Consent screen shows only the scopes for the type being connected; a test asserts the authorize URL's `scope` param per type.
+- [x] `docs/architecture/security.md` §credentials records why one credential per Google service, not one per user.
+- [x] progress.md updated
 
-### ⬜ AF-M10-04 · OAuth providers: Intuit, GitHub, Atlassian, Notion, Shopify, LinkedIn, X · 2d
+### ✅ AF-M10-04 · OAuth providers: Intuit, GitHub, Atlassian, Notion, Shopify, LinkedIn, X · 2d · **DONE 2026-09-03**
 H4. Seven new providers in `oauth-providers.ts`, plus the one shape the current
 callback cannot express.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] Providers registered with authorize/token URLs, env-backed client id/secret getters, and default scopes; `.env.example` documents all fourteen new vars.
-- [ ] **Provider-extra capture:** the callback persists provider-specific identifiers returned alongside the token — Intuit's `realmId` (company id), Shopify's `shop`, X's `scope` — into the credential secret. Today `oauth-state.ts` has nowhere to put them; this is the schema change, not a config tweak.
-- [ ] Refresh handled per provider quirk: Intuit rotates the refresh token on every exchange (the old one dies — persist the new one in the same transaction or the connection is lost); X uses PKCE; Shopify tokens do not expire.
-- [ ] `oauth.test.ts` covers each provider's authorize-URL construction, the extras capture, and Intuit's rotating-refresh path.
-- [ ] progress.md updated
+- [x] Providers registered with authorize/token URLs, env-backed client id/secret getters, and default scopes; `.env.example` documents all fourteen new vars.
+- [x] **Provider-extra capture:** the callback persists provider-specific identifiers returned alongside the token — Intuit's `realmId` (company id), Shopify's `shop`, X's `scope` — into the credential secret. Today `oauth-state.ts` has nowhere to put them; this is the schema change, not a config tweak.
+- [x] Refresh handled per provider quirk: Intuit rotates the refresh token on every exchange (the old one dies — persist the new one in the same transaction or the connection is lost); X uses PKCE; Shopify tokens do not expire.
+- [x] `oauth.test.ts` covers each provider's authorize-URL construction, the extras capture, and Intuit's rotating-refresh path.
+- [x] progress.md updated
 
-### ⬜ AF-M10-05 · Polling trigger framework + `TriggerState` · 3d
+### ✅ AF-M10-05 · Polling trigger framework + `TriggerState` · 3d · **DONE 2026-09-03**
 H5. The largest single unlock in the milestone — 18 of 35 automations begin with
 "when a new X appears". Build the framework once; individual pollers become
 ~40-line adapters in Phase B.
 
 **Depends on:** AF-M10-01
 **Acceptance**
-- [ ] `TriggerState` model added: `(workflowId, nodeId)` unique, `cursor Json`, `lastPolledAt`, `lastSeenIds String[]`, org-scoped. Migration written and applied.
-- [ ] A `PollingTrigger` interface in the node SDK: `poll(ctx: { cursor, credentials, config }) => { items: unknown[]; cursor: unknown }`. A poller returns items; the framework owns dispatch, dedupe and cursor persistence — an adapter never writes `TriggerState` itself.
-- [ ] The `evaluate-schedules` Inngest job is extended (not duplicated) to sweep polling triggers on each workflow's configured interval, honouring `Node.disabled` exactly as AF-M9-17 does for schedule triggers.
-- [ ] **At-least-once with dedupe:** each returned item carries a stable id; ids seen in the previous window are suppressed, so a retried poll cannot double-dispatch. A test drives two consecutive polls returning an overlapping window and asserts exactly one run per item.
-- [ ] Backoff on provider failure, and a per-workflow poll budget so one broken credential cannot spend the whole sweep.
-- [ ] First poll of a newly-activated trigger establishes the cursor **without** dispatching history — a test asserts a workflow activated against a 500-row sheet dispatches zero runs, not 500.
-- [ ] `docs/architecture/execution_engine.md` §Triggers documents the contract; ADR written (see §5).
-- [ ] progress.md updated
+- [x] `TriggerState` model added: `(workflowId, nodeId)` unique, `cursor Json`, `lastPolledAt`, `lastSeenIds String[]`, org-scoped. Migration written and applied.
+- [x] A `PollingTrigger` interface in the node SDK: `poll(ctx: { cursor, credentials, config }) => { items: unknown[]; cursor: unknown }`. A poller returns items; the framework owns dispatch, dedupe and cursor persistence — an adapter never writes `TriggerState` itself.
+- [x] The `evaluate-schedules` Inngest job is extended (not duplicated) to sweep polling triggers on each workflow's configured interval, honouring `Node.disabled` exactly as AF-M9-17 does for schedule triggers.
+- [x] **At-least-once with dedupe:** each returned item carries a stable id; ids seen in the previous window are suppressed, so a retried poll cannot double-dispatch. A test drives two consecutive polls returning an overlapping window and asserts exactly one run per item.
+- [x] Backoff on provider failure, and a per-workflow poll budget so one broken credential cannot spend the whole sweep.
+- [x] First poll of a newly-activated trigger establishes the cursor **without** dispatching history — a test asserts a workflow activated against a 500-row sheet dispatches zero runs, not 500.
+- [x] `docs/architecture/execution_engine.md` §Triggers documents the contract; ADR written (see §5).
+- [x] progress.md updated
 
-### ⬜ AF-M10-06 · Binary payloads: `FileRef` + blob store · 3d
+### ✅ AF-M10-06 · Binary payloads: `FileRef` + blob store · 3d · **DONE 2026-09-03**
 H6. 12 automations move a PDF, image or video between nodes. Passing bytes through
 `WorkflowContext` is not an option — ADR-0018 caps per-node output.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] A `FileRef` shape (`{ $file: { id, filename, mimeType, size, sha256 } }`) is what travels in the context; **bytes never do**. A test asserts a 5 MB download leaves `NodeExecution.output` under the ADR-0018 cap.
-- [ ] Blob storage behind one interface with two implementations: local filesystem (dev/CI) and S3-compatible (staging/prod), selected by env. No provider SDK leaks past the interface.
-- [ ] Org-scoped keys, a per-org quota checked before write, and a TTL sweep that deletes blobs whose execution has passed the AF-M8-06 retention window.
-- [ ] `FILE_DOWNLOAD` (URL → `FileRef`, egress-guarded, size-capped) and `FILE_UPLOAD` helpers available to executors; a node opts in by declaring it accepts/produces `FileRef`.
-- [ ] Reading a `FileRef` requires the same org as the run — a cross-tenant read is a test case, not a comment.
-- [ ] ADR written (see §5); `docs/architecture/data_model.md` updated.
-- [ ] progress.md updated
+- [x] A `FileRef` shape (`{ $file: { id, filename, mimeType, size, sha256 } }`) is what travels in the context; **bytes never do**. A test asserts a 5 MB download leaves `NodeExecution.output` under the ADR-0018 cap.
+- [x] Blob storage behind one interface with two implementations: local filesystem (dev/CI) and S3-compatible (staging/prod), selected by env. No provider SDK leaks past the interface.
+- [x] Org-scoped keys, a per-org quota checked before write, and a TTL sweep that deletes blobs whose execution has passed the AF-M8-06 retention window.
+- [x] `FILE_DOWNLOAD` (URL → `FileRef`, egress-guarded, size-capped) and `FILE_UPLOAD` helpers available to executors; a node opts in by declaring it accepts/produces `FileRef`.
+- [x] Reading a `FileRef` requires the same org as the run — a cross-tenant read is a test case, not a comment.
+- [x] ADR written (see §5); `docs/architecture/data_model.md` updated.
+- [x] progress.md updated
 
-### ⬜ AF-M10-07 · Multimodal input for `AI_LLM` / `AI_EXTRACT` · 1.5d
+### ✅ AF-M10-07 · Multimodal input for `AI_LLM` / `AI_EXTRACT` · 1.5d · **DONE 2026-09-03**
 H7. Turn the declared `vision` capability into something a graph can use.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] Both nodes accept an `attachments` config: a template resolving to one or more `FileRef`s, passed to the provider as image/document parts via the existing `ai` SDK message shape.
-- [ ] A model without the `vision` capability fails **at validation time** with a message naming the model and the capability — not at run time, and never by silently dropping the attachment.
-- [ ] Attachment bytes are counted into the AF-M5 cost estimate; a test asserts a vision call's recorded cost exceeds the same prompt without the image.
-- [ ] PDF handling is explicit: providers that accept PDFs natively get the file; those that do not get page images or extracted text, and the choice is recorded in the trace so a user can see which path ran.
-- [ ] The AF-M5-07 response cache key includes the attachment `sha256` — two different invoices must not share a cache entry.
-- [ ] progress.md updated
+- [x] Both nodes accept an `attachments` config: a template resolving to one or more `FileRef`s, passed to the provider as image/document parts via the existing `ai` SDK message shape.
+- [x] A model without the `vision` capability fails **at validation time** with a message naming the model and the capability — not at run time, and never by silently dropping the attachment.
+- [x] Attachment bytes are counted into the AF-M5 cost estimate; a test asserts a vision call's recorded cost exceeds the same prompt without the image.
+- [x] PDF handling is explicit: providers that accept PDFs natively get the file; those that do not get page images or extracted text, and the choice is recorded in the trace so a user can see which path ran.
+- [x] The AF-M5-07 response cache key includes the attachment `sha256` — two different invoices must not share a cache entry.
+- [x] progress.md updated
 
-### ⬜ AF-M10-08 · `WAIT` node · 1d
+### ✅ AF-M10-08 · `WAIT` node · 1d · **DONE 2026-09-03**
 H8. #27 pauses until 15 minutes before a meeting.
 
 **Depends on:** AF-M9-01
 **Acceptance**
-- [ ] Modes: `duration` (relative) and `until` (a template resolving to an ISO timestamp). Backed by Inngest `step.sleep`/`step.sleepUntil` — no polling loop.
-- [ ] A maximum wait is enforced and configurable per plan; exceeding it fails validation at save time, not mid-run.
-- [ ] An `until` in the past resolves immediately rather than erroring.
-- [ ] The waiting node shows as a distinct status in the trace and the run detail UI — a run parked for six days must not read as hung.
-- [ ] Cancellation (AF-M8-27) interrupts a sleeping run.
-- [ ] progress.md updated
+- [x] Modes: `duration` (relative) and `until` (a template resolving to an ISO timestamp). Backed by Inngest `step.sleep`/`step.sleepUntil` — no polling loop.
+- [x] A maximum wait is enforced and configurable per plan; exceeding it fails validation at save time, not mid-run.
+- [x] An `until` in the past resolves immediately rather than erroring.
+- [x] The waiting node shows as a distinct status in the trace and the run detail UI — a run parked for six days must not read as hung.
+- [x] Cancellation (AF-M8-27) interrupts a sleeping run.
+- [x] progress.md updated
 
-### ⬜ AF-M10-09 · `APPROVAL` node — send and wait · 2d
+### ✅ AF-M10-09 · `APPROVAL` node — send and wait · 2d · **DONE 2026-09-03**
 H8. #30 emails an approver and blocks on the answer. `src/features/approvals` has
 the dashboard and the `ApprovalRequest` model; this binds them to the graph.
 
 **Depends on:** AF-M10-08
 **Acceptance**
-- [ ] The node creates an `ApprovalRequest` row, sends the request over a configured channel (Gmail/SMTP now; Slack once AF-M10-17 lands), and waits on an Inngest event.
-- [ ] Two outputs, `approved` and `rejected`, resolved through the AF-M9-09 `resolveOutputs` contract; a timeout routes to `rejected` with a recorded `skipReason`.
-- [ ] Approval links carry a single-use, expiring, org-scoped token; replay of a used token is rejected and audited. A test covers replay.
-- [ ] The approver's decision, identity and timestamp land in `AuditLog`.
-- [ ] Existing dashboard approvals and graph approvals share one model and one list — not two parallel systems.
-- [ ] progress.md updated
+- [x] The node creates an `ApprovalRequest` row, sends the request over a configured channel (Gmail/SMTP now; Slack once AF-M10-17 lands), and waits on an Inngest event.
+- [x] Two outputs, `approved` and `rejected`, resolved through the AF-M9-09 `resolveOutputs` contract; a timeout routes to `rejected` with a recorded `skipReason`.
+- [x] Approval links carry a single-use, expiring, org-scoped token; replay of a used token is rejected and audited. A test covers replay.
+- [x] The approver's decision, identity and timestamp land in `AuditLog`.
+- [x] Existing dashboard approvals and graph approvals share one model and one list — not two parallel systems.
+- [x] progress.md updated
 
-### ⬜ AF-M10-10 · `FILTER` and `DEDUPE` nodes · 1d
+### ✅ AF-M10-10 · `FILTER` and `DEDUPE` nodes · 1d · **DONE 2026-09-03**
 H15. Four automations mean "skip what we already handled".
 
 **Depends on:** AF-M10-05
 **Acceptance**
-- [ ] `FILTER`: evaluates a condition per item and passes through only matches, using the AF-M9-08 typed-value rules (a filter on `ok: true` must not compare the string `"true"`).
-- [ ] `DEDUPE`: suppresses items whose key was seen before, backed by the same `TriggerState` store, scoped to `(workflowId, nodeId)`; modes `forever` and `window(n)`.
-- [ ] Both are fan-out aware — inside an AF-M9-14 segment they filter the segment's items, and a fully-filtered branch ends the run cleanly rather than erroring.
-- [ ] Dedupe state is cleared when the node's key expression changes, so an edited workflow does not inherit stale keys.
-- [ ] progress.md updated
+- [x] `FILTER`: evaluates a condition per item and passes through only matches, using the AF-M9-08 typed-value rules (a filter on `ok: true` must not compare the string `"true"`).
+- [x] `DEDUPE`: suppresses items whose key was seen before, backed by the same `TriggerState` store, scoped to `(workflowId, nodeId)`; modes `forever` and `window(n)`.
+- [x] Both are fan-out aware — inside an AF-M9-14 segment they filter the segment's items, and a fully-filtered branch ends the run cleanly rather than erroring.
+- [x] Dedupe state is cleared when the node's key expression changes, so an edited workflow does not inherit stale keys.
+- [x] progress.md updated
 
-### ⬜ AF-M10-11 · `EXTRACT_DOCUMENT_TEXT` node · 0.5d
+### ✅ AF-M10-11 · `EXTRACT_DOCUMENT_TEXT` node · 0.5d · **DONE 2026-09-03**
 The extractor already exists for the knowledge base; expose it to graphs.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] Node wraps `src/features/knowledge/lib/extractor.ts` — one implementation, not a copy — taking a `FileRef` and returning `{ text, pageCount, truncated }`.
-- [ ] PDF and DOCX supported; an unsupported MIME type fails with a message naming the type. #29's "DOCX marked supported but not wired" deviation must not be reproduced here.
-- [ ] Output is capped and the cap is reported via `truncated`, never silently applied.
-- [ ] progress.md updated
+- [x] Node wraps `src/features/knowledge/lib/extractor.ts` — one implementation, not a copy — taking a `FileRef` and returning `{ text, pageCount, truncated }`.
+- [x] PDF and DOCX supported; an unsupported MIME type fails with a message naming the type. #29's "DOCX marked supported but not wired" deviation must not be reproduced here.
+- [x] Output is capped and the cap is reported via `truncated`, never silently applied.
+- [x] progress.md updated
 
-### ⬜ AF-M10-12 · `HTML_TO_PDF` node · 1d
+### ✅ AF-M10-12 · `HTML_TO_PDF` node · 1d · **DONE 2026-09-03**
 #28 renders an attorney-ready report.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] Takes templated HTML, returns a `FileRef`. Rendering runs with no network access and no JS execution from the input document — a test asserts an embedded `<script>` and a remote `<img>` neither execute nor fetch.
-- [ ] Page size, orientation and margins configurable; output size-capped.
-- [ ] Renderer choice and its footprint recorded in the task's DONE note — a headless browser is a deployment decision, not an implementation detail.
-- [ ] progress.md updated
+- [x] Takes templated HTML, returns a `FileRef`. Rendering runs with no network access and no JS execution from the input document — a test asserts an embedded `<script>` and a remote `<img>` neither execute nor fetch.
+- [x] Page size, orientation and margins configurable; output size-capped.
+- [x] Renderer choice and its footprint recorded in the task's DONE note — a headless browser is a deployment decision, not an implementation detail.
+- [x] progress.md updated
 
-### ⬜ AF-M10-13 · External vector store for `AI_RETRIEVE` (Pinecone) · 1.5d
+
+**DONE note — renderer choice.** Not a headless browser. `jsdom` →
+`html-to-pdfmake` → `pdfmake`, **~27 MB installed, pure JavaScript, no
+binaries**, versus ~300 MB of Chromium that would have to exist in the runtime
+image — which on Vercel it does not, so a browser would have meant a second
+deployment target for one node.
+
+The bigger reason is that the safety properties become structural instead of
+configured. jsdom is constructed without `runScripts` (nothing executes) and
+without `resources` (nothing is fetched); pdfmake's `setUrlAccessPolicy` denies
+every URL and `setLocalAccessPolicy` allows only the fourteen PDF standard font
+names. With a browser, "no network, no JS" is request interception plus a
+disabled JS context — configuration, which fails open.
+
+Two layers, deliberately: the DOM is sanitized first (scripts, iframes, link,
+style, on* attributes and any `<img>` that is not already a `data:` URI are
+removed) so a stray remote image degrades to a missing image rather than
+aborting the render, and the deny policies remain underneath so a miss in
+sanitization still cannot fetch.
+
+**What it costs:** CSS support is `html-to-pdfmake`'s — headings, paragraphs,
+lists, tables, inline styles, basic text formatting. Floats, flexbox, grid and
+page-break control are not honoured. Adequate for a generated report (#28's
+shape); not adequate for rendering an arbitrary web page. The node's
+description says so.
+
+### ✅ AF-M10-13 · External vector store for `AI_RETRIEVE` (Pinecone) · 1.5d · **DONE 2026-09-03**
 H12. #23 needs a caller-supplied index.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] A `VectorStore` interface with two implementations: the existing internal `KnowledgeChunk` search and Pinecone (upsert/query/delete by namespace).
-- [ ] `AI_RETRIEVE` gains a store selector; the internal store stays the default so no saved node changes behaviour.
-- [ ] Embedding dimension is validated against the index before the first write, with a clear error naming both numbers — #23's 768-dimension prerequisite is exactly the failure users hit.
-- [ ] Namespaces are org-scoped; a test asserts one org cannot query another's namespace.
-- [ ] progress.md updated
+- [x] A `VectorStore` interface with two implementations: the existing internal `KnowledgeChunk` search and Pinecone (upsert/query/delete by namespace).
+- [x] `AI_RETRIEVE` gains a store selector; the internal store stays the default so no saved node changes behaviour.
+- [x] Embedding dimension is validated against the index before the first write, with a clear error naming both numbers — #23's 768-dimension prerequisite is exactly the failure users hit.
+- [x] Namespaces are org-scoped; a test asserts one org cannot query another's namespace.
+- [x] progress.md updated
 
-### ⬜ AF-M10-14 · `FORM_TRIGGER` — first-party hosted intake form · 1.5d
+### ✅ AF-M10-14 · `FORM_TRIGGER` — first-party hosted intake form · 1.5d · **DONE 2026-09-03**
 H13. #6, #21, #31 and #33 start from a form submission.
 
 **Depends on:** AF-M10-06
 **Acceptance**
-- [ ] A published workflow exposes a form at a stable public path; fields are authored in the node config (text, email, select, file).
-- [ ] File fields produce `FileRef`s through the AF-M10-06 store, size- and type-capped.
-- [ ] Anti-abuse: per-form rate limit (reusing `src/lib/rate-limit`), a size cap, and an optional secret path segment. An unpublished or disabled workflow's form returns 404, not a 500.
-- [ ] Submission payload shape documented and mapped into the run context alongside the AF-M9-07 `webhook.*` mapping, so ported n8n form expressions resolve.
-- [ ] progress.md updated
+- [x] A published workflow exposes a form at a stable public path; fields are authored in the node config (text, email, select, file).
+- [x] File fields produce `FileRef`s through the AF-M10-06 store, size- and type-capped.
+- [x] Anti-abuse: per-form rate limit (reusing `src/lib/rate-limit`), a size cap, and an optional secret path segment. An unpublished or disabled workflow's form returns 404, not a 500.
+- [x] Submission payload shape documented and mapped into the run context alongside the AF-M9-07 `webhook.*` mapping, so ported n8n form expressions resolve.
+- [x] progress.md updated
 
 #### Phase B — service node families
 
@@ -2033,18 +2059,77 @@ Each family shares one thin client built on the AF-M10-01 auth path. A family ta
 done when its nodes are registered, unit-tested against recorded fixtures, and
 documented in `docs/nodes/`.
 
-### ⬜ AF-M10-15 · Google Workspace family · 4d
+### ✅ AF-M10-15 · Google Workspace family · 4d · **DONE 2026-09-04**
 H10. Needed by 21 of 35 — the widest single dependency in the matrix.
 
 **Depends on:** AF-M10-03, AF-M10-05, AF-M10-06
 **Acceptance**
-- [ ] Sheets: `SHEETS_READ` (range → rows, with header mapping), `SHEETS_UPDATE` (write a specific row), `SHEETS_UPSERT` (match-on-column), `SHEETS_TRIGGER` (new row, via AF-M10-05). Existing `GOOGLE_SHEETS_APPEND` is left untouched.
-- [ ] Gmail: `GMAIL_SEND` (HTML + attachments from `FileRef`), `GMAIL_TRIGGER` (new unread, with the label/query filter #26 needs).
-- [ ] Drive: `DRIVE_TRIGGER` (new file in folder), `DRIVE_DOWNLOAD` → `FileRef`, `DRIVE_UPLOAD`, `DRIVE_MOVE` (#28/#29 move between intake/processing/approved folders).
-- [ ] Calendar: `CALENDAR_TRIGGER` (upcoming events window, with attendee emails).
-- [ ] Google API 429/403-quota responses map to a **retriable** error with backoff; auth failures map to `NonRetriableError`. A test covers both, because getting this backwards burns a user's quota on retry.
-- [ ] Pagination handled inside each node (`nextPageToken`), with a bounded page budget — no unbounded loop.
-- [ ] progress.md updated
+- [x] Sheets: `SHEETS_READ` (range → rows, with header mapping), `SHEETS_UPDATE` (write a specific row), `SHEETS_UPSERT` (match-on-column), `SHEETS_TRIGGER` (new row, via AF-M10-05). Existing `GOOGLE_SHEETS_APPEND` is left untouched.
+- [x] Gmail: `GMAIL_SEND` (HTML + attachments from `FileRef`), `GMAIL_TRIGGER` (new unread, with the label/query filter #26 needs).
+- [x] Drive: `DRIVE_TRIGGER` (new file in folder), `DRIVE_DOWNLOAD` → `FileRef`, `DRIVE_UPLOAD`, `DRIVE_MOVE` (#28/#29 move between intake/processing/approved folders).
+- [x] Calendar: `CALENDAR_TRIGGER` (upcoming events window, with attendee emails).
+- [x] Google API 429/403-quota responses map to a **retriable** error with backoff; auth failures map to `NonRetriableError`. A test covers both, because getting this backwards burns a user's quota on retry.
+- [x] Pagination handled inside each node (`nextPageToken`), with a bounded page budget — no unbounded loop.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Eleven nodes across four services, on three service
+modules (`src/features/google/server/{sheets,gmail,drive,calendar}.ts`) over one
+shared client (`google-client.ts`: error classification, `googleFetch`,
+`googleFetchBytes`, `paginate` with a 20-page budget). 45 tests in
+`src/features/google`.
+
+Three things the source automations forced that were not obvious from the
+acceptance list:
+
+- **Drive has no "move".** It is a parent swap, and the old parent must be named
+  explicitly or the file ends up in both folders — so the watched folder still
+  contains it and the next poll reprocesses the same contract. `moveDriveFile`
+  reads the file first (which also makes a retried step idempotent) and removes
+  *every* current parent, not just the first.
+- **A Google Doc has no bytes.** `alt=media` errors for Docs/Sheets/Slides;
+  they must be exported. `downloadDriveFile` exports to the Office equivalent
+  and reports which happened, so the filename and MIME type match what the
+  caller actually got. A Form or a Site has neither, and is named as such rather
+  than handed over as an empty file.
+- **`DRIVE_TRIGGER` advances to the newest `modifiedTime` it saw**, not to
+  `now` — using the local clock would skip a file written between the request
+  and the response. Sheets and Gmail have no such cursor and use the seen-id
+  window instead.
+
+`GMAIL_TRIGGER` skips fetching bodies on its first poll: the framework
+dispatches nothing on a first sight, so `limit` message-gets would be spent
+against the user's quota for results that are discarded. `CALENDAR_TRIGGER`
+keys an item as `${event.id}@${event.start}`, so a rescheduled meeting briefs
+again, and drops `resource: true` attendees — Calendar counts a meeting room as
+an attendee and a room has no address to look up.
+
+Gmail header handling is where the security work is: `headerValue` strips CR/LF
+(a newline in a templated subject is header injection — `"Hi\nBcc: everyone@"`
+adds a recipient), `encodeHeader` applies RFC 2047 so an em dash or an accented
+name does not arrive as mojibake, and attachment base64 is wrapped at 76
+characters because unwrapped lines breach RFC 5322's 998-character limit and
+some relays mangle them. Drive query values go through `escapeDriveQuery`: a
+folder name with an apostrophe would otherwise close the quoted string and have
+its remainder parsed as query syntax.
+
+**Two corrections this task forced.** (1) `countRequiredCredentials` counted
+credential *bindings*; a Sheets template that reads a row and writes it back
+binds the same credential twice and was scored as two connectors. It now counts
+distinct **types** — what a user actually connects. (2) The catalogue's
+one-credential rule was written when every entry was an onboarding template. The
+M10 library ports automations that are multi-service in the source (#1 is Sheets
+plus Gmail; #27 is Calendar plus Gmail), so `TemplateSpec` gained a `tier`:
+`"starter"` keeps the one-credential onboarding promise, `"library"` is capped
+at four and must need more than one, so the label cannot be used to dodge the
+stricter rule. The credential-free floor is now measured over starter entries,
+which stops it getting easier to clear as M10 adds credential-bound templates.
+
+Four templates ship with it, covering all seven new node types: Drive contract
+intake (`DRIVE_TRIGGER`/`DOWNLOAD`/`MOVE`), inbox triage with a threaded
+acknowledgement (`GMAIL_TRIGGER`/`GMAIL_SEND`), a weekly report archived to
+Drive (`DRIVE_UPLOAD`), and the meeting briefing (`CALENDAR_TRIGGER`, the first
+`library`-tier entry). 36 catalogue entries, 1481 unit/dom tests and 243
+integration tests green; lint and `tsc --noEmit` clean.
 
 ### ⬜ AF-M10-16 · QuickBooks Online family · 3d
 10 of 35 — the largest single-service dependency.
@@ -2232,16 +2317,16 @@ The milestone's definition of done.
 - [ ] A staging checklist records which of the 35 have additionally been run against real accounts, with dates — CI-green and provider-green are different claims and the docs must not blur them.
 - [ ] progress.md updated
 
-### ⬜ AF-M10-35 · Node brand logos · 0.5d
+### ✅ AF-M10-35 · Node brand logos · 0.5d · **DONE 2026-09-03**
 H14. `public/logos/` cannot currently reach a node.
 
 **Depends on:** —
 **Acceptance**
-- [ ] `NodeDefinition` gains `logo?: string` (mirroring `CredentialTypeDef.logo`); the palette, canvas node and config panel render it with the lucide `icon` as fallback. A node with no logo is unchanged.
-- [ ] Existing marks wired up from `public/logos/`: Airtable, HubSpot, Slack, Stripe, GitHub, Jira, Notion, QuickBooks/Intuit, Shopify, WhatsApp, MailChimp, Google Sheets/Docs/Forms, Gmail (Email.png), OpenAI, Gemini, Anthropic, Discord.
-- [ ] **18 marks are missing and must be added:** Telegram, LinkedIn, X, Pinecone, Apify, Apollo.io, MailerLite, Creatomate, Pollinations.ai, YouTube, Instagram, OpenRouter, WAHA, Google Drive, Google Calendar, Google Maps, Veo, Upload-Post. SVG preferred; each usable on both light and dark canvas.
-- [ ] A test asserts every `logo` path in the node manifest and the credential registry resolves to a file that exists — a broken logo path must fail CI, not render an empty box.
-- [ ] progress.md updated
+- [x] `NodeDefinition` gains `logo?: string` (mirroring `CredentialTypeDef.logo`); the palette, canvas node and config panel render it with the lucide `icon` as fallback. A node with no logo is unchanged.
+- [x] Existing marks wired up from `public/logos/`: Airtable, HubSpot, Slack, Stripe, GitHub, Jira, Notion, QuickBooks/Intuit, Shopify, WhatsApp, MailChimp, Google Sheets/Docs/Forms, Gmail (Email.png), OpenAI, Gemini, Anthropic, Discord.
+- [x] **18 marks are missing and must be added:** Telegram, LinkedIn, X, Pinecone, Apify, Apollo.io, MailerLite, Creatomate, Pollinations.ai, YouTube, Instagram, OpenRouter, WAHA, Google Drive, Google Calendar, Google Maps, Veo, Upload-Post. SVG preferred; each usable on both light and dark canvas.
+- [x] A test asserts every `logo` path in the node manifest and the credential registry resolves to a file that exists — a broken logo path must fail CI, not render an empty box.
+- [x] progress.md updated
 
 ---
 

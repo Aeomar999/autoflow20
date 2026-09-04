@@ -68,3 +68,6 @@ next-env.d.ts
 # Captured lint/build console output. biome-errors.txt was committed by
 # accident in 0040238 - a UTF-16 PowerShell transcript, not source.
 *-errors.txt
+
+# AF-M10-06: local blob store (dev/CI file storage backend)
+.blobstore/

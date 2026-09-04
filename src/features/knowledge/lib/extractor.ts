@@ -11,6 +11,28 @@ export interface ExtractedDocument {
   text: string;
   sizeBytes: number;
   mimeType?: string;
+  /** Pages, for formats that have them (PDF). Absent for HTML, DOCX, text. */
+  pageCount?: number;
+}
+
+/**
+ * A document whose bytes are not readable as the type they claim to be
+ * (AF-M10-11).
+ *
+ * The PDF path used to fall back to `buffer.toString("utf-8")` when parsing
+ * failed, which turns a corrupt or password-protected file into a page of
+ * mojibake that then gets chunked, embedded and answered from. Failing loudly
+ * is the only honest option: the caller can decide to skip the document, but
+ * it cannot un-poison an index it did not know was poisoned.
+ */
+export class DocumentExtractionError extends Error {
+  constructor(
+    message: string,
+    readonly mimeType: string,
+  ) {
+    super(message);
+    this.name = "DocumentExtractionError";
+  }
 }
 
 export function normalizeText(rawText: string): string {
@@ -53,14 +75,21 @@ export async function extractTextFromBuffer(
   let text = "";
   let detectedMime = "text/plain";
 
+  let pageCount: number | undefined;
+
   if (identifier.includes("pdf") || identifier.endsWith(".pdf")) {
     detectedMime = "application/pdf";
     try {
       const parser = new PDFParse({ data: buffer });
       const res = await parser.getText();
       text = res.text || "";
-    } catch {
-      text = buffer.toString("utf-8");
+      pageCount = res.total;
+    } catch (error) {
+      throw new DocumentExtractionError(
+        `Could not read this PDF: ${error instanceof Error ? error.message : String(error)}. ` +
+          "It may be corrupt, password-protected, or not a PDF at all.",
+        detectedMime,
+      );
     }
   } else if (
     identifier.includes("wordprocessingml") ||
@@ -89,6 +118,7 @@ export async function extractTextFromBuffer(
     text: normalized,
     sizeBytes: buffer.length,
     mimeType: detectedMime,
+    pageCount,
   };
 }
 
@@ -131,4 +161,35 @@ export async function extractTextFromUrl(
     sizeBytes: Buffer.byteLength(rawBody, "utf-8"),
     mimeType: contentType,
   };
+}
+
+/**
+ * Formats `extractTextFromBuffer` genuinely understands (AF-M10-11).
+ *
+ * The extractor's final `else` decodes anything unrecognised as UTF-8 text.
+ * For the knowledge base that is a reasonable default — a `.log` or a `.csv`
+ * really is text. For a node it is not: handing it a PNG would "succeed" with
+ * a page of binary garbage, and the user would find out from the model's
+ * answer rather than from the node. `EXTRACT_DOCUMENT_TEXT` therefore checks
+ * this first and refuses anything not on it, naming the type.
+ */
+export const SUPPORTED_DOCUMENT_TYPES = [
+  { label: "PDF", match: ["pdf"] },
+  { label: "DOCX", match: ["wordprocessingml", "docx"] },
+  { label: "HTML", match: ["html", "xhtml"] },
+  { label: "plain text", match: ["text/plain", "txt"] },
+  { label: "Markdown", match: ["markdown", ".md"] },
+  { label: "CSV", match: ["csv"] },
+  { label: "JSON", match: ["json"] },
+] as const;
+
+/** The human label for a supported type, or null when it is not supported. */
+export function documentTypeLabel(mimeTypeOrFilename: string): string | null {
+  const identifier = mimeTypeOrFilename.toLowerCase();
+  for (const { label, match } of SUPPORTED_DOCUMENT_TYPES) {
+    if (match.some((needle) => identifier.includes(needle))) {
+      return label;
+    }
+  }
+  return null;
 }

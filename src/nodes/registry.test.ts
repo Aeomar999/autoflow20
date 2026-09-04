@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CREDENTIAL_TYPE_DEFINITIONS } from "@/features/credentials/credential-types";
 import { nodeManifest, nodePalette } from "./manifest";
 import { createNodeRegistry, nodeRegistry } from "./registry";
 import type { NodeRegistration } from "./types";
@@ -304,6 +305,44 @@ describe("reserved config keys (AF-M9-06)", () => {
       const keys = Object.keys(shape);
       expect(keys, `${def.type}`).not.toContain("_timeoutMs");
       expect(keys, `${def.type}`).not.toContain("_continueOnFail");
+    }
+  });
+  // AF-M10-35 acceptance: a `logo` that does not resolve renders an empty box
+  // in the palette and on the canvas — a failure nobody notices in review and
+  // everybody notices in a demo. Both registries carry brand marks, so both
+  // are walked here rather than trusting each one's own suite.
+  it("resolves every brand-mark path to a file in public/", () => {
+    const marks: Array<{ owner: string; logo: string }> = [
+      ...nodeManifest
+        .filter((def) => def.logo)
+        .map((def) => ({
+          owner: `node ${def.type}`,
+          logo: def.logo as string,
+        })),
+      ...CREDENTIAL_TYPE_DEFINITIONS.filter((def) => def.logo).map((def) => ({
+        owner: `credential ${def.type}`,
+        logo: def.logo as string,
+      })),
+    ];
+
+    // Guard the guard: an empty walk would pass vacuously.
+    expect(marks.length).toBeGreaterThan(10);
+
+    for (const { owner, logo } of marks) {
+      expect(
+        logo.startsWith("/"),
+        `${owner}: logo must be a root-relative path`,
+      ).toBe(true);
+      // A space in the path survives `<img src>` only because the browser
+      // percent-encodes it; requiring URL-safe names keeps that implicit fix
+      // from being load-bearing.
+      expect(logo, `${owner}: logo path must be URL-safe`).toMatch(
+        /^\/[A-Za-z0-9\-._/]+$/,
+      );
+      expect(
+        existsSync(join(process.cwd(), "public", logo)),
+        `${owner}: logo "${logo}" does not exist under public/`,
+      ).toBe(true);
     }
   });
 });

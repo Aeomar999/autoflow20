@@ -438,4 +438,161 @@ export const marketingTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "sheet-row-personalised-draft",
+    name: "New sheet row, personalised draft written back",
+    description:
+      "Watches a spreadsheet of leads and, for each new row, has a model write a personalised opening line and writes it back to that row. This is the shape of the library's outreach automations: the sheet is the queue, the row is the record, and the draft lands beside the lead rather than in a separate system. Rows already present when you publish are NOT replayed — the trigger records where the sheet was and starts from there, so activating this against 500 existing leads sends nothing. Give the sheet a header row with Name / Company / Email / Draft, and set the key column to Email so a re-sorted sheet does not look like new rows.",
+    category: "Marketing",
+    domain: "marketing",
+    tags: ["sheets", "outreach", "personalisation", "ai", "trigger", "leads"],
+    featured: true,
+    graph: {
+      nodes: [
+        {
+          id: "new-lead",
+          type: "SHEETS_TRIGGER",
+          name: "New lead row",
+          position: { x: 0, y: 0 },
+          data: {
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            range: "Leads!A1:E1000",
+            // Identity comes from the email, not the row number: a sorted or
+            // filtered sheet would otherwise look like a page of new rows.
+            keyColumn: "Email",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "write-draft",
+          type: "AI_LLM",
+          name: "Write the opener",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "draft",
+            model: "openai:gpt-4o-mini",
+            fallbackModels: "anthropic:claude-3-5-haiku",
+            systemPrompt:
+              "Write one sentence a salesperson could send as the opening line of a cold email. Specific, no flattery, no exclamation marks. Return the sentence only.",
+            userPrompt:
+              "Name: {{row.fields.Name}}\nCompany: {{row.fields.Company}}",
+            temperature: 0.7,
+            maxTokens: 120,
+          },
+        },
+        {
+          id: "save-draft",
+          type: "SHEETS_UPDATE",
+          name: "Write it back",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "saved",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Leads",
+            // The trigger carries the row it fired for, so the draft lands on
+            // that row rather than on whatever is at the bottom.
+            rowNumber: "{{row.rowNumber}}",
+            values:
+              '["{{row.fields.Name}}","{{row.fields.Company}}","{{row.fields.Email}}","{{draft.text}}"]',
+          },
+        },
+      ],
+      edges: [
+        { source: "new-lead", target: "write-draft" },
+        { source: "write-draft", target: "save-draft" },
+      ],
+    },
+  },
+  {
+    slug: "api-collection-to-sheet-sync",
+    name: "Sync an API collection into a sheet",
+    description:
+      "Pulls a collection from an API on a schedule and keeps a sheet in step with it: each record updates the row whose key column matches, or is appended when there is none. Run it as often as you like — the upsert is what makes a repeat harmless, so the sheet never grows a second copy of the same record. The endpoint is a public test service, so it runs before you configure anything; point it at your own collection and give the sheet a header row with Id / Title / Status. If the search range is too small to hold everything, the node fails rather than appending a duplicate it cannot rule out.",
+    category: "Data",
+    domain: "data",
+    tags: ["sheets", "sync", "upsert", "api", "schedule", "idempotent"],
+    graph: {
+      nodes: [
+        {
+          id: "hourly",
+          type: "SCHEDULE_TRIGGER",
+          name: "Every hour",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 * * * *", timezone: "UTC" },
+        },
+        {
+          id: "fetch",
+          type: "HTTP_REQUEST",
+          name: "Fetch the collection",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "source",
+            endpoint: "https://jsonplaceholder.typicode.com/todos",
+            method: "GET",
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Take the first page",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "batch",
+            code: "return { items: (input.source.httpResponse.data || []).slice(0, 10) };",
+          },
+        },
+        {
+          id: "current-rows",
+          type: "SHEETS_READ",
+          name: "Read what is there",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "existing",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            range: "Records!A1:C1000",
+            hasHeader: true,
+            limit: 1000,
+          },
+        },
+        {
+          id: "fan-out",
+          type: "SPLIT_OUT",
+          name: "One record at a time",
+          position: { x: 1040, y: 0 },
+          data: { path: "batch.items", maxItems: 10 },
+        },
+        {
+          id: "sync-row",
+          type: "SHEETS_UPSERT",
+          name: "Update or append",
+          position: { x: 1300, y: 0 },
+          data: {
+            variableName: "synced",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Records",
+            range: "Records!A1:C1000",
+            matchColumn: "Id",
+            matchValue: "{{$item.id}}",
+            values: '["{{$item.id}}","{{$item.title}}","{{$item.completed}}"]',
+          },
+        },
+        {
+          id: "collect",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1560, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "hourly", target: "fetch" },
+        { source: "fetch", target: "shape" },
+        { source: "shape", target: "current-rows" },
+        { source: "current-rows", target: "fan-out" },
+        { source: "fan-out", target: "sync-row" },
+        { source: "sync-row", target: "collect" },
+      ],
+    },
+  },
 ];

@@ -20,6 +20,7 @@ export const definition: NodeDefinition = {
   description:
     "Post a message to a Slack channel via incoming webhook. Content supports templates.",
   icon: "Hash",
+  logo: "/logos/slack.svg",
   keywords: ["slack", "message", "webhook", "chat", "notify"],
   configSchema,
   defaults: {},

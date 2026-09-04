@@ -141,9 +141,7 @@ describe("email", () => {
       const message = sendMock.mock.calls[0][0];
       expect(message.to).toBe("invitee@b.com");
       expect(message.subject).toContain("Acme");
-      expect(message.html).toContain(
-        "http://x/accept-invite?token=t",
-      );
+      expect(message.html).toContain("http://x/accept-invite?token=t");
     });
 
     it("returns false rather than throwing when Resend errors", async () => {

@@ -4,9 +4,13 @@ import aiExtract from "./ai/extract";
 import aiLlm from "./ai/llm";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
+import calendarTrigger from "./calendar/trigger";
 import coreAggregate from "./core/aggregate";
+import coreApproval from "./core/approval";
 import coreCode from "./core/code";
 import coreCondition from "./core/condition";
+import coreDedupe from "./core/dedupe";
+import coreFilter from "./core/filter";
 import coreManualTrigger from "./core/manual-trigger";
 import coreMerge from "./core/merge";
 import coreRespondToWebhook from "./core/respond-to-webhook";
@@ -14,11 +18,26 @@ import coreScheduleTrigger from "./core/schedule-trigger";
 import coreSet from "./core/set";
 import coreSplitOut from "./core/split-out";
 import coreSwitch from "./core/switch";
+import coreWait from "./core/wait";
 import coreWebhookTrigger from "./core/webhook-trigger";
 import discordSendMessage from "./discord/send-message";
+import driveDownload from "./drive/download";
+import driveMove from "./drive/move";
+import driveTrigger from "./drive/trigger";
+import driveUpload from "./drive/upload";
 import emailSend from "./email/send";
+import filesDownload from "./files/download";
+import filesExtractText from "./files/extract-text";
+import filesHtmlToPdf from "./files/html-to-pdf";
 import formsGoogleForm from "./forms/google-form";
+import formsHostedForm from "./forms/hosted-form";
+import gmailSend from "./gmail/send";
+import gmailTrigger from "./gmail/trigger";
 import googleSheetsAppend from "./google-sheets/append";
+import googleSheetsRead from "./google-sheets/read";
+import googleSheetsTrigger from "./google-sheets/trigger";
+import googleSheetsUpdate from "./google-sheets/update";
+import googleSheetsUpsert from "./google-sheets/upsert";
 import httpHttpRequest from "./http/request";
 import hubspotCreateContact from "./hubspot/create-contact";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
@@ -171,14 +190,33 @@ export const nodeRegistry = createNodeRegistry(
     coreSwitch,
     coreSplitOut,
     coreAggregate,
+    coreFilter,
+    coreDedupe,
+    coreWait,
+    coreApproval,
     coreRespondToWebhook,
     formsGoogleForm,
+    formsHostedForm,
     googleSheetsAppend,
+    googleSheetsRead,
+    googleSheetsUpdate,
+    googleSheetsUpsert,
+    googleSheetsTrigger,
+    gmailSend,
+    gmailTrigger,
+    driveTrigger,
+    driveDownload,
+    driveUpload,
+    driveMove,
+    calendarTrigger,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,
     postgresQuery,
     httpHttpRequest,
+    filesDownload,
+    filesExtractText,
+    filesHtmlToPdf,
     aiCompatible,
     aiExtract,
     aiLlm,

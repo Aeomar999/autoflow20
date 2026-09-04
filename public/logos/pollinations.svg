@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Pollinations.ai">
+  <rect width="24" height="24" rx="5" fill="#FF6BB3"/>
+  <g fill="#fff">
+    <circle cx="12" cy="6.4" r="2.5"/><circle cx="12" cy="17.6" r="2.5"/>
+    <circle cx="6.4" cy="12" r="2.5"/><circle cx="17.6" cy="12" r="2.5"/>
+    <circle cx="12" cy="12" r="2.6" fill="#FFD166"/>
+  </g>
+</svg>

@@ -8,6 +8,11 @@ import {
   parseModelChain,
   pickRunUsage,
 } from "@/lib/ai/fallback";
+import {
+  assertVisionCapable,
+  EMPTY_ATTACHMENTS,
+  resolveAttachments,
+} from "@/nodes/shared/ai-attachments";
 import type { NodeRun } from "@/nodes/types";
 import { definition, type ExtractData } from "./definition";
 
@@ -102,12 +107,22 @@ export const execute: NodeRun<ExtractData> = async ({
   if (!data.variableName) {
     throw new NonRetriableError("AI Extract node: Variable name is missing");
   }
-  if (!data.content) {
-    throw new NonRetriableError("AI Extract node: Source content is missing");
+  // AF-M10-07: with an attachment, the document IS the input — #21 extracts
+  // from a faxed PDF and #8 from an invoice image, and requiring a text
+  // `content` as well would mean inventing one.
+  const renderedAttachments = data.attachments
+    ? resolve(data.attachments).trim()
+    : "";
+  const hasAttachments = renderedAttachments.length > 0;
+
+  if (!data.content && !hasAttachments) {
+    throw new NonRetriableError(
+      "AI Extract node: Source content is missing. Give it text to extract from, or attach a document.",
+    );
   }
 
-  const resolvedContent = resolve(data.content).trim();
-  if (!resolvedContent) {
+  const resolvedContent = data.content ? resolve(data.content).trim() : "";
+  if (!resolvedContent && !hasAttachments) {
     throw new NonRetriableError(
       "AI Extract node: source content resolved to an empty value",
     );
@@ -115,6 +130,26 @@ export const execute: NodeRun<ExtractData> = async ({
 
   const outputSchema = buildOutputSchema(data);
   const candidates = parseModelChain(data.model, data.fallbackModels);
+
+  if (hasAttachments) {
+    if (!organizationId) {
+      throw new NonRetriableError(
+        "AI Extract node: this run has no organization, so its attachments cannot be read.",
+      );
+    }
+    assertVisionCapable(candidates, "AI Extract node");
+  }
+
+  // Content hashes for the cache key, read once from the primary. Two
+  // different invoices must not share a cache entry (AF-M5-07 + AF-M10-07).
+  const cacheAttachments = hasAttachments
+    ? await resolveAttachments({
+        rendered: renderedAttachments,
+        organizationId: organizationId as string,
+        adapter: "openai",
+        where: "AI Extract node",
+      })
+    : EMPTY_ATTACHMENTS;
 
   // AF-M5-07: the output schema is part of the fingerprint — extracting a new
   // field must re-ask the model rather than replay the narrower answer.
@@ -124,7 +159,10 @@ export const execute: NodeRun<ExtractData> = async ({
     candidates,
     system: SYSTEM_PROMPT,
     prompt: resolvedContent,
-    params: { outputSchema },
+    params: {
+      outputSchema,
+      attachmentSha256s: cacheAttachments.sha256s,
+    },
   });
 
   const { result: object, usage } = await executeWithFallback(
@@ -132,20 +170,57 @@ export const execute: NodeRun<ExtractData> = async ({
     credentials,
     "AI Extract node",
     async (candidate) => {
+      // Per candidate: PDF handling differs by provider, so the payload is
+      // built for the model that will actually receive it.
+      const attachments = hasAttachments
+        ? await resolveAttachments({
+            rendered: renderedAttachments,
+            organizationId: organizationId as string,
+            adapter: candidate.modelDef.adapter,
+            where: "AI Extract node",
+          })
+        : EMPTY_ATTACHMENTS;
+
+      const textBody = [
+        resolvedContent
+          ? `TEXT:\n"""${resolvedContent}"""`
+          : "The source is the attached document.",
+        attachments.extractedText,
+      ]
+        .filter((part) => part.length > 0)
+        .join("\n\n");
+
+      const instruction = `Extract the fields described by the schema from the source below, and return only those fields.\n\n${textBody}`;
+
+      const promptArgs =
+        attachments.parts.length > 0
+          ? {
+              messages: [
+                {
+                  role: "user" as const,
+                  content: [
+                    { type: "text" as const, text: instruction },
+                    ...attachments.parts,
+                  ],
+                },
+              ],
+            }
+          : { prompt: instruction };
+
       const result = await step.ai.wrap(
         `llm-extract:${candidate.fullModelId}`,
         generateObject,
         {
           model: candidate.languageModel,
           system: SYSTEM_PROMPT,
-          prompt: `Extract the fields described by the schema from the text below, and return only those fields.\n\nTEXT:\n"""${resolvedContent}"""`,
+          ...promptArgs,
           schema: jsonSchema(outputSchema),
           experimental_telemetry: {
             isEnabled: true,
             recordInputs: true,
             recordOutputs: true,
           },
-        },
+        } as Parameters<typeof generateObject>[0],
       );
 
       const resObj = (result as { object?: unknown }).object;
@@ -171,6 +246,11 @@ export const execute: NodeRun<ExtractData> = async ({
   return {
     ...context,
     [data.variableName as string]: object,
+    // AF-M10-07: which path each attachment took, so a PDF that read badly
+    // has a visible cause rather than a guess.
+    ...(hasAttachments
+      ? { [`${data.variableName}Attachments`]: cacheAttachments.handling }
+      : {}),
     [WORKFLOW_USAGE_KEY]: usage,
   };
 };

@@ -9,9 +9,12 @@ import { prepareTemplateGraph } from "../server/instantiate";
 import { checkCatalog, checkTemplate, formatIssues } from "./harness";
 import { templateCatalog, toSeedRow } from "./index";
 import {
+  MAX_LIBRARY_CREDENTIALS,
+  MAX_STARTER_CREDENTIALS,
   MIN_TEMPLATES_PER_DOMAIN,
   TEMPLATE_DOMAINS,
   type TemplateSpec,
+  tierOf,
 } from "./types";
 
 /**
@@ -22,8 +25,17 @@ import {
  * `seed:templates` runs the same harness before it writes.
  */
 
-/** 21 from AF-M7-02, plus the three AF-M9-15 reference-parity templates. */
-const EXPECTED_TEMPLATE_COUNT = 24;
+/**
+ * 21 from AF-M7-02, the three AF-M9-15 reference-parity templates, and three
+ * M10 templates demonstrating the Phase A primitives: file archive
+ * (`FILE_DOWNLOAD`), once-only sync (`FILTER` + `DEDUPE`), morning digest
+ * (`EXTRACT_DOCUMENT_TEXT` + `WAIT`), contract review (`HTML_TO_PDF`) and
+ * intake triage (`FORM_TRIGGER`), a spend gate (`APPROVAL`) and two Sheets
+ * flows (`SHEETS_TRIGGER`/`READ`/`UPDATE`/`UPSERT`) and four Google
+ * Workspace flows (Drive intake, meeting briefing, inbox triage, weekly
+ * report).
+ */
+const EXPECTED_TEMPLATE_COUNT = 36;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
@@ -105,26 +117,55 @@ describe("template catalogue", () => {
 
   it("never asks a new user to wire up more than one credential", () => {
     // This is the "no free-plan-busting mandatory credentials" acceptance in
-    // its enforceable form. A template needing two connectors is one nobody
-    // finishes setting up, whatever their plan.
-    for (const template of templateCatalog) {
+    // its enforceable form. A starter template needing two connectors is one
+    // nobody finishes setting up, whatever their plan.
+    //
+    // AF-M10-15 scoped this to the starter tier rather than relaxing it. The
+    // M10 library ports automations that are multi-service in the source --
+    // Calendar plus Gmail, Sheets plus Gmail -- and a rule that admitted those
+    // for everyone would stop being the onboarding promise it was written as.
+    for (const template of templateCatalog.filter(
+      (t) => tierOf(t) === "starter",
+    )) {
       const row = toSeedRow(template);
       expect(
         row.credentialCount,
-        `${template.slug} requires ${row.credentialCount} credentials`,
-      ).toBeLessThanOrEqual(1);
+        `starter template ${template.slug} requires ${row.credentialCount} credentials`,
+      ).toBeLessThanOrEqual(MAX_STARTER_CREDENTIALS);
+    }
+  });
+
+  it("keeps library entries within a setup a user still completes", () => {
+    // "library" is not "uncapped". An entry needing five connectors is one
+    // nobody finishes either, and the cap is what stops the tier becoming the
+    // label anything gets when the starter rule is inconvenient.
+    for (const template of templateCatalog.filter(
+      (t) => tierOf(t) === "library",
+    )) {
+      const row = toSeedRow(template);
+      expect(
+        row.credentialCount,
+        `library template ${template.slug} requires ${row.credentialCount} credentials`,
+      ).toBeLessThanOrEqual(MAX_LIBRARY_CREDENTIALS);
+      // A library entry that needs one credential is a starter entry that
+      // mislabelled itself, and it would dodge the stricter rule for free.
+      expect(
+        row.credentialCount,
+        `${template.slug} is tier "library" but needs ${row.credentialCount} credentials -- it belongs in "starter"`,
+      ).toBeGreaterThan(MAX_STARTER_CREDENTIALS);
     }
   });
 
   it("keeps a meaningful share of the gallery credential-free", () => {
-    const free = templateCatalog.filter(
-      (t) => toSeedRow(t).credentialCount === 0,
-    );
+    // Measured over starter entries, not the whole catalogue. Every library
+    // entry needs a connector by definition, so counting them in the
+    // denominator would make this floor easier to clear the more
+    // credential-bound templates M10 adds -- the opposite of what it is for.
+    const starter = templateCatalog.filter((t) => tierOf(t) === "starter");
+    const free = starter.filter((t) => toSeedRow(t).credentialCount === 0);
     // A gallery where every entry needs a connector is a gallery a brand-new
     // account cannot try at all. A third is the floor; nine ship today.
-    expect(free.length).toBeGreaterThanOrEqual(
-      Math.ceil(EXPECTED_TEMPLATE_COUNT / 3),
-    );
+    expect(free.length).toBeGreaterThanOrEqual(Math.ceil(starter.length / 3));
   });
 
   it("derives node and credential counts from the graph", () => {
@@ -183,10 +224,23 @@ describe("template catalogue", () => {
   });
 
   it("declares exactly the credential placeholders the install surfaces", () => {
+    // AF-M10-15: `credentialCount` counts distinct credential TYPES — what the
+    // user must connect — while the install surfaces one placeholder per node
+    // FIELD. A template whose two Sheets nodes share one credential has two
+    // placeholders and one connection, so the row's number is the size of the
+    // placeholder set's type set, not its length.
     for (const template of templateCatalog) {
       const prepared = prepareTemplateGraph(template.graph);
       const required = prepared.pendingCredentials.filter((c) => !c.optional);
-      expect(required).toHaveLength(toSeedRow(template).credentialCount);
+      const distinctTypes = new Set(required.map((c) => c.credentialType));
+
+      expect(
+        distinctTypes.size,
+        `${template.slug}: seed row disagrees with the install placeholders`,
+      ).toBe(toSeedRow(template).credentialCount);
+
+      // Every placeholder still has to correspond to a real requirement.
+      expect(required.length).toBeGreaterThanOrEqual(distinctTypes.size);
     }
   });
 

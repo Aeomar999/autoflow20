@@ -1,46 +1,42 @@
-﻿import * as LucideIcons from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import type { ComponentType } from "react";
 import type { NodeDefinition } from "@/nodes/types";
 
 export interface NodeIconProps {
   type?: string;
   iconName?: string;
+  /**
+   * Brand mark from `NodeDefinition.logo` (AF-M10-35). Preferred over
+   * `iconName` when present; the lucide glyph remains the fallback.
+   */
+  logo?: string;
   label?: string;
   className?: string;
   size?: number;
 }
 
-const BRAND_LOGOS: Record<string, string> = {
-  GOOGLE_FORM_TRIGGER: "/logos/googleform.svg",
-  STRIPE_TRIGGER: "/logos/stripe.svg",
-  GEMINI: "/logos/gemini.svg",
-  OPENAI: "/logos/openai.svg",
-  ANTHROPIC: "/logos/anthropic.svg",
-  DISCORD: "/logos/discord.svg",
-  SLACK: "/logos/slack.svg",
-  EMAIL_SEND: "/logos/Logos/Email.png",
-  GOOGLE_SHEETS_APPEND: "/logos/Logos/Google sheet.png",
-  AIRTABLE_CREATE_RECORD: "/logos/Logos/Airtable.png",
-  HUBSPOT_CREATE_CONTACT: "/logos/Logos/Hubspot.png",
-};
-
 /**
- * Resolves an icon component or image for a given node definition or type.
+ * Resolves a brand mark or lucide glyph for a node.
+ *
+ * AF-M10-35 moved the mark onto `NodeDefinition.logo`, so a node declares its
+ * own artwork next to the rest of its metadata instead of matching a type id
+ * against a map kept in the UI layer. The map that used to live here is gone;
+ * anything it covered is now a `logo` on the definition.
  */
 export function NodeIcon({
   type,
   iconName,
+  logo,
   label,
   className = "size-5",
   size = 20,
 }: NodeIconProps) {
-  // 1. Check brand logos first
-  if (type && BRAND_LOGOS[type]) {
+  if (logo) {
     return (
       // biome-ignore lint/performance/noImgElement: SVG/PNG brand logos in UI
       <img
-        src={BRAND_LOGOS[type]}
-        alt={label || type}
+        src={logo}
+        alt={label || type || ""}
         width={size}
         height={size}
         className={`${className} object-contain rounded-sm shrink-0`}
@@ -48,7 +44,6 @@ export function NodeIcon({
     );
   }
 
-  // 2. Resolve Lucide icon
   const resolvedName = iconName || "Box";
   const IconComponent =
     (
@@ -69,13 +64,14 @@ export function NodeIcon({
 }
 
 export function getNodeIconComponent(
-  def: Pick<NodeDefinition, "type" | "icon" | "label">,
+  def: Pick<NodeDefinition, "type" | "icon" | "label"> & { logo?: string },
 ) {
   return function ResolvedNodeIcon(props: { className?: string }) {
     return (
       <NodeIcon
         type={def.type}
         iconName={def.icon}
+        logo={def.logo}
         label={def.label}
         className={props.className}
       />

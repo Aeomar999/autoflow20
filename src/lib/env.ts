@@ -70,6 +70,39 @@ const serverEnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+  // AF-M10-04: workflow OAuth connectors. All optional — a provider whose
+  // pair is unset answers its connect route with 501 and nothing else in the
+  // app is affected, so an install only configures the ones it uses. Note
+  // GITHUB_OAUTH_* is a *different* app from GITHUB_* above: connecting a repo
+  // integration must not widen what the sign-in button asks for.
+  INTUIT_CLIENT_ID: z.string().optional(),
+  INTUIT_CLIENT_SECRET: z.string().optional(),
+  GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
+  GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
+  ATLASSIAN_CLIENT_ID: z.string().optional(),
+  ATLASSIAN_CLIENT_SECRET: z.string().optional(),
+  NOTION_CLIENT_ID: z.string().optional(),
+  NOTION_CLIENT_SECRET: z.string().optional(),
+  SHOPIFY_CLIENT_ID: z.string().optional(),
+  SHOPIFY_CLIENT_SECRET: z.string().optional(),
+  LINKEDIN_CLIENT_ID: z.string().optional(),
+  LINKEDIN_CLIENT_SECRET: z.string().optional(),
+  X_CLIENT_ID: z.string().optional(),
+  X_CLIENT_SECRET: z.string().optional(),
+
+  // AF-M10-06: blob storage for binary payloads. All optional — an
+  // unconfigured install writes to the local filesystem. `resolveBlobStore`
+  // refuses to fall back in production when a bucket is set without
+  // credentials, because that half-configured state is the one that
+  // silently loses files.
+  BLOB_S3_BUCKET: z.string().optional(),
+  BLOB_S3_ACCESS_KEY_ID: z.string().optional(),
+  BLOB_S3_SECRET_ACCESS_KEY: z.string().optional(),
+  BLOB_S3_REGION: z.string().optional(),
+  BLOB_S3_ENDPOINT: z.string().optional(),
+  BLOB_S3_FORCE_PATH_STYLE: z.string().optional(),
+  BLOB_LOCAL_ROOT: z.string().optional(),
+
   POLAR_ACCESS_TOKEN: z.string().optional(),
   POLAR_PRODUCT_ID: blankAsUnset(z.uuid("must be a UUID")),
   POLAR_PRODUCT_SLUG: z.string().min(1).optional(),

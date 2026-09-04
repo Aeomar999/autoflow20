@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { randomBytes } from "node:crypto";
+import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   createCredentialRegistry,
@@ -15,7 +16,10 @@ import {
   maskSecretValue,
   secretFromInput,
 } from "./credential-types";
+import { openSecret, sealSecret } from "./server/vault";
 import {
+  credentialUpdateInput,
+  credentialUpdateVariants,
   credentialWriteInput,
   credentialWriteVariants,
 } from "./server/write-schema";
@@ -111,7 +115,31 @@ describe("createCredentialRegistry", () => {
   });
 });
 
+/**
+ * Build a valid write payload for any def straight from its `fields`. Sample
+ * payloads used to be listed by hand, one per type — the same duplication the
+ * generated schema removed, and it silently skipped any type nobody added a
+ * sample for.
+ */
+const samplePayload = (
+  def: CredentialTypeDef,
+  { includeOptional = true } = {},
+): Record<string, string> => {
+  const payload: Record<string, string> = {};
+  for (const field of def.fields) {
+    if (field.optional && !includeOptional) continue;
+    payload[field.key] = `value-for-${def.type}-${field.key}`;
+  }
+  return payload;
+};
+
 describe("credentialRegistry (built-in)", () => {
+  beforeAll(() => {
+    // The vault refuses to seal without a master key; a random one per run is
+    // enough for a round-trip assertion and never touches a real envelope.
+    process.env.CREDENTIAL_MASTER_KEY = randomBytes(32).toString("base64");
+  });
+
   it("registers exactly the documented type ids, all valid", () => {
     expect(
       credentialRegistry
@@ -141,26 +169,107 @@ describe("credentialRegistry (built-in)", () => {
       "deepseek.apiKey",
       "postgres",
       "smtp",
+      // AF-M10-02
+      "apify.apiKey",
+      "apollo.apiKey",
+      "mailerlite.apiKey",
+      "pinecone.apiKey",
+      "openrouter.apiKey",
+      "creatomate.apiKey",
+      "telegram.botToken",
+      "uploadPost.apiKey",
+      "waha.apiKey",
+      "shopify.accessToken",
+      "jira.apiToken",
     ]) {
-      expect(credentialRegistry.isTestable(type)).toBe(true);
+      expect(
+        credentialRegistry.isTestable(type),
+        `${type} should have a connection tester`,
+      ).toBe(true);
     }
     for (const type of ["apiKey", "openaiCompatible.apiKey"]) {
       expect(credentialRegistry.isTestable(type)).toBe(false);
     }
   });
+
+  it("says WHY a type has no tester instead of leaving it silently untested", () => {
+    // AF-M10-02's rule. "Nobody wired a tester" and "this provider has no
+    // cheap authenticated GET" are indistinguishable in a registry — both are
+    // simply an absent tester. Requiring a stated reason turns the second into
+    // a decision and leaves the first failing here.
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      if (credentialRegistry.isTestable(def.type)) {
+        expect(def.notTestableReason, `${def.type}`).toBeUndefined();
+        continue;
+      }
+      expect(
+        def.notTestableReason,
+        `${def.type} has no tester and no notTestableReason`,
+      ).toBeTruthy();
+    }
+  });
+
+  it("declares a testable flag that matches whether a tester exists", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      const hasTester = credentialRegistry.isTestable(def.type);
+      expect(def.testable === true, `${def.type}.testable`).toBe(hasTester);
+    }
+  });
+
+  it("round-trips every type's secret through the vault (AF-M10-02)", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      const input = samplePayload(def);
+      const secret = secretFromInput(def, input);
+      const reopened = openSecret(sealSecret(secret));
+      expect(reopened, `${def.type} did not survive seal → open`).toEqual(
+        secret,
+      );
+    }
+  });
+
+  it("never leaks a raw secret field through computePreview", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      const secret = secretFromInput(def, samplePayload(def));
+      const preview = computePreview(def, secret);
+      if (preview === null) continue;
+      for (const field of def.fields.filter((f) => f.secret)) {
+        expect(
+          preview.includes(secret[field.key]),
+          `${def.type}.${field.key} appears verbatim in its preview`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("gives every type a brand mark and a describable label", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      expect(def.logo, `${def.type} has no logo`).toBeTruthy();
+      expect(def.label.length).toBeGreaterThan(0);
+      expect(def.description.length).toBeGreaterThan(0);
+    }
+  });
 });
+
+const writeBody = z.union(credentialWriteVariants);
 
 describe("write-schema <-> registry parity (anti-drift)", () => {
   it("has exactly one write variant per registered type", () => {
     const variantTypes = credentialWriteVariants.map(
-      (variant) => variant.shape.type.value,
+      (variant) => (variant.shape.type as z.ZodLiteral<string>).value,
+    );
+    expect(variantTypes.sort()).toEqual([...CREDENTIAL_TYPE_IDS].sort());
+  });
+
+  it("has exactly one update variant per registered type", () => {
+    const variantTypes = credentialUpdateVariants.map(
+      (variant) => (variant.shape.type as z.ZodLiteral<string>).value,
     );
     expect(variantTypes.sort()).toEqual([...CREDENTIAL_TYPE_IDS].sort());
   });
 
   it("matches each variant's field keys to its definition", () => {
     for (const variant of credentialWriteVariants) {
-      const type = variant.shape.type.value;
+      const type = (variant.shape.type as z.ZodLiteral<string>).value;
       const def = credentialRegistry.resolve(type);
       const schemaKeys = Object.keys(variant.shape).filter((k) => k !== "type");
       const defKeys = def.fields.map((field) => field.key);
@@ -185,107 +294,52 @@ describe("write-schema <-> registry parity (anti-drift)", () => {
     }
   });
 
-  it("accepts a valid payload through the write schema for each kind", () => {
-    const samples: Array<{ type: string; payload: Record<string, unknown> }> = [
-      { type: "apiKey", payload: { apiKey: "sk-abc" } },
-      { type: "bearer", payload: { token: "tkn-123" } },
-      { type: "basic", payload: { username: "u", password: "p" } },
-      { type: "header", payload: { name: "X-Key", value: "v" } },
-      { type: "oauth2", payload: { accessToken: "at", scopes: "read write" } },
-      { type: "openai.apiKey", payload: { apiKey: "sk-xyz" } },
-      { type: "anthropic.apiKey", payload: { apiKey: "sk-ant-xyz" } },
-      { type: "gemini.apiKey", payload: { apiKey: "ai-zyx" } },
-      { type: "airtable.apiKey", payload: { apiKey: "pat-abc" } },
-      { type: "hubspot.apiKey", payload: { apiKey: "pat-eu1-abc" } },
-      { type: "groq.apiKey", payload: { apiKey: "gsk_abc" } },
-      { type: "deepseek.apiKey", payload: { apiKey: "sk-deep" } },
-      {
-        type: "postgres",
-        payload: {
-          host: "db.local",
-          port: "5432",
-          database: "apps",
-          username: "admin",
-          password: "pw",
-        },
-      },
-      {
-        type: "smtp",
-        payload: {
-          host: "smtp.local",
-          port: "587",
-          username: "sender",
-          password: "pw",
-          tls: "starttls",
-        },
-      },
-      { type: "openaiCompatible.apiKey", payload: { apiKey: "sk-abc" } },
-    ];
-    const body = z.discriminatedUnion("type", credentialWriteVariants);
-    for (const { type, payload } of samples) {
-      const parsed = body.parse({ type, ...payload });
-      expect(parsed.type).toBe(type);
+  it("accepts a valid payload through the write schema for every type", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      const parsed = writeBody.parse({
+        type: def.type,
+        ...samplePayload(def),
+      }) as { type: string };
+      expect(parsed.type).toBe(def.type);
+    }
+  });
+
+  it("accepts a payload with every optional field omitted", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      expect(() =>
+        writeBody.parse({
+          type: def.type,
+          ...samplePayload(def, { includeOptional: false }),
+        }),
+      ).not.toThrow();
     }
   });
 
   it("rejects a payload missing a required secret field", () => {
-    const body = z.discriminatedUnion("type", credentialWriteVariants);
-    expect(() => body.parse({ type: "apiKey" })).toThrow();
-    expect(() => body.parse({ type: "basic", username: "u" })).toThrow();
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      const required = def.fields.filter((field) => !field.optional);
+      if (required.length === 0) continue;
+      const payload = samplePayload(def);
+      delete payload[required[0].key];
+      expect(
+        () => writeBody.parse({ type: def.type, ...payload }),
+        `${def.type} must require "${required[0].key}"`,
+      ).toThrow();
+    }
   });
 
-  it("accepts a named payload through the real write input for each kind", () => {
-    const inputTypes = credentialWriteInput.options.map(
-      (variant) => variant.shape.type.value,
-    );
-    expect(inputTypes.sort()).toEqual([...CREDENTIAL_TYPE_IDS].sort());
-    const samples: Array<{ type: string; payload: Record<string, unknown> }> = [
-      { type: "apiKey", payload: { apiKey: "sk-abc" } },
-      { type: "bearer", payload: { token: "tkn-123" } },
-      { type: "basic", payload: { username: "u", password: "p" } },
-      { type: "header", payload: { name: "X-Key", value: "v" } },
-      { type: "oauth2", payload: { accessToken: "at", scopes: "read write" } },
-      { type: "openai.apiKey", payload: { apiKey: "sk-xyz" } },
-      { type: "anthropic.apiKey", payload: { apiKey: "sk-ant-xyz" } },
-      { type: "gemini.apiKey", payload: { apiKey: "ai-zyx" } },
-      { type: "slack.oauth2", payload: { accessToken: "at" } },
-      { type: "google.oauth2", payload: { accessToken: "at" } },
-      { type: "airtable.apiKey", payload: { apiKey: "pat-abc" } },
-      { type: "hubspot.apiKey", payload: { apiKey: "pat-eu1-abc" } },
-      { type: "groq.apiKey", payload: { apiKey: "gsk_abc" } },
-      { type: "deepseek.apiKey", payload: { apiKey: "sk-deep" } },
-      {
-        type: "postgres",
-        payload: {
-          host: "db.local",
-          port: "5432",
-          database: "apps",
-          username: "admin",
-          password: "pw",
-        },
-      },
-      {
-        type: "smtp",
-        payload: {
-          host: "smtp.local",
-          port: "587",
-          username: "sender",
-          password: "pw",
-          tls: "starttls",
-        },
-      },
-      { type: "openaiCompatible.apiKey", payload: { apiKey: "sk-abc" } },
-    ];
-    for (const { type, payload } of samples) {
+  it("accepts a named payload through the real write input for every type", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
       const parsed = credentialWriteInput.parse({
         name: "x",
-        type,
-        ...payload,
+        type: def.type,
+        ...samplePayload(def),
       });
       // The `header` variant declares its own `name` field (the HTTP header
       // key); for every other kind the parse must keep the display name.
-      const expectedName = type === "header" ? "X-Key" : "x";
-      expect(parsed).toMatchObject({ name: expectedName, type });
+      const expectedName =
+        def.type === "header" ? `value-for-${def.type}-name` : "x";
+      expect(parsed).toMatchObject({ name: expectedName, type: def.type });
     }
   });
 
@@ -301,6 +355,18 @@ describe("write-schema <-> registry parity (anti-drift)", () => {
     expect(() =>
       credentialWriteInput.parse({ name: "x", type: "apiKey", apiKey: "k" }),
     ).not.toThrow();
+  });
+
+  it("lets an update omit every secret field (rename-only)", () => {
+    for (const def of CREDENTIAL_TYPE_DEFINITIONS) {
+      expect(() =>
+        credentialUpdateInput.parse({
+          id: "cred_1",
+          name: "renamed",
+          type: def.type,
+        }),
+      ).not.toThrow();
+    }
   });
 });
 

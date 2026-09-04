@@ -236,7 +236,9 @@ describe("collectPendingCredentials", () => {
       nodeId: "b",
       nodeName: "GOOGLE_SHEETS_APPEND",
       credentialKey: "credentialId",
-      credentialType: "google.oauth2",
+      // AF-M10-03: accepts the scoped type for new bindings and the
+      // deprecated one for nodes saved before the split.
+      credentialType: "google.sheets|google.oauth2",
       optional: false,
     });
 

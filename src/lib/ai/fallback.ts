@@ -13,25 +13,16 @@ import {
   aiProviderById,
   estimateRunCostUsd,
   resolveAiModel,
+  splitModelId,
 } from "./registry";
 
-/** Splits "provider:model" into its legs; a bare token is just a provider. */
-export function splitModelId(raw: string | undefined): {
-  provider: string;
-  modelHint: string | undefined;
-} {
-  if (!raw || raw.length === 0) {
-    return { provider: "", modelHint: undefined };
-  }
-  const colon = raw.indexOf(":");
-  if (colon === -1) {
-    return { provider: raw.trim(), modelHint: undefined };
-  }
-  return {
-    provider: raw.slice(0, colon).trim(),
-    modelHint: raw.slice(colon + 1).trim() || undefined,
-  };
-}
+/**
+ * Splits "provider:model" into its legs; a bare token is just a provider.
+ *
+ * Re-exported from the registry, which is client-safe — AF-M10-07's save-time
+ * validator needs it and cannot import this server-only module.
+ */
+export { splitModelId } from "./registry";
 
 /**
  * Parses primary model and optional fallback string into an ordered,

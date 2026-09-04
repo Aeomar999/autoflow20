@@ -31,6 +31,7 @@ export const definition: NodeDefinition = {
   description:
     "Create a record in an Airtable table and store the created record.",
   icon: "Table",
+  logo: "/logos/airtable.png",
   keywords: ["airtable", "create", "record", "base", "table", "row"],
   configSchema,
   defaults: {},

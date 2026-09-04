@@ -59,6 +59,16 @@ export interface NodeDefinition<TConfig = unknown> {
   description: string;
   /** lucide-react icon name (resolved by the palette/config panel). */
   icon: string;
+  /**
+   * (AF-M10-35) Path to a brand mark under `public/`, e.g.
+   * `/logos/telegram.svg`. Mirrors `CredentialTypeDef.logo`. The palette,
+   * canvas node and config panel render it in place of `icon`; `icon` stays
+   * required and is the fallback for a node with no mark of its own, so a
+   * broken or absent logo degrades to a glyph rather than an empty box.
+   *
+   * `registry.test.ts` asserts every path here resolves to a file on disk.
+   */
+  logo?: string;
   /** Palette search terms. */
   keywords?: string[];
   /** Zod schema — single source of truth for config. Drives form AND validation. */
@@ -147,6 +157,25 @@ export interface NodeRunParams<TData = Record<string, unknown>> {
   /** Raw node config (validated at the save boundary by the type's configSchema). */
   data: TData;
   nodeId: string;
+  /**
+   * Workflow the run belongs to (AF-M10-10). Needed by nodes that keep state
+   * across runs — `DEDUPE` scopes its seen-key window to
+   * `(workflowId, nodeId)`, the same key the polling framework uses. Optional
+   * for the same reason `organizationId` is: a legacy replay may not carry
+   * one, and a node that needs it must fail loudly rather than guess.
+   */
+  workflowId?: string;
+  /**
+   * The run this invocation belongs to (AF-M10-08).
+   *
+   * Needed by nodes that must reason about their own run rather than only
+   * about their data: `WAIT` marks its trace row `WAITING` and re-checks for
+   * cancellation between sleep chunks, and `APPROVAL` links its
+   * `ApprovalRequest` to the execution. Optional for the same reason
+   * `organizationId` is — a node that needs it fails loudly rather than
+   * guessing.
+   */
+  executionId?: string;
   userId: string;
   /**
    * Tenant that owns the run. Every tenant-scoped read or write an executor
@@ -188,11 +217,79 @@ export interface NodeRunParams<TData = Record<string, unknown>> {
    * trace, so plaintext cannot reach `NodeExecution.input/output`.
    */
   credentials?: Record<string, CredentialSecret>;
+  /**
+   * The fan-out item this invocation is for (AF-M9-14), when the node is
+   * inside a `SPLIT_OUT`/`AGGREGATE` segment.
+   *
+   * Templates already see `$item`/`$itemIndex` through `resolve`. This is the
+   * same information as a *value*, for the nodes whose behaviour changes
+   * rather than whose text does: `FILTER` and `DEDUPE` act on the current item
+   * inside a segment and on an array outside one, and inferring which by
+   * probing the resolver would be guesswork.
+   */
+  item?: { value: unknown; index: number };
 }
 
 export type NodeRun<TData = Record<string, unknown>> = (
   params: NodeRunParams<TData>,
 ) => Promise<WorkflowContext>;
+
+// ---------------------------------------------------------------------------
+// Polling triggers (AF-M10-05, ADR-0024).
+//
+// "When a new X appears" is the opening of 18 of the 35 reference automations.
+// A poller's whole job is: given where we left off, what is new? It returns
+// items and a resume point. It does NOT dispatch runs, does NOT deduplicate,
+// and does NOT touch `TriggerState` — the framework owns all three, so those
+// decisions have one implementation instead of one per connector.
+// ---------------------------------------------------------------------------
+
+export interface PollItem {
+  /**
+   * Stable identity of this item, unique within this trigger and durable
+   * across polls. A row's sheet id, a message id, a file id — never an array
+   * index, which changes the moment anything is inserted.
+   */
+  id: string;
+  /** Payload handed to the run as its trigger data. */
+  data: unknown;
+}
+
+export interface PollContext<TConfig = Record<string, unknown>> {
+  /** Validated node config. */
+  config: TConfig;
+  /** Resolved credentials, keyed as in `NodeRunParams.credentials`. */
+  credentials?: Record<string, CredentialSecret>;
+  /** Whatever this poller returned as `cursor` last time; undefined on the first poll. */
+  cursor: unknown;
+  /**
+   * True on the very first poll after a trigger is activated.
+   *
+   * A poller may use it to fetch a cheaper "just tell me where the end is"
+   * response. It does NOT have to: the framework suppresses dispatch on the
+   * first poll regardless, so activating a workflow against a 500-row sheet
+   * starts 0 runs, not 500.
+   */
+  isFirstPoll: boolean;
+  /** Upper bound on items to return. Returning more is trimmed by the framework. */
+  limit: number;
+}
+
+export interface PollResult {
+  items: PollItem[];
+  /** Resume point for the next poll. Persisted verbatim; must be JSON-serializable. */
+  cursor: unknown;
+}
+
+export interface PollingTrigger<TConfig = unknown> {
+  /**
+   * How often this trigger is swept, in seconds, when the node's config does
+   * not say. Floored by the framework's minimum so a connector cannot ask to
+   * be polled faster than the sweep runs.
+   */
+  defaultIntervalSeconds?: number;
+  poll(ctx: PollContext<TConfig>): Promise<PollResult>;
+}
 
 /** A full registration: isomorphic metadata + server implementation.
  * Flattened so a node's `index.ts` can be `{ ...definition, execute }`.
@@ -201,4 +298,14 @@ export type NodeRun<TData = Record<string, unknown>> = (
 export interface NodeRegistration<TConfig = unknown>
   extends NodeDefinition<TConfig> {
   execute(params: NodeRunParams): Promise<WorkflowContext>;
+  /**
+   * (AF-M10-05) Present on TRIGGER nodes that discover work by polling. The
+   * sweep in `evaluate-schedules` finds them through the registry rather than
+   * a hard-coded list, so a new poller is a node folder and nothing else.
+   *
+   * A polling trigger still has an `execute` — it is what runs when the
+   * dispatched run reaches the trigger node — but that executor does no
+   * fetching; the item is already in the run's initial data.
+   */
+  polling?: PollingTrigger<TConfig>;
 }

@@ -3,6 +3,7 @@ import type { NodeDefinition } from "@/nodes/types";
 import {
   cacheTtlSecondsSchema,
   credentialIdRef,
+  freeText,
   promptSchema,
   variableNameSchema,
 } from "../../shared/config-fields";
@@ -27,6 +28,17 @@ export const configSchema = z.object({
   geminiCredentialId: credentialIdRef(),
   systemPrompt: promptSchema(),
   userPrompt: promptSchema(),
+  /**
+   * (AF-M10-07) Template resolving to one or more `FileRef`s — usually
+   * `{{{json download.file}}}`. Three braces, not two: two renders the
+   * reference as `[object Object]`.
+   *
+   * Every model in the chain must declare the `vision` capability, checked at
+   * SAVE time. A PDF goes to the provider natively where it can read one and
+   * as extracted text where it cannot; the node's output records which.
+   */
+  attachments: freeText(8192).optional(),
+
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokens: z.number().int().min(1).max(200_000).optional(),
   jsonMode: z.boolean().default(false),

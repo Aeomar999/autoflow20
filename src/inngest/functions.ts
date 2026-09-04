@@ -54,6 +54,7 @@ import {
   type GraphNodeExecution,
   markTakenEdges,
   OUTPUT_PORT_KEY,
+  SEGMENT_DROP_ITEM_KEY,
   type TraceNode,
   UNMATCHED_OUTPUT_PORT,
   type WebhookResponse,
@@ -148,6 +149,10 @@ function buildNodeInput(
     // everything after the join — the canonical route-then-respond shape.
     // Found by the AF-M9-16 acceptance suite on W1.
     delete merged[OUTPUT_PORT_KEY];
+    // AF-M10-10: same reasoning for the item-drop marker. It is a signal to
+    // the segment loop, not data, and leaving it in an input would make a
+    // downstream node look like it had dropped its own item.
+    delete merged[SEGMENT_DROP_ITEM_KEY];
     return merged;
   };
 
@@ -840,6 +845,8 @@ export async function executeWorkflowHandler({
               const executorPromise = execute({
                 data: nodeExec.data,
                 nodeId: node.id,
+                workflowId,
+                executionId: execution.id,
                 userId,
                 organizationId,
                 context: nodeInputValue,
@@ -847,6 +854,13 @@ export async function executeWorkflowHandler({
                 step,
                 publish,
                 credentials: credentialsForNode,
+                // AF-M10-10: the current item as a value, for nodes whose
+                // BEHAVIOUR changes inside a segment rather than whose text
+                // does. `itemScope` is undefined for the SPLIT_OUT and the
+                // AGGREGATE themselves, which is correct — neither is per-item.
+                ...(itemScope && itemIndex !== null
+                  ? { item: { value: itemScope.$item, index: itemIndex } }
+                  : {}),
               });
               const timeoutPromise = new Promise<never>((_, reject) => {
                 setTimeout(
@@ -987,6 +1001,8 @@ export async function executeWorkflowHandler({
     const count = items.length;
     const succeededOutputs: unknown[] = [];
     const failedIndices: number[] = [];
+    /** Items a FILTER/DEDUPE removed (AF-M10-10) — not failures. */
+    const droppedIndices: number[] = [];
 
     // Sequential per-item execution (ADR-0021 explicitly rules out parallel
     // items). `continueOnFail` on an interior node lets a failing item move on
@@ -996,6 +1012,7 @@ export async function executeWorkflowHandler({
       const item = items[i];
       let itemOutput: unknown = item; // identity when there are no interior nodes
       let itemFailed = false;
+      let itemDropped = false;
 
       for (const interiorId of segment.interiorNodeIds) {
         const interiorNode = requireSegmentNode(interiorId);
@@ -1009,6 +1026,20 @@ export async function executeWorkflowHandler({
             itemIndex: i,
             itemScope: { $item: item, $itemIndex: i },
           });
+
+          // AF-M10-10: FILTER and DEDUPE drop an item by returning
+          // `_dropItem`. The item is neither collected nor recorded as failed
+          // — it was handled correctly and simply should not continue. Its
+          // node rows stay SUCCESS, so the trace shows exactly where it left.
+          if (
+            itemOutput !== null &&
+            typeof itemOutput === "object" &&
+            (itemOutput as Record<string, unknown>)[SEGMENT_DROP_ITEM_KEY] ===
+              true
+          ) {
+            itemDropped = true;
+            break;
+          }
         } catch (error) {
           if (interiorExec.continueOnFail) {
             // Record the item as failed and write a FAILED trace-end for this
@@ -1042,8 +1073,11 @@ export async function executeWorkflowHandler({
         }
       }
 
-      if (!itemFailed) {
+      if (!itemFailed && !itemDropped) {
         succeededOutputs.push(itemOutput);
+      }
+      if (itemDropped) {
+        droppedIndices.push(i);
       }
     }
 
@@ -1055,6 +1089,10 @@ export async function executeWorkflowHandler({
       items: succeededOutputs,
       count,
       failed: failedIndices,
+      // AF-M10-10. Reported separately from `failed` because "filtered out" and
+      // "blew up" are different outcomes, and a template that branches on
+      // `failed.length` must not see a deliberate filter as an error.
+      dropped: droppedIndices,
     };
 
     // Make the aggregate resolvable + reachable downstream exactly like the
@@ -1278,6 +1316,8 @@ export async function executeWorkflowHandler({
               const executorPromise = execute({
                 data: nodeExec.data,
                 nodeId: node.id,
+                workflowId,
+                executionId: execution.id,
                 userId,
                 organizationId,
                 context: nodeInputValue,

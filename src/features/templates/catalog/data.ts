@@ -392,4 +392,317 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "archive-file-to-sheet-log",
+    name: "Archive a file and log it to a sheet",
+    description:
+      "Fetches a file from a URL into AutoFlow's file storage and appends a row recording its name, size and SHA-256 to a Google Sheet. Use it as an audit log for exported reports, signed contracts or nightly database dumps: the sheet tells you what arrived and the hash tells you whether it changed. You supply the URL (or template it from the trigger), a Google Sheets credential, and a spreadsheet with the columns Downloaded at / Filename / Size (bytes) / SHA-256. The file itself never enters the run payload — only a reference does — so a 90 MB archive moves through the workflow as easily as a 2 KB CSV.",
+    category: "Data",
+    domain: "data",
+    tags: ["file", "download", "archive", "checksum", "sheets", "audit"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run manually",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "fetch",
+          type: "FILE_DOWNLOAD",
+          name: "Download the file",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "artifact",
+            // Replace with the artifact URL, or template it from the trigger.
+            url: "https://example.com/exports/report.csv",
+            // Uncomment authMode and bind a credential when the URL is behind
+            // an API. The secret is never templated into the request.
+            maxBytes: 26214400,
+          },
+        },
+        {
+          id: "log",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Log it to the sheet",
+          position: { x: 540, y: 0 },
+          data: {
+            variableName: "logged",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Downloads",
+            // The FileRef's fields are what make this row useful: the hash is
+            // stable for identical content, so a repeated row with a new hash
+            // means the upstream artifact actually changed.
+            values:
+              '[["{{$now}}","{{artifact.file.$file.filename}}","{{artifact.file.$file.size}}","{{artifact.file.$file.sha256}}"]]',
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "fetch" },
+        { source: "fetch", target: "log" },
+      ],
+    },
+  },
+  {
+    slug: "sync-new-records-once-only",
+    name: "Sync new records, once each",
+    description:
+      'Pulls a collection from an API every fifteen minutes, keeps only the entries that are ready, and delivers each one exactly once — even across restarts. The Filter drops entries whose `completed` flag is false using a typed boolean comparison, so a literal `false` is not mistaken for the non-empty string "false". The Dedupe node remembers every id it has already delivered, in state scoped to that node, so a re-run on an overlapping window sends nothing twice. Both endpoints are public test services, so it runs before you configure anything; point the first HTTP node at your own collection and the last one at wherever the record should go.',
+    category: "Data",
+    domain: "data",
+    tags: ["filter", "dedupe", "idempotent", "fan-out", "schedule", "sync"],
+    graph: {
+      nodes: [
+        {
+          id: "every-15m",
+          type: "SCHEDULE_TRIGGER",
+          name: "Every 15 minutes",
+          position: { x: 0, y: 0 },
+          data: { cron: "*/15 * * * *", timezone: "UTC" },
+        },
+        {
+          id: "fetch",
+          type: "HTTP_REQUEST",
+          name: "Fetch the collection",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "source",
+            endpoint: "https://jsonplaceholder.typicode.com/todos",
+            method: "GET",
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Take the first page",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "batch",
+            // The public fixture returns 200 rows; the cap keeps a first run
+            // small enough to watch. Raise it once you have seen it work.
+            code: "return { items: (input.source.httpResponse.data || []).slice(0, 10) };",
+          },
+        },
+        {
+          id: "fan-out",
+          type: "SPLIT_OUT",
+          name: "One at a time",
+          position: { x: 780, y: 0 },
+          data: { path: "batch.items", maxItems: 10 },
+        },
+        {
+          id: "only-ready",
+          type: "FILTER",
+          name: "Only completed",
+          position: { x: 1040, y: 0 },
+          data: {
+            left: "{{$item.completed}}",
+            operator: "is_true",
+            // Typed, deliberately: a string comparison would treat the
+            // rendered "false" as a non-empty value and keep everything.
+            valueType: "boolean",
+          },
+        },
+        {
+          id: "not-seen-before",
+          type: "DEDUPE",
+          name: "Not sent before",
+          position: { x: 1300, y: 0 },
+          data: {
+            key: "{{$item.id}}",
+            // `forever` because a repeated id here is always a duplicate; use
+            // `window` when ids legitimately recur after a while.
+            mode: "forever",
+          },
+        },
+        {
+          id: "deliver",
+          type: "HTTP_REQUEST",
+          name: "Deliver",
+          position: { x: 1560, y: 0 },
+          data: {
+            variableName: "delivery",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json $item}}}",
+            headers: { "content-type": "application/json" },
+            failOnNon2xx: true,
+            _run: { maxAttempts: 3, backoffMs: 1000, timeoutMs: 10000 },
+          },
+        },
+        {
+          id: "collect",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1820, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "every-15m", target: "fetch" },
+        { source: "fetch", target: "shape" },
+        { source: "shape", target: "fan-out" },
+        { source: "fan-out", target: "only-ready" },
+        { source: "only-ready", target: "not-seen-before" },
+        { source: "not-seen-before", target: "deliver" },
+        { source: "deliver", target: "collect" },
+      ],
+    },
+  },
+  {
+    slug: "document-summary-morning-digest",
+    name: "Summarise a document, post it in the morning",
+    description:
+      "Downloads a document, extracts its text, has a model summarise it, then holds the summary until 08:00 UTC before posting to Slack — so a contract that lands at 2am is waiting for you at the start of the day rather than buried in overnight noise. The extraction reports whether the text was truncated, so a summary of half a contract is visible as one rather than presented as complete. Supply the document URL, an AI credential, and a Slack incoming-webhook URL.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["pdf", "extract", "summary", "wait", "digest", "slack"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run manually",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "fetch-doc",
+          type: "FILE_DOWNLOAD",
+          name: "Download the document",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "doc",
+            url: "https://example.com/contracts/latest.pdf",
+            maxBytes: 26214400,
+          },
+        },
+        {
+          id: "read-doc",
+          type: "EXTRACT_DOCUMENT_TEXT",
+          name: "Extract the text",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "extracted",
+            file: "{{{json doc.file}}}",
+            maxCharacters: 120000,
+          },
+        },
+        {
+          id: "summarise",
+          type: "AI_LLM",
+          name: "Summarise it",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "summary",
+            model: "anthropic:claude-3-5-haiku",
+            fallbackModels: "openai:gpt-4o-mini",
+            systemPrompt:
+              "Summarise the document for someone who has not read it. Lead with what it commits the reader to. If the supplied text is marked as truncated, say so in the first line — never imply you have seen the whole document.",
+            userPrompt:
+              "Truncated: {{extracted.truncated}}\nPages: {{extracted.pageCount}}\n\n{{extracted.text}}",
+            temperature: 0.2,
+            maxTokens: 900,
+          },
+        },
+        {
+          id: "hold-until-morning",
+          type: "WAIT",
+          name: "Hold until 08:00",
+          position: { x: 1040, y: 0 },
+          data: {
+            mode: "until",
+            // A time already past resolves immediately, so a run started at
+            // 09:00 posts straight away rather than waiting 23 hours.
+            until: "{{formatDate $now 'yyyy-MM-dd'}}T08:00:00Z",
+          },
+        },
+        {
+          id: "post",
+          type: "SLACK",
+          name: "Post the summary",
+          position: { x: 1300, y: 0 },
+          data: {
+            variableName: "posted",
+            webhookUrl: "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
+            content: "*{{doc.file.$file.filename}}*\n{{summary.text}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "fetch-doc" },
+        { source: "fetch-doc", target: "read-doc" },
+        { source: "read-doc", target: "summarise" },
+        { source: "summarise", target: "hold-until-morning" },
+        { source: "hold-until-morning", target: "post" },
+      ],
+    },
+  },
+  {
+    slug: "weekly-report-to-drive",
+    name: "Weekly report, rendered and archived to Drive",
+    description:
+      "Pulls figures from an API every Monday, renders them as a PDF, and files it in a Drive folder. The report is built from HTML the workflow controls, and rendering runs with no network access and no script execution, so data pulled from outside cannot make the renderer fetch anything. The PDF moves through the workflow as a reference rather than as bytes, so the size of the report does not change what the graph can do. The endpoint is a public test service; point it at your own and supply a Drive credential and the destination folder id.",
+    category: "Data",
+    domain: "data",
+    tags: ["report", "pdf", "drive", "archive", "schedule", "weekly"],
+    graph: {
+      nodes: [
+        {
+          id: "monday",
+          type: "SCHEDULE_TRIGGER",
+          name: "Every Monday 07:00",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 7 * * 1", timezone: "UTC" },
+        },
+        {
+          id: "figures",
+          type: "HTTP_REQUEST",
+          name: "Fetch the figures",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "figures",
+            endpoint: "https://jsonplaceholder.typicode.com/users",
+            method: "GET",
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "render",
+          type: "HTML_TO_PDF",
+          name: "Render the report",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "report",
+            filename: "weekly-report.pdf",
+            pageSize: "A4",
+            orientation: "portrait",
+            header: "Weekly report",
+            footer: "Generated by AutoFlow",
+            html: "<h1>Weekly report</h1><p>Records this week: {{figures.httpResponse.data.length}}</p>",
+          },
+        },
+        {
+          id: "archive",
+          type: "DRIVE_UPLOAD",
+          name: "File it in Drive",
+          position: { x: 800, y: 0 },
+          data: {
+            variableName: "archived",
+            file: "{{{json report.file}}}",
+            folderId: "REPLACE_WITH_REPORTS_FOLDER_ID",
+          },
+        },
+      ],
+      edges: [
+        { source: "monday", target: "figures" },
+        { source: "figures", target: "render" },
+        { source: "render", target: "archive" },
+      ],
+    },
+  },
 ];

@@ -3,6 +3,8 @@ import {
   EXPRESSION_HELPERS,
   getTemplateRoots,
 } from "@/features/executions/template";
+import { findModelForCandidate } from "@/lib/ai/registry";
+import { MAX_WAIT_SECONDS } from "@/nodes/core/wait/definition";
 import { outputPorts } from "@/nodes/ports";
 import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
@@ -119,6 +121,8 @@ export function validate(
   checkDisconnected(nodes, connections, errors);
   checkSegments(nodes, connections, errors);
   checkRespondNodes(nodes, connections, errors);
+  checkWaitBounds(nodes, errors);
+  checkVisionCapability(nodes, errors);
 
   // --- Registry-dependent checks (server only) ---
 
@@ -272,6 +276,95 @@ function checkTriggers(nodes: GraphNode[], errors: ValidationError[]): void {
       severity: "warning",
       message: `Workflow's only trigger "${triggers[0].name}" is disabled. No events will start this workflow until it is enabled.`,
     });
+  }
+}
+
+/**
+ * A `WAIT` may not exceed the platform's maximum (AF-M10-08).
+ *
+ * Enforced at SAVE time, as an error, because the alternative is finding out
+ * mid-run: a workflow that fails three days into a six-day wait has already
+ * burned three days, and the author is not watching. The `until` mode cannot
+ * be checked here — its target is computed at run time — so the executor
+ * carries the same ceiling and fails before sleeping.
+ */
+function checkWaitBounds(nodes: GraphNode[], errors: ValidationError[]): void {
+  for (const node of nodes) {
+    if (node.type !== "WAIT") continue;
+
+    const data = (node.data ?? {}) as {
+      mode?: unknown;
+      seconds?: unknown;
+    };
+    const mode = data.mode === "until" ? "until" : "duration";
+    if (mode !== "duration") continue;
+
+    const seconds = typeof data.seconds === "number" ? data.seconds : undefined;
+    if (seconds === undefined) continue;
+
+    if (seconds > MAX_WAIT_SECONDS) {
+      errors.push({
+        nodeId: node.id,
+        severity: "error",
+        message: `Wait "${node.name}" is set to ${Math.round(seconds / 86_400)} days, beyond the ${MAX_WAIT_SECONDS / 86_400}-day maximum. Shorten the wait, or split the workflow.`,
+      });
+    }
+  }
+}
+
+/**
+ * A node with attachments must use models that can see (AF-M10-07).
+ *
+ * At SAVE time, as an error, because the run-time alternative is a model that
+ * silently ignores the image and answers anyway — a confident summary of an
+ * invoice it never saw. That failure has no symptom until someone checks the
+ * numbers.
+ *
+ * Every model in the chain is checked, not just the primary: a fallback that
+ * cannot see would produce exactly that answer on the day the primary is down.
+ */
+function checkVisionCapability(
+  nodes: GraphNode[],
+  errors: ValidationError[],
+): void {
+  for (const node of nodes) {
+    if (node.type !== "AI_LLM" && node.type !== "AI_EXTRACT") continue;
+
+    const data = (node.data ?? {}) as {
+      attachments?: unknown;
+      model?: unknown;
+      fallbackModels?: unknown;
+    };
+    if (
+      typeof data.attachments !== "string" ||
+      data.attachments.trim().length === 0
+    ) {
+      continue;
+    }
+
+    const candidates = [
+      typeof data.model === "string" ? data.model : "",
+      ...(typeof data.fallbackModels === "string"
+        ? data.fallbackModels.split(/[,;\n]+/)
+        : []),
+    ]
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+    for (const candidate of candidates) {
+      const model = findModelForCandidate(candidate);
+      // An unresolvable model is `checkConfigs`' problem to report; naming it
+      // twice, differently, helps nobody.
+      if (!model) continue;
+
+      if (!model.capabilities.includes("vision")) {
+        errors.push({
+          nodeId: node.id,
+          severity: "error",
+          message: `"${node.name}" has an attachment, but model "${candidate}" does not support the "vision" capability and cannot read it. Choose a vision-capable model, or remove the attachment.`,
+        });
+      }
+    }
   }
 }
 
@@ -762,6 +855,12 @@ const ALWAYS_PRESENT_ROOTS: readonly string[] = [
  * Schedule, Google-Form and Stripe seed `schedule` / `googleForm` / `stripe`
  * respectively, matching what `cron.ts` and the google-form/stripe webhooks
  * place into context.
+ *
+ * AF-M10-14: `FORM_TRIGGER` seeds `form`, holding `{ nodeId, title,
+ * submittedAt, fields, files }` — deliberately nested under one root for the
+ * same reason `webhook` is, so a field named `title` cannot shadow the form's
+ * own metadata. AF-M10-05: a polling trigger seeds `trigger` alongside the
+ * item's own payload, which is spread flat because the shape is the provider's.
  */
 const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   WEBHOOK_TRIGGER: ["webhook"],
@@ -770,6 +869,17 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   SCHEDULE_TRIGGER: ["schedule"],
   GOOGLE_FORM_TRIGGER: ["googleForm"],
   STRIPE_TRIGGER: ["stripe"],
+  FORM_TRIGGER: ["form"],
+  /**
+   * Polling triggers (AF-M10-05) seed `trigger` — which the sweep always adds,
+   * carrying `nodeId`/`itemId`/`polledAt` — plus whatever the poller's item
+   * data spreads flat. The spread is per-connector, so each polling trigger
+   * names its own roots here rather than the sweep guessing them.
+   */
+  SHEETS_TRIGGER: ["trigger", "row", "sheet"],
+  GMAIL_TRIGGER: ["trigger", "message"],
+  DRIVE_TRIGGER: ["trigger", "file"],
+  CALENDAR_TRIGGER: ["trigger", "event"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */

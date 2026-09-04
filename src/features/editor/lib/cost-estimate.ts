@@ -3,6 +3,7 @@ import type { AiModelDef, AiProviderId } from "@/lib/ai/registry";
 import {
   aiModelId,
   aiProviderById,
+  estimateAttachmentTokens,
   estimateRunCostUsd,
   findAiModel,
 } from "@/lib/ai/registry";
@@ -126,6 +127,31 @@ function resolveRegistered(
  * Computes estimated tokens and cost for a single node on the canvas.
  * Returns `null` if the node is not an AI node or has no computable cost.
  */
+/**
+ * Bytes an `attachments` expression will carry, read from the `size` fields of
+ * any file references literally present in it.
+ *
+ * On the canvas the expression is usually a template (`{{{json doc.file}}}`)
+ * whose size is unknowable until the run — those estimate as one typical
+ * scanned page rather than as zero, because zero is a specific and wrong
+ * claim, while "about a page" is honestly approximate.
+ */
+const TYPICAL_ATTACHMENT_BYTES = 500 * 1024;
+
+export function estimateAttachmentBytes(attachments: unknown): number {
+  if (typeof attachments !== "string" || attachments.trim().length === 0) {
+    return 0;
+  }
+  // A literal reference pasted into the field carries its own size.
+  const sizes = [...attachments.matchAll(/"size"\s*:\s*(\d+)/g)].map((m) =>
+    Number.parseInt(m[1], 10),
+  );
+  if (sizes.length > 0) {
+    return sizes.reduce((total, size) => total + size, 0);
+  }
+  return TYPICAL_ATTACHMENT_BYTES;
+}
+
 export function estimateNodeCost(node: EditorNode): NodeCostEstimate | null {
   const type = node.type;
   if (!type) return null;
@@ -169,7 +195,23 @@ export function estimateNodeCost(node: EditorNode): NodeCostEstimate | null {
     promptText = `${sys} ${user}`;
   }
 
-  const inputTokens = Math.max(1, estimateTokens(promptText));
+  // AF-M10-07: an attachment is input the model pays for. Estimating it as
+  // zero would tell a user that adding a 4 MB scan to every invoice costs
+  // nothing, which is the opposite of true — vision input is usually the
+  // larger half of such a call.
+  //
+  // Bytes are the only signal available before the call (providers price
+  // images by tile count, which needs the decoded dimensions), so this is an
+  // approximation and the estimator says so. The RECORDED cost still comes
+  // from the provider's own usage numbers.
+  const attachmentTokens = estimateAttachmentTokens(
+    estimateAttachmentBytes(data.attachments),
+  );
+
+  const inputTokens = Math.max(
+    1,
+    estimateTokens(promptText) + attachmentTokens,
+  );
   const outputTokens =
     typeof data.maxTokens === "number" && data.maxTokens > 0
       ? Math.round(data.maxTokens)

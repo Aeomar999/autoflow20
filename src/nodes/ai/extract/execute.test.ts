@@ -215,7 +215,9 @@ describe("AI_EXTRACT execute", () => {
     await expect(
       execute(makeParams({ data: { content: undefined } })),
     ).rejects.toThrow(
-      new NonRetriableError("AI Extract node: Source content is missing"),
+      // AF-M10-07 widened the message: an attachment is now an alternative to
+      // text content, so the error names both ways out.
+      /Source content is missing/,
     );
     expect(mockGenerateObject).not.toHaveBeenCalled();
   });

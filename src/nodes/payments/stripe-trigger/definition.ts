@@ -11,6 +11,7 @@ export const definition: NodeDefinition = {
   description:
     "Start the workflow when a signed Stripe webhook event arrives for this workflow.",
   icon: "CreditCard",
+  logo: "/logos/stripe.svg",
   keywords: ["stripe", "payment", "webhook", "checkout", "billing"],
   configSchema,
   defaults: {},

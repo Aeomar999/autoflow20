@@ -54,6 +54,79 @@ stateDiagram-v2
 
 ---
 
+## 2.1 Triggers
+
+A run starts one of five ways. Four are push — the caller decides when. The
+fifth asks.
+
+| Trigger | Started by | State kept |
+|---|---|---|
+| `MANUAL_TRIGGER` | a user pressing Run | none |
+| `WEBHOOK_TRIGGER` | an inbound request to the workflow's URL | none |
+| `SCHEDULE_TRIGGER` | `evaluate-schedules`, on a cron match | none |
+| provider webhooks (Stripe, GitHub, Intuit, Telegram) | the provider | none |
+| **polling triggers** (AF-M10-05) | `evaluate-schedules`, on an interval | `TriggerState` |
+
+### The polling contract
+
+A polling trigger declares `polling` on its registration:
+
+```ts
+poll(ctx: {
+  config;          // validated node config
+  credentials;     // resolved by the framework, AF-M3-04 path
+  cursor;          // whatever this poller returned last time
+  isFirstPoll;     // true immediately after activation
+  limit;           // upper bound on items to return
+}): Promise<{ items: PollItem[]; cursor: unknown }>
+```
+
+`PollItem` is `{ id, data }`. The `id` must be **stable across polls and
+durable** — a row id, a message id, a file id. Never an array index, which
+changes the moment anything is inserted above it.
+
+**A poller does not dispatch, deduplicate, or write `TriggerState`.** It
+answers one question — given where we left off, what is new? — and the
+framework does the rest. That is the whole reason the interface is this small:
+"have we already handled this item?" has one implementation instead of one per
+connector.
+
+### What the framework guarantees
+
+- **No history replay.** The first poll after activation records the cursor and
+  the ids it saw and dispatches **nothing**. Publishing a workflow against a
+  500-row sheet starts zero runs.
+- **At-least-once, deduplicated.** The last 500 dispatched ids per trigger are
+  remembered; anything already in that window is suppressed, including
+  duplicates repeated within one poll. Providers answer "changed since T"
+  inclusively, so overlap is the normal case, not an edge case.
+- **State is written before runs are dispatched.** A crash between the two
+  costs one cycle (the items are re-found and suppressed); the other order
+  would replay every run.
+- **A failure changes only the backoff.** Cursor and id window are carried
+  forward untouched. `nextPollAt` becomes `interval x 2^failures`, capped at an
+  hour. A missing credential backs off exactly like a provider outage.
+- **Budgets.** 50 items dispatched per poll, 200 pollers per sweep, ordered
+  never-polled-first then oldest-polled-first. A backlog drains over several
+  sweeps rather than in one burst.
+- **`Node.disabled` is honoured** exactly as it is for schedule triggers
+  (AF-M9-17), and silently — the sweep ticks every minute and an intentional
+  authoring state is not an event.
+
+Interval is `pollIntervalSeconds` in node config, else the poller's
+`defaultIntervalSeconds`, else 300 — floored at 60, because nothing can be
+polled faster than the sweep that polls it.
+
+The sweep lives inside `evaluate-schedules` rather than in its own cron job:
+both read the same active-workflow set on the same tick, and two jobs would
+double that read and drift over what "active" means. They are separate
+`step.run`s, so a poller's failure cannot make the schedule evaluation look
+like it failed.
+
+Full rationale: ADR-0024.
+
+---
+
 ## 3. Pipeline
 
 ```

@@ -35,6 +35,7 @@ export const definition: NodeDefinition = {
   description:
     "Send an email through an SMTP relay and store the delivery result.",
   icon: "Mail",
+  logo: "/logos/gmail.png",
   keywords: ["email", "smtp", "notify", "mail", "message"],
   configSchema,
   defaults: {},

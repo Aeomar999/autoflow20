@@ -1,3 +1,7 @@
+import {
+  buildOAuthSecret,
+  exchangeToken,
+} from "@/features/credentials/server/oauth-exchange";
 import { oauthProviders } from "@/features/credentials/server/oauth-providers";
 import { openSecret, sealSecret } from "@/features/credentials/server/vault";
 import prisma from "@/lib/db";
@@ -50,48 +54,38 @@ export const refreshOAuthTokens = inngest.createFunction(
             return;
           }
 
-          const tokenParams = new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: refreshToken,
-            client_id: config.clientId,
-            client_secret: config.clientSecret,
-          });
-
-          const response = await fetch(config.tokenUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              Accept: "application/json",
+          const token = await exchangeToken({
+            provider: config,
+            body: {
+              grant_type: "refresh_token",
+              refresh_token: refreshToken,
             },
-            body: tokenParams.toString(),
           });
 
-          if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(
-              `Provider rejected refresh: ${response.status} ${errText}`,
-            );
-          }
-
-          const tokenData = await response.json();
-          const accessToken = tokenData.access_token;
-          const newRefreshToken = tokenData.refresh_token || refreshToken; // keep old if not rotated
-          const expiresIn = tokenData.expires_in;
-
-          if (!accessToken) {
-            throw new Error("Provider did not return an access token");
-          }
-
-          const newPayload = {
-            ...secretPayload,
-            accessToken,
-            refreshToken: newRefreshToken,
-          };
+          /**
+           * `previous` carries the fields a refresh does not return —
+           * provider extras like Intuit's `realmId`, and the existing refresh
+           * token for providers that do not rotate one.
+           *
+           * For providers that DO rotate (Intuit invalidates the old refresh
+           * token the moment it issues a new one), `buildOAuthSecret` writes
+           * the returned token over the previous one and the update below
+           * persists it in the same statement. There is no second chance: a
+           * process that reads a new refresh token and fails to store it has
+           * lost the connection, and the user has to reconnect by hand.
+           */
+          const newPayload = buildOAuthSecret({
+            provider: config,
+            token,
+            query: new URLSearchParams(),
+            previous: secretPayload,
+          });
 
           const envelope = sealSecret(newPayload);
-          const oauthExpiresAt = expiresIn
-            ? new Date(Date.now() + expiresIn * 1000)
-            : null;
+          const oauthExpiresAt =
+            config.tokensExpire === false || !token.expiresIn
+              ? null
+              : new Date(Date.now() + token.expiresIn * 1000);
 
           await prisma.credential.update({
             where: { id: cred.id },

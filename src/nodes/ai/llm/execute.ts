@@ -8,6 +8,11 @@ import {
   parseModelChain,
   pickRunUsage,
 } from "@/lib/ai/fallback";
+import {
+  assertVisionCapable,
+  EMPTY_ATTACHMENTS,
+  resolveAttachments,
+} from "@/nodes/shared/ai-attachments";
 import type { NodeRun } from "@/nodes/types";
 import { definition, type LlmData } from "./definition";
 
@@ -64,6 +69,39 @@ export const execute: NodeRun<LlmData> = async ({
 
   const candidates = parseModelChain(data.model, data.fallbackModels);
 
+  // AF-M10-07. Resolved once, before the cache key, because the bytes are part
+  // of what the answer depends on. `attachments` is rendered here and read per
+  // candidate inside the call, since PDF handling differs by provider.
+  const renderedAttachments = data.attachments
+    ? resolve(data.attachments).trim()
+    : "";
+  const hasAttachments = renderedAttachments.length > 0;
+
+  if (hasAttachments) {
+    if (!organizationId) {
+      throw new NonRetriableError(
+        "AI Chat node: this run has no organization, so its attachments cannot be read.",
+      );
+    }
+    // Re-checked at run time as well as at save time: a fallback chain can be
+    // edited to add a text-only model after the attachment was configured, and
+    // answering confidently about an image the model never saw is the failure
+    // this prevents.
+    assertVisionCapable(candidates, "AI Chat node");
+  }
+
+  // The bytes are resolved per candidate (PDF handling is provider-specific),
+  // but the CONTENT hashes are not — so they are read once, from the primary,
+  // to key the cache. Two different invoices must not share an entry.
+  const cacheAttachments = hasAttachments
+    ? await resolveAttachments({
+        rendered: renderedAttachments,
+        organizationId: organizationId as string,
+        adapter: "openai",
+        where: "AI Chat node",
+      })
+    : EMPTY_ATTACHMENTS;
+
   // AF-M5-07: the fingerprint covers everything that can change the answer —
   // a temperature or schema edit misses rather than replaying the old reply.
   const cacheTtlSeconds = normalizeCacheTtlSeconds(data.cacheTtlSeconds);
@@ -77,6 +115,10 @@ export const execute: NodeRun<LlmData> = async ({
       maxTokens: data.maxTokens,
       jsonMode: data.jsonMode === true,
       jsonSchema: data.jsonMode ? (parsedSchema ?? null) : null,
+      // AF-M10-07: content hashes, not file ids. Two copies of one invoice
+      // SHOULD share a cache entry; two different invoices must not, and their
+      // ids differ on every upload while their bytes do not.
+      attachmentSha256s: cacheAttachments.sha256s,
     },
   });
 
@@ -89,6 +131,43 @@ export const execute: NodeRun<LlmData> = async ({
     credentials,
     "AI Chat node",
     async (candidate) => {
+      // Per candidate: the primary may read PDFs natively while its fallback
+      // does not, and sending a fallback a payload it cannot use would be a
+      // silently worse answer.
+      const attachments = hasAttachments
+        ? await resolveAttachments({
+            rendered: renderedAttachments,
+            organizationId: organizationId as string,
+            adapter: candidate.modelDef.adapter,
+            where: "AI Chat node",
+          })
+        : EMPTY_ATTACHMENTS;
+
+      // Text pulled out of a document this provider cannot read natively is
+      // appended rather than dropped, so the model still sees the content.
+      const promptText = attachments.extractedText
+        ? `${resolvedPrompt}
+
+${attachments.extractedText}`
+        : resolvedPrompt;
+
+      // The `ai` SDK takes either a `prompt` string or a `messages` array;
+      // parts require the array form.
+      const promptArgs =
+        attachments.parts.length > 0
+          ? {
+              messages: [
+                {
+                  role: "user" as const,
+                  content: [
+                    { type: "text" as const, text: promptText },
+                    ...attachments.parts,
+                  ],
+                },
+              ],
+            }
+          : { prompt: promptText };
+
       if (data.jsonMode && parsedSchema) {
         const result = await step.ai.wrap(
           `llm-generate-object:${candidate.fullModelId}`,
@@ -96,10 +175,10 @@ export const execute: NodeRun<LlmData> = async ({
           {
             model: candidate.languageModel,
             system: resolvedSystem,
-            prompt: resolvedPrompt,
+            ...promptArgs,
             schema: jsonSchema(parsedSchema),
             ...callSettings,
-          },
+          } as Parameters<typeof generateObject>[0],
         );
         const object = (result as { object?: unknown }).object ?? null;
         const resUsage = pickRunUsage(result);
@@ -115,9 +194,9 @@ export const execute: NodeRun<LlmData> = async ({
         {
           model: candidate.languageModel,
           system: resolvedSystem,
-          prompt: resolvedPrompt,
+          ...promptArgs,
           ...callSettings,
-        },
+        } as Parameters<typeof generateText>[0],
       );
       const content = (
         result as {
@@ -152,6 +231,10 @@ export const execute: NodeRun<LlmData> = async ({
     [data.variableName as string]: {
       text,
       model: servedModel,
+      // AF-M10-07: which path each attachment took. A PDF read as extracted
+      // text reads worse than one read natively, and this is how a user sees
+      // that rather than guessing.
+      ...(hasAttachments ? { attachments: cacheAttachments.handling } : {}),
     },
     [WORKFLOW_USAGE_KEY]: usage,
   };

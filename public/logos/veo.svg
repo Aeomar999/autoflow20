@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Google Veo">
+  <defs>
+    <linearGradient id="veo" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4285F4"/><stop offset=".55" stop-color="#7B4DFF"/><stop offset="1" stop-color="#E8467C"/>
+    </linearGradient>
+  </defs>
+  <rect width="24" height="24" rx="5" fill="url(#veo)"/>
+  <path fill="#fff" d="M9.6 8.4 15.6 12l-6 3.6V8.4Z"/>
+  <path fill="#fff" d="m18.1 4.4.55 1.45 1.45.55-1.45.55-.55 1.45-.55-1.45L16.1 6.4l1.45-.55.55-1.45Z"/>
+</svg>
