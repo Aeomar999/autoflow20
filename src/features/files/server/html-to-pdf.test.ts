@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   HtmlToPdfError,
   MAX_HTML_CHARACTERS,
@@ -18,6 +18,15 @@ import {
 const asPdf = (bytes: Buffer) => bytes.subarray(0, 5).toString();
 
 describe("renderHtmlToPdf (AF-M10-12)", () => {
+  // The renderer is loaded on demand (`jsdom` + `pdfmake` +
+  // `html-to-pdfmake`, together about five seconds cold) so that a page which
+  // never renders a PDF does not evaluate it at boot. Warm it once here, or
+  // whichever test happens to run first absorbs that cost and flakes against
+  // the 5s default — which says nothing about the code under test.
+  beforeAll(async () => {
+    await renderHtmlToPdf({ html: "<p>warm</p>" });
+  }, 60_000);
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
