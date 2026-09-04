@@ -1,5 +1,5 @@
 import "server-only";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { verifyHmacSignature } from "@/lib/server/webhook-signature";
 
 /**
  * Intuit webhook verification (AF-M10-16).
@@ -36,37 +36,22 @@ export interface IntuitRealmEvents {
  * formatting) and every signature check would fail for reasons that look like
  * a wrong token.
  *
- * The comparison is constant-time. A byte-by-byte early return leaks how much
- * of a forged signature was correct, which is enough to construct one a byte
- * at a time.
+ * The comparison itself lives in `verifyHmacSignature` (AF-M10-18) and is
+ * constant-time. A byte-by-byte early return leaks how much of a forged
+ * signature was correct, which is enough to construct one a byte at a time —
+ * so there is one such comparison in the codebase, not one per provider.
  */
 export function verifyIntuitSignature(args: {
   rawBody: string;
   signature: string | null;
   verifierToken: string;
 }): boolean {
-  if (!args.signature || !args.verifierToken) {
-    return false;
-  }
-
-  const expected = createHmac("sha256", args.verifierToken)
-    .update(args.rawBody, "utf8")
-    .digest();
-
-  let received: Buffer;
-  try {
-    received = Buffer.from(args.signature, "base64");
-  } catch {
-    return false;
-  }
-
-  // timingSafeEqual throws on a length mismatch, which would itself be a
-  // timing signal — and a wrong-length signature is simply invalid.
-  if (received.byteLength !== expected.byteLength) {
-    return false;
-  }
-
-  return timingSafeEqual(received, expected);
+  return verifyHmacSignature({
+    rawBody: args.rawBody,
+    signature: args.signature,
+    secret: args.verifierToken,
+    encoding: "base64",
+  });
 }
 
 /**

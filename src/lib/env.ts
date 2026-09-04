@@ -78,6 +78,8 @@ const serverEnvSchema = z.object({
   INTUIT_CLIENT_ID: z.string().optional(),
   INTUIT_CLIENT_SECRET: z.string().optional(),
   INTUIT_WEBHOOK_VERIFIER_TOKEN: z.string().optional(),
+  /** Shared secret for the app-wide GitHub webhook (AF-M10-18). */
+  GITHUB_WEBHOOK_SECRET: z.string().optional(),
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
   GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
   ATLASSIAN_CLIENT_ID: z.string().optional(),

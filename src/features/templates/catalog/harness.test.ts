@@ -37,7 +37,7 @@ import {
  * invoice PDFs to Drive, a Stripe receipt, an estimate from a sheet, and an
  * expense with its receipt attached).
  */
-const EXPECTED_TEMPLATE_COUNT = 47;
+const EXPECTED_TEMPLATE_COUNT = 57;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {

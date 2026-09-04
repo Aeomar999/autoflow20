@@ -683,4 +683,171 @@ export const supportTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "jira-sprint-report-attached",
+    name: "Sprint report, filed back into Jira",
+    description:
+      "Runs a JQL search at the end of each sprint, renders the result as a PDF, files a report issue, and attaches the PDF to it — so the report lives where the work does rather than in someone's downloads folder. Only named fields are fetched from Jira, because the default response carries every custom field on every issue and a mature site makes that tens of kilobytes a row. Only an Atlassian credential is needed.",
+    category: "Ops",
+    domain: "support",
+    tags: ["jira", "sprint", "report", "jql", "pdf", "attachment"],
+    graph: {
+      nodes: [
+        {
+          id: "sprint-end",
+          type: "SCHEDULE_TRIGGER",
+          name: "Every other Friday",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 17 * * 5", timezone: "UTC" },
+        },
+        {
+          id: "done",
+          type: "JIRA_SEARCH",
+          name: "What closed this sprint",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "closed",
+            jql: "project = REPLACE_WITH_PROJECT_KEY AND status changed to Done during (-14d, now()) ORDER BY updated DESC",
+            limit: 200,
+          },
+        },
+        {
+          id: "html",
+          type: "CODE",
+          name: "Build the report",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const issues = input.closed?.issues ?? [];\n\nconst rows = issues\n  .map(\n    (i) =>\n      `<tr><td>${i.key}</td><td>${i.summary}</td><td>${i.assignee ?? "Unassigned"}</td></tr>`,\n  )\n  .join("");\n\nreturn {\n  issueCount: issues.length,\n  reportHtml: `<html><body><h1>Sprint report</h1><p>${issues.length} issues closed.</p><table border="1" cellpadding="6"><tr><th>Key</th><th>Summary</th><th>Assignee</th></tr>${rows}</table></body></html>`,\n};\n',
+          },
+        },
+        {
+          id: "pdf",
+          type: "HTML_TO_PDF",
+          name: "Render the PDF",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "report",
+            html: "{{reportHtml}}",
+            filename: "sprint-report.pdf",
+            pageSize: "A4",
+            orientation: "portrait",
+          },
+        },
+        {
+          id: "issue",
+          type: "JIRA_CREATE_ISSUE",
+          name: "File the report issue",
+          position: { x: 1120, y: 0 },
+          data: {
+            variableName: "reportIssue",
+            projectKey: "REPLACE_WITH_PROJECT_KEY",
+            issueType: "Task",
+            summary: "Sprint report — {{$now.date}}",
+            description:
+              "{{issueCount}} issues closed this sprint. The full report is attached.",
+            labels: "sprint-report",
+          },
+        },
+        {
+          id: "attach",
+          type: "JIRA_ADD_ATTACHMENT",
+          name: "Attach the PDF",
+          position: { x: 1400, y: 0 },
+          data: {
+            variableName: "attached",
+            issueKey: "{{reportIssue.key}}",
+            // Three braces: the file reference is an object, and two braces
+            // would HTML-escape it into something unparseable.
+            fileRef: "{{{json report.file}}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "sprint-end", target: "done" },
+        { source: "done", target: "html" },
+        { source: "html", target: "pdf" },
+        { source: "pdf", target: "issue" },
+        { source: "issue", target: "attach" },
+      ],
+    },
+  },
+  {
+    slug: "form-to-pdf-receipt",
+    name: "Turn a form submission into a PDF",
+    description:
+      "Publishes a form, and renders every submission as a tidy PDF you can archive, print or attach downstream. Useful for expense claims, sign-off sheets, incident reports — anywhere a submission needs to become a document rather than a database row. Values are escaped before they reach the HTML, because a name with an ampersand in it should not be able to break the layout. Nothing to connect; add a Drive, Jira or email node on the end when you want it delivered somewhere.",
+    category: "Ops",
+    domain: "support",
+    tags: ["form", "pdf", "receipt", "document", "render", "archive"],
+    graph: {
+      nodes: [
+        {
+          id: "submission",
+          type: "FORM_TRIGGER",
+          name: "Expense claim",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Submit an expense claim",
+            description:
+              "Fill this in and a PDF receipt is generated for your records.",
+            submitLabel: "Submit claim",
+            successMessage: "Received. Your receipt is being generated.",
+            fields: [
+              {
+                name: "claimant",
+                label: "Your name",
+                type: "text",
+                required: true,
+              },
+              {
+                name: "email",
+                label: "Your email",
+                type: "email",
+                required: true,
+              },
+              {
+                name: "amount",
+                label: "Amount (GBP)",
+                type: "number",
+                required: true,
+              },
+              {
+                name: "purpose",
+                label: "What was it for?",
+                type: "textarea",
+                required: true,
+                maxLength: 2000,
+              },
+            ],
+          },
+        },
+        {
+          id: "render",
+          type: "CODE",
+          name: "Build the document",
+          position: { x: 300, y: 0 },
+          data: {
+            code: 'const f = input.form?.fields ?? {};\n\n// Escaped before it reaches the HTML: a name containing & or < would\n// otherwise break the layout, and worse in any renderer that follows.\nconst esc = (v) =>\n  String(v ?? "")\n    .replace(/&/g, "&amp;")\n    .replace(/</g, "&lt;")\n    .replace(/>/g, "&gt;");\n\nconst reference = `EXP-${Date.now().toString(36).toUpperCase()}`;\n\nreturn {\n  reference,\n  claimant: esc(f.claimant),\n  receiptHtml: `<html><body style="font-family:sans-serif">\n  <h1>Expense claim ${reference}</h1>\n  <p><strong>Claimant:</strong> ${esc(f.claimant)} (${esc(f.email)})</p>\n  <p><strong>Amount:</strong> £${esc(f.amount)}</p>\n  <p><strong>Purpose:</strong><br>${esc(f.purpose)}</p>\n  <hr><p style="color:#666">Submitted ${new Date().toISOString()}</p>\n</body></html>`,\n};\n',
+          },
+        },
+        {
+          id: "pdf",
+          type: "HTML_TO_PDF",
+          name: "Render the receipt",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "receipt",
+            html: "{{receiptHtml}}",
+            filename: "{{reference}}.pdf",
+            pageSize: "A4",
+            orientation: "portrait",
+          },
+        },
+      ],
+      edges: [
+        { source: "submission", target: "render" },
+        { source: "render", target: "pdf" },
+      ],
+    },
+  },
 ];
