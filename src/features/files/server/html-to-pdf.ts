@@ -1,8 +1,9 @@
 import "server-only";
-import htmlToPdfmake from "html-to-pdfmake";
-import { JSDOM } from "jsdom";
-import pdfmake from "pdfmake";
+import type { JSDOM } from "jsdom";
 import type { TDocumentDefinitions } from "pdfmake/interfaces";
+
+/** `pdfmake`'s server entry, as the default export of its module. */
+type PdfMake = typeof import("pdfmake");
 
 /**
  * HTML → PDF rendering (AF-M10-12).
@@ -82,7 +83,7 @@ let configured = false;
  * is set here rather than at import time so the reason lives next to the
  * policy, and it is idempotent so a second call cannot loosen it.
  */
-function configureRenderer(): void {
+function configureRenderer(pdfmake: PdfMake): void {
   if (configured) {
     return;
   }
@@ -220,7 +221,29 @@ export async function renderHtmlToPdf(
     );
   }
 
-  configureRenderer();
+  // Loaded here rather than at module scope, for the same reason `pdf-parse`
+  // is: `src/nodes/registry.ts` imports every executor, so anything this file
+  // imports is loaded by every page and every tRPC call, none of which render
+  // a PDF. That is not merely wasteful - `jsdom` reaches
+  // `html-encoding-sniffer`, a CommonJS package that `require()`s the ESM-only
+  // `@exodus/bytes`. Those packages need Node ^20.19 || ^22.12 || >=24 (where
+  // `require(esm)` works); on anything older it throws ERR_REQUIRE_ESM while
+  // the module body evaluates, which took production down while every local
+  // run on Node 24 stayed green.
+  const [jsdomModule, pdfmakeModule, htmlToPdfmakeModule] = await Promise.all([
+    import("jsdom"),
+    import("pdfmake"),
+    import("html-to-pdfmake"),
+  ]);
+  const { JSDOM } = jsdomModule;
+  // `pdfmake` is CommonJS with named exports and no `default`, so under
+  // interop the module object arrives either as the namespace itself or
+  // under `default`, depending on who did the bundling.
+  const pdfmake: PdfMake =
+    (pdfmakeModule as { default?: PdfMake }).default ?? pdfmakeModule;
+  const htmlToPdfmake = htmlToPdfmakeModule.default;
+
+  configureRenderer(pdfmake);
 
   // Parses only. `runScripts` is not set, so no inline or external script
   // runs; `resources` is not set, so nothing is fetched. Both are jsdom's
