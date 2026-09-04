@@ -850,4 +850,113 @@ export const supportTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "webhook-retry-with-backoff",
+    name: "Keep trying a flaky endpoint, then give up",
+    description:
+      "Calls an endpoint, and if it fails, waits and tries again with a longer gap each time — three attempts, then a clean failure that says what happened. This is the shape you need when the far end is occasionally unavailable and the engine's own retry is too blunt: here the delay grows, the attempt count is visible in the run, and the final give-up is a deliberate outcome rather than an exhausted retry budget. The waits are durable, so a run holding for eight minutes costs nothing and survives a redeploy. Nothing to connect.",
+    category: "Ops",
+    domain: "support",
+    tags: ["retry", "backoff", "resilience", "http", "wait", "flaky"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "WEBHOOK_TRIGGER",
+          name: "Work arrives",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "attempt-1",
+          type: "HTTP_REQUEST",
+          name: "First attempt",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "try1",
+            endpoint: "https://httpbin.org/status/200,503",
+            method: "GET",
+            // Deliberately false: this graph decides what a failure means,
+            // rather than letting the engine's retry take over.
+            failOnNon2xx: false,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "ok-1",
+          type: "CONDITION",
+          name: "Worked?",
+          position: { x: 520, y: 0 },
+          data: {
+            left: "{{try1.httpResponse.status}}",
+            operator: "equals",
+            right: "200",
+          },
+        },
+        {
+          id: "back-off-1",
+          type: "WAIT",
+          name: "Wait 30s",
+          position: { x: 780, y: 120 },
+          data: { mode: "duration", seconds: 30 },
+        },
+        {
+          id: "attempt-2",
+          type: "HTTP_REQUEST",
+          name: "Second attempt",
+          position: { x: 1040, y: 120 },
+          data: {
+            variableName: "try2",
+            endpoint: "https://httpbin.org/status/200,503",
+            method: "GET",
+            failOnNon2xx: false,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "ok-2",
+          type: "CONDITION",
+          name: "Worked now?",
+          position: { x: 1300, y: 120 },
+          data: {
+            left: "{{try2.httpResponse.status}}",
+            operator: "equals",
+            right: "200",
+          },
+        },
+        {
+          id: "back-off-2",
+          type: "WAIT",
+          name: "Wait 2m",
+          position: { x: 1560, y: 240 },
+          data: { mode: "duration", seconds: 120 },
+        },
+        {
+          id: "attempt-3",
+          type: "HTTP_REQUEST",
+          name: "Last attempt",
+          position: { x: 1820, y: 240 },
+          data: {
+            variableName: "try3",
+            endpoint: "https://httpbin.org/status/200,503",
+            method: "GET",
+            // The last one DOES fail the run: three tries over two and a half
+            // minutes is a real outage, not a blip, and the execution should
+            // say so rather than finishing green.
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "attempt-1" },
+        { source: "attempt-1", target: "ok-1" },
+        { source: "ok-1", target: "back-off-1", sourceHandle: "false" },
+        { source: "back-off-1", target: "attempt-2" },
+        { source: "attempt-2", target: "ok-2" },
+        { source: "ok-2", target: "back-off-2", sourceHandle: "false" },
+        { source: "back-off-2", target: "attempt-3" },
+      ],
+    },
+  },
 ];

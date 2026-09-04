@@ -53,10 +53,26 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
       </Provider>,
     );
 
-    // Verify every offerable node is rendered
+    // The DOM is walked ONCE and the assertions run against a set.
+    //
+    // This used to call getByText twice per palette node, and getByText scans
+    // the whole document each time — quadratic against a palette that M10 is
+    // steadily growing. At ~90 nodes it took 11.6s and began failing under
+    // load in the combined unit+dom run while still passing alone, which is
+    // the worst way for a test to break: intermittently, and for a reason that
+    // has nothing to do with what it checks.
+    const rendered = new Set(
+      Array.from(document.querySelectorAll("*"))
+        .map((element) => element.textContent?.trim())
+        .filter((text): text is string => Boolean(text)),
+    );
+
     for (const node of nodePalette) {
-      expect(screen.getByText(node.label)).toBeTruthy();
-      expect(screen.getByText(node.description)).toBeTruthy();
+      expect(rendered.has(node.label), `no label for ${node.type}`).toBe(true);
+      expect(
+        rendered.has(node.description),
+        `no description for ${node.type}`,
+      ).toBe(true);
     }
 
     // Verify category headers exist

@@ -361,6 +361,18 @@ export const credentialTesters: Record<string, CredentialTester> = {
       Accept: "application/json",
     });
   },
+  "stripe.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    // The cheapest authenticated read Stripe offers: it returns the account
+    // the key belongs to and costs nothing.
+    return checkAuth("https://api.stripe.com/v1/balance", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
   "apollo.apiKey": async (secret) => {
     const key = secret.apiKey;
     if (!key) {

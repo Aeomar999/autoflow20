@@ -2343,28 +2343,140 @@ receipt. `noTemplateCurlyInString` is turned off for the catalogue directory:
 a template's `code:` field is JavaScript source, so `${…}` inside it is correct
 by construction rather than the mistake the rule looks for.
 
-### ⬜ AF-M10-19 · Data-acquisition family: Apify, Apollo, Google Search/Maps · 2.5d
+### ✅ AF-M10-19 · Data-acquisition family: Apify, Apollo, Google Search/Maps · 2.5d · **DONE 2026-09-04**
 Needed by #2, #3, #5, #6, #7, #22.
 
 **Depends on:** AF-M10-02
 **Acceptance**
-- [ ] `APIFY_RUN` starts an actor and waits for the dataset, with a bounded wait and a run-timeout that surfaces as a clear error; `APIFY_GET_DATASET` fetches results with pagination. The five automations that use Apify all follow run-then-fetch, so the wait must be a first-class, cancellable step — not a sleep loop.
-- [ ] `APOLLO_ENRICH` (person/organization match), rate-limit aware.
-- [ ] `GOOGLE_SEARCH` (Custom Search JSON API, `cx` from the credential) and `GOOGLE_MAPS_SEARCH` (Places text search).
-- [ ] Per-run result caps and cost notes in the docs — these are metered APIs and an unbounded actor run is a bill, not a bug.
-- [ ] progress.md updated
+- [x] `APIFY_RUN` starts an actor and waits for the dataset, with a bounded wait and a run-timeout that surfaces as a clear error; `APIFY_GET_DATASET` fetches results with pagination. The five automations that use Apify all follow run-then-fetch, so the wait must be a first-class, cancellable step — not a sleep loop.
+- [x] `APOLLO_ENRICH` (person/organization match), rate-limit aware.
+- [x] `GOOGLE_SEARCH` (Custom Search JSON API, `cx` from the credential) and `GOOGLE_MAPS_SEARCH` (Places text search).
+- [x] Per-run result caps and cost notes in the docs — these are metered APIs and an unbounded actor run is a bill, not a bug.
+- [x] progress.md updated
 
-### ⬜ AF-M10-20 · Commerce & list family: Airtable, Shopify, MailerLite, Stripe actions · 3d
+**Status 2026-09-04 — done.** Five nodes over three clients, 51 tests.
+`docs/nodes/data-acquisition.md` written, leading with a cost table because
+every node in this family spends money on every run.
+
+**The Apify wait is durable steps, not a sleep loop**, exactly as the
+acceptance required. Each poll and each sleep is its own step, following the
+`WAIT` node's pattern from AF-M10-08: a wait parked inside one long `step.run`
+cannot notice it was cancelled until that step returns, so "cancel" on a
+ten-minute scrape would mean "cancel in ten minutes". It also frees the worker
+and survives a redeploy.
+
+**Every path that stops waiting aborts the actor run.** This is the part that
+turns the acceptance's "a bill, not a bug" into code: Apify meters compute
+units for as long as an actor is alive, so a timeout or a cancellation that
+merely stops *waiting* leaves a scraper running on the user's money. The node
+calls abort and says in its error whether that succeeded — and when it did not,
+tells the user to stop it in the console rather than letting them find out from
+an invoice. Apify's own run timeout is set just above ours as a backstop for
+the case where this workflow dies between polls. The start call is its own step
+so a retry of a later step cannot launch a second run.
+
+**A failed actor is a successful API call.** Apify reports failure as HTTP 200
+describing a `FAILED` run, so the node checks the terminal state rather than
+the response, or it would report success and hand an empty dataset on. Same
+class of bug as Slack's `ok: false` in AF-M10-17.
+
+**Rate limits that are not rate limits.** Two providers here answer 429 for
+things a retry cannot fix, and both are classified on headers rather than
+status: Apollo's *daily* allowance (as opposed to its per-minute window) and
+Google Custom Search's *daily quota* (as opposed to `rateLimitExceeded`).
+Retrying either spends the whole attempt budget and then reports the wrong
+cause.
+
+**The Places field mask is the price list.** Places (New) bills by SKU
+according to the fields requested, so `*` — the obvious shortcut — puts every
+call on the most expensive tier. The mask is assembled from what the node was
+configured to want, and phone/website/hours are opt-in. Also added
+`googleMaps.apiKey` as its own credential type: a Cloud key restricted to
+Custom Search returns 403 for Places, so reusing the search credential would
+produce a permission error that reads like a bad key.
+
+**Caps everywhere, and truncation reported rather than implied**: 1,000 dataset
+items, 100 search results (Google will not page further anyway), 60 places, one
+Apollo match per run with email reveal off. A workflow that silently processed
+the first thousand of forty thousand rows looks like it worked.
+
+**Catalogue.** Five templates (62 total): a scheduled scrape-and-digest, a
+Maps prospect list, inbound-lead enrichment, a pre-call research brief, and —
+to hold the credential-free floor as three new starter entries pushed it up —
+a paced backfill that walks a list with a durable pause between items. The
+harness's header comment was rewritten: it had been enumerating what each
+template demonstrates and had fallen a milestone behind, so it now explains
+what the count is for and leaves the enumeration to the tests.
+
+### ✅ AF-M10-20 · Commerce & list family: Airtable, Shopify, MailerLite, Stripe actions · 3d · **DONE 2026-09-04**
 H11. Needed by #9, #16, #17, #24, #25, #33, #34.
 
 **Depends on:** AF-M10-04, AF-M10-05
 **Acceptance**
-- [ ] Airtable: `AIRTABLE_READ` (with filterByFormula), `AIRTABLE_UPDATE`, `AIRTABLE_TRIGGER` (new/changed record via AF-M10-05). Existing `AIRTABLE_CREATE_RECORD` untouched.
-- [ ] Shopify: `SHOPIFY_CREATE_ORDER` (line items, customer, shipping).
-- [ ] MailerLite: `MAILERLITE_FIND_SUBSCRIBER`, `MAILERLITE_CREATE_SUBSCRIBER` (with group assignment).
-- [ ] Stripe: `STRIPE_FIND_OR_CREATE_CUSTOMER`, `STRIPE_CREATE_PAYMENT_LINK`, `STRIPE_GET_CUSTOMER`. The existing `STRIPE_TRIGGER` is untouched.
-- [ ] Every create is idempotent where the API supports it (Stripe `Idempotency-Key`, Airtable typecast off) — a retried step must not create a second customer or a second order.
-- [ ] progress.md updated
+- [x] Airtable: `AIRTABLE_READ` (with filterByFormula), `AIRTABLE_UPDATE`, `AIRTABLE_TRIGGER` (new/changed record via AF-M10-05). Existing `AIRTABLE_CREATE_RECORD` untouched.
+- [x] Shopify: `SHOPIFY_CREATE_ORDER` (line items, customer, shipping).
+- [x] MailerLite: `MAILERLITE_FIND_SUBSCRIBER`, `MAILERLITE_CREATE_SUBSCRIBER` (with group assignment).
+- [x] Stripe: `STRIPE_FIND_OR_CREATE_CUSTOMER`, `STRIPE_CREATE_PAYMENT_LINK`, `STRIPE_GET_CUSTOMER`. The existing `STRIPE_TRIGGER` is untouched.
+- [x] Every create is idempotent where the API supports it (Stripe `Idempotency-Key`, Airtable typecast off) — a retried step must not create a second customer or a second order.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Nine nodes over four clients, 69 tests.
+`docs/nodes/commerce.md` written.
+
+**Idempotency is the spine of this task**, and each provider helps by a
+different amount, so `src/lib/server/idempotency.ts` supplies the one thing
+they all need: a key derived from the **execution** and the **node**. Both
+halves matter and getting either wrong is worse than not trying — a random key
+per attempt defeats the mechanism entirely, and a key from the node alone would
+make two runs an hour apart collide, so the second silently returns the first
+run's object instead of doing its work. It is hashed rather than concatenated,
+which caps it under Stripe's 255-character limit and keeps record contents out
+of the provider's logs.
+
+- **Stripe**: `Idempotency-Key` on every POST; a retry returns the original
+  object for 24 hours. `STRIPE_FIND_OR_CREATE_CUSTOMER` exists because Stripe
+  treats email as a label rather than a key and will hold four customers with
+  the same address.
+- **Shopify**: orders have no idempotency header, so the guard is the pair
+  Shopify does offer — `source_name` + `source_identifier`, unique per shop.
+  The lookup includes archived orders, because an order closed between the
+  write and the retry would otherwise be invisible and get duplicated.
+- **MailerLite**: `POST /subscribers` is an upsert by design, so the create is
+  naturally idempotent. Worth stating, because identical code against most
+  list providers would be a duplicate-generator.
+- **Airtable**: no key available; `typecast` is explicitly OFF, and the update
+  is a PATCH by record id.
+
+**Three provider behaviours that report success while doing nothing useful.**
+Adding a MailerLite subscriber who already unsubscribed returns 200 **without
+resubscribing them**, so the node reports the returned status rather than
+assuming — "the call worked" is not "they are on the list". Stripe returns a
+deleted customer as a normal 200 with `deleted: true` rather than a 404. And
+Airtable's `typecast` would let a workflow writing "Hight" into a status column
+silently add "Hight" as a valid option instead of failing.
+
+**The Airtable trigger's item id is the entire new-versus-changed mechanism.**
+With no modified field the id is the record id, so a record fires once ever;
+point the node at a last-modified column and the id becomes
+`recordId@timestamp`, so an edit is a new id and fires while an untouched
+record does not. One config field rather than a second node type, and the
+framework's dedupe does the rest.
+
+**A wart, named rather than hidden**: `AIRTABLE_CREATE_RECORD` predates the new
+client and still carries its own inline fetch. The acceptance says to leave it
+untouched, so there are two callers of the same API for now; it should move
+onto the shared client the next time it is opened for another reason.
+
+Added `stripe.apiKey` as a credential type with a connection tester. The
+webhook route's deployment-level signing secret verifies inbound events and
+cannot act as a tenant, so nodes that create customers need a per-org key.
+
+**Catalogue.** Seven templates (69 total): Airtable intake triage and
+lookup-before-write, a form-to-payment-link flow, Stripe-payment-to-Shopify-
+order, a MailerLite signup that respects a previous opt-out, an SLA escalation
+that re-checks before escalating, and a retry-with-backoff chain — the last two
+credential-free, to hold the one-third floor as four new starter entries pushed
+it up.
 
 ### ⬜ AF-M10-21 · Messaging family: Telegram, WhatsApp (WAHA) · 2d
 Needed by #23 and #31.

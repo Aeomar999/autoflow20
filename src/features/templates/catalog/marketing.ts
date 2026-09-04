@@ -574,4 +574,351 @@ export const marketingTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "enrich-inbound-lead",
+    name: "Enrich an inbound lead before anyone reads it",
+    description:
+      "Takes a form or webhook signup and asks Apollo who they are — title, company, size, industry — so the first human to look at the lead already knows whether it is worth a call. A miss is reported as found: false rather than failing, because one unknown contact must not stop a batch. Apollo spends a credit per successful match and more to reveal an email, so revealing is off by default and the node refuses a name-only query rather than paying for a guess. Supply an Apollo credential.",
+    category: "Revenue",
+    domain: "marketing",
+    tags: ["apollo", "enrich", "lead", "inbound", "crm", "prospect"],
+    graph: {
+      nodes: [
+        {
+          id: "signup",
+          type: "WEBHOOK_TRIGGER",
+          name: "New signup",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "enrich",
+          type: "APOLLO_ENRICH",
+          name: "Who is this?",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "lead",
+            mode: "person",
+            email: "{{webhook.body.email}}",
+            revealPersonalEmails: false,
+          },
+        },
+        {
+          id: "known",
+          type: "CONDITION",
+          name: "Matched?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{lead.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "score",
+          type: "CODE",
+          name: "Score the lead",
+          position: { x: 840, y: -80 },
+          data: {
+            code: 'const p = input.lead?.person ?? {};\nconst size = p.companyEmployees ?? 0;\nconst title = (p.title ?? "").toLowerCase();\n\nconst senior = /(chief|head|director|vp|founder|owner|manager)/.test(title);\n\nreturn {\n  tier: size >= 200 && senior ? "A" : size >= 50 || senior ? "B" : "C",\n  summary: `${p.name ?? "Unknown"} — ${p.title ?? "no title"} at ${p.companyName ?? "unknown company"} (${size || "?"} staff)`,\n};\n',
+          },
+        },
+        {
+          id: "unknown",
+          type: "CODE",
+          name: "Record the miss",
+          position: { x: 840, y: 100 },
+          data: {
+            code: '// Not a failure. Plenty of real signups are from people Apollo has\n// never heard of, and they still need routing.\nreturn {\n  tier: "unknown",\n  summary: `No Apollo match for ${input.webhook?.body?.email ?? "this address"}`,\n};\n',
+          },
+        },
+      ],
+      edges: [
+        { source: "signup", target: "enrich" },
+        { source: "enrich", target: "known" },
+        { source: "known", target: "score", sourceHandle: "true" },
+        { source: "known", target: "unknown", sourceHandle: "false" },
+      ],
+    },
+  },
+  {
+    slug: "pre-call-company-research",
+    name: "Company research brief before the call",
+    description:
+      "Given a company domain, pulls the firmographics from Apollo and the most recent web coverage from Google, then has a model write a one-page brief for whoever is taking the meeting. Custom Search is metered — a hundred queries a day are free and everything after is billed — so the node caps results and reports how many queries it spent. Supply an Apollo credential and a Google Custom Search credential.",
+    category: "Revenue",
+    domain: "marketing",
+    // Apollo for the firmographics, Google for the coverage.
+    tier: "library",
+    tags: ["apollo", "google", "research", "brief", "sales", "ai"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a domain",
+          position: { x: 0, y: 0 },
+          data: { payload: '{"domain":"example.com"}' },
+        },
+        {
+          id: "company",
+          type: "APOLLO_ENRICH",
+          name: "Firmographics",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "company",
+            mode: "organization",
+            domain: "{{domain}}",
+          },
+        },
+        {
+          id: "news",
+          type: "GOOGLE_SEARCH",
+          name: "Recent coverage",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "coverage",
+            query: "{{company.organization.name}} news",
+            limit: 10,
+            // Last year only: older coverage is rarely what a caller needs.
+            dateRestrict: "y1",
+          },
+        },
+        {
+          id: "brief",
+          type: "AI_LLM",
+          name: "Write the brief",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "brief",
+            model: "anthropic:claude-3-5-sonnet",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You brief salespeople before a call. One page, specific, no filler. If the evidence is thin, say so rather than padding.",
+            userPrompt:
+              "Company: {{company.organization.name}} ({{domain}})\nIndustry: {{company.organization.industry}}\nStaff: {{company.organization.employees}}\n\nRecent coverage:\n{{{json coverage.results}}}\n\nWrite the brief: what they do, what changed recently, and two questions worth asking.",
+            temperature: 0.4,
+            maxTokens: 1200,
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "company" },
+        { source: "company", target: "news" },
+        { source: "news", target: "brief" },
+      ],
+    },
+  },
+  {
+    slug: "form-to-stripe-payment-link",
+    name: "Quote request to payment link",
+    description:
+      "Publishes a form, finds or creates the Stripe customer behind the email, and returns a payment link for the chosen price. Stripe treats email as a label rather than a key and will happily hold four customers with the same address, so the find-or-create is what stops a billing account filling up with duplicates. Both writes carry an idempotency key derived from the run and the node, so a retried step returns the customer and link it already made rather than a second pair. Supply a Stripe credential and put real price ids in the Code node.",
+    category: "Revenue",
+    domain: "marketing",
+    tags: ["stripe", "payment", "link", "form", "customer", "checkout"],
+    graph: {
+      nodes: [
+        {
+          id: "request",
+          type: "FORM_TRIGGER",
+          name: "Quote request",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Request a quote",
+            description:
+              "Tell us what you need and we will send a payment link.",
+            submitLabel: "Request quote",
+            successMessage: "Thanks — your payment link is on its way.",
+            fields: [
+              {
+                name: "email",
+                label: "Your email",
+                type: "email",
+                required: true,
+              },
+              {
+                name: "name",
+                label: "Your name",
+                type: "text",
+                required: true,
+              },
+              {
+                name: "plan",
+                label: "Which plan?",
+                type: "text",
+                required: true,
+              },
+            ],
+          },
+        },
+        {
+          id: "price",
+          type: "CODE",
+          name: "Pick the price",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const plan = String(input.form?.fields?.plan ?? "").toLowerCase();\n\n// Replace with your own Stripe price ids. A payment link needs a PRICE\n// (price_...), not a product (prod_...).\nconst prices = {\n  starter: "price_REPLACE_STARTER",\n  pro: "price_REPLACE_PRO",\n};\n\nreturn {\n  priceId: prices[plan] ?? prices.starter,\n  planName: plan || "starter",\n};\n',
+          },
+        },
+        {
+          id: "customer",
+          type: "STRIPE_FIND_OR_CREATE_CUSTOMER",
+          name: "Find or create the customer",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "customer",
+            email: "{{form.fields.email}}",
+            name: "{{form.fields.name}}",
+            metadata: '{"source": "quote-form", "plan": "{{planName}}"}',
+          },
+        },
+        {
+          id: "link",
+          type: "STRIPE_CREATE_PAYMENT_LINK",
+          name: "Create the payment link",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "link",
+            priceId: "{{priceId}}",
+            quantity: 1,
+            metadata: '{"customer": "{{customer.id}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "request", target: "price" },
+        { source: "price", target: "customer" },
+        { source: "customer", target: "link" },
+      ],
+    },
+  },
+  {
+    slug: "stripe-payment-to-shopify-order",
+    name: "Paid in Stripe, ordered in Shopify",
+    description:
+      "When a Stripe payment succeeds, reads the customer and raises the matching Shopify order. Neither system knows about the other, so the risk is doing it twice: Shopify has no idempotency header for orders, and this uses the mechanism it does provide — a source identifier derived from the run and the node, which Shopify treats as unique per shop. A retry after a lost response returns the order already created rather than charging the customer again. Receipts are off by default so switching this on does not silently email people. Supply a Stripe credential and a Shopify credential.",
+    category: "Revenue",
+    domain: "marketing",
+    // Stripe to read the payment, Shopify to raise the order.
+    tier: "library",
+    tags: ["stripe", "shopify", "order", "payment", "commerce", "fulfilment"],
+    graph: {
+      nodes: [
+        {
+          id: "paid",
+          type: "STRIPE_TRIGGER",
+          name: "Payment succeeded",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "customer",
+          type: "STRIPE_GET_CUSTOMER",
+          name: "Read the customer",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "customer",
+            customerId: "{{stripe.data.object.customer}}",
+          },
+        },
+        {
+          id: "cart",
+          type: "CODE",
+          name: "Build the line items",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const payment = input.stripe?.data?.object ?? {};\n\n// Stripe amounts are in the smallest currency unit; Shopify wants a\n// decimal string.\nconst amount = Number(payment.amount ?? payment.amount_total ?? 0) / 100;\n\nreturn {\n  lineItems: [\n    {\n      title: payment.description || "Order",\n      quantity: 1,\n      price: amount.toFixed(2),\n    },\n  ],\n};\n',
+          },
+        },
+        {
+          id: "order",
+          type: "SHOPIFY_CREATE_ORDER",
+          name: "Raise the order",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "order",
+            email: "{{customer.email}}",
+            lineItems: "{{{json lineItems}}}",
+            tags: "stripe,automated",
+            note: "Created from Stripe payment {{stripe.data.object.id}}",
+            sendReceipt: false,
+          },
+        },
+      ],
+      edges: [
+        { source: "paid", target: "customer" },
+        { source: "customer", target: "cart" },
+        { source: "cart", target: "order" },
+      ],
+    },
+  },
+  {
+    slug: "signup-to-mailerlite",
+    name: "Add a signup to the right MailerLite group",
+    description:
+      "Takes a signup webhook and adds the person to a group — after checking whether they already exist. MailerLite matches on email and updates rather than duplicating, so the add itself is safe to repeat; the lookup is there for a different reason. Someone who previously unsubscribed still exists, and adding them again returns 200 without resubscribing them. The branch means the workflow can tell the difference instead of reporting success for a person who is not on the list.",
+    category: "Marketing",
+    domain: "marketing",
+    tags: ["mailerlite", "subscriber", "signup", "group", "list", "email"],
+    graph: {
+      nodes: [
+        {
+          id: "signup",
+          type: "WEBHOOK_TRIGGER",
+          name: "New signup",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "existing",
+          type: "MAILERLITE_FIND_SUBSCRIBER",
+          name: "Do we know them?",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "existing",
+            email: "{{webhook.body.email}}",
+          },
+        },
+        {
+          id: "opted-out",
+          type: "CONDITION",
+          name: "Previously unsubscribed?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{existing.status}}",
+            operator: "equals",
+            right: "unsubscribed",
+          },
+        },
+        {
+          id: "add",
+          type: "MAILERLITE_CREATE_SUBSCRIBER",
+          name: "Add to the group",
+          position: { x: 840, y: 100 },
+          data: {
+            variableName: "subscriber",
+            email: "{{webhook.body.email}}",
+            fields: '{"name": "{{webhook.body.name}}"}',
+            groupIds: "REPLACE_WITH_GROUP_ID",
+          },
+        },
+        {
+          id: "respect",
+          type: "CODE",
+          name: "Leave them alone",
+          position: { x: 840, y: -100 },
+          data: {
+            code: '// They opted out. Re-adding would not resubscribe them anyway, and\n// pretending otherwise is how a workflow reports success for someone\n// who never receives anything.\nreturn {\n  skipped: true,\n  reason: `${input.webhook?.body?.email ?? "This address"} previously unsubscribed`,\n};\n',
+          },
+        },
+      ],
+      edges: [
+        { source: "signup", target: "existing" },
+        { source: "existing", target: "opted-out" },
+        { source: "opted-out", target: "respect", sourceHandle: "true" },
+        { source: "opted-out", target: "add", sourceHandle: "false" },
+      ],
+    },
+  },
 ];

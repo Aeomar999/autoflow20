@@ -1176,4 +1176,231 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "scheduled-scrape-to-digest",
+    name: "Run a scraper and summarise what changed",
+    description:
+      "Starts an Apify actor on a schedule, waits for it, and turns the dataset into a digest. The wait is a real durable step rather than a sleep, so cancelling the workflow stops the actor instead of leaving it running — Apify bills for every second an actor is alive, and an orphaned run is a bill rather than a loose end. The dataset fetch is capped and reports truncation, so a partial read never looks like the whole site. Supply an Apify credential.",
+    category: "Data",
+    domain: "data",
+    tags: ["apify", "scrape", "crawl", "dataset", "digest", "schedule"],
+    graph: {
+      nodes: [
+        {
+          id: "nightly",
+          type: "SCHEDULE_TRIGGER",
+          name: "Nightly",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 2 * * *", timezone: "UTC" },
+        },
+        {
+          id: "scrape",
+          type: "APIFY_RUN",
+          name: "Run the scraper",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "run",
+            actorId: "apify/website-content-crawler",
+            input:
+              '{"startUrls":[{"url":"https://example.com"}],"maxCrawlPages":50}',
+            waitForFinish: true,
+            // Ten minutes. The node aborts the actor if it is still going, so
+            // this is a spending limit as much as a timeout.
+            maxWaitSeconds: 600,
+          },
+        },
+        {
+          id: "items",
+          type: "APIFY_GET_DATASET",
+          name: "Fetch the results",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "dataset",
+            datasetId: "{{run.datasetId}}",
+            limit: 500,
+            clean: true,
+          },
+        },
+        {
+          id: "digest",
+          type: "CODE",
+          name: "Summarise",
+          position: { x: 840, y: 0 },
+          data: {
+            code: 'const items = input.dataset?.items ?? [];\n\nreturn {\n  pages: items.length,\n  // Reported so a capped read is visible rather than mistaken for the\n  // whole site.\n  partial: Boolean(input.dataset?.truncated),\n  computeUnits: input.run?.computeUnits ?? null,\n  titles: items\n    .slice(0, 20)\n    .map((item) => item.title || item.url || "(untitled)")\n    .join("\\n"),\n};\n',
+          },
+        },
+      ],
+      edges: [
+        { source: "nightly", target: "scrape" },
+        { source: "scrape", target: "items" },
+        { source: "items", target: "digest" },
+      ],
+    },
+  },
+  {
+    slug: "local-lead-list-from-maps",
+    name: "Build a local prospect list from Maps",
+    description:
+      "Searches Google Maps for a type of business in a place and returns a clean list with ratings, addresses and — when you ask for them — phone numbers and websites. Contact details are opt-in because Google bills them on a higher tier than name-and-address, and the node sends a field mask matching exactly what was asked for rather than requesting everything. Places serves at most 60 results across three billed pages, and the node stops there rather than paging until Google says no. Supply a Google Maps credential.",
+    category: "Revenue",
+    domain: "data",
+    tags: ["google", "maps", "places", "leads", "local", "prospecting"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a search",
+          position: { x: 0, y: 0 },
+          data: {
+            payload: '{"trade":"independent bookshops","place":"Bristol, UK"}',
+          },
+        },
+        {
+          id: "places",
+          type: "GOOGLE_MAPS_SEARCH",
+          name: "Find the businesses",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "found",
+            query: "{{trade}}",
+            region: "{{place}}",
+            limit: 40,
+            // Billed on a higher tier. Worth it for a prospect list, which is
+            // why this template turns it on and says so.
+            includeContactDetails: true,
+          },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Tidy the list",
+          position: { x: 560, y: 0 },
+          data: {
+            code: "const places = input.found?.places ?? [];\n\n// Ranked by how much evidence there is behind the rating: a lone 5.0\n// review is not better than a 4.6 from three hundred people.\nconst ranked = [...places].sort(\n  (a, b) => (b.userRatingCount ?? 0) - (a.userRatingCount ?? 0),\n);\n\nreturn {\n  total: places.length,\n  withPhone: places.filter((p) => p.phone).length,\n  rows: ranked.map((p) => ({\n    name: p.name,\n    address: p.address,\n    rating: p.rating,\n    reviews: p.userRatingCount,\n    phone: p.phone,\n    website: p.website,\n  })),\n};\n",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "places" },
+        { source: "places", target: "shape" },
+      ],
+    },
+  },
+  {
+    slug: "airtable-intake-triage",
+    name: "Triage every new Airtable row",
+    description:
+      "Watches a table and scores each new row, writing the result back to the same record. Activating it never replays the rows already there, so switching this on against a table of five thousand does not start five thousand runs. Point it at a last-modified column if you want edits to fire it too — without one, each record is seen exactly once. The write is a PATCH, so only the fields named change, and type coercion is off: a value that does not fit a select column fails rather than quietly adding a new option.",
+    category: "Ops",
+    domain: "data",
+    tags: ["airtable", "trigger", "triage", "score", "update", "intake"],
+    graph: {
+      nodes: [
+        {
+          id: "new-row",
+          type: "AIRTABLE_TRIGGER",
+          name: "New record",
+          position: { x: 0, y: 0 },
+          data: {
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Requests",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "score",
+          type: "CODE",
+          name: "Score it",
+          position: { x: 300, y: 0 },
+          data: {
+            code: 'const f = input.record?.fields ?? {};\nconst amount = Number(f.Amount ?? 0);\nconst urgent = /urgent|asap|blocker/i.test(String(f.Notes ?? ""));\n\nreturn {\n  priority: urgent || amount > 5000 ? "High" : amount > 500 ? "Medium" : "Low",\n  reviewer: amount > 5000 ? "finance" : "ops",\n};\n',
+          },
+        },
+        {
+          id: "write-back",
+          type: "AIRTABLE_UPDATE",
+          name: "Write the triage back",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "triaged",
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Requests",
+            recordId: "{{record.id}}",
+            // Three braces: two would HTML-escape the quotes and the JSON
+            // would not parse.
+            fields: '{"Priority": "{{priority}}", "Queue": "{{reviewer}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "new-row", target: "score" },
+        { source: "score", target: "write-back" },
+      ],
+    },
+  },
+  {
+    slug: "airtable-lookup-before-write",
+    name: "Update the Airtable row that matches",
+    description:
+      "Takes an inbound webhook, finds the matching record with a server-side formula, and updates it — or does nothing if there is no match. The filter runs at Airtable rather than here, which matters for cost as well as speed: without it the workflow would page the whole table to find one row, and Airtable meters requests per base. The branch exists because updating a record that was never found is the most common way this kind of flow fails silently.",
+    category: "Data",
+    domain: "data",
+    tags: ["airtable", "lookup", "formula", "update", "webhook", "match"],
+    graph: {
+      nodes: [
+        {
+          id: "event",
+          type: "WEBHOOK_TRIGGER",
+          name: "Inbound event",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "find",
+          type: "AIRTABLE_READ",
+          name: "Find the record",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "match",
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Customers",
+            // Airtable formula syntax: the column name in braces.
+            filterByFormula: '{Email} = "{{webhook.body.email}}"',
+            limit: 1,
+          },
+        },
+        {
+          id: "matched",
+          type: "CONDITION",
+          name: "Found one?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{match.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "update",
+          type: "AIRTABLE_UPDATE",
+          name: "Record the event",
+          position: { x: 840, y: -60 },
+          data: {
+            variableName: "updated",
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Customers",
+            recordId: "{{match.first.id}}",
+            fields: '{"Last event": "{{webhook.body.type}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "event", target: "find" },
+        { source: "find", target: "matched" },
+        { source: "matched", target: "update", sourceHandle: "true" },
+      ],
+    },
+  },
 ];
