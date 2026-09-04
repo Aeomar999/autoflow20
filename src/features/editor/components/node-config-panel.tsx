@@ -173,6 +173,45 @@ function FieldEditor({
         </select>
       );
     }
+    case "multiEnum": {
+      const options = field.enumValues ?? [];
+      const selected = Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === "string")
+        : [];
+      return (
+        <div
+          id={inputId}
+          className="flex flex-col gap-1.5 rounded-md border border-border p-2"
+        >
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex items-center gap-2 text-sm text-foreground"
+            >
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border"
+                checked={selected.includes(option)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...selected, option]
+                    : // Rebuilt from `options` order rather than push/splice, so
+                      // the saved array does not reorder itself as boxes are
+                      // toggled and produce a diff with no change in it.
+                      selected.filter((v) => v !== option);
+                  const ordered = options.filter((o) => next.includes(o));
+                  // An empty selection is "no filter" for every consumer, and
+                  // storing [] rather than dropping the key would read as a
+                  // filter that matches nothing.
+                  onValueChange(ordered.length > 0 ? ordered : undefined);
+                }}
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+      );
+    }
     case "credential":
       // `field.credential` is set for every field resolved as kind
       // "credential" (config-schema.ts pairs it with the definition's

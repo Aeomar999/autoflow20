@@ -33,6 +33,7 @@ const KIND_LABELS: Record<ResolvedConfigField["kind"], string> = {
   number: "number",
   boolean: "true / false",
   enum: "one of",
+  multiEnum: "any of",
   "kv-list": "key–value pairs",
   keyValueList: "key–value pairs",
   fieldList: "list of rows",

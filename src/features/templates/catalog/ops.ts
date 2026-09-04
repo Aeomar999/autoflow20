@@ -1119,4 +1119,188 @@ export const opsTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "quickbooks-invoice-from-order",
+    name: "Invoice a customer from an incoming order",
+    description:
+      'Takes an order over a webhook, looks the customer up in QuickBooks, creates them if this is their first order, and raises the invoice. The lookup is the point: QuickBooks rejects a duplicate display name outright, so a flow that always creates fails on every returning customer — and one that always assumes the customer exists fails on every new one. Lines are read from the order payload, so amounts arriving as "$1,299.00" from a store or a spreadsheet are handled. Sandbox or production is decided by the credential you connect, never by this graph, so copying it between companies cannot point it at the wrong books. Supply a QuickBooks credential; the webhook URL is on the trigger once you publish.',
+    category: "Finance",
+    domain: "ops",
+    tags: ["quickbooks", "invoice", "order", "customer", "webhook", "billing"],
+    graph: {
+      nodes: [
+        {
+          id: "order",
+          type: "WEBHOOK_TRIGGER",
+          name: "Order received",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "lookup",
+          type: "QBO_FIND_CUSTOMER",
+          name: "Find the customer",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "lookup",
+            displayName: "{{webhook.body.customer.name}}",
+            email: "{{webhook.body.customer.email}}",
+          },
+        },
+        {
+          id: "known",
+          type: "CONDITION",
+          name: "Do we know them?",
+          position: { x: 520, y: 0 },
+          data: {
+            leftValue: "{{lookup.found}}",
+            operator: "equals",
+            rightValue: "true",
+          },
+        },
+        {
+          id: "invoice-existing",
+          type: "QBO_CREATE_INVOICE",
+          name: "Invoice (existing)",
+          position: { x: 800, y: -120 },
+          data: {
+            variableName: "invoice",
+            customerId: "{{lookup.customerId}}",
+            lines: "{{{json webhook.body.items}}}",
+            customerMemo: "Order {{webhook.body.orderId}}",
+          },
+        },
+        {
+          id: "new-customer",
+          type: "QBO_CREATE_CUSTOMER",
+          name: "Create the customer",
+          position: { x: 800, y: 120 },
+          data: {
+            variableName: "created",
+            displayName: "{{webhook.body.customer.name}}",
+            email: "{{webhook.body.customer.email}}",
+          },
+        },
+        {
+          id: "invoice-new",
+          type: "QBO_CREATE_INVOICE",
+          name: "Invoice (new)",
+          position: { x: 1060, y: 120 },
+          data: {
+            variableName: "invoice",
+            customerId: "{{created.customerId}}",
+            lines: "{{{json webhook.body.items}}}",
+            customerMemo: "Order {{webhook.body.orderId}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "order", target: "lookup" },
+        { source: "lookup", target: "known" },
+        // Two invoice nodes rather than a merge: only one branch runs, and a
+        // MERGE waits for inputs that will never arrive on the other side.
+        { source: "known", target: "invoice-existing", sourceHandle: "true" },
+        { source: "known", target: "new-customer", sourceHandle: "false" },
+        { source: "new-customer", target: "invoice-new" },
+      ],
+    },
+  },
+  {
+    slug: "quickbooks-invoice-alerts-in-slack",
+    name: "Post new QuickBooks invoices to Slack",
+    description:
+      "Watches the connected QuickBooks company and posts a line in Slack whenever an invoice is created or updated. QuickBooks tells you what changed but not what it now says, so the workflow reads the record back before writing the message — otherwise the alert could only ever name an id. Intuit sends every connected company's events to one endpoint, so the trigger's credential is what decides which company this workflow is listening to; a second connected company will not start it. Supply a QuickBooks credential and a Slack incoming-webhook URL.",
+    category: "Finance",
+    domain: "ops",
+    tags: ["quickbooks", "invoice", "slack", "alert", "webhook", "finance"],
+    graph: {
+      nodes: [
+        {
+          id: "changed",
+          type: "QBO_WEBHOOK_TRIGGER",
+          name: "Invoice changed",
+          position: { x: 0, y: 0 },
+          data: {
+            entities: ["Invoice"],
+            operations: ["Create", "Update"],
+          },
+        },
+        {
+          id: "read",
+          type: "QBO_GET",
+          name: "Read the invoice",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "invoice",
+            entity: "Invoice",
+            entityId: "{{qbo.entityId}}",
+          },
+        },
+        {
+          id: "post",
+          type: "SLACK",
+          name: "Post to Slack",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "posted",
+            webhookUrl: "REPLACE_WITH_SLACK_WEBHOOK_URL",
+            content:
+              "Invoice {{invoice.record.DocNumber}} {{qbo.operation}}d — {{invoice.record.CustomerRef.name}}, {{invoice.record.TotalAmt}} (balance {{invoice.record.Balance}})",
+          },
+        },
+      ],
+      edges: [
+        { source: "changed", target: "read" },
+        { source: "read", target: "post" },
+      ],
+    },
+  },
+  {
+    slug: "quickbooks-invoice-pdfs-to-drive",
+    name: "File every QuickBooks invoice PDF in Drive",
+    description:
+      "Whenever an invoice is created in QuickBooks, fetches the PDF QuickBooks itself would email and files it in a Drive folder. The PDF is the rendered document, not a reconstruction — it carries the company's own template and numbering, which is what makes the archive worth keeping. It moves through the workflow as a reference rather than as bytes, so the size of the invoice does not change what the graph can do, and it is named after the invoice number rather than its internal id so the folder is readable. Supply a QuickBooks credential, a Drive credential and the destination folder id.",
+    category: "Finance",
+    domain: "ops",
+    // QuickBooks to read the invoice, Drive to file it. Two services is what
+    // this automation is; see `TemplateSpec.tier`.
+    tier: "library",
+    tags: ["quickbooks", "invoice", "pdf", "drive", "archive", "finance"],
+    graph: {
+      nodes: [
+        {
+          id: "raised",
+          type: "QBO_WEBHOOK_TRIGGER",
+          name: "Invoice raised",
+          position: { x: 0, y: 0 },
+          data: { entities: ["Invoice"], operations: ["Create"] },
+        },
+        {
+          id: "pdf",
+          type: "QBO_GET_INVOICE_PDF",
+          name: "Fetch the PDF",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "pdf",
+            invoiceId: "{{qbo.entityId}}",
+          },
+        },
+        {
+          id: "file-it",
+          type: "DRIVE_UPLOAD",
+          name: "File it in Drive",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "archived",
+            file: "{{{json pdf.file}}}",
+            folderId: "REPLACE_WITH_INVOICES_FOLDER_ID",
+          },
+        },
+      ],
+      edges: [
+        { source: "raised", target: "pdf" },
+        { source: "pdf", target: "file-it" },
+      ],
+    },
+  },
 ];

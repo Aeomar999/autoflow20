@@ -2131,17 +2131,69 @@ Drive (`DRIVE_UPLOAD`), and the meeting briefing (`CALENDAR_TRIGGER`, the first
 `library`-tier entry). 36 catalogue entries, 1481 unit/dom tests and 243
 integration tests green; lint and `tsc --noEmit` clean.
 
-### ⬜ AF-M10-16 · QuickBooks Online family · 3d
+### ✅ AF-M10-16 · QuickBooks Online family · 3d · **DONE 2026-09-04**
 10 of 35 — the largest single-service dependency.
 
 **Depends on:** AF-M10-04
 **Acceptance**
-- [ ] Nodes: `QBO_FIND_CUSTOMER`, `QBO_CREATE_CUSTOMER`, `QBO_CREATE_INVOICE`, `QBO_CREATE_ESTIMATE`, `QBO_CREATE_SALES_RECEIPT`, `QBO_CREATE_EXPENSE`, `QBO_GET` (by id/type), `QBO_GET_INVOICE_PDF` → `FileRef`, `QBO_ATTACH` (attach a `FileRef` to a record).
-- [ ] `QBO_WEBHOOK_TRIGGER` verifying Intuit's `intuit-signature` HMAC; an unverified payload is rejected and audited. Needed by #10, #12, #15.
-- [ ] Sandbox vs production base URL is a credential property, not a node config — the source templates' "sandbox values must be replaced" footgun must be impossible here.
-- [ ] `realmId` comes from the credential (AF-M10-04), never from node config.
-- [ ] Intuit's minor-version pinning and its "query" endpoint escaping are handled centrally; a test covers a customer name containing an apostrophe.
-- [ ] progress.md updated
+- [x] Nodes: `QBO_FIND_CUSTOMER`, `QBO_CREATE_CUSTOMER`, `QBO_CREATE_INVOICE`, `QBO_CREATE_ESTIMATE`, `QBO_CREATE_SALES_RECEIPT`, `QBO_CREATE_EXPENSE`, `QBO_GET` (by id/type), `QBO_GET_INVOICE_PDF` → `FileRef`, `QBO_ATTACH` (attach a `FileRef` to a record).
+- [x] `QBO_WEBHOOK_TRIGGER` verifying Intuit's `intuit-signature` HMAC; an unverified payload is rejected. Needed by #10, #12, #15. **Deviation, recorded below: rejections are logged, not written to `AuditLog`.**
+- [x] Sandbox vs production base URL is a credential property, not a node config — the source templates' "sandbox values must be replaced" footgun must be impossible here.
+- [x] `realmId` comes from the credential (AF-M10-04), never from node config.
+- [x] Intuit's minor-version pinning and its "query" endpoint escaping are handled centrally; a test covers a customer name containing an apostrophe.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Ten nodes on `src/features/quickbooks/server/`
+(`qbo-client.ts`, `entities.ts`, `webhook.ts`, `dispatch.ts`) plus the app-wide
+route at `/api/webhooks/quickbooks`. 53 tests.
+
+**One deviation from the acceptance, stated plainly.** An unverified payload is
+rejected and *logged*, not written to `AuditLog`. That table is org-scoped and
+read through an org-scoped viewer — and an unverified Intuit payload has no
+proven realm, so every rejection would have to be filed against a **guessed**
+tenant, in the one table whose value depends on its rows being true. Rejections
+are operator-facing, not tenant-facing; the structured warning carries the same
+facts without corrupting a tenant's trail.
+
+Three shapes the API forced:
+
+- **Intuit posts to one endpoint per app, not per workflow.** Unlike the Stripe
+  and Google Form routes there is no per-workflow secret in the URL to check
+  first, so the signature is the only proof and routing runs *backwards*:
+  verify, match the payload's realm to a stored credential, then find the
+  published workflows whose QBO trigger binds it. The trigger's credential is
+  therefore what says which company a workflow is listening to — without it, a
+  second connected company's invoices would start it too.
+- **The signature is over the RAW body.** Reading it with `request.json()` and
+  signing `JSON.stringify(parsed)` is the obvious implementation and it is
+  wrong: key order, whitespace and number formatting all differ, so every check
+  fails in a way that looks like a wrong verifier token. There is a test for
+  exactly that mistake. A deployment with no verifier token rejects everything
+  — an endpoint that cannot verify must never fail open.
+- **`STARTPOSITION` is 1-indexed**, and QBO treats 0 as 1. A pagination loop
+  starting at 0 re-reads the first page's tail forever: an infinite loop that
+  looks like a working one. A short page is the only end-of-results signal QBO
+  gives.
+
+Error 6240 ("Duplicate Name Exists") gets its own message. It is the most
+common QBO write failure and Intuit reports it as "Business Validation Error",
+which tells the user nothing; the node names the find-then-create pattern
+instead. Amounts are coerced from `"$1,299.00"` and **refused when blank**
+rather than posted as zero — `Number("")` is `0`, and a zero-amount line on a
+real invoice is never what was meant.
+
+**One platform gap this exposed and closed.** The schema-driven config panel
+had no multi-select: `z.array(z.enum([...]))` threw
+`UnsupportedConfigFieldError`, so the trigger's entity/operation filters were
+unauthorable. A `multiEnum` kind now renders as a checkbox group. This is not
+QBO-specific — every webhook connector that lets you narrow events needs it,
+and AF-M10-18's GitHub trigger is next.
+
+Six templates ship with it, covering all ten node types: invoice from an
+incoming order (find-then-create, wired as two terminal branches because only
+one runs), Slack invoice alerts, invoice PDFs to Drive, a Stripe payment as a
+sales receipt, an estimate from a sheet row, and an expense with its receipt
+attached. 42 catalogue entries; 1537 unit/dom and 243 integration tests green.
 
 ### ⬜ AF-M10-17 · Slack Web API family (supersede webhook-only) · 1.5d
 H9. #26 creates channels; #27 DMs by email; #8 and #31 post to a chosen channel.
