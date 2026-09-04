@@ -37,7 +37,13 @@ export interface NodeReferenceEntry {
     description?: string;
   }[];
   outputs: { id: string; label: string; description?: string }[];
-  credentials: { key: string; type: string; required: boolean }[];
+  credentials: {
+    key: string;
+    type: string;
+    required: boolean;
+    /** OAuth scope NAMES the node needs (AF-M10-17). Never a value. */
+    scopes?: readonly string[];
+  }[];
   /**
    * Null when the node's schema uses a shape the config deriver does not
    * support. The page says so rather than pretending the node has no

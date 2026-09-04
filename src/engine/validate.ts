@@ -946,18 +946,98 @@ function spreadPayloadRoots(node: GraphNode): string[] {
 }
 
 /**
+ * Top-level context keys a `CODE` node contributes (AF-M10-17).
+ *
+ * The executor spreads a returned object flat onto the context and stores a
+ * returned array as `items`. Neither is declared anywhere — the keys are
+ * whatever the JavaScript returns — so without this a completely ordinary
+ * graph (`CODE` returning `{ valid, errors }`, a `CONDITION` reading
+ * `{{valid}}`) was reported as referencing an unknown root. That is a false
+ * positive on a pattern the automation library uses repeatedly, and false
+ * positives are how a validator gets ignored.
+ *
+ * A literal `return { ... }` is statically readable, which is what an authored
+ * template writes. `items` is always added because the array branch needs no
+ * analysis. When the body returns something this cannot read — `return rows`,
+ * a conditional return — `null` is returned to say "unknowable", and the
+ * caller stops root-checking rather than inventing warnings it cannot stand
+ * behind.
+ */
+function codeReturnRoots(node: GraphNode): string[] | null {
+  if (node.type !== "CODE") return [];
+  const code = node.data?.code;
+  if (typeof code !== "string" || code.trim() === "") return [];
+
+  // Strip line comments and strings so a `return {` inside either is not read
+  // as the real one.
+  const stripped = code
+    .replace(/\/\/[^\n]*/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+
+  const returns = [...stripped.matchAll(/\breturn\s*([[{]?)/g)];
+  if (returns.length === 0) return [];
+
+  const roots = new Set<string>(["items"]);
+
+  for (const match of returns) {
+    const opener = match[1];
+    if (opener === "[") continue; // array → `items`, already added
+    if (opener !== "{") {
+      // `return someVariable` — the keys are decided at run time.
+      return null;
+    }
+
+    // Read the object literal's top-level keys, tracking depth so a nested
+    // object's keys are not mistaken for the outer ones.
+    const start = stripped.indexOf("{", match.index ?? 0);
+    let depth = 0;
+    let body = "";
+    for (let i = start; i < stripped.length; i += 1) {
+      const ch = stripped[i];
+      if (ch === "{" || ch === "[" || ch === "(") depth += 1;
+      if (ch === "}" || ch === "]" || ch === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+      if (depth === 1 && ch !== "{") body += ch;
+    }
+
+    for (const key of body.matchAll(
+      /(?:^|,)\s*(?:"([A-Za-z_$][\w$]*)"|'([A-Za-z_$][\w$]*)'|([A-Za-z_$][\w$]*))\s*[:,}]/g,
+    )) {
+      const name = key[1] ?? key[2] ?? key[3];
+      if (name) roots.add(name);
+    }
+    // Shorthand at the very end (`{ a, b }`) has no trailing comma or colon.
+    for (const key of body.matchAll(/(?:^|,)\s*([A-Za-z_$][\w$]*)\s*$/g)) {
+      roots.add(key[1]);
+    }
+  }
+
+  return [...roots];
+}
+
+/**
  * The set of top-level roots the graph, as a whole, can place in the template
  * context: always-present meta keys, every data node's `variableName`, every
  * SET node mapping key (first dot segment), and the trigger's seeded keys.
  * Forward references are permitted only when some node actually produces that
  * root — a reference to a root nobody produces is the porting bug we catch.
  */
-function computeValidRoots(nodes: GraphNode[]): Set<string> {
+function computeValidRoots(nodes: GraphNode[]): Set<string> | null {
   const valid = new Set<string>([
     ...ALWAYS_PRESENT_ROOTS,
     ...EXPRESSION_HELPERS,
   ]);
   for (const node of nodes) {
+    const codeRoots = codeReturnRoots(node);
+    // One unreadable CODE body makes the whole set unknowable: any root it
+    // produces would otherwise be reported as a typo.
+    if (codeRoots === null) return null;
+    for (const root of codeRoots) valid.add(root);
     const triggerRoots = TRIGGER_CONTEXT_ROOTS[node.type];
     if (triggerRoots) {
       for (const root of triggerRoots) valid.add(root);
@@ -992,6 +1072,10 @@ function checkTemplateRoots(
 ): void {
   if (nodes.length === 0) return;
   const valid = computeValidRoots(nodes);
+  // A CODE node whose return this cannot read makes every root unknowable
+  // (AF-M10-17). Warning about roots we cannot enumerate would flag correct
+  // graphs, and a validator that cries wolf gets switched off.
+  if (valid === null) return;
 
   for (const node of nodes) {
     // AF-M9-04 parity: a disabled node never executes, so a half-written

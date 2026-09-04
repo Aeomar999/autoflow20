@@ -52,6 +52,11 @@ import qboFindCustomer from "./quickbooks/find-customer";
 import qboGet from "./quickbooks/get";
 import qboInvoicePdf from "./quickbooks/get-invoice-pdf";
 import qboWebhookTrigger from "./quickbooks/webhook-trigger";
+import slackCreateChannel from "./slack/create-channel";
+import slackDmByEmail from "./slack/dm-by-email";
+import slackInvite from "./slack/invite";
+import slackListChannels from "./slack/list-channels";
+import slackPost from "./slack/post";
 import slackSendMessage from "./slack/send-message";
 import type { NodeCategory, NodeRegistration } from "./types";
 import webhookOut from "./webhook/out";
@@ -229,6 +234,11 @@ export const nodeRegistry = createNodeRegistry(
     qboGet,
     qboInvoicePdf,
     qboWebhookTrigger,
+    slackPost,
+    slackListChannels,
+    slackCreateChannel,
+    slackInvite,
+    slackDmByEmail,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

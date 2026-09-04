@@ -2195,16 +2195,75 @@ one runs), Slack invoice alerts, invoice PDFs to Drive, a Stripe payment as a
 sales receipt, an estimate from a sheet row, and an expense with its receipt
 attached. 42 catalogue entries; 1537 unit/dom and 243 integration tests green.
 
-### ⬜ AF-M10-17 · Slack Web API family (supersede webhook-only) · 1.5d
+### ✅ AF-M10-17 · Slack Web API family (supersede webhook-only) · 1.5d · **DONE 2026-09-04**
 H9. #26 creates channels; #27 DMs by email; #8 and #31 post to a chosen channel.
 
 **Depends on:** AF-M10-01
 **Acceptance**
-- [ ] `SLACK_POST` (bot token, `chat.postMessage`, Block Kit body), `SLACK_LIST_CHANNELS`, `SLACK_CREATE_CHANNEL`, `SLACK_INVITE`, `SLACK_DM_BY_EMAIL` (`users.lookupByEmail` → `chat.postMessage`).
-- [ ] The existing webhook-only `SLACK` node is deprecated per ADR-0011 (`replacedBy: "SLACK_POST"`) — kept registered and executable, dropped from the palette.
-- [ ] Required scopes are declared per node and surfaced in the config panel, so a missing `channels:manage` is a readable error rather than a Slack `missing_scope` code.
-- [ ] Slack's `ok: false` envelope (HTTP 200 with an error body) is treated as failure — a test asserts a `channel_not_found` response fails the node instead of succeeding with junk.
-- [ ] progress.md updated
+- [x] `SLACK_POST` (bot token, `chat.postMessage`, Block Kit body), `SLACK_LIST_CHANNELS`, `SLACK_CREATE_CHANNEL`, `SLACK_INVITE`, `SLACK_DM_BY_EMAIL` (`users.lookupByEmail` → `chat.postMessage`).
+- [x] The existing webhook-only `SLACK` node is deprecated per ADR-0011 (`replacedBy: "SLACK_POST"`) — kept registered and executable, dropped from the palette.
+- [x] Required scopes are declared per node and surfaced in the config panel, so a missing `channels:manage` is a readable error rather than a Slack `missing_scope` code.
+- [x] Slack's `ok: false` envelope (HTTP 200 with an error body) is treated as failure — a test asserts a `channel_not_found` response fails the node instead of succeeding with junk.
+- [x] progress.md updated
+
+**Status 2026-09-04 — done.** Five nodes on one client
+(`src/features/slack/server/slack-client.ts`), 35 tests. `docs/nodes/slack.md`
+written.
+
+**The `ok: false` envelope is the whole reason the client exists.** Slack
+answers HTTP 200 with `{"ok": false, "error": "channel_not_found"}` for nearly
+every failure, so a client checking `response.ok` records a failed post as a
+success and lets the workflow continue as if the message went out. A missing
+`ok` is treated as failure too — absent is not true. `429` and `5xx` are the
+only cases Slack uses a status code for, and both retry.
+
+**Scopes are declared per node**, so `CredentialRequirement` gained a `scopes`
+field. One connection serves operations at different privilege levels —
+`chat:write` to post, `channels:manage` to create, `users:read.email` to look a
+person up — and an admin may grant the first two and decline the third. The
+panel shows the requirement before the run; the executor turns Slack's bare
+`missing_scope` into a sentence naming the scope.
+
+Three provider behaviours handled where they belong: `name_taken` returns the
+existing channel (so create-if-absent needs no branch and a retry is
+idempotent), `already_in_channel` is success (it is the goal state, and Slack
+sends it even when only some users were already members), and channel names are
+normalised to Slack's rules first, so `Acme Corp — Q3!` does not silently
+become something else or get rejected.
+
+**Two defects this task exposed in already-shipped work.**
+
+1. **Two M10 templates had a `CONDITION` that always took the same branch.**
+   They authored `leftValue`/`rightValue`; the schema's fields are
+   `left`/`right`. Zod objects here are not `.strict()`, so the unknown keys
+   parsed cleanly and the comparison ran on two undefineds. The harness now
+   rejects any authored key the node's schema does not read — it found eight
+   more dead keys across the catalogue (a `variableName` on `CODE`, which
+   spreads its return value instead; a `channel` on `DISCORD`, which posts
+   through a channel-pinned webhook URL). `_`-prefixed keys are exempt because
+   AF-M9-06's `_run` policy block is read outside the config schema.
+2. **The root validator reported a false positive on every `CODE` node.** A
+   node returning `{ valid, errors }` followed by a `CONDITION` on `{{valid}}`
+   is an ordinary graph, and `computeValidRoots` had no model of CODE's return
+   spread. It now reads a literal `return { ... }`, always allows `items` (the
+   array branch), and — when the body returns something it cannot read —
+   reports the root set as *unknowable* and stops checking rather than warning
+   about roots it cannot enumerate.
+
+**Catalogue consequences, stated because they are not small.** Deprecating the
+webhook node meant migrating 16 template nodes to `SLACK_POST`, and four
+templates that had one connector plus a "free" Slack post became genuinely
+two-service and were reclassified `library`. Nine went from zero credentials to
+one — but they were never zero-*setup*: the webhook node's secret was an
+incoming-webhook URL in plain node config, so the user still had to create a
+Slack app, enable webhooks, mint a channel-specific URL and paste it. The
+`credentialCount === 0` metric was measuring "declares no credential binding",
+not "needs no setup", and the gap between those two is the defect this
+deprecation fixes. The onboarding sample (`content-brief-generator`) lost its
+Slack tail outright — a first run that dies on its last node because Slack is
+not connected is a worse introduction than one that just produces the brief.
+Three new credential-free templates restore the one-third floor, which the user
+chose to keep rather than relax.
 
 ### ⬜ AF-M10-18 · Dev-tools family: GitHub, Jira, Notion · 3d
 Needed by #18, #19, #20, #27, #31.

@@ -71,11 +71,22 @@ describe("nodeReference", () => {
 
     for (const entry of nodeReference()) {
       for (const credential of entry.credentials) {
-        expect(Object.keys(credential).sort()).toEqual([
-          "key",
-          "required",
-          "type",
-        ]);
+        // AF-M10-17 added `scopes`. It is public metadata — the OAuth scope
+        // NAMES a node needs, e.g. "channels:manage" — not a value, and it is
+        // rendered to the user on purpose. The point of this assertion is that
+        // the set stays closed: a field added here without being considered
+        // fails, which is what should happen the day someone puts a token on
+        // the requirement.
+        expect(Object.keys(credential).sort()).toEqual(
+          "scopes" in credential
+            ? ["key", "required", "scopes", "type"]
+            : ["key", "required", "type"],
+        );
+        for (const scope of credential.scopes ?? []) {
+          // A scope is an identifier like "chat:write". Anything long enough
+          // to be a token is not one.
+          expect(scope.length).toBeLessThan(64);
+        }
       }
     }
   });

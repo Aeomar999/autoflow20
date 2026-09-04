@@ -94,6 +94,25 @@ export function CredentialField({
         </p>
       ) : null}
 
+      {requirement.scopes && requirement.scopes.length > 0 ? (
+        // AF-M10-17: shown before the run, because the provider's own answer
+        // for a missing grant is an opaque code in a 200 response. One
+        // connection serves operations at different privilege levels, so
+        // "you have Slack connected" does not mean this node can run.
+        <p className="text-xs text-muted-foreground">
+          Needs{" "}
+          {requirement.scopes.map((scope, index) => (
+            <span key={scope}>
+              {index > 0 ? ", " : ""}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                {scope}
+              </code>
+            </span>
+          ))}
+          . Reconnect the credential if it was granted without them.
+        </p>
+      ) : null}
+
       <p className="text-xs text-muted-foreground">
         Accepts {describeCredentialRequirement(requirement.type)}.{" "}
         <Link href="/credentials" className="underline underline-offset-2">

@@ -37,7 +37,7 @@ import {
  * invoice PDFs to Drive, a Stripe receipt, an estimate from a sheet, and an
  * expense with its receipt attached).
  */
-const EXPECTED_TEMPLATE_COUNT = 42;
+const EXPECTED_TEMPLATE_COUNT = 47;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
@@ -273,13 +273,13 @@ describe("harness", () => {
         },
         {
           id: "notify",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Notify",
           position: { x: 240, y: 0 },
           data: {
             variableName: "post",
-            webhookUrl: "https://hooks.slack.com/services/A/B/C",
-            content: "hello",
+            channel: "C0123ABCD",
+            text: "hello",
           },
         },
       ],
@@ -295,7 +295,7 @@ describe("harness", () => {
     const leaked = structuredClone(sound);
     // Shaped like a cuid2 (24 lowercase alphanumerics, contains digits) —
     // exactly what an author copying from their own workspace would paste.
-    (leaked.graph.nodes[1].data as Record<string, unknown>).content =
+    (leaked.graph.nodes[1].data as Record<string, unknown>).text =
       "see run cm4x9k2p0000108l3f7g2h1d";
     expect(formatIssues([checkTemplate(leaked)])).toEqual([
       expect.stringContaining("looks like a cuid"),
@@ -319,7 +319,7 @@ describe("harness", () => {
 
   it("rejects a secret-shaped token", () => {
     const withSecret = structuredClone(sound);
-    (withSecret.graph.nodes[1].data as Record<string, unknown>).content =
+    (withSecret.graph.nodes[1].data as Record<string, unknown>).text =
       "token xoxb-000000000000-abcdef";
     expect(formatIssues([checkTemplate(withSecret)])).toContainEqual(
       expect.stringContaining("secret prefix"),
