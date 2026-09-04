@@ -1288,4 +1288,119 @@ export const dataTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "airtable-intake-triage",
+    name: "Triage every new Airtable row",
+    description:
+      "Watches a table and scores each new row, writing the result back to the same record. Activating it never replays the rows already there, so switching this on against a table of five thousand does not start five thousand runs. Point it at a last-modified column if you want edits to fire it too — without one, each record is seen exactly once. The write is a PATCH, so only the fields named change, and type coercion is off: a value that does not fit a select column fails rather than quietly adding a new option.",
+    category: "Ops",
+    domain: "data",
+    tags: ["airtable", "trigger", "triage", "score", "update", "intake"],
+    graph: {
+      nodes: [
+        {
+          id: "new-row",
+          type: "AIRTABLE_TRIGGER",
+          name: "New record",
+          position: { x: 0, y: 0 },
+          data: {
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Requests",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "score",
+          type: "CODE",
+          name: "Score it",
+          position: { x: 300, y: 0 },
+          data: {
+            code: 'const f = input.record?.fields ?? {};\nconst amount = Number(f.Amount ?? 0);\nconst urgent = /urgent|asap|blocker/i.test(String(f.Notes ?? ""));\n\nreturn {\n  priority: urgent || amount > 5000 ? "High" : amount > 500 ? "Medium" : "Low",\n  reviewer: amount > 5000 ? "finance" : "ops",\n};\n',
+          },
+        },
+        {
+          id: "write-back",
+          type: "AIRTABLE_UPDATE",
+          name: "Write the triage back",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "triaged",
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Requests",
+            recordId: "{{record.id}}",
+            // Three braces: two would HTML-escape the quotes and the JSON
+            // would not parse.
+            fields: '{"Priority": "{{priority}}", "Queue": "{{reviewer}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "new-row", target: "score" },
+        { source: "score", target: "write-back" },
+      ],
+    },
+  },
+  {
+    slug: "airtable-lookup-before-write",
+    name: "Update the Airtable row that matches",
+    description:
+      "Takes an inbound webhook, finds the matching record with a server-side formula, and updates it — or does nothing if there is no match. The filter runs at Airtable rather than here, which matters for cost as well as speed: without it the workflow would page the whole table to find one row, and Airtable meters requests per base. The branch exists because updating a record that was never found is the most common way this kind of flow fails silently.",
+    category: "Data",
+    domain: "data",
+    tags: ["airtable", "lookup", "formula", "update", "webhook", "match"],
+    graph: {
+      nodes: [
+        {
+          id: "event",
+          type: "WEBHOOK_TRIGGER",
+          name: "Inbound event",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "find",
+          type: "AIRTABLE_READ",
+          name: "Find the record",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "match",
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Customers",
+            // Airtable formula syntax: the column name in braces.
+            filterByFormula: '{Email} = "{{webhook.body.email}}"',
+            limit: 1,
+          },
+        },
+        {
+          id: "matched",
+          type: "CONDITION",
+          name: "Found one?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{match.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "update",
+          type: "AIRTABLE_UPDATE",
+          name: "Record the event",
+          position: { x: 840, y: -60 },
+          data: {
+            variableName: "updated",
+            baseId: "REPLACE_WITH_BASE_ID",
+            tableId: "Customers",
+            recordId: "{{match.first.id}}",
+            fields: '{"Last event": "{{webhook.body.type}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "event", target: "find" },
+        { source: "find", target: "matched" },
+        { source: "matched", target: "update", sourceHandle: "true" },
+      ],
+    },
+  },
 ];

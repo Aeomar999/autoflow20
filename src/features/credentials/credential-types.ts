@@ -770,6 +770,22 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
     ],
   },
   {
+    type: "stripe.apiKey",
+    kind: "apiKey",
+    label: "Stripe secret key",
+    description: "Secret API key for api.stripe.com (customers, payment links)",
+    logo: "/logos/stripe.svg",
+    testable: true,
+    fields: [
+      {
+        key: "apiKey",
+        label: "Secret key",
+        secret: true,
+        placeholder: "sk_live_... or sk_test_...",
+      },
+    ],
+  },
+  {
     type: "googleMaps.apiKey",
     kind: "apiKey",
     label: "Google Maps Platform",

@@ -200,6 +200,27 @@ export const updateNodeSchemas = [
   makeNodeSchema("APOLLO_ENRICH", configOf("APOLLO_ENRICH")),
   makeNodeSchema("GOOGLE_SEARCH", configOf("GOOGLE_SEARCH")),
   makeNodeSchema("GOOGLE_MAPS_SEARCH", configOf("GOOGLE_MAPS_SEARCH")),
+  makeNodeSchema("AIRTABLE_READ", configOf("AIRTABLE_READ")),
+  makeNodeSchema("AIRTABLE_UPDATE", configOf("AIRTABLE_UPDATE")),
+  makeNodeSchema("AIRTABLE_TRIGGER", configOf("AIRTABLE_TRIGGER")),
+  makeNodeSchema("SHOPIFY_CREATE_ORDER", configOf("SHOPIFY_CREATE_ORDER")),
+  makeNodeSchema(
+    "MAILERLITE_FIND_SUBSCRIBER",
+    configOf("MAILERLITE_FIND_SUBSCRIBER"),
+  ),
+  makeNodeSchema(
+    "MAILERLITE_CREATE_SUBSCRIBER",
+    configOf("MAILERLITE_CREATE_SUBSCRIBER"),
+  ),
+  makeNodeSchema(
+    "STRIPE_FIND_OR_CREATE_CUSTOMER",
+    configOf("STRIPE_FIND_OR_CREATE_CUSTOMER"),
+  ),
+  makeNodeSchema(
+    "STRIPE_CREATE_PAYMENT_LINK",
+    configOf("STRIPE_CREATE_PAYMENT_LINK"),
+  ),
+  makeNodeSchema("STRIPE_GET_CUSTOMER", configOf("STRIPE_GET_CUSTOMER")),
   makeNodeSchema("AIRTABLE_CREATE_RECORD", configOf("AIRTABLE_CREATE_RECORD")),
   makeNodeSchema("HUBSPOT_CREATE_CONTACT", configOf("HUBSPOT_CREATE_CONTACT")),
   makeNodeSchema("POSTGRES_QUERY", configOf("POSTGRES_QUERY")),

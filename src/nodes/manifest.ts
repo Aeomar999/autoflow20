@@ -3,6 +3,9 @@ import { definition as aiExtract } from "./ai/extract/definition";
 import { definition as aiLlm } from "./ai/llm/definition";
 import { definition as aiRetrieve } from "./ai/retrieve/definition";
 import { definition as airtableCreateRecord } from "./airtable/create-record/definition";
+import { definition as airtableRead } from "./airtable/read/definition";
+import { definition as airtableTrigger } from "./airtable/trigger/definition";
+import { definition as airtableUpdate } from "./airtable/update/definition";
 import { definition as apifyGetDataset } from "./apify/get-dataset/definition";
 import { definition as apifyRun } from "./apify/run/definition";
 import { definition as apolloEnrich } from "./apollo/enrich/definition";
@@ -52,8 +55,13 @@ import { definition as jiraAddAttachment } from "./jira/add-attachment/definitio
 import { definition as jiraCreateIssue } from "./jira/create-issue/definition";
 import { definition as jiraSearch } from "./jira/search/definition";
 import { definition as jiraTransition } from "./jira/transition/definition";
+import { definition as mailerliteCreateSubscriber } from "./mailerlite/create-subscriber/definition";
+import { definition as mailerliteFindSubscriber } from "./mailerlite/find-subscriber/definition";
 import { definition as notionCreatePage } from "./notion/create-page/definition";
 import { definition as notionQueryDatabase } from "./notion/query-database/definition";
+import { definition as stripeCreatePaymentLink } from "./payments/stripe-create-payment-link/definition";
+import { definition as stripeFindOrCreateCustomer } from "./payments/stripe-find-or-create-customer/definition";
+import { definition as stripeGetCustomer } from "./payments/stripe-get-customer/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
 import { definition as postgresQuery } from "./postgres/query/definition";
 import { definition as qboAttach } from "./quickbooks/attach/definition";
@@ -66,6 +74,7 @@ import { definition as qboFindCustomer } from "./quickbooks/find-customer/defini
 import { definition as qboGet } from "./quickbooks/get/definition";
 import { definition as qboInvoicePdf } from "./quickbooks/get-invoice-pdf/definition";
 import { definition as qboWebhookTrigger } from "./quickbooks/webhook-trigger/definition";
+import { definition as shopifyCreateOrder } from "./shopify/create-order/definition";
 import { definition as slackCreateChannel } from "./slack/create-channel/definition";
 import { definition as slackDmByEmail } from "./slack/dm-by-email/definition";
 import { definition as slackInvite } from "./slack/invite/definition";
@@ -144,6 +153,15 @@ export const nodeManifest: NodeDefinition[] = [
   apolloEnrich,
   googleSearch,
   googleMapsSearch,
+  airtableRead,
+  airtableUpdate,
+  airtableTrigger,
+  shopifyCreateOrder,
+  mailerliteFindSubscriber,
+  mailerliteCreateSubscriber,
+  stripeFindOrCreateCustomer,
+  stripeCreatePaymentLink,
+  stripeGetCustomer,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

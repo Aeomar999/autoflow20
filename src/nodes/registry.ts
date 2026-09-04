@@ -4,6 +4,9 @@ import aiExtract from "./ai/extract";
 import aiLlm from "./ai/llm";
 import aiRetrieve from "./ai/retrieve";
 import airtableCreateRecord from "./airtable/create-record";
+import airtableRead from "./airtable/read";
+import airtableTrigger from "./airtable/trigger";
+import airtableUpdate from "./airtable/update";
 import apifyGetDataset from "./apify/get-dataset";
 import apifyRun from "./apify/run";
 import apolloEnrich from "./apollo/enrich";
@@ -53,8 +56,13 @@ import jiraAddAttachment from "./jira/add-attachment";
 import jiraCreateIssue from "./jira/create-issue";
 import jiraSearch from "./jira/search";
 import jiraTransition from "./jira/transition";
+import mailerliteCreateSubscriber from "./mailerlite/create-subscriber";
+import mailerliteFindSubscriber from "./mailerlite/find-subscriber";
 import notionCreatePage from "./notion/create-page";
 import notionQueryDatabase from "./notion/query-database";
+import stripeCreatePaymentLink from "./payments/stripe-create-payment-link";
+import stripeFindOrCreateCustomer from "./payments/stripe-find-or-create-customer";
+import stripeGetCustomer from "./payments/stripe-get-customer";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
 import postgresQuery from "./postgres/query";
 import qboAttach from "./quickbooks/attach";
@@ -67,6 +75,7 @@ import qboFindCustomer from "./quickbooks/find-customer";
 import qboGet from "./quickbooks/get";
 import qboInvoicePdf from "./quickbooks/get-invoice-pdf";
 import qboWebhookTrigger from "./quickbooks/webhook-trigger";
+import shopifyCreateOrder from "./shopify/create-order";
 import slackCreateChannel from "./slack/create-channel";
 import slackDmByEmail from "./slack/dm-by-email";
 import slackInvite from "./slack/invite";
@@ -269,6 +278,15 @@ export const nodeRegistry = createNodeRegistry(
     apolloEnrich,
     googleSearch,
     googleMapsSearch,
+    airtableRead,
+    airtableUpdate,
+    airtableTrigger,
+    shopifyCreateOrder,
+    mailerliteFindSubscriber,
+    mailerliteCreateSubscriber,
+    stripeFindOrCreateCustomer,
+    stripeCreatePaymentLink,
+    stripeGetCustomer,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,

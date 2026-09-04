@@ -882,6 +882,7 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   CALENDAR_TRIGGER: ["trigger", "event"],
   QBO_WEBHOOK_TRIGGER: ["trigger", "qbo"],
   GITHUB_TRIGGER: ["github"],
+  AIRTABLE_TRIGGER: ["record", "table"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */

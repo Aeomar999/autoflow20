@@ -709,4 +709,216 @@ export const marketingTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "form-to-stripe-payment-link",
+    name: "Quote request to payment link",
+    description:
+      "Publishes a form, finds or creates the Stripe customer behind the email, and returns a payment link for the chosen price. Stripe treats email as a label rather than a key and will happily hold four customers with the same address, so the find-or-create is what stops a billing account filling up with duplicates. Both writes carry an idempotency key derived from the run and the node, so a retried step returns the customer and link it already made rather than a second pair. Supply a Stripe credential and put real price ids in the Code node.",
+    category: "Revenue",
+    domain: "marketing",
+    tags: ["stripe", "payment", "link", "form", "customer", "checkout"],
+    graph: {
+      nodes: [
+        {
+          id: "request",
+          type: "FORM_TRIGGER",
+          name: "Quote request",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Request a quote",
+            description:
+              "Tell us what you need and we will send a payment link.",
+            submitLabel: "Request quote",
+            successMessage: "Thanks — your payment link is on its way.",
+            fields: [
+              {
+                name: "email",
+                label: "Your email",
+                type: "email",
+                required: true,
+              },
+              {
+                name: "name",
+                label: "Your name",
+                type: "text",
+                required: true,
+              },
+              {
+                name: "plan",
+                label: "Which plan?",
+                type: "text",
+                required: true,
+              },
+            ],
+          },
+        },
+        {
+          id: "price",
+          type: "CODE",
+          name: "Pick the price",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const plan = String(input.form?.fields?.plan ?? "").toLowerCase();\n\n// Replace with your own Stripe price ids. A payment link needs a PRICE\n// (price_...), not a product (prod_...).\nconst prices = {\n  starter: "price_REPLACE_STARTER",\n  pro: "price_REPLACE_PRO",\n};\n\nreturn {\n  priceId: prices[plan] ?? prices.starter,\n  planName: plan || "starter",\n};\n',
+          },
+        },
+        {
+          id: "customer",
+          type: "STRIPE_FIND_OR_CREATE_CUSTOMER",
+          name: "Find or create the customer",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "customer",
+            email: "{{form.fields.email}}",
+            name: "{{form.fields.name}}",
+            metadata: '{"source": "quote-form", "plan": "{{planName}}"}',
+          },
+        },
+        {
+          id: "link",
+          type: "STRIPE_CREATE_PAYMENT_LINK",
+          name: "Create the payment link",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "link",
+            priceId: "{{priceId}}",
+            quantity: 1,
+            metadata: '{"customer": "{{customer.id}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "request", target: "price" },
+        { source: "price", target: "customer" },
+        { source: "customer", target: "link" },
+      ],
+    },
+  },
+  {
+    slug: "stripe-payment-to-shopify-order",
+    name: "Paid in Stripe, ordered in Shopify",
+    description:
+      "When a Stripe payment succeeds, reads the customer and raises the matching Shopify order. Neither system knows about the other, so the risk is doing it twice: Shopify has no idempotency header for orders, and this uses the mechanism it does provide — a source identifier derived from the run and the node, which Shopify treats as unique per shop. A retry after a lost response returns the order already created rather than charging the customer again. Receipts are off by default so switching this on does not silently email people. Supply a Stripe credential and a Shopify credential.",
+    category: "Revenue",
+    domain: "marketing",
+    // Stripe to read the payment, Shopify to raise the order.
+    tier: "library",
+    tags: ["stripe", "shopify", "order", "payment", "commerce", "fulfilment"],
+    graph: {
+      nodes: [
+        {
+          id: "paid",
+          type: "STRIPE_TRIGGER",
+          name: "Payment succeeded",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "customer",
+          type: "STRIPE_GET_CUSTOMER",
+          name: "Read the customer",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "customer",
+            customerId: "{{stripe.data.object.customer}}",
+          },
+        },
+        {
+          id: "cart",
+          type: "CODE",
+          name: "Build the line items",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const payment = input.stripe?.data?.object ?? {};\n\n// Stripe amounts are in the smallest currency unit; Shopify wants a\n// decimal string.\nconst amount = Number(payment.amount ?? payment.amount_total ?? 0) / 100;\n\nreturn {\n  lineItems: [\n    {\n      title: payment.description || "Order",\n      quantity: 1,\n      price: amount.toFixed(2),\n    },\n  ],\n};\n',
+          },
+        },
+        {
+          id: "order",
+          type: "SHOPIFY_CREATE_ORDER",
+          name: "Raise the order",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "order",
+            email: "{{customer.email}}",
+            lineItems: "{{{json lineItems}}}",
+            tags: "stripe,automated",
+            note: "Created from Stripe payment {{stripe.data.object.id}}",
+            sendReceipt: false,
+          },
+        },
+      ],
+      edges: [
+        { source: "paid", target: "customer" },
+        { source: "customer", target: "cart" },
+        { source: "cart", target: "order" },
+      ],
+    },
+  },
+  {
+    slug: "signup-to-mailerlite",
+    name: "Add a signup to the right MailerLite group",
+    description:
+      "Takes a signup webhook and adds the person to a group — after checking whether they already exist. MailerLite matches on email and updates rather than duplicating, so the add itself is safe to repeat; the lookup is there for a different reason. Someone who previously unsubscribed still exists, and adding them again returns 200 without resubscribing them. The branch means the workflow can tell the difference instead of reporting success for a person who is not on the list.",
+    category: "Marketing",
+    domain: "marketing",
+    tags: ["mailerlite", "subscriber", "signup", "group", "list", "email"],
+    graph: {
+      nodes: [
+        {
+          id: "signup",
+          type: "WEBHOOK_TRIGGER",
+          name: "New signup",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "existing",
+          type: "MAILERLITE_FIND_SUBSCRIBER",
+          name: "Do we know them?",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "existing",
+            email: "{{webhook.body.email}}",
+          },
+        },
+        {
+          id: "opted-out",
+          type: "CONDITION",
+          name: "Previously unsubscribed?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{existing.status}}",
+            operator: "equals",
+            right: "unsubscribed",
+          },
+        },
+        {
+          id: "add",
+          type: "MAILERLITE_CREATE_SUBSCRIBER",
+          name: "Add to the group",
+          position: { x: 840, y: 100 },
+          data: {
+            variableName: "subscriber",
+            email: "{{webhook.body.email}}",
+            fields: '{"name": "{{webhook.body.name}}"}',
+            groupIds: "REPLACE_WITH_GROUP_ID",
+          },
+        },
+        {
+          id: "respect",
+          type: "CODE",
+          name: "Leave them alone",
+          position: { x: 840, y: -100 },
+          data: {
+            code: '// They opted out. Re-adding would not resubscribe them anyway, and\n// pretending otherwise is how a workflow reports success for someone\n// who never receives anything.\nreturn {\n  skipped: true,\n  reason: `${input.webhook?.body?.email ?? "This address"} previously unsubscribed`,\n};\n',
+          },
+        },
+      ],
+      edges: [
+        { source: "signup", target: "existing" },
+        { source: "existing", target: "opted-out" },
+        { source: "opted-out", target: "respect", sourceHandle: "true" },
+        { source: "opted-out", target: "add", sourceHandle: "false" },
+      ],
+    },
+  },
 ];

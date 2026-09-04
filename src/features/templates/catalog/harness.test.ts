@@ -36,7 +36,7 @@ import {
  * The tests below say what actually matters about the set — every palette node
  * demonstrated, no deprecated types, the credential rules, the domain floor.
  */
-const EXPECTED_TEMPLATE_COUNT = 62;
+const EXPECTED_TEMPLATE_COUNT = 69;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
