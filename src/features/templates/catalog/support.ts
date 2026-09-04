@@ -76,28 +76,24 @@ export const supportTemplates: TemplateSpec[] = [
         },
         {
           id: "page-oncall",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Page on-call",
           position: { x: 800, y: -90 },
           data: {
             variableName: "pageOncall",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/ONCALL_WEBHOOK",
-            content:
-              ":rotating_light: *Urgent ticket* ({{triage.category}}, customer sounds {{triage.sentiment}})\n{{triage.summary}}\n\nFrom: {{webhook.body.email}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":rotating_light: *Urgent ticket* ({{triage.category}}, customer sounds {{triage.sentiment}})\n{{triage.summary}}\n\nFrom: {{webhook.body.email}}",
           },
         },
         {
           id: "queue",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Add to the queue",
           position: { x: 800, y: 90 },
           data: {
             variableName: "queuePost",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/SUPPORT_WEBHOOK",
-            content:
-              "[{{triage.severity}}/{{triage.category}}] {{triage.summary}} — {{webhook.body.email}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "[{{triage.severity}}/{{triage.category}}] {{triage.summary}} — {{webhook.body.email}}",
           },
         },
       ],
@@ -255,6 +251,8 @@ export const supportTemplates: TemplateSpec[] = [
       "Queries your ticket database for everything still open past its SLA, has a model group the escalations by root cause, and posts one digest instead of thirty alerts.",
     category: "Support",
     domain: "support",
+    // AI provider plus Slack — the digest is written and then posted.
+    tier: "library",
     tags: ["escalation", "postgres", "digest", "slack", "sla"],
     graph: {
       nodes: [
@@ -297,15 +295,13 @@ export const supportTemplates: TemplateSpec[] = [
         },
         {
           id: "post",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Post the digest",
           position: { x: 780, y: 0 },
           data: {
             variableName: "digestPost",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              "*Escalations past SLA — {{escalations.rowCount}} open*\n\n{{digest.text}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "*Escalations past SLA — {{escalations.rowCount}} open*\n\n{{digest.text}}",
           },
         },
       ],
@@ -377,15 +373,13 @@ export const supportTemplates: TemplateSpec[] = [
         },
         {
           id: "escalate",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Hand off to an agent",
           position: { x: 1000, y: -90 },
           data: {
             variableName: "handoff",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/SUPPORT_WEBHOOK",
-            content:
-              ":raising_hand: *Knowledge base did not cover this*\n> {{webhook.body.question}}\n\nMatches found: {{kb.count}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":raising_hand: *Knowledge base did not cover this*\n> {{webhook.body.question}}\n\nMatches found: {{kb.count}}",
           },
         },
         {
@@ -505,26 +499,24 @@ export const supportTemplates: TemplateSpec[] = [
         },
         {
           id: "page-oncall",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Page on-call",
           position: { x: 840, y: -80 },
           data: {
             variableName: "paged",
-            webhookUrl: "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
-            content:
-              ":rotating_light: *Urgent support request* — {{triage.one_line}}\n*From:* {{form.fields.email}} · *Topic:* {{form.fields.topic}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":rotating_light: *Urgent support request* — {{triage.one_line}}\n*From:* {{form.fields.email}} · *Topic:* {{form.fields.topic}}",
           },
         },
         {
           id: "queue-it",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Add to the queue",
           position: { x: 840, y: 80 },
           data: {
             variableName: "queued",
-            webhookUrl: "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
-            content:
-              "New request — {{triage.one_line}}\n*From:* {{form.fields.email}} · *Topic:* {{form.fields.topic}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "New request — {{triage.one_line}}\n*From:* {{form.fields.email}} · *Topic:* {{form.fields.topic}}",
           },
         },
       ],
@@ -602,6 +594,92 @@ export const supportTemplates: TemplateSpec[] = [
       edges: [
         { source: "new-mail", target: "classify" },
         { source: "classify", target: "acknowledge" },
+      ],
+    },
+  },
+  {
+    slug: "idempotent-webhook-receiver",
+    name: "A webhook that ignores replays",
+    description:
+      "Accepts a webhook, remembers the delivery id it has already seen, and answers a repeat delivery with 200 without doing the work twice. Almost every provider retries on a timeout or a non-2xx, so any endpoint that does something real — charging a card, creating a ticket, sending mail — will eventually be asked to do it twice. Answering 200 rather than an error is deliberate: a retry is not a failure, and returning 4xx makes some providers keep retrying or disable the endpoint. Set the key to whatever the sender uses as its delivery id. Nothing to connect.",
+    category: "Support",
+    domain: "support",
+    tags: ["webhook", "idempotent", "dedupe", "retry", "replay", "endpoint"],
+    graph: {
+      nodes: [
+        {
+          id: "delivery",
+          type: "WEBHOOK_TRIGGER",
+          name: "Incoming delivery",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "seen",
+          type: "DEDUPE",
+          name: "Seen this delivery?",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "dedupe",
+            // The provider's own delivery id. Hashing the whole body instead
+            // would treat a legitimate identical-looking event as a replay.
+            key: "{{webhook.body.id}}",
+            mode: "window",
+            windowSize: 5000,
+          },
+        },
+        {
+          id: "fresh",
+          type: "CONDITION",
+          name: "First time?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{dedupe.duplicate}}",
+            operator: "equals",
+            right: "false",
+          },
+        },
+        {
+          id: "work",
+          type: "CODE",
+          name: "Do the work once",
+          position: { x: 840, y: -100 },
+          data: {
+            code: 'const body = input.webhook?.body ?? {};\n\n// Replace this with the side effect that must not happen twice.\nreturn {\n  handled: true,\n  deliveryId: String(body.id ?? ""),\n  summary: `Processed ${body.type ?? "event"}`,\n};\n',
+          },
+        },
+        {
+          id: "ack",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "200 Processed",
+          position: { x: 1120, y: -100 },
+          data: {
+            statusCode: 200,
+            contentType: "application/json",
+            body: '{"status":"processed","summary":"{{summary}}"}',
+          },
+        },
+        {
+          id: "ack-replay",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "200 Already handled",
+          position: { x: 840, y: 100 },
+          data: {
+            // 200, not 409. A retry is the sender doing the right thing, and
+            // an error status makes several providers retry harder or shut
+            // the endpoint off.
+            statusCode: 200,
+            contentType: "application/json",
+            body: '{"status":"duplicate","note":"already processed"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "delivery", target: "seen" },
+        { source: "seen", target: "fresh" },
+        { source: "fresh", target: "work", sourceHandle: "true" },
+        { source: "work", target: "ack" },
+        { source: "fresh", target: "ack-replay", sourceHandle: "false" },
       ],
     },
   },

@@ -37,6 +37,21 @@ export interface CredentialRequirement {
   /** Credential type id from the credential registry (M3), e.g. "openai.api-key" */
   type: string;
   required: boolean;
+  /**
+   * OAuth scopes this node needs beyond merely holding a credential
+   * (AF-M10-17).
+   *
+   * Declared per node rather than per credential type because one connection
+   * serves several operations at different privilege levels: posting a Slack
+   * message needs `chat:write`, creating a channel needs `channels:manage`,
+   * and looking a person up by email needs `users:read.email` — a grant an
+   * admin may well decline while allowing the other two.
+   *
+   * Surfaced in the config panel so a missing grant is visible before the run,
+   * and passed to the executor so the provider's own code (`missing_scope`,
+   * which is all Slack returns) becomes a sentence naming what to add.
+   */
+  scopes?: readonly string[];
 }
 
 export interface RetryPolicy {

@@ -92,17 +92,19 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
 
     const searchInput = screen.getByPlaceholderText(/Search by name/i);
 
-    // Search for "slack"
+    // Search for "slack". AF-M10-17 retired the webhook-only node labelled
+    // exactly "Slack"; the palette now offers the Web API family, so the
+    // search term is the same and the label it must find is the replacement.
     fireEvent.change(searchInput, { target: { value: "slack" } });
 
-    expect(screen.getByText("Slack")).toBeTruthy();
+    expect(screen.getByText("Slack Post Message")).toBeTruthy();
     expect(screen.queryByText("Google Sheets Append")).toBeNull();
     expect(screen.queryByText("HTTP Request")).toBeNull();
 
     // Search for a keyword like "rest" (matches HTTP Request)
     fireEvent.change(searchInput, { target: { value: "rest" } });
     expect(screen.getByText("HTTP Request")).toBeTruthy();
-    expect(screen.queryByText("Slack")).toBeNull();
+    expect(screen.queryByText("Slack Post Message")).toBeNull();
 
     // Search for non-existent term
     fireEvent.change(searchInput, { target: { value: "xyznonexistent" } });

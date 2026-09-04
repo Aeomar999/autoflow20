@@ -133,6 +133,45 @@ function checkForLeaks(spec: TemplateSpec, issues: TemplateIssue[]): void {
       ? nodeRegistry.resolve(node.type)
       : undefined;
 
+    /**
+     * Every authored key must be one the node's schema actually reads.
+     *
+     * Zod objects here are not `.strict()`, so an unknown key passes
+     * validation silently and the field it was meant to set stays undefined.
+     * That is not a typo-level problem: a `CONDITION` authored with
+     * `leftValue`/`rightValue` instead of `left`/`right` parses cleanly, then
+     * compares undefined to undefined at run time and takes the same branch
+     * every time — a template that looks correct, validates, executes, and is
+     * wrong. Two shipped M10 templates did exactly this (AF-M10-17).
+     *
+     * Making the schemas strict would be the deeper fix, but it changes the
+     * SAVE boundary for every existing user workflow. This catches it where it
+     * belongs: in authored content, before it reaches the gallery.
+     */
+    const shape = registration
+      ? (
+          registration.configSchema as unknown as {
+            shape?: Record<string, unknown>;
+          }
+        ).shape
+      : undefined;
+    if (shape && node.data) {
+      const known = new Set(Object.keys(shape));
+      for (const key of Object.keys(node.data)) {
+        // `_`-prefixed keys belong to the engine, not to the node's schema:
+        // AF-M9-06's `_run` policy block is read by `resolveRunPolicy` and is
+        // deliberately absent from every configSchema.
+        if (key.startsWith("_")) continue;
+        if (!known.has(key)) {
+          issues.push({
+            slug: spec.slug,
+            nodeId: node.id,
+            message: `Config field "${key}" is not in ${node.type}'s schema, so it is ignored at run time. Known fields: ${[...known].sort().join(", ")}.`,
+          });
+        }
+      }
+    }
+
     // Credential-bound fields must be ABSENT, not empty. An authored value
     // here would be the author's own credential id.
     for (const requirement of registration?.credentials ?? []) {

@@ -64,6 +64,8 @@ export const dataTemplates: TemplateSpec[] = [
       "Runs your daily metrics query, has a model turn the numbers into two paragraphs a human will actually read, and posts it to Slack every morning.",
     category: "Data",
     domain: "data",
+    // An AI provider to write the narrative, Slack to post it.
+    tier: "library",
     tags: ["metrics", "postgres", "reporting", "slack", "ai"],
     featured: true,
     graph: {
@@ -107,14 +109,13 @@ export const dataTemplates: TemplateSpec[] = [
         },
         {
           id: "post",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Post the narrative",
           position: { x: 780, y: 0 },
           data: {
             variableName: "narrativePost",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content: "*Daily metrics*\n\n{{narrative.text}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "*Daily metrics*\n\n{{narrative.text}}",
           },
         },
       ],
@@ -481,7 +482,6 @@ export const dataTemplates: TemplateSpec[] = [
           name: "Take the first page",
           position: { x: 520, y: 0 },
           data: {
-            variableName: "batch",
             // The public fixture returns 200 rows; the cap keeps a first run
             // small enough to watch. Raise it once you have seen it work.
             code: "return { items: (input.source.httpResponse.data || []).slice(0, 10) };",
@@ -623,13 +623,13 @@ export const dataTemplates: TemplateSpec[] = [
         },
         {
           id: "post",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Post the summary",
           position: { x: 1300, y: 0 },
           data: {
             variableName: "posted",
-            webhookUrl: "https://hooks.slack.com/services/REPLACE/WITH/YOURS",
-            content: "*{{doc.file.$file.filename}}*\n{{summary.text}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "*{{doc.file.$file.filename}}*\n{{summary.text}}",
           },
         },
       ],
@@ -745,9 +745,9 @@ export const dataTemplates: TemplateSpec[] = [
           name: "Matched?",
           position: { x: 560, y: 0 },
           data: {
-            leftValue: "{{customer.found}}",
+            left: "{{customer.found}}",
             operator: "equals",
-            rightValue: "true",
+            right: "true",
           },
         },
         {
@@ -888,6 +888,76 @@ export const dataTemplates: TemplateSpec[] = [
         { source: "claim", target: "receipt-file" },
         { source: "receipt-file", target: "expense" },
         { source: "expense", target: "attach" },
+      ],
+    },
+  },
+  {
+    slug: "webhook-json-api-with-validation",
+    name: "A validated JSON endpoint, no backend",
+    description:
+      "Turns a webhook into a real HTTP API: it validates the incoming body, answers 200 with the accepted record, and answers 400 with the specific field that was wrong. The two response nodes are the point — an endpoint that returns 200 whatever you send it is not validation, it is a shape that logs. Nothing to connect: publish it and POST to the trigger's URL. Extend the check by editing the Code node, which returns { valid, errors, record } and nothing else.",
+    category: "Data",
+    domain: "data",
+    tags: ["webhook", "api", "validation", "json", "endpoint", "respond"],
+    graph: {
+      nodes: [
+        {
+          id: "request",
+          type: "WEBHOOK_TRIGGER",
+          name: "Incoming request",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "check",
+          type: "CODE",
+          name: "Validate the body",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const body = input.webhook?.body ?? {};\nconst errors = [];\n\nif (typeof body.email !== "string" || !body.email.includes("@")) {\n  errors.push("email must be an email address");\n}\nif (typeof body.name !== "string" || body.name.trim() === "") {\n  errors.push("name is required");\n}\nif (body.quantity !== undefined && !Number.isInteger(body.quantity)) {\n  errors.push("quantity must be a whole number");\n}\n\nreturn {\n  valid: errors.length === 0,\n  errors,\n  record: {\n    email: String(body.email ?? "").trim().toLowerCase(),\n    name: String(body.name ?? "").trim(),\n    quantity: body.quantity ?? 1,\n  },\n};\n',
+          },
+        },
+        {
+          id: "ok",
+          type: "CONDITION",
+          name: "Valid?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{valid}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "accept",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "202 Accepted",
+          position: { x: 840, y: -100 },
+          data: {
+            statusCode: 202,
+            contentType: "application/json",
+            body: '{"status":"accepted","record":{{{json record}}}}',
+          },
+        },
+        {
+          id: "reject",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "400 Bad Request",
+          position: { x: 840, y: 100 },
+          data: {
+            statusCode: 400,
+            contentType: "application/json",
+            // Naming the failing fields is what makes this an API rather than
+            // a black box: a caller that gets a bare 400 cannot fix anything.
+            body: '{"status":"rejected","errors":{{{json errors}}}}',
+          },
+        },
+      ],
+      edges: [
+        { source: "request", target: "check" },
+        { source: "check", target: "ok" },
+        { source: "ok", target: "accept", sourceHandle: "true" },
+        { source: "ok", target: "reject", sourceHandle: "false" },
       ],
     },
   },

@@ -87,10 +87,10 @@ export const marketingTemplates: TemplateSpec[] = [
     slug: "content-brief-generator",
     name: "Content brief generator",
     description:
-      "Give it a topic and an audience and it drafts a full content brief — angle, outline, keywords, and a suggested title — then posts the brief into Slack for the writer to pick up.",
+      "Give it a topic and an audience and it drafts a full content brief — angle, outline, keywords, and a suggested title. This is the sample a new workspace installs first, so it deliberately connects to nothing: run it and read the brief in the run trace. Add a Slack Post Message node on the end when you want it delivered somewhere.",
     category: "Marketing",
     domain: "marketing",
-    tags: ["content", "brief", "ai", "slack", "seo"],
+    tags: ["content", "brief", "ai", "seo", "sample"],
     featured: true,
     graph: {
       nodes: [
@@ -135,24 +135,10 @@ export const marketingTemplates: TemplateSpec[] = [
             cacheTtlSeconds: 3600,
           },
         },
-        {
-          id: "post-brief",
-          type: "SLACK",
-          name: "Post to Slack",
-          position: { x: 780, y: 0 },
-          data: {
-            variableName: "slackPost",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              "*New content brief:* {{brief_topic}}\n_Audience: {{brief_audience}}_\n\n{{brief.text}}",
-          },
-        },
       ],
       edges: [
         { source: "start", target: "defaults" },
         { source: "defaults", target: "write-brief" },
-        { source: "write-brief", target: "post-brief" },
       ],
     },
   },
@@ -206,15 +192,13 @@ export const marketingTemplates: TemplateSpec[] = [
         },
         {
           id: "post-digest",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Post the digest",
           position: { x: 780, y: 0 },
           data: {
             variableName: "slackPost",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              "*Search rankings — week of {{schedule.timestamp}}*\n\n{{digest.text}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "*Search rankings — week of {{schedule.timestamp}}*\n\n{{digest.text}}",
           },
         },
       ],
@@ -334,28 +318,24 @@ export const marketingTemplates: TemplateSpec[] = [
         },
         {
           id: "alert-large",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Alert: large payment",
           position: { x: 800, y: -90 },
           data: {
             variableName: "largeAlert",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              ":moneybag: *Large payment* — {{payment_amountCents}} {{payment_currency}} (minor units) from {{payment_customer}}. Event: {{payment_eventType}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":moneybag: *Large payment* — {{payment_amountCents}} {{payment_currency}} (minor units) from {{payment_customer}}. Event: {{payment_eventType}}",
           },
         },
         {
           id: "log-standard",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Log: standard payment",
           position: { x: 800, y: 90 },
           data: {
             variableName: "standardLog",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              "Payment {{payment_amountCents}} {{payment_currency}} (minor units) — {{payment_eventType}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "Payment {{payment_amountCents}} {{payment_currency}} (minor units) — {{payment_eventType}}",
           },
         },
       ],
@@ -538,7 +518,6 @@ export const marketingTemplates: TemplateSpec[] = [
           name: "Take the first page",
           position: { x: 520, y: 0 },
           data: {
-            variableName: "batch",
             code: "return { items: (input.source.httpResponse.data || []).slice(0, 10) };",
           },
         },

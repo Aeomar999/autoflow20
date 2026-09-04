@@ -51,6 +51,11 @@ import { definition as qboFindCustomer } from "./quickbooks/find-customer/defini
 import { definition as qboGet } from "./quickbooks/get/definition";
 import { definition as qboInvoicePdf } from "./quickbooks/get-invoice-pdf/definition";
 import { definition as qboWebhookTrigger } from "./quickbooks/webhook-trigger/definition";
+import { definition as slackCreateChannel } from "./slack/create-channel/definition";
+import { definition as slackDmByEmail } from "./slack/dm-by-email/definition";
+import { definition as slackInvite } from "./slack/invite/definition";
+import { definition as slackListChannels } from "./slack/list-channels/definition";
+import { definition as slackPost } from "./slack/post/definition";
 import { definition as slackSendMessage } from "./slack/send-message/definition";
 import type { NodeDefinition } from "./types";
 import { definition as webhookOut } from "./webhook/out/definition";
@@ -104,6 +109,11 @@ export const nodeManifest: NodeDefinition[] = [
   qboGet,
   qboInvoicePdf,
   qboWebhookTrigger,
+  slackPost,
+  slackListChannels,
+  slackCreateChannel,
+  slackInvite,
+  slackDmByEmail,
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,

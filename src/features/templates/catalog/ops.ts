@@ -53,15 +53,13 @@ export const opsTemplates: TemplateSpec[] = [
         },
         {
           id: "alert",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Alert the channel",
           position: { x: 800, y: -60 },
           data: {
             variableName: "downAlert",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              ":red_circle: *Health check failed* — https://example.com/health returned {{health.httpResponse.status}} {{health.httpResponse.statusText}} at {{schedule.timestamp}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":red_circle: *Health check failed* — https://example.com/health returned {{health.httpResponse.status}} {{health.httpResponse.statusText}} at {{schedule.timestamp}}",
           },
         },
       ],
@@ -188,15 +186,13 @@ export const opsTemplates: TemplateSpec[] = [
         },
         {
           id: "notify-slack",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Notify Slack",
           position: { x: 800, y: -90 },
           data: {
             variableName: "slackNotice",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              ":rocket: *Deployed to production* — `{{deploy_sha}}` by {{deploy_author}}\n{{deploy_message}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":rocket: *Deployed to production* — `{{deploy_sha}}` by {{deploy_author}}\n{{deploy_message}}",
           },
         },
         {
@@ -206,8 +202,6 @@ export const opsTemplates: TemplateSpec[] = [
           position: { x: 800, y: 90 },
           data: {
             variableName: "discordNotice",
-            webhookUrl:
-              "https://discord.com/api/webhooks/REPLACE/WITH_YOUR_WEBHOOK",
             username: "Deploys",
             content:
               "Deployed to production — `{{deploy_sha}}` by {{deploy_author}}\n{{deploy_message}}",
@@ -283,8 +277,6 @@ export const opsTemplates: TemplateSpec[] = [
           position: { x: 800, y: 0 },
           data: {
             variableName: "handoffPost",
-            webhookUrl:
-              "https://discord.com/api/webhooks/REPLACE/WITH_YOUR_WEBHOOK",
             username: "On-call",
             content: "**Handoff — {{schedule.timestamp}}**\n\n{{handoff.text}}",
           },
@@ -304,6 +296,8 @@ export const opsTemplates: TemplateSpec[] = [
       "Reads vendor, amount, date, and category off an incoming receipt, sends anything above your approval threshold to Slack for a human, and books everything below it straight to Airtable.",
     category: "Finance",
     domain: "ops",
+    // QuickBooks to record the expense, Slack to report it.
+    tier: "library",
     tags: ["expenses", "receipts", "approval", "airtable", "ai"],
     graph: {
       nodes: [
@@ -365,15 +359,13 @@ export const opsTemplates: TemplateSpec[] = [
         },
         {
           id: "request-approval",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Request approval",
           position: { x: 800, y: -90 },
           data: {
             variableName: "approvalRequest",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/FINANCE_WEBHOOK",
-            content:
-              ":receipt: *Approval needed* — {{expense.vendor}}, {{expense.amount}} {{expense.currency}} ({{expense.category}}) on {{expense.purchasedAt}}, submitted by {{webhook.body.submittedBy}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":receipt: *Approval needed* — {{expense.vendor}}, {{expense.amount}} {{expense.currency}} ({{expense.category}}) on {{expense.purchasedAt}}, submitted by {{webhook.body.submittedBy}}",
           },
         },
         {
@@ -1153,9 +1145,9 @@ export const opsTemplates: TemplateSpec[] = [
           name: "Do we know them?",
           position: { x: 520, y: 0 },
           data: {
-            leftValue: "{{lookup.found}}",
+            left: "{{lookup.found}}",
             operator: "equals",
-            rightValue: "true",
+            right: "true",
           },
         },
         {
@@ -1212,6 +1204,8 @@ export const opsTemplates: TemplateSpec[] = [
       "Watches the connected QuickBooks company and posts a line in Slack whenever an invoice is created or updated. QuickBooks tells you what changed but not what it now says, so the workflow reads the record back before writing the message — otherwise the alert could only ever name an id. Intuit sends every connected company's events to one endpoint, so the trigger's credential is what decides which company this workflow is listening to; a second connected company will not start it. Supply a QuickBooks credential and a Slack incoming-webhook URL.",
     category: "Finance",
     domain: "ops",
+    // QuickBooks to read the invoice, Slack to post it.
+    tier: "library",
     tags: ["quickbooks", "invoice", "slack", "alert", "webhook", "finance"],
     graph: {
       nodes: [
@@ -1238,14 +1232,13 @@ export const opsTemplates: TemplateSpec[] = [
         },
         {
           id: "post",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Post to Slack",
           position: { x: 600, y: 0 },
           data: {
             variableName: "posted",
-            webhookUrl: "REPLACE_WITH_SLACK_WEBHOOK_URL",
-            content:
-              "Invoice {{invoice.record.DocNumber}} {{qbo.operation}}d — {{invoice.record.CustomerRef.name}}, {{invoice.record.TotalAmt}} (balance {{invoice.record.Balance}})",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "Invoice {{invoice.record.DocNumber}} {{qbo.operation}}d — {{invoice.record.CustomerRef.name}}, {{invoice.record.TotalAmt}} (balance {{invoice.record.Balance}})",
           },
         },
       ],
@@ -1300,6 +1293,213 @@ export const opsTemplates: TemplateSpec[] = [
       edges: [
         { source: "raised", target: "pdf" },
         { source: "pdf", target: "file-it" },
+      ],
+    },
+  },
+  {
+    slug: "slack-deal-room-per-opportunity",
+    name: "A Slack channel per deal, created and staffed",
+    description:
+      'Takes a new opportunity over a webhook, opens a dedicated Slack channel for it, pulls the deal team in, and posts the opening summary. Channel names are normalised to Slack\'s rules first, so "Acme Corp — Q3 renewal" becomes a channel Slack will actually accept. Creating is safe to re-run: a name that already exists returns the existing channel rather than failing, so a retried delivery does not fail and does not make a second room. Inviting someone already in the channel is likewise not an error. The listing step is there so the run records what was already present — useful when you are wondering why a channel was reused. Supply a Slack credential with channels:manage.',
+    category: "Revenue",
+    domain: "ops",
+    tags: ["slack", "channel", "deal", "sales", "create", "invite"],
+    graph: {
+      nodes: [
+        {
+          id: "opportunity",
+          type: "WEBHOOK_TRIGGER",
+          name: "New opportunity",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "existing",
+          type: "SLACK_LIST_CHANNELS",
+          name: "Is there a room already?",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "existing",
+            nameFilter: "deal-{{webhook.body.accountSlug}}",
+            limit: 500,
+          },
+        },
+        {
+          id: "room",
+          type: "SLACK_CREATE_CHANNEL",
+          name: "Open the deal room",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "room",
+            // Called unconditionally: the node returns the existing channel
+            // when the name is taken, so no branch is needed and a retry is
+            // safe. `room.created` says which happened.
+            name: "deal-{{webhook.body.accountSlug}}",
+            isPrivate: false,
+            purpose: "Deal room for {{webhook.body.accountName}}",
+          },
+        },
+        {
+          id: "staff",
+          type: "SLACK_INVITE",
+          name: "Pull the deal team in",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "staffed",
+            channel: "{{room.channelId}}",
+            // Slack user IDs (U0123ABCD), not emails — the invite API takes
+            // ids only.
+            userIds: "{{webhook.body.teamUserIds}}",
+          },
+        },
+        {
+          id: "brief",
+          type: "SLACK_POST",
+          name: "Post the opening brief",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "posted",
+            channel: "{{room.channelId}}",
+            text: ":handshake: *{{webhook.body.accountName}}* — {{webhook.body.amount}}\nOwner: {{webhook.body.owner}}\nStage: {{webhook.body.stage}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "opportunity", target: "existing" },
+        { source: "existing", target: "room" },
+        { source: "room", target: "staff" },
+        { source: "staff", target: "brief" },
+      ],
+    },
+  },
+  {
+    slug: "meeting-briefing-slack-dm",
+    name: "DM each attendee before the meeting",
+    description:
+      "Watches your calendar, waits until shortly before each meeting starts, and sends every attendee a direct message with the agenda. Attendees are matched to Slack accounts by email, which is the part that needs care: the address must be the one on their Slack profile, and that is often not their work address. External guests have no Slack account at all, so the lookup is set to skip them quietly rather than fail — otherwise one contractor on the invite would stop everyone else being messaged. Meeting rooms are already filtered out, because Calendar counts them as attendees and a room has nobody to brief. Supply a Calendar credential and a Slack credential with users:read.email.",
+    category: "Ops",
+    domain: "ops",
+    // Calendar to read the meeting, Slack to deliver the briefing.
+    tier: "library",
+    tags: ["slack", "calendar", "meeting", "dm", "briefing", "reminder"],
+    graph: {
+      nodes: [
+        {
+          id: "upcoming",
+          type: "CALENDAR_TRIGGER",
+          name: "Meeting soon",
+          position: { x: 0, y: 0 },
+          data: {
+            calendarId: "primary",
+            lookaheadMinutes: 120,
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "hold",
+          type: "WAIT",
+          name: "Wait until it starts",
+          position: { x: 280, y: 0 },
+          data: { mode: "until", until: "{{event.start}}" },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One per attendee",
+          position: { x: 540, y: 0 },
+          // A dot-path against the node's input, not a template expression:
+          // SPLIT_OUT reads the array itself rather than a rendered string.
+          data: { path: "event.attendees", maxItems: 50 },
+        },
+        {
+          id: "dm",
+          type: "SLACK_DM_BY_EMAIL",
+          name: "DM the attendee",
+          position: { x: 800, y: 0 },
+          data: {
+            variableName: "dm",
+            email: "{{$item.email}}",
+            // An external guest has no Slack account; skipping is the
+            // expected outcome, not a failure of the run.
+            skipIfNotFound: true,
+            text: ":calendar: *{{event.summary}}* starts now.\n{{event.description}}\n{{event.htmlLink}}",
+          },
+        },
+        {
+          id: "done",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1060, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "upcoming", target: "hold" },
+        { source: "hold", target: "each" },
+        { source: "each", target: "dm" },
+        { source: "dm", target: "done" },
+      ],
+    },
+  },
+  {
+    slug: "webhook-payload-reshaper",
+    name: "Reshape a webhook and forward it",
+    description:
+      "Receives one service's webhook, reshapes the payload into the form another service expects, forwards it, and answers the original caller with the result. This is the glue you would otherwise write a small server for — the two systems never have to agree on a format. The forward is set to fail the run on a non-2xx, so a rejected hand-off shows as a failed execution rather than a silent drop. The target here is a public echo service; point it at your own endpoint, and add a credential on the HTTP node if it needs authentication.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["webhook", "transform", "forward", "proxy", "integration", "glue"],
+    graph: {
+      nodes: [
+        {
+          id: "incoming",
+          type: "WEBHOOK_TRIGGER",
+          name: "Source webhook",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "reshape",
+          type: "CODE",
+          name: "Reshape the payload",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const body = input.webhook?.body ?? {};\n\n// Whatever the source sends, emit the shape the target wants.\nreturn {\n  payload: {\n    external_id: String(body.id ?? body.uuid ?? ""),\n    full_name: [body.first_name, body.last_name].filter(Boolean).join(" ") || body.name || "",\n    contact_email: body.email ?? body.email_address ?? null,\n    source: "webhook",\n    received_at: new Date().toISOString(),\n  },\n};\n',
+          },
+        },
+        {
+          id: "forward",
+          type: "HTTP_REQUEST",
+          name: "Forward to the target",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "forwarded",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json payload}}}",
+            headers: { "Content-Type": "application/json" },
+            // A hand-off the target rejected must fail the run. Defaulting the
+            // other way turns a dropped record into a green execution.
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "reply",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "Answer the caller",
+          position: { x: 840, y: 0 },
+          data: {
+            statusCode: 200,
+            contentType: "application/json",
+            body: '{"forwarded":true,"status":{{forwarded.httpResponse.status}}}',
+          },
+        },
+      ],
+      edges: [
+        { source: "incoming", target: "reshape" },
+        { source: "reshape", target: "forward" },
+        { source: "forward", target: "reply" },
       ],
     },
   },
