@@ -1071,4 +1071,219 @@ export const marketingTemplates: TemplateSpec[] = [
       ],
     },
   },
+  {
+    slug: "free-image-from-a-prompt",
+    name: "Turn a prompt into an image, free",
+    description:
+      "Publishes a form that takes a prompt and returns a generated image, using Pollinations — which needs no API key and costs nothing. Free means rate-limited and occasionally overloaded, so the node retries rather than failing: a busy Pollinations answers 200 with an HTML page, and storing that would produce a run that looks successful and leaves a corrupt file behind. Set a seed to make the same prompt reproduce the same image. Nothing to connect.",
+    category: "Marketing",
+    domain: "marketing",
+    tags: ["image", "generate", "free", "pollinations", "prompt", "ai"],
+    graph: {
+      nodes: [
+        {
+          id: "ask",
+          type: "FORM_TRIGGER",
+          name: "Describe the image",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Generate an image",
+            description: "Describe what you want and it will be generated.",
+            submitLabel: "Generate",
+            successMessage: "Generating — your image will appear in the run.",
+            fields: [
+              {
+                name: "prompt",
+                label: "What should it show?",
+                type: "textarea",
+                required: true,
+                maxLength: 1000,
+              },
+            ],
+          },
+        },
+        {
+          id: "image",
+          type: "POLLINATIONS_IMAGE",
+          name: "Generate it",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "picture",
+            prompt: "{{form.fields.prompt}}",
+            width: 1024,
+            height: 1024,
+            filename: "generated.jpg",
+          },
+        },
+      ],
+      edges: [{ source: "ask", target: "image" }],
+    },
+  },
+  {
+    slug: "article-to-hero-image",
+    name: "Give an article a hero image",
+    description:
+      "Takes a headline, has a model turn it into an image brief, and generates the picture — because a good prompt is a different piece of writing from a good headline, and feeding the headline straight to an image model produces literal, stock-looking results. The generated image is stored as a run file, so a Drive upload, a LinkedIn post or an email attachment can take it directly. DALL·E rewrites prompts, and the node reports what it actually rendered, which is the difference between an image that is wrong and a model that changed the brief. Supply an OpenAI credential.",
+    category: "Marketing",
+    domain: "marketing",
+    tags: ["image", "openai", "dalle", "hero", "article", "generate"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a headline",
+          position: { x: 0, y: 0 },
+          data: {
+            payload:
+              '{"headline":"Why most automation projects stall in month three"}',
+          },
+        },
+        {
+          id: "brief",
+          type: "AI_LLM",
+          name: "Write the image brief",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "brief",
+            model: "anthropic:claude-3-5-sonnet",
+            fallbackModels: "openai:gpt-4o",
+            systemPrompt:
+              "You write image briefs. Describe a scene, a composition and a mood — never text, never logos, never a literal illustration of the words. One paragraph, no preamble.",
+            userPrompt:
+              "Write an image brief for an article headlined: {{headline}}",
+            temperature: 0.8,
+            maxTokens: 300,
+          },
+        },
+        {
+          id: "hero",
+          type: "OPENAI_IMAGE",
+          name: "Generate the image",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "hero",
+            prompt: "{{brief.text}}",
+            model: "gpt-image-1",
+            size: "1536x1024",
+            filename: "hero.png",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "brief" },
+        { source: "brief", target: "hero" },
+      ],
+    },
+  },
+  {
+    slug: "template-video-to-social",
+    name: "Render a video from a template and post it",
+    description:
+      "Fills a Creatomate template with values from a webhook, waits for the render, and publishes the result to Instagram and TikTok. The wait is a durable, cancellable step rather than a held worker — a render takes minutes, and cancelling the run asks Creatomate to stop rather than leaving it to finish and bill. The rendered file is stored rather than passed on as a URL: Creatomate's link is tied to the render and will stop working. Modification keys must match the template's own element names exactly, which is what its 400 means. Supply a Creatomate credential and an Upload-Post credential.",
+    category: "Marketing",
+    domain: "marketing",
+    // Creatomate to render, Upload-Post to publish.
+    tier: "library",
+    tags: ["creatomate", "video", "render", "instagram", "social", "template"],
+    graph: {
+      nodes: [
+        {
+          id: "request",
+          type: "WEBHOOK_TRIGGER",
+          name: "Render requested",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "render",
+          type: "CREATOMATE_RENDER",
+          name: "Render the video",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "video",
+            templateId: "REPLACE_WITH_TEMPLATE_ID",
+            // Keys are the template's element names. Three braces: two would
+            // HTML-escape the quotes and the JSON would not parse.
+            modifications:
+              '{"Headline": "{{webhook.body.headline}}", "Subtitle": "{{webhook.body.subtitle}}"}',
+            maxWaitSeconds: 900,
+          },
+        },
+        {
+          id: "publish",
+          type: "UPLOAD_POST_PUBLISH",
+          name: "Publish it",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "published",
+            profile: "REPLACE_WITH_UPLOAD_POST_PROFILE",
+            platforms: "instagram,tiktok",
+            caption: "{{webhook.body.headline}}",
+            mediaRef: "{{{json video.file}}}",
+            isVideo: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "request", target: "render" },
+        { source: "render", target: "publish" },
+      ],
+    },
+  },
+  {
+    slug: "veo-clip-to-youtube",
+    name: "Generate a short clip and upload it",
+    description:
+      "Turns a prompt into a Veo clip and uploads it to YouTube as a private video. Generation takes minutes and is billed per second of output, so the wait is bounded and cancellable and the cost lands in the run's own trace rather than only on an invoice. The upload starts private deliberately — an unverified Google Cloud project forces that anyway, and finding out after a public upload is the worse order. Veo needs Vertex AI enabled on a billed project with the account granted the Vertex AI User role; the config panel says so, because it arrives as a 403 otherwise. Supply a Google credential with Vertex access and a YouTube credential.",
+    category: "Marketing",
+    domain: "marketing",
+    // Vertex for generation, YouTube for the upload. Different scopes.
+    tier: "library",
+    tags: ["veo", "video", "generate", "youtube", "upload", "ai"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a prompt",
+          position: { x: 0, y: 0 },
+          data: {
+            payload:
+              '{"prompt":"A slow aerial shot over a misty pine forest at dawn","title":"Dawn over the pines"}',
+          },
+        },
+        {
+          id: "clip",
+          type: "VEO_GENERATE",
+          name: "Generate the clip",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "clip",
+            prompt: "{{prompt}}",
+            durationSeconds: 8,
+            aspectRatio: "16:9",
+            maxWaitSeconds: 900,
+          },
+        },
+        {
+          id: "upload",
+          type: "YOUTUBE_UPLOAD",
+          name: "Upload to YouTube",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "video",
+            videoRef: "{{{json clip.file}}}",
+            title: "{{title}}",
+            description: "Generated from: {{prompt}}",
+            privacyStatus: "private",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "clip" },
+        { source: "clip", target: "upload" },
+      ],
+    },
+  },
 ];

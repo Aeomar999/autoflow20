@@ -10,9 +10,17 @@ import {
 
 /**
  * Any provider fronting OpenAI's Chat Completions /v1/chat/completions shape:
- * OpenAI, Groq, Ollama, DeepSeek, Together, local servers (vLLM/LM Studio).
- * baseUrl and userPrompt are template-compiled at run time; baseUrl is
- * SSRF-checked by the egress guard before any request leaves the runner.
+ * OpenAI, Groq, Ollama, DeepSeek, Together, OpenRouter, local servers
+ * (vLLM/LM Studio). baseUrl and userPrompt are template-compiled at run time;
+ * baseUrl is SSRF-checked by the egress guard before any request leaves the
+ * runner.
+ *
+ * **OpenRouter runs through here rather than as its own node or provider**
+ * (AF-M10-23). It is OpenAI-compatible, so a second implementation would be a
+ * copy that drifts: point `baseUrl` at https://openrouter.ai/api/v1, put the
+ * OpenRouter model id in `model` (e.g. `meta-llama/llama-3.3-70b-instruct`),
+ * and bind an OpenRouter key. The credential requirement accepts either type
+ * for exactly that reason.
  */
 export const configSchema = z.object({
   /** Result key in the run context: {{variableName.text}} */
@@ -43,6 +51,8 @@ export const definition: NodeDefinition = {
     "groq",
     "ollama",
     "deepseek",
+    "openrouter",
+    "llama",
     "llm",
     "chat",
     "completion",
@@ -53,6 +63,13 @@ export const definition: NodeDefinition = {
   inputs: [{ id: "main", label: "In" }],
   outputs: [{ id: "main", label: "Out" }],
   credentials: [
-    { key: "credentialId", type: "openaiCompatible.apiKey", required: true },
+    {
+      key: "credentialId",
+      // Either type: an OpenRouter key IS an OpenAI-compatible key, and
+      // forcing users to re-enter it under a second type would be paperwork
+      // rather than a distinction.
+      type: "openaiCompatible.apiKey|openrouter.apiKey",
+      required: true,
+    },
   ],
 };

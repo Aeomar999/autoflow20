@@ -463,3 +463,107 @@ export function estimateAttachmentTokens(totalBytes: number): number {
   if (totalBytes <= 0) return 0;
   return Math.ceil((totalBytes / 1024) * ATTACHMENT_TOKENS_PER_KB);
 }
+
+// ---------------------------------------------------------------------------
+// Media generation pricing (AF-M10-23)
+// ---------------------------------------------------------------------------
+
+/**
+ * Image and video generation is priced **per unit**, not per token, so it
+ * cannot live in `AiModelDef` — `inputCostPer1M` has no meaning for a model
+ * that charges 4 cents an image.
+ *
+ * It belongs in this file all the same: the cost pipeline
+ * (`__usage.costUsd` → `NodeExecution.costUsd`) is the same one, the editor's
+ * estimator reads from here, and a workflow that renders a video and then
+ * summarises it should show one bill rather than two systems' worth.
+ */
+export const MEDIA_UNITS = ["image", "second"] as const;
+export type MediaUnit = (typeof MEDIA_UNITS)[number];
+
+export interface AiMediaModelDef {
+  /** `provider:model`, matching the AI registry's key shape. */
+  id: string;
+  label: string;
+  kind: "image" | "video";
+  /** What one unit of `costPerUnitUsd` buys. */
+  unit: MediaUnit;
+  /** USD per unit. 0 for genuinely free endpoints. */
+  costPerUnitUsd: number;
+  /** Credential registry type, absent for keyless providers. */
+  credentialType?: string;
+}
+
+/**
+ * Published list prices at the time of writing. They drift, and that is
+ * expected: this is a cost ESTIMATE surfaced in the trace and the editor, not
+ * a billing record. A provider that returns its own cost should be preferred
+ * over this — none of these four do.
+ */
+export const aiMediaModels: AiMediaModelDef[] = [
+  {
+    id: "openai:gpt-image-1",
+    label: "OpenAI gpt-image-1",
+    kind: "image",
+    unit: "image",
+    // 1024×1024, standard quality. Higher quality and larger sizes cost more;
+    // the node passes the size through so this is the floor, not the ceiling.
+    costPerUnitUsd: 0.04,
+    credentialType: "openai.apiKey",
+  },
+  {
+    id: "openai:dall-e-3",
+    label: "OpenAI DALL·E 3",
+    kind: "image",
+    unit: "image",
+    costPerUnitUsd: 0.04,
+    credentialType: "openai.apiKey",
+  },
+  {
+    id: "pollinations:flux",
+    label: "Pollinations (Flux)",
+    kind: "image",
+    unit: "image",
+    // Genuinely free and keyless, which is why it is the one media node a
+    // credential-free template can use.
+    costPerUnitUsd: 0,
+  },
+  {
+    id: "google:veo-3",
+    label: "Google Veo 3",
+    kind: "video",
+    unit: "second",
+    costPerUnitUsd: 0.5,
+    credentialType: "google.oauth2",
+  },
+  {
+    id: "creatomate:render",
+    label: "Creatomate render",
+    kind: "video",
+    unit: "second",
+    // Creatomate meters credits rather than seconds; this is the approximate
+    // conversion at its published rate, and the node records the render's own
+    // reported duration so the estimate tracks reality.
+    costPerUnitUsd: 0.01,
+    credentialType: "creatomate.apiKey",
+  },
+];
+
+const mediaModelsById = new Map(aiMediaModels.map((def) => [def.id, def]));
+
+export function findMediaModel(id: string): AiMediaModelDef | undefined {
+  return mediaModelsById.get(id);
+}
+
+/**
+ * Cost of a generation, for the same `__usage.costUsd` the AI nodes report.
+ *
+ * An unknown model costs 0 rather than throwing: a media node whose pricing
+ * has not been added yet should still run and still record its output. A
+ * missing price is a reporting gap; refusing the run would be a worse one.
+ */
+export function estimateMediaCostUsd(id: string, units: number): number {
+  const def = mediaModelsById.get(id);
+  if (!def) return 0;
+  return roundUsd(def.costPerUnitUsd * Math.max(0, units));
+}

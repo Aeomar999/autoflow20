@@ -58,6 +58,10 @@ import jiraSearch from "./jira/search";
 import jiraTransition from "./jira/transition";
 import mailerliteCreateSubscriber from "./mailerlite/create-subscriber";
 import mailerliteFindSubscriber from "./mailerlite/find-subscriber";
+import creatomateRender from "./media/creatomate-render";
+import openaiImage from "./media/openai-image";
+import pollinationsImage from "./media/pollinations-image";
+import veoGenerate from "./media/veo-generate";
 import notionCreatePage from "./notion/create-page";
 import notionQueryDatabase from "./notion/query-database";
 import stripeCreatePaymentLink from "./payments/stripe-create-payment-link";
@@ -305,6 +309,10 @@ export const nodeRegistry = createNodeRegistry(
     linkedinPost,
     youtubeUpload,
     uploadPostPublish,
+    openaiImage,
+    pollinationsImage,
+    veoGenerate,
+    creatomateRender,
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,
