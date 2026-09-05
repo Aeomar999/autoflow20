@@ -148,6 +148,28 @@ export interface NodeDefinition<TConfig = unknown> {
    */
   accountRequirement?: string;
   /**
+   * This executor creates its own Inngest step boundaries, so the engine must
+   * invoke it OUTSIDE `step.run` (AF-M10-34).
+   *
+   * Inngest forbids nested step tooling, and it does not signal that by
+   * throwing: `step.run` returns a promise that never settles in the current
+   * invocation, because the SDK ends the request and the platform re-invokes.
+   * So a nested call looks exactly like a hung executor, and the engine's own
+   * per-node timeout is what eventually fires.
+   *
+   * Set this only where the durability is the point — a `WAIT` that must
+   * survive a redeploy, an approval that parks until a human answers, a poll
+   * loop that sleeps between attempts. Everything else is better off wrapped
+   * in the engine's step, where it gets memoisation and the per-node retry
+   * and timeout for free; those executors receive an inline `step` shim and
+   * never reach the real one.
+   *
+   * A node marked this way opts out of the engine's retry loop and timeout:
+   * both are built on racing the executor's promise, which cannot work on a
+   * promise designed not to settle.
+   */
+  ownsSteps?: boolean;
+  /**
    * Retirement marker (AF-M5-09). A deprecated type stays registered and
    * executable — saved workflows and published versions must keep running —
    * but disappears from the palette, so no NEW instance can be created, and

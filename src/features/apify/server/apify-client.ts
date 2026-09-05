@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one Apify client (AF-M10-19).
@@ -18,7 +19,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  *    execution record becomes unreadable and a worker runs out of memory.
  */
 
-const APIFY_API = "https://api.apify.com/v2";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /** Terminal run states. Everything else means "still going". */
@@ -107,7 +107,7 @@ export async function apifyFetch<T>(
     );
   }
 
-  const url = new URL(`${APIFY_API}${request.path}`);
+  const url = new URL(`${serviceEndpoint("apify")}${request.path}`);
   for (const [key, value] of Object.entries(request.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));
   }

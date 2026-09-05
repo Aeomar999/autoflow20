@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The MailerLite client (AF-M10-20).
@@ -17,7 +18,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  * node reports the returned status rather than assuming.
  */
 
-const MAILERLITE_API = "https://connect.mailerlite.com/api";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface MailerLiteSubscriber {
@@ -97,16 +97,19 @@ export async function mailerliteFetch<T>(
     );
   }
 
-  const response = await fetch(`${MAILERLITE_API}${request.path}`, {
-    method: request.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: "application/json",
-      ...(request.body ? { "Content-Type": "application/json" } : {}),
+  const response = await fetch(
+    `${serviceEndpoint("mailerlite")}${request.path}`,
+    {
+      method: request.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        ...(request.body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: request.body ? JSON.stringify(request.body) : undefined,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     },
-    body: request.body ? JSON.stringify(request.body) : undefined,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  );
 
   if (response.status === 404 && request.allowNotFound) {
     return null;

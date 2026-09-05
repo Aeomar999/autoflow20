@@ -37,6 +37,8 @@ export const configSchema = z.object({
 
 export const definition: NodeDefinition = {
   type: "VEO_GENERATE",
+  // Submit-then-poll generation, minutes long, cancellable.
+  ownsSteps: true,
   version: 1,
   category: "AI",
   label: "Veo Generate Video",

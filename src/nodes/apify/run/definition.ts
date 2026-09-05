@@ -32,6 +32,8 @@ export const configSchema = z.object({
 
 export const definition: NodeDefinition = {
   type: "APIFY_RUN",
+  // Sleeps between polls while an actor runs, and aborts it on cancel.
+  ownsSteps: true,
   version: 1,
   category: "ACTION",
   label: "Apify Run Actor",

@@ -2,6 +2,7 @@ import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
 import { readFileStream } from "@/features/files/server/file-service";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { formatBytes } from "./upload-stream";
 
 /**
@@ -17,9 +18,6 @@ import { formatBytes } from "./upload-stream";
  * and re-PUTting to it resumes rather than duplicating. That is what makes a
  * failed upload safe to retry without creating a second video.
  */
-
-const YOUTUBE_UPLOAD_API =
-  "https://www.googleapis.com/upload/youtube/v3/videos";
 
 /** YouTube's ceiling. Anything larger is refused by the API itself. */
 export const YOUTUBE_MAX_VIDEO_BYTES = 256 * 1024 * 1024 * 1024;
@@ -111,7 +109,7 @@ export async function startYouTubeUpload(args: {
   }
 
   const response = await fetch(
-    `${YOUTUBE_UPLOAD_API}?uploadType=resumable&part=snippet,status`,
+    `${serviceEndpoint("youtube-upload")}?uploadType=resumable&part=snippet,status`,
     {
       method: "POST",
       headers: {

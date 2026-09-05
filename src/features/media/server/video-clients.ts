@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import type { JobProgress } from "./job-poller";
 
 /**
@@ -13,8 +14,6 @@ import type { JobProgress } from "./job-poller";
  * rather than passing the URL downstream.
  */
 
-const VERTEX_API = "https://aiplatform.googleapis.com/v1";
-const CREATOMATE_API = "https://api.creatomate.com/v1";
 const REQUEST_TIMEOUT_MS = 60_000;
 
 // ---------------------------------------------------------------------------
@@ -103,7 +102,7 @@ export async function startVeoGeneration(args: {
   );
 
   const response = await fetch(
-    `${VERTEX_API}/projects/${projectId}/locations/${location}/publishers/google/models/${args.model}:predictLongRunning`,
+    `${serviceEndpoint("vertex")}/projects/${projectId}/locations/${location}/publishers/google/models/${args.model}:predictLongRunning`,
     {
       method: "POST",
       headers: {
@@ -146,7 +145,7 @@ export async function pollVeoOperation(args: {
   );
 
   const response = await fetch(
-    `${VERTEX_API}/projects/${projectId}/locations/${location}/publishers/google/models/${args.model}:fetchPredictOperation`,
+    `${serviceEndpoint("vertex")}/projects/${projectId}/locations/${location}/publishers/google/models/${args.model}:fetchPredictOperation`,
     {
       method: "POST",
       headers: {
@@ -234,15 +233,18 @@ async function creatomateFetch<T>(
     where: string;
   },
 ): Promise<T> {
-  const response = await fetch(`${CREATOMATE_API}${request.path}`, {
-    method: request.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `${serviceEndpoint("creatomate")}${request.path}`,
+    {
+      method: request.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: request.body ? JSON.stringify(request.body) : undefined,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     },
-    body: request.body ? JSON.stringify(request.body) : undefined,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  );
 
   const text = await response.text();
   if (!response.ok)

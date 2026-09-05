@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one Slack Web API client (AF-M10-17).
@@ -13,8 +14,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  * message had been delivered. That is the single most important thing this
  * module does.
  */
-
-const SLACK_API = "https://slack.com/api";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -165,7 +164,7 @@ export async function slackFetch<T>(
   }
 
   const httpMethod = request.httpMethod ?? "POST";
-  const url = new URL(`${SLACK_API}/${request.method}`);
+  const url = new URL(`${serviceEndpoint("slack")}/${request.method}`);
 
   let body: string | undefined;
   const headers: Record<string, string> = {

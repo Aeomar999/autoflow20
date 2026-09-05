@@ -2879,12 +2879,13 @@ status ids, and a template carrying foreign ids fails install with a useless
 config is the same defect class as the dead CONDITION keys AF-M10-24 found),
 and `EXPECTED_TEMPLATE_COUNT` moved 93 → 96.
 
-### ✅ AF-M10-27 · Templates: Data Extraction & AI (#21–#23) · 1d · **DONE 2026-09-05**
+### 🟡 AF-M10-27 · Templates: Data Extraction & AI (#21–#23) · 1d · **AUTHORED 2026-09-05**
 **Depends on:** AF-M10-14, AF-M10-11, AF-M10-13, AF-M10-21
 **Acceptance**
 - [x] Three specs: fax/PDF extraction to Sheets, YC scraper, Telegram PDF RAG bot.
 - [x] #23 ships as two linked workflows (ingest and ask) if a single graph cannot express both Telegram entry points — recorded as a deviation either way. **Recorded: it shipped as a single one-credential workflow** (`telegram-chat-with-pdfs`, `telegram.apiKey`); the free banter entry point dies so a user can open the chat, ask a question about a PDF, and get an answer, and the daily-scan pattern this chapter needed stayed honest about its one credential. The user authorized the single-workflow shape when confirming the batch.
 - [x] **Amendment (user, 2026-09-05) — a fourth, credential-free Data starter** (`normalize-messy-record-list`) so the free-share floor holds without reclassifying anything: manual payload → `SPLIT_OUT` → `AI_EXTRACT` per row → terminal `AGGREGATE`. Authoring surfaced a real constraint worth writing down: **an `AGGREGATE` node's output cannot be referenced downstream** — its config schema is empty, so it can carry no `variableName`, and `computeValidRoots` has no path to it (validate.ts:1140). Every shipped segment template therefore makes `AGGREGATE` terminal, and normalizing into an envelope (SET→WEBHOOK_OUT) is not expressible until the engine records segment output under a known root. The graph ends at the collected clean rows instead.
+- [ ] **Fixture-server suites — carried by AF-M10-34**, per the amended Phase C note above.
 - [x] progress.md updated
 
 ### ⬜ AF-M10-28 · Templates: Subscribers & eCommerce (#24–#25) · 0.5d
@@ -2924,6 +2925,25 @@ and `EXPECTED_TEMPLATE_COUNT` moved 93 → 96.
 
 #### Phase D — proving it
 
+#### Phase C descoped after AF-M10-27 (user decision, 2026-09-05)
+
+**AF-M10-28 through AF-M10-32 are cut. Automations #24–#35 are not authored.**
+
+The milestone ships **23 of the 35** reference automations. The reason is not
+time: nothing authored so far has been *proven*. Phase C's own rule is that a
+template is done when AF-M10-34 runs it green, and on 2026-09-05 all 100
+catalogue entries were authored-only. Adding twelve more unproven graphs makes
+that pile larger, not better.
+
+Ordering the other way round is also better work. Once AF-M10-34's fixture
+infrastructure exists, a template can be proven as it is written instead of
+joining a backlog, so the remaining automations are cheaper and safer to author
+later than they are now.
+
+This cuts more than the descope list further down calls for — that list names
+#33/#34 and #31 first, and says nothing about #24–#30. Recorded here so the
+difference between "descoped per plan" and "descoped by decision" stays visible.
+
 ### ⬜ AF-M10-33 · Fixture-server contract suites for every service node · 2.5d
 **Depends on:** Phase B
 **Acceptance**
@@ -2939,7 +2959,14 @@ The milestone's definition of done.
 **Acceptance**
 - [ ] `tests/integration/automations/` drives each of the 35 catalogue graphs through `runGraph` against the fixture server, asserting terminal `SUCCESS` and the expected `NodeExecution` count, order and statuses.
 - [ ] Trigger payloads are injected through `runGraph`'s `initialData` option. ~~This task cannot close until AF-M9-01 lands it.~~ **Unblocked 2026-09-03** — that box closed with AF-M9-10; the note above was stale when AF-M10-24 checked it.
-- [ ] **Client base-URL redirection, moved here from Phase C (2026-09-04).** The fixture server only redirects `node.data.endpoint`, so it can reach `HTTP_REQUEST` and nothing else; every Phase B client (`const APIFY_API = …`, and the same for Apollo, Google, Gmail, Sheets, Stripe, Shopify, Airtable, Telegram, WAHA) hardcodes its base URL as a module constant. Without a seam, ~30 of the 35 cannot be driven offline at all. This is the task's real first step, not a detail of it.
+- [x] **Client base-URL redirection, moved here from Phase C (2026-09-04). DONE 2026-09-05.** `src/lib/server/service-endpoints.ts` holds all 27 bases; 21 client files and 36 use sites moved onto `serviceEndpoint(name)`, and Shopify's per-shop host and QuickBooks' sandbox/production pair onto `redirectedServiceUrl`. Redirection is gated twice — `NODE_ENV=test` **and** a loopback origin — and a malformed or non-loopback override throws rather than falling back to the real endpoint, because falling back turns "this test redirects Stripe" into "this test charged a real card". Each service gets its own path segment so a fixture can tell a Sheets call from a Drive one, and the client's own path suffix survives, which is the part a contract test asserts on. `service-endpoints.test.ts` carries a guard that fails on any newly hardcoded base — it found `YOUTUBE_UPLOAD_API` immediately, which a hand-written survey had missed because the declaration wraps across two lines. `tests/integration/service-endpoint-redirect.integration.test.ts` proves the seam through real clients against a real socket, since a client that captured its base at import time would pass the unit test and fail this one.
+- [ ] **BLOCKER found 2026-09-05 by the first real run: no workflow can execute through Inngest at all.** `scripts/run-template.ts` installed `normalize-messy-record-list` into the dev org, bound the connected Gemini credential and sent the same `workflows/execute.workflow` event the Run button sends. It hung on node 0 (`MANUAL_TRIGGER`), timed out at its 60s node timeout, retried, and is still `RUNNING`. Cause: `functions.ts` invokes every node executor **inside** `step.run` (both the plain path, line ~1313, and the segment path, line ~841) while handing it `step` and `publish`. Real Inngest rejects nested step tooling — the SDK logged `NESTING_STEPS` naming `publish:manual-trigger-execution` — so the inner call never settles and our own `Promise.race` timeout fires. **93 of the node executors call `step.run`/`step.sleep`/`publish`, and every trigger executor does**, so there is no valid graph that avoids it: a graph must start with a trigger.
+- [ ] **Why no test caught it.** `tests/integration/engine/run-graph.ts` calls the real `executeWorkflowHandler` but substitutes a fake `step` whose `run` executes the callback inline. Inline execution permits nesting, so 246 integration tests pass against a double that is more permissive than production in exactly the dimension that breaks. The dev database had **0 executions ever** — the real path had never been exercised. This is the strongest argument yet for AF-M10-34: fixture-green was never going to find this, because the fixture replaces the thing that fails.
+- [x] **FIXED 2026-09-05 (two-tier execution).** The shape of it is two-tier execution: nodes that genuinely need durable step boundaries (`WAIT`, `APPROVAL`, the Apify wait, the Veo/Creatomate job poller) must be invoked OUTSIDE `step.run` and own their own steps, while everything else stays wrapped and should not be handed `step`/`publish` at all. Making production match the test double instead (an inline `step` shim everywhere) would restore execution but silently strip durability from precisely the nodes AF-M10-08/09/19/23 built it for, so it is the wrong repair.
+- [x] **Two-tier execution landed 2026-09-05, and a real run reaches real providers.** `NodeDefinition.ownsSteps` marks the five node types whose durability is the point — `WAIT`, `APPROVAL`, `APIFY_RUN`, `VEO_GENERATE`, `CREATOMATE_RENDER`. Those are invoked outside `step.run` with the real tooling and, deliberately, with no timeout race and no engine retry: when such an executor suspends its promise never settles, so racing it reports a hang for correct behaviour, and re-entering it would replay step names Inngest has already memoised. Every other executor stays wrapped — keeping memoisation, the per-node timeout and the retry loop — and receives an inline `step` shim plus a deferred `publish` that is flushed once the step returns, so the editor still gets live status. `step.ai.wrap` had to be on the shim too: without it `AI_LLM` and `AI_EXTRACT` die on "Cannot read properties of undefined (reading 'wrap')", which is what the first repaired run did after clearing the trigger for the first time.
+- [x] **The test double no longer permits what production forbids.** `run-graph.ts`'s fake `step` now throws on a nested `step.run`, mirroring Inngest. All 246 integration tests pass with that guard armed, which is the actual proof that no executor nests any more. One test changed with it: the AF-M8-27 cancellation suite hooked `manual-trigger`, a step the trigger's executor opened privately; it now hooks the engine's `node:<id>:attempt:1`, which is the boundary it meant and the only one a deployed run has.
+- [x] **`initialData` was being dropped in production too.** `sendWorkflowExecution` SPREAD it into `event.data` while the engine reads `event.data.initialData`, so every webhook, form, Stripe, Telegram, GitHub and QuickBooks payload arrived as an empty context — `{{webhook.body}}`, `{{form.fields}}` and `{{telegram.text}}` all resolved to nothing. Only the integration harness passed it in the shape the engine reads, which is why the suite was green; the harness's own comment claimed it matched the routes, and did not.
+- [ ] **Now blocked on a stale model registry, not the engine.** A real run now reaches the provider and comes back with the provider's own error: Google answers `models/gemini-1.5-flash is not found for API version v1beta`, and Groq rejects both `llama-3.1-8b-instant` and `llama-3.3-70b-versatile`. `registry.ts` still lists only `gemini-1.5-flash`/`gemini-1.5-pro`, and most Phase C templates name them. The engine is proven end to end — real HTTP, real auth, real provider responses — so what remains here is refreshing the catalogue against each provider's current model list.
 - [ ] No network access, no credentials, no manual intervention; suite runs in the existing `integration` project.
 - [ ] A staging checklist records which of the 35 have additionally been run against real accounts, with dates — CI-green and provider-green are different claims and the docs must not blur them.
 - [ ] progress.md updated

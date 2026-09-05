@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { redirectedServiceUrl } from "@/lib/server/service-endpoints";
 
 /**
  * The Shopify Admin client (AF-M10-20).
@@ -146,7 +147,10 @@ export async function shopifyFetch<T>(
     .replace(/\/.*$/, "");
 
   const url = new URL(
-    `https://${host}/admin/api/${SHOPIFY_API_VERSION}${request.path}`,
+    `${redirectedServiceUrl(
+      "shopify",
+      `https://${host}/admin/api/${SHOPIFY_API_VERSION}`,
+    )}${request.path}`,
   );
   for (const [key, value] of Object.entries(request.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));

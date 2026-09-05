@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one QuickBooks Online API client (AF-M10-16).
@@ -48,8 +49,8 @@ export const QBO_MAX_PAGE_BUDGET = 10;
  * (`intuit.oauth2` → `captureExtras`) and a node cannot override it.
  */
 const QBO_HOSTS = {
-  production: "https://quickbooks.api.intuit.com",
-  sandbox: "https://sandbox-quickbooks.api.intuit.com",
+  production: () => serviceEndpoint("qbo-production"),
+  sandbox: () => serviceEndpoint("qbo-sandbox"),
 } as const;
 
 export interface QboConnection {
@@ -96,7 +97,7 @@ export function resolveQboConnection(
     accessToken,
     realmId,
     environment,
-    baseUrl: `${QBO_HOSTS[environment]}/v3/company/${encodeURIComponent(realmId)}`,
+    baseUrl: `${QBO_HOSTS[environment]()}/v3/company/${encodeURIComponent(realmId)}`,
   };
 }
 

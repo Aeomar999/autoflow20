@@ -1,5 +1,6 @@
 import "server-only";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { googleFetch, paginate } from "./google-client";
 
 /**
@@ -9,8 +10,6 @@ import { googleFetch, paginate } from "./google-client";
  * attendees, so a briefing can be assembled and a WAIT can park until fifteen
  * minutes before the meeting.
  */
-
-const CALENDAR_API = "https://www.googleapis.com/calendar/v3/calendars";
 
 export interface CalendarEvent {
   id: string;
@@ -92,7 +91,7 @@ export async function listCalendarEvents(args: {
   const result = await paginate({
     fetchPage: (pageToken) =>
       googleFetch<{ items?: RawEvent[]; nextPageToken?: string }>(args.secret, {
-        url: `${CALENDAR_API}/${encodeURIComponent(args.calendarId)}/events`,
+        url: `${serviceEndpoint("google-calendar")}/${encodeURIComponent(args.calendarId)}/events`,
         query: {
           timeMin: args.timeMin.toISOString(),
           timeMax: args.timeMax.toISOString(),

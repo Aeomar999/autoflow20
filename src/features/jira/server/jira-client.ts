@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one Jira Cloud client (AF-M10-18).
@@ -21,7 +22,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  *    NAME is the whole point of `matchTransition` below.
  */
 
-const ATLASSIAN_API = "https://api.atlassian.com";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface JiraRequest {
@@ -124,7 +124,7 @@ export async function jiraFetch<T>(
   const version = request.apiVersion ?? "3";
 
   const url = new URL(
-    `${ATLASSIAN_API}/ex/jira/${cloudId}/rest/api/${version}${request.path}`,
+    `${serviceEndpoint("atlassian")}/ex/jira/${cloudId}/rest/api/${version}${request.path}`,
   );
   for (const [key, value] of Object.entries(request.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));

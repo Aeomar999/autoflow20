@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * Image generation clients (AF-M10-23).
@@ -11,8 +12,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  * difference is contained here rather than in two nodes.
  */
 
-const OPENAI_API = "https://api.openai.com/v1";
-const POLLINATIONS_API = "https://image.pollinations.ai/prompt";
 const REQUEST_TIMEOUT_MS = 120_000;
 
 export interface GeneratedImage {
@@ -90,25 +89,28 @@ export async function generateOpenAiImage(args: {
     );
   }
 
-  const response = await fetch(`${OPENAI_API}/images/generations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `${serviceEndpoint("openai")}/images/generations`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: args.model,
+        prompt: args.prompt,
+        size: args.size,
+        n: 1,
+        ...(args.quality ? { quality: args.quality } : {}),
+        // gpt-image-1 returns base64 by default; dall-e-3 returns a URL unless
+        // asked. Asking for base64 on both means one code path and no
+        // second request to a URL that expires in an hour.
+        ...(args.model === "dall-e-3" ? { response_format: "b64_json" } : {}),
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     },
-    body: JSON.stringify({
-      model: args.model,
-      prompt: args.prompt,
-      size: args.size,
-      n: 1,
-      ...(args.quality ? { quality: args.quality } : {}),
-      // gpt-image-1 returns base64 by default; dall-e-3 returns a URL unless
-      // asked. Asking for base64 on both means one code path and no
-      // second request to a URL that expires in an hour.
-      ...(args.model === "dall-e-3" ? { response_format: "b64_json" } : {}),
-    }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  );
 
   const text = await response.text();
   if (!response.ok) {
@@ -152,7 +154,9 @@ export async function generatePollinationsImage(args: {
   model?: string;
   where: string;
 }): Promise<GeneratedImage> {
-  const url = new URL(`${POLLINATIONS_API}/${encodeURIComponent(args.prompt)}`);
+  const url = new URL(
+    `${serviceEndpoint("pollinations")}/${encodeURIComponent(args.prompt)}`,
+  );
   url.searchParams.set("width", String(args.width));
   url.searchParams.set("height", String(args.height));
   url.searchParams.set("nologo", "true");

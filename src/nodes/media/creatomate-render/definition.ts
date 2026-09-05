@@ -31,6 +31,8 @@ export const configSchema = z.object({
 
 export const definition: NodeDefinition = {
   type: "CREATOMATE_RENDER",
+  // Submit-then-poll render, minutes long, cancellable.
+  ownsSteps: true,
   version: 1,
   category: "ACTION",
   label: "Creatomate Render",

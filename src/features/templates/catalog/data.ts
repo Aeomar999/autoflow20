@@ -1509,32 +1509,38 @@ export const dataTemplates: TemplateSpec[] = [
     slug: "fax-pdf-intake-to-sheet",
     name: "Read faxed intake forms into a sheet",
     description:
-      "Reference automation #21. Watches a Drive folder for faxed or scanned intake forms — the kind of PDF that is really an image — reads the whole document, text, tables and form fields, with Gemini's multimodal model, extracts the form fields as JSON, and appends them as a row in Google Sheets. One AI step does what the source does in two: the attached file is the content, so the model reads and structures in the same pass instead of a separate read followed by a separate extraction. The extraction fields are the sheet's columns, so the appended row needs no re-shaping. PREREQUISITES: Drive, Sheets and an AI provider key if you are not using the platform's. A spreadsheet tab with the columns Patient ID, Full Name, Date of Birth, Insurance Provider, Reason for Visit, and File. DEVIATIONS FROM THE SOURCE: the source takes the document through an n8n web form. This product's form trigger carries answers but no file, so this template watches a Drive folder instead — drop the intake files there, or forward them from your fax-to-email service. The source also runs a second, separate step to put the reading into strict JSON; here the single extraction step already returns it.",
+      "Reference automation #21. Someone uploads a faxed or scanned intake form through a hosted web form — the kind of PDF that is really an image — and Gemini's multimodal model reads the whole document, text, tables and form fields, extracts the fields as JSON, and appends them as a row in Google Sheets. One AI step does what the source does in two: the uploaded file is the content, so the model reads and structures in the same pass instead of a separate read followed by a separate extraction. The extraction fields are the sheet's columns, so the appended row needs no re-shaping. PREREQUISITES: a Sheets credential, and an AI provider key if you are not using the platform's. A spreadsheet tab with the columns Patient ID, Full Name, Date of Birth, Insurance Provider, Reason for Visit, File and Received. THE FORM IS PUBLIC — anyone holding the link can submit, which is why the trigger carries a path secret you must set to something unguessable before sharing it; this flow is built to receive patient data and the link is the only thing standing in front of it. Uploads are capped at 10 MB and must be a PDF or an image (PNG, JPEG, WebP, GIF), which is what a fax-to-email service produces. DEVIATIONS FROM THE SOURCE: none in shape — the source's web form is this product's form trigger, file field and all. The source runs a second, separate step to put the reading into strict JSON; here the single extraction step already returns it.",
     category: "Data",
     domain: "data",
-    tier: "library",
+    // Sheets alone: the document arrives on the form rather than from Drive,
+    // and the AI provider key is optional.
+    tier: "starter",
     tags: ["fax", "pdf", "ocr", "gemini", "intake", "healthcare", "sheets"],
     graph: {
       nodes: [
         {
-          id: "new-file",
-          type: "DRIVE_TRIGGER",
-          name: "New file in the folder",
+          id: "submitted",
+          type: "FORM_TRIGGER",
+          name: "Intake form submitted",
           position: { x: 0, y: 0 },
           data: {
-            folderId: "REPLACE_WITH_INTAKE_FOLDER_ID",
-            pollIntervalSeconds: 300,
-          },
-        },
-        {
-          id: "fetch",
-          type: "DRIVE_DOWNLOAD",
-          name: "Fetch the document",
-          position: { x: 260, y: 0 },
-          data: {
-            variableName: "doc",
-            fileId: "{{file.id}}",
-            maxBytes: 26214400,
+            title: "Patient intake",
+            description:
+              "Upload the intake form. A PDF or a photo of the fax both work.",
+            submitLabel: "Send it in",
+            successMessage: "Received. Nothing else is needed from you.",
+            // The endpoint is public, so the path is the only barrier. Set
+            // this to something unguessable before sharing the link.
+            pathSecret: "REPLACE_WITH_FORM_PATH_SECRET",
+            fields: [
+              {
+                name: "document",
+                label: "Intake form",
+                type: "file",
+                required: true,
+                help: "PDF or image, up to 10 MB.",
+              },
+            ],
           },
         },
         {
@@ -1548,8 +1554,10 @@ export const dataTemplates: TemplateSpec[] = [
             fallbackModels: "openai:gpt-4o",
             content:
               "Read the attached document — faxes come through as images, so treat what you see as the source, including any tables and form fields. Extract the intake fields. If a field is absent or unreadable, leave it empty rather than guessing.",
-            // The document IS the content; a file reference, not text.
-            attachments: "{{{json doc.file}}}",
+            // The document IS the content; a file reference, not text. The
+            // form stores each upload through the same blob store a Drive
+            // download uses, so what lands here is the same `FileRef` shape.
+            attachments: "{{{json form.files.document}}}",
             fields: PATIENT_FIELDS,
           },
         },
@@ -1563,13 +1571,12 @@ export const dataTemplates: TemplateSpec[] = [
             spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
             sheetName: "Intake",
             values:
-              '{"Patient ID": "{{intake.patientId}}", "Full Name": "{{intake.fullName}}", "Date of Birth": "{{intake.dateOfBirth}}", "Insurance Provider": "{{intake.insuranceProvider}}", "Reason for Visit": "{{intake.visitReason}}", "File": "{{doc.name}}"}',
+              '{"Patient ID": "{{intake.patientId}}", "Full Name": "{{intake.fullName}}", "Date of Birth": "{{intake.dateOfBirth}}", "Insurance Provider": "{{intake.insuranceProvider}}", "Reason for Visit": "{{intake.visitReason}}", "File": "{{form.files.document.$file.filename}}", "Received": "{{form.submittedAt}}"}',
           },
         },
       ],
       edges: [
-        { source: "new-file", target: "fetch" },
-        { source: "fetch", target: "read" },
+        { source: "submitted", target: "read" },
         { source: "read", target: "append" },
       ],
     },
@@ -1578,7 +1585,7 @@ export const dataTemplates: TemplateSpec[] = [
     slug: "yc-directory-scrape-to-sheet",
     name: "Scrape a YC directory search into a sheet",
     description:
-      "Reference automation #22. Runs an Apify Y Combinator Directory Scraper against the search URL you set, fetches the structured results, flattens each company to one row — name, founders, website, description and the rest of the columns below — and appends them to Google Sheets. The search URL lives on the trigger's payload, so changing what gets scraped is editing the trigger, not the workflow. PREREQUISITES: an Apify credential with the YC Directory Scraper actor and credits available, and a Sheets credential. A spreadsheet tab with the columns Company, Location, Website, LinkedIn, Founded, Description, Industry Tags, and Founders. DEVIATIONS FROM THE SOURCE: the source adds or updates rows as an upsert. A Google Sheet has no key to match on, so every run appends fresh rows — run this once per search URL, or clear the tab between runs.",
+      "Reference automation #22. Runs an Apify Y Combinator Directory Scraper against the search URL you set, fetches the structured results, flattens each company to one row — name, founders, website, description and the rest of the columns below — and appends them to Google Sheets. The search URL lives on the trigger's payload, so changing what gets scraped is editing the trigger, not the workflow. PREREQUISITES: an Apify credential with the YC Directory Scraper actor and credits available, and a Sheets credential. A spreadsheet tab with the columns Company, Location, Website, LinkedIn, Founded, Description, Industry Tags, and Founders. DEVIATIONS FROM THE SOURCE: none. Rows are upserted on the Company column, as the source does, so re-running the same search updates the companies already listed instead of duplicating them. The residual limitation is worth knowing: the match is on the company's listed name, so a company that renames itself between runs arrives as a second row rather than an edit of the first.",
     category: "Data",
     domain: "data",
     tier: "library",
@@ -1637,13 +1644,19 @@ export const dataTemplates: TemplateSpec[] = [
         },
         {
           id: "append",
-          type: "GOOGLE_SHEETS_APPEND",
-          name: "Append the row",
+          type: "SHEETS_UPSERT",
+          name: "Add or update the row",
           position: { x: 1360, y: 0 },
           data: {
             variableName: "appended",
             spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
             sheetName: "YC Companies",
+            range: "YC Companies!A:H",
+            // The company name is the only field YC always supplies, so it is
+            // the key. Website would be tidier and is sometimes blank, which
+            // would silently make every website-less company the same row.
+            matchColumn: "Company",
+            matchValue: "{{$item.company}}",
             values:
               '{"Company": "{{$item.company}}", "Location": "{{$item.location}}", "Website": "{{$item.website}}", "LinkedIn": "{{$item.linkedin}}", "Founded": "{{$item.founded}}", "Description": "{{$item.description}}", "Industry Tags": "{{$item.tags}}", "Founders": "{{$item.founders}}"}',
           },
