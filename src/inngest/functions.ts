@@ -240,7 +240,7 @@ export const executeWorkflow = inngest.createFunction(
       },
       {
         key: "event.data.organizationId || event.data.userId || event.data.workflowId",
-        limit: 10,
+        limit: 5,
       },
     ],
     onFailure: async ({ event }) => {
