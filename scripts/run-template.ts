@@ -14,10 +14,10 @@
  * rather than this script inventing a secret.
  */
 import { PrismaPg } from "@prisma/adapter-pg";
-import { nodeRegistry } from "../src/nodes/registry";
 import { templateCatalog } from "../src/features/templates/catalog/index";
 import { prepareTemplateGraph } from "../src/features/templates/server/instantiate";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { nodeRegistry } from "../src/nodes/registry";
 
 const slug = process.argv[2];
 const inputJson = process.argv[3];
@@ -67,10 +67,15 @@ async function main() {
       const accepted = requirement.type.split("|");
       const match = org.credentials.find((c) => accepted.includes(c.type));
       if (match) {
-        (node.data ??= {})[requirement.key] = match.id;
-        bound.push(`${node.name ?? node.type}.${requirement.key} -> ${match.type}`);
+        node.data ??= {};
+        node.data[requirement.key] = match.id;
+        bound.push(
+          `${node.name ?? node.type}.${requirement.key} -> ${match.type}`,
+        );
       } else if (requirement.required) {
-        missing.push(`${node.name ?? node.type}.${requirement.key} needs ${requirement.type}`);
+        missing.push(
+          `${node.name ?? node.type}.${requirement.key} needs ${requirement.type}`,
+        );
       }
     }
   }
@@ -90,7 +95,11 @@ async function main() {
 
   const workflow = await prisma.$transaction(async (tx) => {
     const created = await tx.workflow.create({
-      data: { name: `${spec.name} (staging run)`, userId, organizationId: org.id },
+      data: {
+        name: `${spec.name} (staging run)`,
+        userId,
+        organizationId: org.id,
+      },
     });
     await tx.node.createMany({
       data: prepared.nodes.map((n) => ({
@@ -122,7 +131,9 @@ async function main() {
     return created;
   });
 
-  console.log(`\nworkflow ${workflow.id} created with ${prepared.nodes.length} nodes`);
+  console.log(
+    `\nworkflow ${workflow.id} created with ${prepared.nodes.length} nodes`,
+  );
 
   const initialData = inputJson ? JSON.parse(inputJson) : undefined;
 
@@ -170,7 +181,9 @@ async function main() {
       for (const ne of execution.nodeExecutions) {
         console.log(
           `  ${String(ne.order).padStart(2)}  ${ne.status.padEnd(9)} ${ne.nodeType}` +
-            (ne.error ? `\n        error: ${String(ne.error).slice(0, 300)}` : ""),
+            (ne.error
+              ? `\n        error: ${String(ne.error).slice(0, 300)}`
+              : ""),
         );
         if (ne.output) {
           console.log(
