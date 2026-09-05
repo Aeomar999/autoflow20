@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-08-29 (AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ all 6 tasks complete — versioning, webhooks, cron schedule trigger, manual payload, and concurrency limits)
+**Last updated:** 2026-09-05 (AF-M11 opened — employee lifecycle mega-workflow substrate; AF-M11-00/01/02 ✅ complete; AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ complete; AF-M10 Phase A complete)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -3091,6 +3091,50 @@ We decided to merge plan items **2.1** (add search to executions page) and **2.2
 same landing page, the same tRPC procedure (`executions.list`), the same nuqs param
 module, and the same filter bar — one PR, one acceptance set.
 
+### ✅ AF-UX-03 · Save state feedback in editor header · 0.25d · **DONE 2026-09-05**
+
+**Why:** `docs/ux-improvement-plan.md` §1.4 — "Save State Feedback" (P0 area, so
+users always know where their work stands). Acceptance criteria 1 (button shows
+"Saving…"), 3 (failure toast) and 5 (disabled while saving) were already
+implemented by the save flow (`saveStatusAtom` + `useSaveWorkflow`'s CONFLICT/
+generic error toasts); this task delivers the two missing criteria: **2**
+(success toast) and **4** ("Last saved: X seconds ago" in the header).
+
+**Design decisions (locked 2026-09-05):**
+- **Success toast on explicit Save clicks only, never autosave.** Autosave is the
+  1.5s debounce that fires on every drag tick; toasting each autosave would flood
+  on any node drag. `performSave(manual)` threads a flag and the manual branch
+  passes a per-call mutation `onSuccess` (`toast.success("Workflow saved")`) — the
+  hook's global onSuccess (status + cache invalidation) still runs. No hook change
+  needed for the toast.
+- **"Last saved: X seconds ago" from a new `lastSavedAtAtom`** (`number | null`),
+  set in the hook's save-success path next to `setSaveStatus("saved")` — single
+  source of truth for every consumer. Rendered in `EditorSaveButton` only while
+  `saveStatus === "saved"`, ticking in step every 5s. Relative-time formatting is
+  the pure, unit-tested `formatLastSaved`
+  (`src/features/editor/lib/format-last-saved.ts`): "<2s" `just now`, "<60s"
+  `N seconds ago`, "<60m" `N minutes ago` (singular at 1), else a wall-clock
+  `at HH:MM`.
+- **Failure path untouched.** Criterion 3 (error toast incl. the CONFLICT reload)
+  already lives in `useSaveWorkflow`; the label stays "Save failed" (now
+  `text-destructive` for visibility).
+
+**Depends on:** nothing — the sonner `Toaster` is already mounted in
+`src/app/layout.tsx`.
+
+**Acceptance**
+- [x] Save button shows "Saving…" and is disabled while saving. *(pre-existing,
+      verified)*
+- [x] A success toast appears when an explicit Save completes; autosaves stay
+      silent.
+- [x] An error toast appears if a save fails. *(pre-existing, verified)*
+- [x] "Last saved: X seconds ago" appears in the header after a save and keeps
+      ticking.
+- [x] Unit test covers the formatter's bounds (null, just-now clamp, 2s/60s/60m,
+      wall-clock).
+- [x] `npm run build` passes, no new lint warnings; progress.md + tasks.md
+      updated.
+
 ### ✅ AF-UX-02 · Per-node cost/tokens in execution detail · 0.5d · **DONE 2026-09-05**
 
 **Why:** `docs/ux-improvement-plan.md` §2.4 — "Cost/Tokens Breakdown Per
@@ -3183,3 +3227,166 @@ accepts a single optional `workflowId` — no caller anywhere passes it — plus
 - [x] Unit test for the new params (search/workflowIds serialize, clearOnDefault);
       integration test proving search + `workflowIds` stay tenant-scoped.
 - [x] `npm run build` passes, no new lint warnings; progress.md + tasks.md updated.
+
+---
+
+# M11 — Employee lifecycle mega-workflow substrate · *(added 2026-09-05)*
+
+**Source:** `docs/Stakeholder_Mega_Workflow_Brief.md` ("The Mega Workflow" brief).
+AutoFlow's first vertical meta-workflow: four chained processes — **W1 Acquisition →
+W2 Onboarding → W3 Tenure → W4 Offboarding** — that hand off to one another through a
+single tenant-scoped `Employee` record. This milestone delivers the shared substrate
+(AF-M11-00..02, **done**) and then the four graphs as their own tasks.
+
+**Ordering constraint:** do not start a phase graph before its handoff event exists in
+`src/features/employees/server/handoff.ts`, and size W2's start-date wait against
+`core.wait`'s `MAX_WAIT_SECONDS` (30 days, `src/nodes/core/wait/definition.ts`) — an
+unknown future start date can exceed the default wait, so the W2 wait duration must be
+computed per workflow rather than defaulted.
+
+### ✅ AF-M11-00 · Employee data model + guarded migration · 1d · **DONE 2026-09-05**
+
+- [x] `Employee` model in `prisma/schema.prisma` (AF-M11 doc header): tenant-scoped
+      `organizationId` FK with `onDelete: Cascade`; `employeeRef` (stable business key
+      set once at W1 and carried through every phase handoff), `email`, `fullName`,
+      `role`, `department?`, `managerEmail?`, `personalEmail?`, `startDate?`,
+      `status` (String, default `CANDIDATE`), `source` (default `MANUAL`),
+      `offerSignedAt?`, `activeAt?`, `exitDate?`, `exitReason?`, `createdAt`/`updatedAt`.
+      `@@unique([organizationId, employeeRef])`, `@@unique([organizationId, email])`,
+      `@@index([organizationId, status])`.
+- [x] `status` is an **open-set String, not a Postgres enum** (repo rule — the old
+      `NodeType` bug); the chain `CANDIDATE → OFFERED → ONBOARDING → ACTIVE →
+      OFFBOARDING → OFFBOARDED` is enforced in the app layer
+      (`src/features/employees/lib/employee.ts`).
+- [x] Guarded, replayable migration `prisma/migrations/20260905000000_employee_lifecycle`
+      (`CREATE TABLE IF NOT EXISTS` + `DO $$` duplicate-object FK guard) — safe to apply
+      on a DB that already ran it.
+- [x] `npx prisma validate` and `npx prisma generate` (Prisma 7.10.0, output
+      `src/generated/prisma`) pass; `npm run build` clean.
+
+### ✅ AF-M11-01 · Lifecycle zod contract (shared canvas/server) · 0.5d · **DONE 2026-09-05**
+
+- [x] `src/features/employees/lib/employee.ts` exports `employeeRefSchema`,
+      `dateOnlySchema` (regex `^\d{4}-\d{2}-\d{2}$`), `EMPLOYEE_STATUSES`,
+      `EMPLOYEE_TRANSITIONS` (single-step forward, final `EMPLOYEE_TRANSITIONS` has no
+      `REJECTED`), and `employeeHiredSchema` / `employeeActiveSchema` /
+      `employeeOffboardingSchema` / `employeeHandoffSchema` with `z.infer` input types.
+- [x] Handoff events are a discriminated union keyed on `event` —
+      `employee.hired`, `employee.active`, `employee.offboarding` — addressed by the
+      stable `employeeRef` (never the row id), so handoffs survive edits.
+
+### ✅ AF-M11-02 · applyEmployeeHandoff + org-scoped employees router · 1.5d · **DONE 2026-09-05**
+
+- [x] `applyEmployeeHandoff` in `src/features/employees/server/handoff.ts`: hired →
+      create at `OFFERED`/`source: ACQUISITION` (P2002 re-fetch → already-current);
+      `CANDIDATE→OFFERED`; `OFFERED|ONBOARDING→ACTIVE` (sets `activeAt`);
+      `ACTIVE→OFFBOARDING` (sets `exitDate`/`exitReason`). Idempotent; an
+      out-of-sequence transition or unknown `employeeRef` returns `HandoffOutcome`
+      `{ outcome: "conflict" }`, logged at warn — never silent (repo rule).
+- [x] Every mutation audited via `logAuditEvent` (`actorType: "SYSTEM"`, actions
+      `employee.created`/`employee.status_changed`); no decrypted/PII material logged.
+- [x] `employeesRouter` in `src/features/employees/server/routers.ts`: `list`
+      (paginated via `PAGINATION`, optional status filter), `getById`, `create`
+      (manual → `CANDIDATE`/`source: MANUAL`), `patch` (HR fields only — **never
+      status**), `applyHandoff` (returns `HandoffOutcome` so graphs branch on
+      `outcome`). Every query scopes `organizationId: ctx.org.id` in `where`;
+      `P2002` → `BAD_REQUEST`, missing row → `NOT_FOUND`. Registered in
+      `src/trpc/routers/_app.ts`.
+- [x] Verified 2026-09-05: `npm run build` clean; `npm run lint` clean except 2
+      pre-existing warnings in `src/features/editor/components/node-config-panel.tsx`
+      (unrelated file, left untouched); docs updated in the same change.
+
+### ✅ AF-M11-03 · Lifecycle gap nodes · 2d · **DONE 2026-09-05**
+
+**Acceptance**
+- [x] Node definitions for the moves W1–W4 need but the palette lacks: candidate
+      scheduling + scoring/rank, illness & negotiation-IQ summaries (compose existing
+      `ai.llm` — no new model calls), offer-letter generator gated by `core.approval`,
+      background-check/verification step, onboarding-checklist generator, orientation +
+      benefits-enrollment steps, and W4 exit-interview + offboarding checklist.
+- [x] Every definition follows `docs/architecture/node_sdk.md`: `definition.ts`
+      isomorphic, `execute.ts` server-only, config Zod schema at the boundary; palette
+      metadata via manifest auto-discovery — no hand-edits to the palette.
+- [x] Each ships a `*.definition.test.ts` (valid + invalid config); no executor bypasses
+      the registry or touches DB state client-side.
+- [x] Verified 2026-09-05: 11 node types live under `src/nodes/people/*`, each with a
+      `definition.ts` + server-only `execute.ts` + `*.definition.test.ts` + catalogue
+      entry; long-form guides in `docs/nodes/*.md`. `npm run build` clean; `npm run lint`
+      clean except the 2 pre-existing `node-config-panel.tsx` warnings (untouched);
+      people scope + catalog harness 165 tests pass.
+
+### ⬜ AF-M11-04 · W1 Acquisition workflow graph · 2d
+
+**Acceptance**
+- [ ] Graph implements the brief's acquisition flow: trigger → screen → score → offer →
+      `core.approval` gate → emit `employee.hired`.
+- [ ] Emits the handoff through `applyEmployeeHandoff` semantics (creates the
+      `Employee` at `OFFERED` with a stable `employeeRef`); re-runs are idempotent and
+      never duplicate the row.
+- [ ] Runs under `npm run dev:all` via an Inngest function; node-level tests exercise
+      the happy path and the conflict path.
+
+### ⬜ AF-M11-05 · W2 Onboarding workflow graph · 2d
+
+**Acceptance**
+- [ ] Triggered by the W1 `employee.hired` handoff; moves the employee
+      `OFFERED→ONBOARDING`.
+- [ ] Start-date wait computed against `MAX_WAIT_SECONDS` (milestone note above), not
+      the default; tolerates an unknown start date.
+- [ ] Onboarding steps (checklist, verification, orientation, benefits, IT access) →
+      emit `employee.active`.
+
+### ⬜ AF-M11-06 · W3 Tenure workflow graph · 1.5d
+
+**Acceptance**
+- [ ] Triggered by `employee.active`; runs tenure intervals (welcome + scheduled
+      check-ins via the existing schedule/wait triggers).
+- [ ] Enrichment/notification-only — never mutates `status`.
+
+### ⬜ AF-M11-07 · W4 Offboarding workflow graph · 2d
+
+**Acceptance**
+- [ ] Triggered by an offboarding request; moves `ACTIVE→OFFBOARDING` setting
+      `exitDate`/`exitReason`.
+- [ ] Exit interview, access revocation, and checklist steps; completes the run at
+      `OFFBOARDED` exactly once (end-state idempotent).
+- [ ] Uses only registry node types between the two exit-status boundaries.
+
+### ⬜ AF-M11-08 · Employees page · 2d
+
+**Acceptance**
+- [ ] `/employees` under the dashboard shell: list with status/department/start date,
+      status filter, pagination (`PAGINATION` constants), empty + loading states.
+- [ ] Detail view shows the status-chain timeline (handoff events) and core fields.
+- [ ] Manual create + patch forms wired to the new procedures; no business logic in
+      the route.
+
+### ⬜ AF-M11-09 · Employee search + status reporting · 1d
+
+**Acceptance**
+- [ ] Search router matches `fullName` / `employeeRef` / `email`, org-scoped,
+      case-insensitive, inside `where` (never fetch-then-filter).
+- [ ] Count-by-status summary for the list header; feeds future dashboarding.
+
+### ⬜ AF-M11-10 · HRIS connector credentials + polling triggers · 2d
+
+**Acceptance**
+- [ ] Credential types for the HR systems the four workflows call added to the M3
+      vault registry, each with the no-plaintext-log guard.
+- [ ] External polling opens use the M10 `TriggerState` pattern, not a bespoke trigger.
+
+### ⬜ AF-M11-11 · Lifecycle integration tests · 1d
+
+**Acceptance**
+- [ ] Cross-tenant: org B cannot read or mutate org A employee rows; `employeeRef`
+      conflicts across orgs do not collide.
+- [ ] Handoff idempotency + status guard: replaying a handoff yields `already-current`;
+      illegal transitions yield `conflict`, never a thrown 500.
+- [ ] Audit rows exist for every mutation; no PII in any error/log surface.
+
+### ⬜ AF-M11-12 · Manual trigger → employee.hired wiring · 1d
+
+**Acceptance**
+- [ ] The M4 manual-trigger payload injection can drive the W1 entry node, so the whole
+      chain is demoable in-editor without a live ATS. `npm run build` + `npm run lint`
+      clean; docs updated in the same change.

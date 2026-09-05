@@ -7,7 +7,7 @@ import {
 import { useSetAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveStatusAtom } from "@/features/editor/store/atoms";
+import { lastSavedAtAtom, saveStatusAtom } from "@/features/editor/store/atoms";
 import { useTRPC } from "@/trpc/client";
 import { useWorkflowsParams } from "./use-workflows-params";
 
@@ -109,11 +109,13 @@ export const useSaveWorkflow = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
   const setSaveStatus = useSetAtom(saveStatusAtom);
+  const setLastSavedAt = useSetAtom(lastSavedAtAtom);
 
   return useMutation(
     trpc.workflows.saveGraph.mutationOptions({
       onSuccess: (_data, variables) => {
         setSaveStatus("saved");
+        setLastSavedAt(Date.now());
         queryClient.invalidateQueries(trpc.workflows.getMany.queryOptions({}));
         queryClient.invalidateQueries(
           trpc.workflows.getOne.queryOptions({ id: variables.id }),

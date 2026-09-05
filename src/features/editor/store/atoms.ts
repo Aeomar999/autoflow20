@@ -24,6 +24,9 @@ export const selectedNodeIdAtom = atom<string | null>(null);
 export type SaveStatus = "saved" | "saving" | "unsaved" | "failed";
 export const saveStatusAtom = atom<SaveStatus>("saved");
 
+/** Epoch ms of the last successful graph save; null before the first save (AF-UX-03). */
+export const lastSavedAtAtom = atom<number | null>(null);
+
 /** Live-recomputed lint result over the canvas draft (AF-M1-07). */
 export const validationResultAtom = atom((get) =>
   validate(toGraph(get(nodesAtom), get(edgesAtom)), clientNodeRegistry),

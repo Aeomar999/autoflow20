@@ -4,6 +4,7 @@ import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { SaveIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,8 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { formatLastSaved } from "@/features/editor/lib/format-last-saved";
 import {
   edgesAtom,
+  lastSavedAtAtom,
   nodesAtom,
   saveStatusAtom,
 } from "@/features/editor/store/atoms";
@@ -54,40 +57,52 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   const saveWorkflow = useSaveWorkflow();
   const saveStatus = useAtomValue(saveStatusAtom);
   const setSaveStatus = useSetAtom(saveStatusAtom);
+  const lastSavedAt = useAtomValue(lastSavedAtAtom);
   const store = useStore();
+  const [now, setNow] = useState(() => Date.now());
 
   // Read nodes/edges lazily inside save — avoids subscribing to these
   // high-frequency atoms at render time, which would re-render this
   // component on every drag tick and restart the autosave debounce.
-  const performSave = useCallback(() => {
-    if (saveStatus === "saving") return;
-    if (typeof workflow.revision !== "number") return;
+  const performSave = useCallback(
+    (manual: boolean) => {
+      if (saveStatus === "saving") return;
+      if (typeof workflow.revision !== "number") return;
 
-    // Lazy read: get current atom values at save time, not render time.
-    const nodes = store.get(nodesAtom);
-    const edges = store.get(edgesAtom);
+      // Lazy read: get current atom values at save time, not render time.
+      const nodes = store.get(nodesAtom);
+      const edges = store.get(edgesAtom);
 
-    setSaveStatus("saving");
-    saveWorkflow.mutate({
-      id: workflowId,
-      nodes: nodes.filter((n): n is typeof n & { type: string } => !!n.type),
-      edges,
-      revision: workflow.revision,
-    });
-  }, [
-    saveWorkflow,
-    workflowId,
-    workflow.revision,
-    saveStatus,
-    setSaveStatus,
-    store,
-  ]);
+      setSaveStatus("saving");
+      saveWorkflow.mutate(
+        {
+          id: workflowId,
+          nodes: nodes.filter(
+            (n): n is typeof n & { type: string } => !!n.type,
+          ),
+          edges,
+          revision: workflow.revision,
+        },
+        // Toast only the explicit Save click — the 1.5s debounced autosave
+        // runs on every drag tick and must stay silent (AF-UX-03).
+        manual ? { onSuccess: () => toast.success("Workflow saved") } : {},
+      );
+    },
+    [
+      saveWorkflow,
+      workflowId,
+      workflow.revision,
+      saveStatus,
+      setSaveStatus,
+      store,
+    ],
+  );
 
   // Debounced autosave: triggers 1.5s after last change.
   const cancelAutosave = useDebounce(
     useCallback(() => {
       if (saveStatus === "unsaved") {
-        performSave();
+        performSave(false);
       }
     }, [saveStatus, performSave]),
     1500,
@@ -104,24 +119,28 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
     return () => window.removeEventListener("beforeunload", handler);
   }, [saveStatus]);
 
+  // Tick the relative "Last saved" time only while the save is committed.
+  useEffect(() => {
+    if (saveStatus !== "saved") return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [saveStatus]);
+
   const handleSave = () => {
     cancelAutosave();
-    performSave();
+    performSave(true);
   };
-
-  const statusLabel =
-    saveStatus === "saved"
-      ? "Saved"
-      : saveStatus === "saving"
-        ? "Saving..."
-        : saveStatus === "failed"
-          ? "Save failed"
-          : "";
 
   return (
     <div className="ml-auto flex items-center gap-2">
-      {saveStatus !== "unsaved" && saveStatus !== "saving" && (
-        <span className="text-xs text-muted-foreground">{statusLabel}</span>
+      {saveStatus === "saved" && lastSavedAt !== null && (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          Last saved: {formatLastSaved(lastSavedAt, now)}
+        </span>
+      )}
+      {saveStatus === "failed" && (
+        <span className="text-xs text-destructive">Save failed</span>
       )}
       <Button size="sm" onClick={handleSave} disabled={saveStatus === "saving"}>
         <SaveIcon className="size-4" />
