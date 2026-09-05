@@ -1,6 +1,42 @@
 import type { TemplateSpec } from "./types";
 
-/** Data-domain templates (AF-M7-02) — all four on the `Data` gallery chip. */
+/**
+ * The intake-form shape `fax-pdf-intake-to-sheet` (#21) extracts.
+ *
+ * The sheet columns match the descriptions below, so the appended row can be
+ * read as-is. `dateOfBirth` is ISO 8601; the rest are the plain text a faxed
+ * form actually carries.
+ */
+const PATIENT_FIELDS = [
+  {
+    name: "patientId",
+    type: "string",
+    description: 'Patient ID printed on the intake form, e.g. "IA-1142".',
+  },
+  {
+    name: "fullName",
+    type: "string",
+    description: "The patient's full name as written on the form.",
+  },
+  {
+    name: "dateOfBirth",
+    type: "string",
+    description: "Date of birth, ISO 8601 (YYYY-MM-DD).",
+  },
+  {
+    name: "insuranceProvider",
+    type: "string",
+    description:
+      "Insurance provider and member id if both are legible; empty if absent.",
+  },
+  {
+    name: "visitReason",
+    type: "string",
+    description: "The stated reason for the visit, one to three lines.",
+  },
+];
+
+/** Data-domain templates (AF-M7-02, AF-M10-27) — the `Data` gallery chip. */
 export const dataTemplates: TemplateSpec[] = [
   {
     slug: "form-response-to-sheet",
@@ -1466,6 +1502,338 @@ export const dataTemplates: TemplateSpec[] = [
         { source: "event", target: "find" },
         { source: "find", target: "matched" },
         { source: "matched", target: "update", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "fax-pdf-intake-to-sheet",
+    name: "Read faxed intake forms into a sheet",
+    description:
+      "Reference automation #21. Watches a Drive folder for faxed or scanned intake forms — the kind of PDF that is really an image — reads the whole document, text, tables and form fields, with Gemini's multimodal model, extracts the form fields as JSON, and appends them as a row in Google Sheets. One AI step does what the source does in two: the attached file is the content, so the model reads and structures in the same pass instead of a separate read followed by a separate extraction. The extraction fields are the sheet's columns, so the appended row needs no re-shaping. PREREQUISITES: Drive, Sheets and an AI provider key if you are not using the platform's. A spreadsheet tab with the columns Patient ID, Full Name, Date of Birth, Insurance Provider, Reason for Visit, and File. DEVIATIONS FROM THE SOURCE: the source takes the document through an n8n web form. This product's form trigger carries answers but no file, so this template watches a Drive folder instead — drop the intake files there, or forward them from your fax-to-email service. The source also runs a second, separate step to put the reading into strict JSON; here the single extraction step already returns it.",
+    category: "Data",
+    domain: "data",
+    tier: "library",
+    tags: ["fax", "pdf", "ocr", "gemini", "intake", "healthcare", "sheets"],
+    graph: {
+      nodes: [
+        {
+          id: "new-file",
+          type: "DRIVE_TRIGGER",
+          name: "New file in the folder",
+          position: { x: 0, y: 0 },
+          data: {
+            folderId: "REPLACE_WITH_INTAKE_FOLDER_ID",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "fetch",
+          type: "DRIVE_DOWNLOAD",
+          name: "Fetch the document",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "doc",
+            fileId: "{{file.id}}",
+            maxBytes: 26214400,
+          },
+        },
+        {
+          id: "read",
+          type: "AI_EXTRACT",
+          name: "Read the intake form",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "intake",
+            model: "google:gemini-1.5-pro",
+            fallbackModels: "openai:gpt-4o",
+            content:
+              "Read the attached document — faxes come through as images, so treat what you see as the source, including any tables and form fields. Extract the intake fields. If a field is absent or unreadable, leave it empty rather than guessing.",
+            // The document IS the content; a file reference, not text.
+            attachments: "{{{json doc.file}}}",
+            fields: PATIENT_FIELDS,
+          },
+        },
+        {
+          id: "append",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Append the intake row",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "appended",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "Intake",
+            values:
+              '{"Patient ID": "{{intake.patientId}}", "Full Name": "{{intake.fullName}}", "Date of Birth": "{{intake.dateOfBirth}}", "Insurance Provider": "{{intake.insuranceProvider}}", "Reason for Visit": "{{intake.visitReason}}", "File": "{{doc.name}}"}',
+          },
+        },
+      ],
+      edges: [
+        { source: "new-file", target: "fetch" },
+        { source: "fetch", target: "read" },
+        { source: "read", target: "append" },
+      ],
+    },
+  },
+  {
+    slug: "yc-directory-scrape-to-sheet",
+    name: "Scrape a YC directory search into a sheet",
+    description:
+      "Reference automation #22. Runs an Apify Y Combinator Directory Scraper against the search URL you set, fetches the structured results, flattens each company to one row — name, founders, website, description and the rest of the columns below — and appends them to Google Sheets. The search URL lives on the trigger's payload, so changing what gets scraped is editing the trigger, not the workflow. PREREQUISITES: an Apify credential with the YC Directory Scraper actor and credits available, and a Sheets credential. A spreadsheet tab with the columns Company, Location, Website, LinkedIn, Founded, Description, Industry Tags, and Founders. DEVIATIONS FROM THE SOURCE: the source adds or updates rows as an upsert. A Google Sheet has no key to match on, so every run appends fresh rows — run this once per search URL, or clear the tab between runs.",
+    category: "Data",
+    domain: "data",
+    tier: "library",
+    tags: ["yc", "y-combinator", "apify", "scraper", "prospecting", "leads"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run a search",
+          position: { x: 0, y: 0 },
+          data: {
+            payload: '{"searchUrl":"https://www.ycombinator.com/companies"}',
+          },
+        },
+        {
+          id: "scrape",
+          type: "APIFY_RUN",
+          name: "Scrape the directory",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "run",
+            actorId: "REPLACE_WITH_YC_DIRECTORY_ACTOR",
+            input: '{"searchUrl":"{{searchUrl}}"}',
+            waitForFinish: true,
+            maxWaitSeconds: 600,
+          },
+        },
+        {
+          id: "companies",
+          type: "APIFY_GET_DATASET",
+          name: "Read the companies",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "companies",
+            datasetId: "{{run.datasetId}}",
+            limit: 100,
+            clean: true,
+          },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Shape the rows",
+          position: { x: 840, y: 0 },
+          data: {
+            code: 'const rows = input.companies?.items ?? [];\n\nreturn {\n  items: rows.map((c) => ({\n    company: c.name ?? "",\n    location: c.location ?? "",\n    website: c.website ?? "",\n    linkedin: c.linkedin ?? "",\n    founded: c.founded ?? "",\n    description: (c.description ?? "").slice(0, 4000),\n    tags: Array.isArray(c.tags) ? c.tags.join(", ") : "",\n    founders: Array.isArray(c.founders)\n      ? c.founders.map((f) => f.name ?? f).filter(Boolean).join(", ")\n      : "",\n  })),\n};\n',
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One company at a time",
+          position: { x: 1100, y: 0 },
+          data: { path: "items", maxItems: 100 },
+        },
+        {
+          id: "append",
+          type: "GOOGLE_SHEETS_APPEND",
+          name: "Append the row",
+          position: { x: 1360, y: 0 },
+          data: {
+            variableName: "appended",
+            spreadsheetId: "REPLACE_WITH_SPREADSHEET_ID",
+            sheetName: "YC Companies",
+            values:
+              '{"Company": "{{$item.company}}", "Location": "{{$item.location}}", "Website": "{{$item.website}}", "LinkedIn": "{{$item.linkedin}}", "Founded": "{{$item.founded}}", "Description": "{{$item.description}}", "Industry Tags": "{{$item.tags}}", "Founders": "{{$item.founders}}"}',
+          },
+        },
+        {
+          id: "collect",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1620, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "start", target: "scrape" },
+        { source: "scrape", target: "companies" },
+        { source: "companies", target: "shape" },
+        { source: "shape", target: "each" },
+        { source: "each", target: "append" },
+        { source: "append", target: "collect" },
+      ],
+    },
+  },
+  {
+    slug: "telegram-chat-with-pdfs",
+    name: "Chat with your indexed PDFs over Telegram",
+    description:
+      "Reference automation #23, ask half. A Telegram bot that answers questions from documents you have already indexed in Pinecone, using only the retrieved context — a question is embedded, matched against the namespace, and answered by Gemini with no other knowledge in the answer. Documents never cross the chat; only context the retrieval returns does. Empty messages get a prompt instead of failing the run, because Telegram delivers those as updates too and they are not questions. PREREQUISITES: a Telegram bot token from BotFather, a Pinecone credential, and a Pinecone namespace you have already populated with your document chunks and embeddings — this template asks; it does not ingest. The namespace must match this product's embedder (OpenAI text-embedding-3-small, 1536 dimensions) or the similarity search degrades. DEVIATIONS FROM THE SOURCE: the source also ingests uploaded PDFs into Pinecone. That half is not shipped here: this product's embedding line is fixed to text-embedding-3-small at 1536 dimensions, which does not match the source's 768-dimension Gemini index, and there is no document-carrying Telegram file path that feeds an index. Index your documents yourself and this flow answers from the result.",
+    category: "AI agents",
+    domain: "data",
+    tier: "starter",
+    tags: ["telegram", "rag", "pinecone", "gemini", "pdf", "qa", "bot"],
+    graph: {
+      nodes: [
+        {
+          id: "message",
+          type: "TELEGRAM_TRIGGER",
+          name: "Message to the bot",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "has-text",
+          type: "CONDITION",
+          name: "Is it a question?",
+          position: { x: 280, y: 0 },
+          data: {
+            left: "{{telegram.text}}",
+            operator: "is_not_empty",
+          },
+        },
+        {
+          id: "retrieve",
+          type: "AI_RETRIEVE",
+          name: "Find the relevant passages",
+          position: { x: 560, y: -80 },
+          data: {
+            variableName: "kb",
+            query: "{{telegram.text}}",
+            topK: 4,
+            minSimilarity: 0.5,
+            store: "pinecone",
+            namespace: "REPLACE_WITH_PINECONE_NAMESPACE",
+          },
+        },
+        {
+          id: "answer",
+          type: "AI_LLM",
+          name: "Answer from the context",
+          position: { x: 840, y: -80 },
+          data: {
+            variableName: "answer",
+            model: "google:gemini-1.5-pro",
+            fallbackModels: "anthropic:claude-3-5-sonnet",
+            systemPrompt:
+              "You answer questions using only the supplied context. If the context does not answer the question, say so plainly rather than filling the gap from your own knowledge.",
+            userPrompt:
+              "Question: {{telegram.text}}\n\nContext:\n{{kb.context}}",
+            temperature: 0.2,
+            maxTokens: 800,
+          },
+        },
+        {
+          id: "reply",
+          type: "TELEGRAM_SEND_MESSAGE",
+          name: "Reply in the chat",
+          position: { x: 1120, y: -80 },
+          data: {
+            variableName: "reply",
+            chatId: "{{telegram.chatId}}",
+            text: "{{answer.text}}",
+            parseMode: "plain",
+          },
+        },
+        {
+          id: "no-text",
+          type: "TELEGRAM_SEND_MESSAGE",
+          name: "Ask for a question",
+          position: { x: 560, y: 140 },
+          data: {
+            variableName: "prompted",
+            chatId: "{{telegram.chatId}}",
+            text: "Ask me a question about the documents I have indexed.",
+            parseMode: "plain",
+          },
+        },
+      ],
+      edges: [
+        { source: "message", target: "has-text" },
+        { source: "has-text", target: "retrieve", sourceHandle: "true" },
+        { source: "retrieve", target: "answer" },
+        { source: "answer", target: "reply" },
+        { source: "has-text", target: "no-text", sourceHandle: "false" },
+      ],
+    },
+  },
+  {
+    slug: "normalize-messy-record-list",
+    name: "Normalize a messy list with AI",
+    description:
+      "Paste a ragged list of records and have AI clean every row into a canonical shape, collected into one tidy set — no spreadsheet cleanup by hand. The manual trigger ships with a small sample payload, so it runs before you configure anything; swap the sample for your own rows.",
+    category: "Data",
+    domain: "data",
+    tier: "starter",
+    tags: ["normalize", "clean", "ai", "data", "manual", "list"],
+    graph: {
+      nodes: [
+        {
+          id: "run",
+          type: "MANUAL_TRIGGER",
+          name: "Run with your rows",
+          position: { x: 0, y: 0 },
+          data: {
+            payload:
+              '{"rows":[{"name":" acme corp ","email":"Contact@Acme.COM","phone":"555-0123"},{"name":"Beta  LLC","email":"beta@example.com","phone":""},{"name":"Gamma, Inc.","email":"GAMMA@EXAMPLE.ORG","phone":"555-9876"}]}',
+          },
+        },
+        {
+          id: "fan-out",
+          type: "SPLIT_OUT",
+          name: "One row at a time",
+          position: { x: 260, y: 0 },
+          data: { path: "rows", maxItems: 100 },
+        },
+        {
+          id: "normalize",
+          type: "AI_EXTRACT",
+          name: "Normalize the row",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "clean",
+            model: "openai:gpt-4o-mini",
+            fallbackModels:
+              "anthropic:claude-3-5-haiku,google:gemini-1.5-flash",
+            content:
+              "Normalize this record for a clean contact list: trim whitespace, fix obvious casing, and drop clearly invalid values. Output one object for the single record below.\n{{{json $item}}}",
+            fields: [
+              {
+                name: "name",
+                type: "string",
+                description:
+                  "Trimmed, title-cased display name, or an empty string if the record has none.",
+              },
+              {
+                name: "email",
+                type: "string",
+                description:
+                  "Lower-cased email, or an empty string if absent or invalid.",
+              },
+              {
+                name: "phone",
+                type: "string",
+                description:
+                  "Digits and separators only, or an empty string if absent.",
+              },
+            ],
+            cacheTtlSeconds: 86400,
+          },
+        },
+        {
+          id: "collect",
+          type: "AGGREGATE",
+          name: "Collect the clean rows",
+          position: { x: 780, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "run", target: "fan-out" },
+        { source: "fan-out", target: "normalize" },
+        { source: "normalize", target: "collect" },
       ],
     },
   },

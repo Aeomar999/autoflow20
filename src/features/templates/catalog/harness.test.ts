@@ -39,7 +39,7 @@ import {
  * The tests below say what actually matters about the set — every palette node
  * demonstrated, no deprecated types, the credential rules, the domain floor.
  */
-const EXPECTED_TEMPLATE_COUNT = 96;
+const EXPECTED_TEMPLATE_COUNT = 100;
 
 /** A `{{ ... }}` expression; the capture is its body. */
 const EXPRESSION = /\{\{+([^}]*)\}\}+/g;

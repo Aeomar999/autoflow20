@@ -2879,12 +2879,13 @@ status ids, and a template carrying foreign ids fails install with a useless
 config is the same defect class as the dead CONDITION keys AF-M10-24 found),
 and `EXPECTED_TEMPLATE_COUNT` moved 93 → 96.
 
-### ⬜ AF-M10-27 · Templates: Data Extraction & AI (#21–#23) · 1d
+### ✅ AF-M10-27 · Templates: Data Extraction & AI (#21–#23) · 1d · **DONE 2026-09-05**
 **Depends on:** AF-M10-14, AF-M10-11, AF-M10-13, AF-M10-21
 **Acceptance**
-- [ ] Three specs: fax/PDF extraction to Sheets, YC scraper, Telegram PDF RAG bot.
-- [ ] #23 ships as two linked workflows (ingest and ask) if a single graph cannot express both Telegram entry points — recorded as a deviation either way.
-- [ ] progress.md updated
+- [x] Three specs: fax/PDF extraction to Sheets, YC scraper, Telegram PDF RAG bot.
+- [x] #23 ships as two linked workflows (ingest and ask) if a single graph cannot express both Telegram entry points — recorded as a deviation either way. **Recorded: it shipped as a single one-credential workflow** (`telegram-chat-with-pdfs`, `telegram.apiKey`); the free banter entry point dies so a user can open the chat, ask a question about a PDF, and get an answer, and the daily-scan pattern this chapter needed stayed honest about its one credential. The user authorized the single-workflow shape when confirming the batch.
+- [x] **Amendment (user, 2026-09-05) — a fourth, credential-free Data starter** (`normalize-messy-record-list`) so the free-share floor holds without reclassifying anything: manual payload → `SPLIT_OUT` → `AI_EXTRACT` per row → terminal `AGGREGATE`. Authoring surfaced a real constraint worth writing down: **an `AGGREGATE` node's output cannot be referenced downstream** — its config schema is empty, so it can carry no `variableName`, and `computeValidRoots` has no path to it (validate.ts:1140). Every shipped segment template therefore makes `AGGREGATE` terminal, and normalizing into an envelope (SET→WEBHOOK_OUT) is not expressible until the engine records segment output under a known root. The graph ends at the collected clean rows instead.
+- [x] progress.md updated
 
 ### ⬜ AF-M10-28 · Templates: Subscribers & eCommerce (#24–#25) · 0.5d
 **Depends on:** AF-M10-20, AF-M10-10
