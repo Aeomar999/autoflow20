@@ -4,6 +4,7 @@ import { apiKeysRouter } from "@/features/api-keys/server/router";
 import { approvalsRouter } from "@/features/approvals/server/routers";
 import { costsRouter } from "@/features/costs/server/routers";
 import { credentialsRouter } from "@/features/credentials/server/routers";
+import { employeesRouter } from "@/features/employees/server/routers";
 import { executionsRouter } from "@/features/executions/server/routers";
 import { knowledgeRouter } from "@/features/knowledge/server/routers";
 import { notificationsRouter } from "@/features/notifications/server/routers";
@@ -17,6 +18,7 @@ import { createTRPCRouter } from "../init";
 export const appRouter = createTRPCRouter({
   workflows: workflowsRouter,
   credentials: credentialsRouter,
+  employees: employeesRouter,
   executions: executionsRouter,
   organizations: organizationsRouter,
   approvals: approvalsRouter,

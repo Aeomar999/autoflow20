@@ -107,6 +107,7 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   members          Member[]
+  employees        Employee[]
   invitations      Invitation[]
   workspaces       Workspace[]
   workflows        Workflow[]
@@ -246,6 +247,41 @@ model Credential {
   @@index([organizationId])
   @@index([type])
   @@index([oauthExpiresAt])
+}
+
+// AF-M11-01: Employee lifecycle substrate. One org-scoped row is the single
+// source of truth for the four phase workflows (W1 acquisition → W2 onboarding
+// → W3 tenure → W4 offboarding). `employeeRef` is the stable business id (ATS /
+// hire id) carried through every phase handoff — the table's own `id` is
+// internal. `status` is an open-set STRING (never a Postgres enum per repo
+// rule); the allowed chain CANDIDATE → OFFERED → ONBOARDING → ACTIVE →
+// OFFBOARDING → OFFBOARDED is enforced in `src/features/employees/`.
+model Employee {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  employeeRef   String
+  email         String
+  fullName      String
+  role          String
+  department    String?
+  managerEmail  String?
+  personalEmail String?
+  startDate     DateTime?
+  status        String   @default("CANDIDATE")
+  source        String   @default("MANUAL")
+  offerSignedAt DateTime?
+  activeAt      DateTime?
+  exitDate      DateTime?
+  exitReason    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([organizationId, employeeRef])
+  @@unique([organizationId, email])
+  @@index([organizationId, status])
+  @@map("employee")
 }
 
 // AF-M8-01: Public REST API keys. Only the hash and an 8-char lookup prefix

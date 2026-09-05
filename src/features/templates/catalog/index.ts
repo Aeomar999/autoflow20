@@ -4,6 +4,7 @@ import { financeTemplates } from "./finance";
 import { countRequiredCredentials } from "./harness";
 import { marketingTemplates } from "./marketing";
 import { opsTemplates } from "./ops";
+import { peopleTemplates } from "./people";
 import { supportTemplates } from "./support";
 import type { TemplateSpec } from "./types";
 
@@ -18,6 +19,7 @@ export const templateCatalog: TemplateSpec[] = [
   ...marketingTemplates,
   ...supportTemplates,
   ...opsTemplates,
+  ...peopleTemplates,
   ...dataTemplates,
   ...financeTemplates,
   ...engineeringTemplates,

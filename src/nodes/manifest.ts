@@ -67,6 +67,17 @@ import { definition as stripeCreatePaymentLink } from "./payments/stripe-create-
 import { definition as stripeFindOrCreateCustomer } from "./payments/stripe-find-or-create-customer/definition";
 import { definition as stripeGetCustomer } from "./payments/stripe-get-customer/definition";
 import { definition as paymentsStripeTrigger } from "./payments/stripe-trigger/definition";
+import { definition as peopleBackgroundCheck } from "./people/background-check/definition";
+import { definition as peopleBenefitsEnrollment } from "./people/benefits-enrollment/definition";
+import { definition as peopleCandidateSchedule } from "./people/candidate-schedule/definition";
+import { definition as peopleCandidateScoreRank } from "./people/candidate-score-rank/definition";
+import { definition as peopleExitInterview } from "./people/exit-interview/definition";
+import { definition as peopleIllnessSummary } from "./people/illness-summary/definition";
+import { definition as peopleNegotiationIqSummary } from "./people/negotiation-iq-summary/definition";
+import { definition as peopleOffboardingChecklist } from "./people/offboarding-checklist/definition";
+import { definition as peopleOfferLetter } from "./people/offer-letter/definition";
+import { definition as peopleOnboardingChecklist } from "./people/onboarding-checklist/definition";
+import { definition as peopleOrientation } from "./people/orientation/definition";
 import { definition as postgresQuery } from "./postgres/query/definition";
 import { definition as qboAttach } from "./quickbooks/attach/definition";
 import { definition as qboCreateCustomer } from "./quickbooks/create-customer/definition";
@@ -191,6 +202,17 @@ export const nodeManifest: NodeDefinition[] = [
   airtableCreateRecord,
   hubspotCreateContact,
   paymentsStripeTrigger,
+  peopleBackgroundCheck,
+  peopleBenefitsEnrollment,
+  peopleCandidateSchedule,
+  peopleCandidateScoreRank,
+  peopleExitInterview,
+  peopleIllnessSummary,
+  peopleNegotiationIqSummary,
+  peopleOffboardingChecklist,
+  peopleOfferLetter,
+  peopleOnboardingChecklist,
+  peopleOrientation,
   postgresQuery,
   httpHttpRequest,
   filesDownload,
