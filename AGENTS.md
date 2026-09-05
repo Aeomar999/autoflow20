@@ -22,7 +22,7 @@ The product vision in `../Documents/ProjectDocuments/` describes a finished plat
 |---|---|
 | An execution engine | Does not exist. Nothing runs a workflow. |
 | A node library | One registered node type (`core.manual-trigger`) with a real definition, execute, and canvas component — but no palette to add nodes and no engine to run them. |
-| Canvas persistence | The Save button is `onClick={() => {}}`. Edits are lost on refresh. |
+| Canvas persistence | Works — explicit Save + 1.5s-debounced autosave (`workflows.saveGraph`, optimistic revision check), a Saving…/Saved "Last saved: X ago"/failed status line (AF-UX-03), and a beforeunload guard. Edits persist across refresh. |
 | Executions page | `<p>Executions Page</p>` |
 | Credentials store | `<p>Credentials Page</p>` — no model, no encryption, no OAuth. |
 | Multi-model AI | 5 SDK packages installed; one demo Inngest function calls Groq for a lasagna recipe. |
