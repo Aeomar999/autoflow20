@@ -34,7 +34,7 @@ describe("registry data integrity", () => {
       const id = aiModelId(def.provider, def.model);
       expect(ids.has(id)).toBe(false);
       ids.add(id);
-      expect(id).toMatch(/^[a-z]+:[a-zA-Z0-9.-]+$/);
+      expect(id).toMatch(/^[a-z]+:[a-zA-Z0-9./-]+$/);
     }
   });
 
@@ -106,8 +106,8 @@ describe("lookup", () => {
 
   it("listAiModels filters by provider", () => {
     expect(listAiModels("groq").map((def) => def.model)).toEqual([
-      "llama-3.3-70b-versatile",
-      "llama-3.1-8b-instant",
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
     ]);
     expect(listAiModels().length).toBe(aiModelDefs.length);
   });
@@ -121,8 +121,8 @@ describe("lookup", () => {
   });
 
   it("resolveAiModel returns the exact model when named", () => {
-    expect(resolveAiModel("groq", "llama-3.1-8b-instant").model).toBe(
-      "llama-3.1-8b-instant",
+    expect(resolveAiModel("groq", "openai/gpt-oss-20b").model).toBe(
+      "openai/gpt-oss-20b",
     );
   });
 

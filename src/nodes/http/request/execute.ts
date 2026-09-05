@@ -3,11 +3,13 @@ import { NonRetriableError } from "inngest";
 import ky, { type Options as KyOptions } from "ky";
 import {
   assertSafeEndpoint,
+  createSafeFetch,
   readCappedText,
   resolveTimeoutMs,
-  safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
 import { httpRequestChannel } from "@/inngest/channels/http-request";
+import { buildHttpAuth, type HttpAuthMode } from "@/nodes/shared/http-auth";
+import { redactSecrets } from "@/nodes/shared/redact";
 import type { NodeRun } from "@/nodes/types";
 
 type HttpRequestData = {
@@ -17,6 +19,10 @@ type HttpRequestData = {
   body?: string;
   headers?: Record<string, string>;
   queryParams?: Record<string, string>;
+  credentialId?: string;
+  authMode?: HttpAuthMode;
+  authHeaderName?: string;
+  authQueryParam?: string;
   timeoutMs?: number;
   failOnNon2xx?: boolean;
 };
@@ -28,6 +34,7 @@ export const execute: NodeRun<HttpRequestData> = async ({
   resolve,
   step,
   publish,
+  credentials,
 }) => {
   await publish(
     httpRequestChannel().status({
@@ -82,6 +89,22 @@ export const execute: NodeRun<HttpRequestData> = async ({
         }
       }
 
+      // AF-M10-01: auth is built from the RESOLVED CREDENTIAL MAP only.
+      // `data` is persisted into `NodeExecution.input`, so a secret read from
+      // node config would already be in the trace before this line.
+      const auth = buildHttpAuth(data.authMode, credentials?.credentialId, {
+        headerName: data.authHeaderName
+          ? resolve(data.authHeaderName)
+          : undefined,
+        queryParamName: data.authQueryParam
+          ? resolve(data.authQueryParam)
+          : undefined,
+      });
+
+      for (const [key, value] of Object.entries(auth.query)) {
+        url.searchParams.set(key, value);
+      }
+
       const method = data.method;
 
       const options: KyOptions = {
@@ -89,14 +112,17 @@ export const execute: NodeRun<HttpRequestData> = async ({
         timeout: resolveTimeoutMs(data.timeoutMs),
       };
 
-      // Resolve and attach headers.
+      // Resolve and attach headers. Auth is applied last so a templated header
+      // cannot shadow the credential the user selected — a silent
+      // "unauthenticated after all" is worse than an overwritten header.
+      const resolvedHeaders: Record<string, string> = {};
       if (data.headers) {
-        const resolvedHeaders: Record<string, string> = {};
         for (const [key, value] of Object.entries(data.headers)) {
           resolvedHeaders[key] = resolve(value);
         }
-        options.headers = resolvedHeaders;
       }
+      Object.assign(resolvedHeaders, auth.headers);
+      options.headers = resolvedHeaders;
 
       if (["POST", "PUT", "PATCH"].includes(method)) {
         const resolved = resolve(data.body || "{}");
@@ -105,13 +131,21 @@ export const execute: NodeRun<HttpRequestData> = async ({
         // Set Content-Type only if the user hasn't provided it via headers.
         if (!data.headers?.["Content-Type"]) {
           options.headers = {
-            ...(options.headers as Record<string, string>),
+            ...resolvedHeaders,
             "Content-Type": "application/json",
           };
         }
       }
 
-      const response = await ky(url, { ...options, fetch: safeFetch });
+      const response = await ky(url, {
+        ...options,
+        // The guard re-vets every redirect hop AND drops this request's own
+        // auth headers when a hop leaves the origin (ADR-0022): a redirect
+        // must not be a way to harvest the credential.
+        fetch: createSafeFetch({
+          credentialHeaders: auth.credentialHeaderNames,
+        }),
+      });
       const contentType = response.headers.get("content-type");
       // Body is read through the byte cap before any parse.
       const rawBody = await readCappedText(response);
@@ -133,7 +167,11 @@ export const execute: NodeRun<HttpRequestData> = async ({
         httpResponse: {
           status: response.status,
           statusText: response.statusText,
-          data: responseData,
+          // An endpoint that echoes the request (debug services, API gateways,
+          // the fixture servers this library is tested against) sends the
+          // credential straight back. Redacting here is what keeps
+          // `NodeExecution.output` free of plaintext.
+          data: redactSecrets(responseData, auth.secretValues),
         },
       };
 

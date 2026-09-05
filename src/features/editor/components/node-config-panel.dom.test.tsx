@@ -1,11 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { EditorNode } from "@/features/editor/store/atoms";
 import { definition as aiExtractDefinition } from "@/nodes/ai/extract/definition";
 import { definition as httpHttpRequest } from "@/nodes/http/request/definition";
 import type { NodeDefinition } from "@/nodes/types";
+import { TRPCTestProvider } from "@/trpc/test-provider";
 import { NodeConfigForm, NodeConfigPanel } from "./node-config-panel";
+
+/**
+ * The config panel renders a credential picker since AF-M10-01, and that
+ * picker queries tRPC — so every render in this file needs a context.
+ */
+const render = (ui: React.ReactElement) =>
+  rtlRender(<TRPCTestProvider>{ui}</TRPCTestProvider>);
 
 const httpDefinition = httpHttpRequest;
 

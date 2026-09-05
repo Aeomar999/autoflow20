@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { nodeRegistry, UnknownNodeTypeError } from "@/nodes/registry";
 import {
   collectPendingCredentials,
+  collectPendingSetup,
   prepareTemplateGraph,
   rewriteNodeRefs,
   type TemplateGraph,
@@ -236,7 +237,9 @@ describe("collectPendingCredentials", () => {
       nodeId: "b",
       nodeName: "GOOGLE_SHEETS_APPEND",
       credentialKey: "credentialId",
-      credentialType: "google.oauth2",
+      // AF-M10-03: accepts the scoped type for new bindings and the
+      // deprecated one for nodes saved before the split.
+      credentialType: "google.sheets|google.oauth2",
       optional: false,
     });
 
@@ -261,5 +264,84 @@ describe("collectPendingCredentials", () => {
       credentialType: expected[0].type,
       optional: false,
     });
+  });
+});
+
+describe("collectPendingSetup (AF-M10-25)", () => {
+  const node = (data: Record<string, unknown>) => ({
+    id: "n1",
+    type: "GOOGLE_SHEETS_APPEND",
+    name: "Log it",
+    position: { x: 0, y: 0 },
+    data,
+  });
+
+  it("finds a top-level placeholder", () => {
+    expect(
+      collectPendingSetup([node({ spreadsheetId: "REPLACE_WITH_SHEET_ID" })]),
+    ).toEqual([
+      {
+        nodeId: "n1",
+        nodeName: "Log it",
+        field: "spreadsheetId",
+        placeholder: "REPLACE_WITH_SHEET_ID",
+      },
+    ]);
+  });
+
+  it("finds one nested inside an array of mappings", () => {
+    // The case that motivated the recursive walk: reporting only top-level
+    // keys would have called this template ready to run.
+    const found = collectPendingSetup([
+      node({
+        mappings: [{ key: "sheet", value: "REPLACE_WITH_SHEET_ID" }],
+      }),
+    ]);
+
+    expect(found).toHaveLength(1);
+    expect(found[0].field).toBe("mappings.0.value");
+  });
+
+  it("finds one embedded in a JSON string", () => {
+    // `values` is authored as a JSON blob, so the placeholder is inside a
+    // string rather than being one.
+    const found = collectPendingSetup([
+      node({ values: '{"Folder": "REPLACE_WITH_FOLDER_ID"}' }),
+    ]);
+
+    expect(found).toHaveLength(1);
+    expect(found[0].placeholder).toBe("REPLACE_WITH_FOLDER_ID");
+  });
+
+  it("reports each occurrence, because each is an edit", () => {
+    const found = collectPendingSetup([
+      node({
+        spreadsheetId: "REPLACE_WITH_SHEET_ID",
+        sheetName: "REPLACE_WITH_TAB_NAME",
+      }),
+    ]);
+
+    expect(found.map((v) => v.placeholder).sort()).toEqual([
+      "REPLACE_WITH_SHEET_ID",
+      "REPLACE_WITH_TAB_NAME",
+    ]);
+  });
+
+  it("ignores prose that merely mentions replacing something", () => {
+    // The pattern requires uppercase after the prefix so an AI prompt saying
+    // "replace_with_the_customer_name" is not reported as setup.
+    expect(
+      collectPendingSetup([
+        node({ text: "Replace with the customer name, replace_with_x." }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("survives a node with no data at all", () => {
+    expect(
+      collectPendingSetup([
+        { id: "t", type: "MANUAL_TRIGGER", position: { x: 0, y: 0 } },
+      ]),
+    ).toEqual([]);
   });
 });

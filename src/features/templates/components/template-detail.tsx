@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { DownloadIcon, KeyIcon } from "lucide-react";
+import { DownloadIcon, KeyIcon, PencilIcon } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/dashboard/page";
@@ -21,6 +21,36 @@ import {
   useInstallTemplate,
   useSuspenseTemplate,
 } from "../hooks/use-templates";
+
+interface SetupValue {
+  nodeId: string;
+  nodeName: string;
+  field: string;
+  placeholder: string;
+}
+
+/**
+ * One row per node that needs the value, not one per occurrence.
+ *
+ * A spreadsheet id typically appears in four nodes of a sheet-driven template
+ * and twice within one of them; listing all six would bury the two other things
+ * the installer also has to set.
+ */
+const dedupeSetup = (values: readonly SetupValue[]): SetupValue[] => {
+  const seen = new Map<string, SetupValue>();
+  for (const value of values) {
+    const key = `${value.nodeId}:${value.placeholder}`;
+    if (!seen.has(key)) seen.set(key, value);
+  }
+  return [...seen.values()];
+};
+
+/** `REPLACE_WITH_SPREADSHEET_ID` reads as "Spreadsheet id" to a person. */
+const humanisePlaceholder = (placeholder: string): string => {
+  const words = placeholder.replace(/^REPLACE_WITH_/, "").split("_");
+  const [first = "", ...rest] = words.map((word) => word.toLowerCase());
+  return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(" ");
+};
 
 /**
  * Install lives in the page header and nowhere else. The previous layout had
@@ -132,14 +162,15 @@ const TemplateDetail = ({ slug }: { slug: string }) => {
 
         <Panel>
           <PanelHeader>
-            <PanelTitle hint="Installing works without these; the workflow just cannot run until they are connected.">
+            <PanelTitle hint="Installing works without these; the workflow just cannot run until they are filled in. Credentials are connected once and reused; setup values are edited on the node itself.">
               Before you install
             </PanelTitle>
           </PanelHeader>
 
-          {data.pendingCredentials.length === 0 ? (
+          {data.pendingCredentials.length === 0 &&
+          data.pendingSetup.length === 0 ? (
             <PanelBody>
-              <StatusPill tone="success">No credentials needed</StatusPill>
+              <StatusPill tone="success">Nothing to connect</StatusPill>
               <p className="mt-2 text-sm text-muted-foreground">
                 This template runs as-is once installed.
               </p>
@@ -171,6 +202,31 @@ const TemplateDetail = ({ slug }: { slug: string }) => {
                   >
                     <Link href="/credentials">Connect</Link>
                   </Button>
+                </li>
+              ))}
+
+              {/*
+                Setup values sit in the same list as credentials because they
+                answer the same question — what do I still owe this workflow
+                before it will run. A spreadsheet id left as a placeholder
+                stops it just as dead as a missing token, and the old copy
+                told a credential-free template it "runs as-is".
+              */}
+              {dedupeSetup(data.pendingSetup).map((value) => (
+                <li
+                  key={value.nodeId + value.field + value.placeholder}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <span className="flex items-center gap-1.5 truncate text-sm font-medium">
+                      <PencilIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      {humanisePlaceholder(value.placeholder)}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                      {value.nodeName}
+                    </span>
+                  </div>
+                  <StatusPill tone="neutral">set after install</StatusPill>
                 </li>
               ))}
             </ul>

@@ -133,6 +133,45 @@ function checkForLeaks(spec: TemplateSpec, issues: TemplateIssue[]): void {
       ? nodeRegistry.resolve(node.type)
       : undefined;
 
+    /**
+     * Every authored key must be one the node's schema actually reads.
+     *
+     * Zod objects here are not `.strict()`, so an unknown key passes
+     * validation silently and the field it was meant to set stays undefined.
+     * That is not a typo-level problem: a `CONDITION` authored with
+     * `leftValue`/`rightValue` instead of `left`/`right` parses cleanly, then
+     * compares undefined to undefined at run time and takes the same branch
+     * every time — a template that looks correct, validates, executes, and is
+     * wrong. Two shipped M10 templates did exactly this (AF-M10-17).
+     *
+     * Making the schemas strict would be the deeper fix, but it changes the
+     * SAVE boundary for every existing user workflow. This catches it where it
+     * belongs: in authored content, before it reaches the gallery.
+     */
+    const shape = registration
+      ? (
+          registration.configSchema as unknown as {
+            shape?: Record<string, unknown>;
+          }
+        ).shape
+      : undefined;
+    if (shape && node.data) {
+      const known = new Set(Object.keys(shape));
+      for (const key of Object.keys(node.data)) {
+        // `_`-prefixed keys belong to the engine, not to the node's schema:
+        // AF-M9-06's `_run` policy block is read by `resolveRunPolicy` and is
+        // deliberately absent from every configSchema.
+        if (key.startsWith("_")) continue;
+        if (!known.has(key)) {
+          issues.push({
+            slug: spec.slug,
+            nodeId: node.id,
+            message: `Config field "${key}" is not in ${node.type}'s schema, so it is ignored at run time. Known fields: ${[...known].sort().join(", ")}.`,
+          });
+        }
+      }
+    }
+
     // Credential-bound fields must be ABSENT, not empty. An authored value
     // here would be the author's own credential id.
     for (const requirement of registration?.credentials ?? []) {
@@ -411,14 +450,26 @@ export function checkTemplate(spec: TemplateSpec): TemplateCheckResult {
 }
 
 /**
- * How many credentials the user must bind before this template can run.
+ * How many credentials the user must **connect** before this template can run.
+ *
  * Optional requirements (every AI provider key, which the node falls back
  * from) are excluded: the gallery's "fewest credentials" sort is a promise
  * about setup effort, and counting optional keys would break that promise.
+ *
+ * **Distinct types, not bindings** (corrected in AF-M10-15). This used to
+ * count every credential *field* in the graph, which was indistinguishable
+ * while no template used two nodes of the same service. M10's families break
+ * that: a Sheets template reads a row and writes it back, and both nodes want
+ * the same `google.sheets` credential. The user connects Google once and picks
+ * it from a dropdown twice, so counting two overstates the setup effort the
+ * number exists to describe — and would have pushed every realistic
+ * multi-step template over the one-credential onboarding bar for no reason a
+ * user would recognise.
  */
 export function countRequiredCredentials(spec: TemplateSpec): number {
   const nodes = spec.graph.nodes.filter((node) => nodeRegistry.has(node.type));
-  return collectPendingCredentials(nodes).filter((c) => !c.optional).length;
+  const required = collectPendingCredentials(nodes).filter((c) => !c.optional);
+  return new Set(required.map((c) => c.credentialType)).size;
 }
 
 /** Run every check across the whole catalogue, including cross-template ones. */

@@ -53,15 +53,13 @@ export const opsTemplates: TemplateSpec[] = [
         },
         {
           id: "alert",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Alert the channel",
           position: { x: 800, y: -60 },
           data: {
             variableName: "downAlert",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              ":red_circle: *Health check failed* — https://example.com/health returned {{health.httpResponse.status}} {{health.httpResponse.statusText}} at {{schedule.timestamp}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":red_circle: *Health check failed* — https://example.com/health returned {{health.httpResponse.status}} {{health.httpResponse.statusText}} at {{schedule.timestamp}}",
           },
         },
       ],
@@ -188,15 +186,13 @@ export const opsTemplates: TemplateSpec[] = [
         },
         {
           id: "notify-slack",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Notify Slack",
           position: { x: 800, y: -90 },
           data: {
             variableName: "slackNotice",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
-            content:
-              ":rocket: *Deployed to production* — `{{deploy_sha}}` by {{deploy_author}}\n{{deploy_message}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":rocket: *Deployed to production* — `{{deploy_sha}}` by {{deploy_author}}\n{{deploy_message}}",
           },
         },
         {
@@ -206,8 +202,6 @@ export const opsTemplates: TemplateSpec[] = [
           position: { x: 800, y: 90 },
           data: {
             variableName: "discordNotice",
-            webhookUrl:
-              "https://discord.com/api/webhooks/REPLACE/WITH_YOUR_WEBHOOK",
             username: "Deploys",
             content:
               "Deployed to production — `{{deploy_sha}}` by {{deploy_author}}\n{{deploy_message}}",
@@ -269,7 +263,7 @@ export const opsTemplates: TemplateSpec[] = [
           data: {
             variableName: "handoff",
             baseUrl: "https://api.groq.com/openai/v1",
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             systemPrompt:
               "You write on-call handoffs. Lead with what the next engineer must watch. Be terse.",
             userPrompt:
@@ -283,8 +277,6 @@ export const opsTemplates: TemplateSpec[] = [
           position: { x: 800, y: 0 },
           data: {
             variableName: "handoffPost",
-            webhookUrl:
-              "https://discord.com/api/webhooks/REPLACE/WITH_YOUR_WEBHOOK",
             username: "On-call",
             content: "**Handoff — {{schedule.timestamp}}**\n\n{{handoff.text}}",
           },
@@ -304,6 +296,8 @@ export const opsTemplates: TemplateSpec[] = [
       "Reads vendor, amount, date, and category off an incoming receipt, sends anything above your approval threshold to Slack for a human, and books everything below it straight to Airtable.",
     category: "Finance",
     domain: "ops",
+    // QuickBooks to record the expense, Slack to report it.
+    tier: "library",
     tags: ["expenses", "receipts", "approval", "airtable", "ai"],
     graph: {
       nodes: [
@@ -322,7 +316,7 @@ export const opsTemplates: TemplateSpec[] = [
           data: {
             variableName: "expense",
             model: "openai:gpt-4o-mini",
-            fallbackModels: "google:gemini-1.5-flash",
+            fallbackModels: "google:gemini-3.6-flash",
             content:
               "Receipt text submitted by {{webhook.body.submittedBy}}:\n\n{{webhook.body.text}}",
             fields: [
@@ -365,15 +359,13 @@ export const opsTemplates: TemplateSpec[] = [
         },
         {
           id: "request-approval",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Request approval",
           position: { x: 800, y: -90 },
           data: {
             variableName: "approvalRequest",
-            webhookUrl:
-              "https://hooks.slack.com/services/REPLACE/WITH/FINANCE_WEBHOOK",
-            content:
-              ":receipt: *Approval needed* — {{expense.vendor}}, {{expense.amount}} {{expense.currency}} ({{expense.category}}) on {{expense.purchasedAt}}, submitted by {{webhook.body.submittedBy}}",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":receipt: *Approval needed* — {{expense.vendor}}, {{expense.amount}} {{expense.currency}} ({{expense.category}}) on {{expense.purchasedAt}}, submitted by {{webhook.body.submittedBy}}",
           },
         },
         {
@@ -765,6 +757,1353 @@ export const opsTemplates: TemplateSpec[] = [
           targetHandle: "input-1",
         },
         { source: "merge-results", target: "respond" },
+      ],
+    },
+  },
+  {
+    slug: "contract-review-pdf-report",
+    name: "Contract review to a PDF report",
+    description:
+      "Downloads a contract, extracts its text, has a model review it against a plain-English risk brief, and renders the findings as a PDF you can send to a lawyer. The report is built from HTML the workflow controls, and rendering runs with no network access and no script execution — a contract that arrived from outside cannot make the renderer fetch anything. Supply the document URL and an AI credential. The PDF comes back as a file reference, so the next node can email it, upload it to Drive, or archive it without the bytes ever entering the run payload.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["contract", "legal", "pdf", "report", "extract", "review"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run manually",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "fetch-contract",
+          type: "FILE_DOWNLOAD",
+          name: "Download the contract",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "contract",
+            url: "https://example.com/contracts/acme-msa.pdf",
+            maxBytes: 26214400,
+          },
+        },
+        {
+          id: "read-contract",
+          type: "EXTRACT_DOCUMENT_TEXT",
+          name: "Extract the text",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "contractText",
+            file: "{{{json contract.file}}}",
+            maxCharacters: 150000,
+          },
+        },
+        {
+          id: "review",
+          type: "AI_LLM",
+          name: "Review the clauses",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "review",
+            model: "anthropic:claude-3-5-haiku",
+            fallbackModels: "openai:gpt-4o-mini",
+            systemPrompt:
+              "You are reviewing a commercial contract for a non-lawyer. Return an HTML fragment only — no <html>, <head> or <script> — using <h2>, <p>, <ul> and a <table> of clause / risk / why it matters. Flag indemnity, liability caps, auto-renewal, termination and data terms. If the supplied text is marked truncated, say so at the top: never imply you reviewed the whole agreement.",
+            userPrompt:
+              "Truncated: {{contractText.truncated}}\nPages: {{contractText.pageCount}}\n\n{{contractText.text}}",
+            temperature: 0.1,
+            maxTokens: 2000,
+          },
+        },
+        {
+          id: "render",
+          type: "HTML_TO_PDF",
+          name: "Render the report",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "report",
+            filename: "contract-review.pdf",
+            pageSize: "A4",
+            orientation: "portrait",
+            header: "Contract review — {{contract.file.$file.filename}}",
+            footer: "Generated by AutoFlow. Not legal advice.",
+            // The model returns an HTML fragment; the surrounding structure is
+            // the workflow's, not the model's, so a prompt injection cannot
+            // change the document's shape.
+            html: "<h1>Contract review</h1><p><strong>Source:</strong> {{contract.file.$file.filename}}</p>{{{review.text}}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "fetch-contract" },
+        { source: "fetch-contract", target: "read-contract" },
+        { source: "read-contract", target: "review" },
+        { source: "review", target: "render" },
+      ],
+    },
+  },
+  {
+    slug: "spend-request-approval-gate",
+    name: "Spend request with an approval gate",
+    description:
+      "Takes a spend request from a hosted form, routes anything over the threshold to a named approver by email, and only records approved requests. The approver does not need an AutoFlow account: the email carries single-use, expiring links, and clicking one opens a confirmation page rather than approving on the spot — mail scanners follow links, and an approval a scanner granted is worse than no gate at all. Requests under the threshold skip the gate entirely. Supply an SMTP credential, a sender address, the approver's address, and the endpoint that records the decision.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["approval", "human-in-the-loop", "spend", "form", "gate", "email"],
+    graph: {
+      nodes: [
+        {
+          id: "request",
+          type: "FORM_TRIGGER",
+          name: "Spend request",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Request spend approval",
+            description:
+              "Requests over the threshold go to a manager. Under it, they are recorded immediately.",
+            submitLabel: "Submit request",
+            successMessage: "Submitted. You will hear back by email.",
+            fields: [
+              {
+                name: "requester",
+                label: "Your email",
+                type: "email",
+                required: true,
+              },
+              {
+                name: "amount",
+                label: "Amount (GBP)",
+                type: "number",
+                required: true,
+              },
+              {
+                name: "reason",
+                label: "What is it for?",
+                type: "textarea",
+                required: true,
+                maxLength: 2000,
+              },
+            ],
+          },
+        },
+        {
+          id: "needs-approval",
+          type: "CONDITION",
+          name: "Over the threshold?",
+          position: { x: 280, y: 0 },
+          data: {
+            left: "{{form.fields.amount}}",
+            operator: "gt",
+            right: "1000",
+          },
+        },
+        {
+          id: "gate",
+          type: "APPROVAL",
+          name: "Manager approval",
+          position: { x: 560, y: -80 },
+          data: {
+            variableName: "approval",
+            channel: "email",
+            approvers: "manager@example.com",
+            from: "automation@example.com",
+            subject: "Spend approval needed: GBP {{form.fields.amount}}",
+            prompt:
+              "{{form.fields.requester}} is requesting GBP {{form.fields.amount}}.\n\nReason: {{form.fields.reason}}",
+            // One working day. A request nobody answered by then routes to the
+            // rejected branch with the reason recorded, rather than holding
+            // the run open indefinitely.
+            timeoutSeconds: 86400,
+          },
+        },
+        {
+          id: "record-approved",
+          type: "HTTP_REQUEST",
+          name: "Record it",
+          position: { x: 860, y: -80 },
+          data: {
+            variableName: "recorded",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"requester":"{{form.fields.requester}}","amount":"{{form.fields.amount}}","approvedBy":"{{approval.respondedBy}}","note":"{{approval.comment}}"}',
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "record-small",
+          type: "HTTP_REQUEST",
+          name: "Record without approval",
+          position: { x: 860, y: 120 },
+          data: {
+            variableName: "recorded",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"requester":"{{form.fields.requester}}","amount":"{{form.fields.amount}}","approvedBy":"under-threshold"}',
+            failOnNon2xx: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "request", target: "needs-approval" },
+        { source: "needs-approval", sourceHandle: "true", target: "gate" },
+        {
+          source: "needs-approval",
+          sourceHandle: "false",
+          target: "record-small",
+        },
+        { source: "gate", sourceHandle: "approved", target: "record-approved" },
+      ],
+    },
+  },
+  {
+    slug: "drive-contract-intake-and-file",
+    name: "Drive folder intake, reviewed and filed",
+    description:
+      "Watches a Drive folder, extracts the text of each new document, has a model summarise the obligations it creates, and then MOVES the file to a processed folder. The move is the important part: a watched folder that is never emptied re-reads the same contract on every poll, and the summary arrives again each time. Files already in the folder when you publish are not replayed — the trigger records where the folder was and starts from there. Google Docs are exported to .docx automatically, so a native Doc works the same as an uploaded PDF. Supply a Drive credential, the two folder ids, and an AI credential.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["drive", "intake", "contract", "extract", "move", "review"],
+    graph: {
+      nodes: [
+        {
+          id: "new-file",
+          type: "DRIVE_TRIGGER",
+          name: "New file in intake",
+          position: { x: 0, y: 0 },
+          data: {
+            folderId: "REPLACE_WITH_INTAKE_FOLDER_ID",
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "download",
+          type: "DRIVE_DOWNLOAD",
+          name: "Download it",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "downloaded",
+            fileId: "{{file.id}}",
+          },
+        },
+        {
+          id: "read",
+          type: "EXTRACT_DOCUMENT_TEXT",
+          name: "Extract the text",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "extracted",
+            file: "{{{json downloaded.file}}}",
+            maxCharacters: 150000,
+          },
+        },
+        {
+          id: "summarise",
+          type: "AI_LLM",
+          name: "Summarise the obligations",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "summary",
+            model: "anthropic:claude-3-5-haiku",
+            fallbackModels: "openai:gpt-4o-mini",
+            systemPrompt:
+              "Summarise what this document commits the reader to. Lead with obligations and dates. If the text is marked truncated, say so first and never imply you saw all of it.",
+            userPrompt:
+              "File: {{file.name}}\nTruncated: {{extracted.truncated}}\n\n{{extracted.text}}",
+            temperature: 0.2,
+            maxTokens: 900,
+          },
+        },
+        {
+          id: "file-it",
+          type: "DRIVE_MOVE",
+          name: "Move to processed",
+          position: { x: 1120, y: 0 },
+          data: {
+            variableName: "filed",
+            fileId: "{{file.id}}",
+            toFolderId: "REPLACE_WITH_PROCESSED_FOLDER_ID",
+          },
+        },
+      ],
+      edges: [
+        { source: "new-file", target: "download" },
+        { source: "download", target: "read" },
+        { source: "read", target: "summarise" },
+        { source: "summarise", target: "file-it" },
+      ],
+    },
+  },
+  {
+    slug: "meeting-briefing-before-it-starts",
+    name: "Meeting briefing, fifteen minutes before",
+    description:
+      "Watches your calendar two hours ahead and, for each meeting that appears, waits until fifteen minutes before it starts and then emails you a briefing with the attendees and the agenda. The wait is what makes it useful: a briefing sent when the meeting was scheduled is read and forgotten, and one sent as you join is read. Meeting rooms are filtered out of the attendee list — they are attendees to Calendar and not to you. A rescheduled meeting briefs again, because the reminder is keyed to the slot rather than the invitation. Supply a Calendar credential and a Gmail credential.",
+    category: "Ops",
+    domain: "ops",
+    // Calendar to read the meeting, Gmail to deliver the briefing. Two
+    // services is what this automation is; see `TemplateSpec.tier`.
+    tier: "library",
+    tags: ["calendar", "meeting", "briefing", "wait", "gmail", "reminder"],
+    graph: {
+      nodes: [
+        {
+          id: "upcoming",
+          type: "CALENDAR_TRIGGER",
+          name: "Meeting soon",
+          position: { x: 0, y: 0 },
+          data: {
+            calendarId: "primary",
+            lookaheadMinutes: 120,
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "hold",
+          type: "WAIT",
+          name: "Wait until T-15",
+          position: { x: 300, y: 0 },
+          data: {
+            mode: "until",
+            // A time already past resolves immediately, so a meeting found
+            // inside fifteen minutes briefs straight away rather than being
+            // skipped.
+            until: "{{event.start}}",
+          },
+        },
+        {
+          id: "brief",
+          type: "AI_LLM",
+          name: "Write the briefing",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "briefing",
+            model: "openai:gpt-4o-mini",
+            fallbackModels: "anthropic:claude-3-5-haiku",
+            systemPrompt:
+              "Write a short pre-meeting briefing. Lead with who is attending and what the meeting is for. Six lines at most. No preamble.",
+            userPrompt:
+              "Title: {{event.summary}}\nStarts: {{event.start}}\nLocation: {{event.location}}\nAgenda: {{event.description}}\nAttendees: {{{json event.attendees}}}",
+            temperature: 0.3,
+            maxTokens: 400,
+          },
+        },
+        {
+          id: "send",
+          type: "GMAIL_SEND",
+          name: "Email the briefing",
+          position: { x: 900, y: 0 },
+          data: {
+            variableName: "sent",
+            from: "REPLACE_WITH_YOUR_ADDRESS",
+            to: "REPLACE_WITH_YOUR_ADDRESS",
+            subject: "In 15 minutes: {{event.summary}}",
+            html: '<h2>{{event.summary}}</h2><p>{{briefing.text}}</p><p><a href="{{event.htmlLink}}">Open in Calendar</a></p>',
+          },
+        },
+      ],
+      edges: [
+        { source: "upcoming", target: "hold" },
+        { source: "hold", target: "brief" },
+        { source: "brief", target: "send" },
+      ],
+    },
+  },
+  {
+    slug: "quickbooks-invoice-from-order",
+    name: "Invoice a customer from an incoming order",
+    description:
+      'Takes an order over a webhook, looks the customer up in QuickBooks, creates them if this is their first order, and raises the invoice. The lookup is the point: QuickBooks rejects a duplicate display name outright, so a flow that always creates fails on every returning customer — and one that always assumes the customer exists fails on every new one. Lines are read from the order payload, so amounts arriving as "$1,299.00" from a store or a spreadsheet are handled. Sandbox or production is decided by the credential you connect, never by this graph, so copying it between companies cannot point it at the wrong books. Supply a QuickBooks credential; the webhook URL is on the trigger once you publish.',
+    category: "Finance",
+    domain: "ops",
+    tags: ["quickbooks", "invoice", "order", "customer", "webhook", "billing"],
+    graph: {
+      nodes: [
+        {
+          id: "order",
+          type: "WEBHOOK_TRIGGER",
+          name: "Order received",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "lookup",
+          type: "QBO_FIND_CUSTOMER",
+          name: "Find the customer",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "lookup",
+            displayName: "{{webhook.body.customer.name}}",
+            email: "{{webhook.body.customer.email}}",
+          },
+        },
+        {
+          id: "known",
+          type: "CONDITION",
+          name: "Do we know them?",
+          position: { x: 520, y: 0 },
+          data: {
+            left: "{{lookup.found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "invoice-existing",
+          type: "QBO_CREATE_INVOICE",
+          name: "Invoice (existing)",
+          position: { x: 800, y: -120 },
+          data: {
+            variableName: "invoice",
+            customerId: "{{lookup.customerId}}",
+            lines: "{{{json webhook.body.items}}}",
+            customerMemo: "Order {{webhook.body.orderId}}",
+          },
+        },
+        {
+          id: "new-customer",
+          type: "QBO_CREATE_CUSTOMER",
+          name: "Create the customer",
+          position: { x: 800, y: 120 },
+          data: {
+            variableName: "created",
+            displayName: "{{webhook.body.customer.name}}",
+            email: "{{webhook.body.customer.email}}",
+          },
+        },
+        {
+          id: "invoice-new",
+          type: "QBO_CREATE_INVOICE",
+          name: "Invoice (new)",
+          position: { x: 1060, y: 120 },
+          data: {
+            variableName: "invoice",
+            customerId: "{{created.customerId}}",
+            lines: "{{{json webhook.body.items}}}",
+            customerMemo: "Order {{webhook.body.orderId}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "order", target: "lookup" },
+        { source: "lookup", target: "known" },
+        // Two invoice nodes rather than a merge: only one branch runs, and a
+        // MERGE waits for inputs that will never arrive on the other side.
+        { source: "known", target: "invoice-existing", sourceHandle: "true" },
+        { source: "known", target: "new-customer", sourceHandle: "false" },
+        { source: "new-customer", target: "invoice-new" },
+      ],
+    },
+  },
+  {
+    slug: "quickbooks-invoice-alerts-in-slack",
+    name: "Post new QuickBooks invoices to Slack",
+    description:
+      "Watches the connected QuickBooks company and posts a line in Slack whenever an invoice is created or updated. QuickBooks tells you what changed but not what it now says, so the workflow reads the record back before writing the message — otherwise the alert could only ever name an id. Intuit sends every connected company's events to one endpoint, so the trigger's credential is what decides which company this workflow is listening to; a second connected company will not start it. Supply a QuickBooks credential and a Slack incoming-webhook URL.",
+    category: "Finance",
+    domain: "ops",
+    // QuickBooks to read the invoice, Slack to post it.
+    tier: "library",
+    tags: ["quickbooks", "invoice", "slack", "alert", "webhook", "finance"],
+    graph: {
+      nodes: [
+        {
+          id: "changed",
+          type: "QBO_WEBHOOK_TRIGGER",
+          name: "Invoice changed",
+          position: { x: 0, y: 0 },
+          data: {
+            entities: ["Invoice"],
+            operations: ["Create", "Update"],
+          },
+        },
+        {
+          id: "read",
+          type: "QBO_GET",
+          name: "Read the invoice",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "invoice",
+            entity: "Invoice",
+            entityId: "{{qbo.entityId}}",
+          },
+        },
+        {
+          id: "post",
+          type: "SLACK_POST",
+          name: "Post to Slack",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "posted",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "Invoice {{invoice.record.DocNumber}} {{qbo.operation}}d — {{invoice.record.CustomerRef.name}}, {{invoice.record.TotalAmt}} (balance {{invoice.record.Balance}})",
+          },
+        },
+      ],
+      edges: [
+        { source: "changed", target: "read" },
+        { source: "read", target: "post" },
+      ],
+    },
+  },
+  {
+    slug: "quickbooks-invoice-pdfs-to-drive",
+    name: "File every QuickBooks invoice PDF in Drive",
+    description:
+      "Whenever an invoice is created in QuickBooks, fetches the PDF QuickBooks itself would email and files it in a Drive folder. The PDF is the rendered document, not a reconstruction — it carries the company's own template and numbering, which is what makes the archive worth keeping. It moves through the workflow as a reference rather than as bytes, so the size of the invoice does not change what the graph can do, and it is named after the invoice number rather than its internal id so the folder is readable. Supply a QuickBooks credential, a Drive credential and the destination folder id.",
+    category: "Finance",
+    domain: "ops",
+    // QuickBooks to read the invoice, Drive to file it. Two services is what
+    // this automation is; see `TemplateSpec.tier`.
+    tier: "library",
+    tags: ["quickbooks", "invoice", "pdf", "drive", "archive", "finance"],
+    graph: {
+      nodes: [
+        {
+          id: "raised",
+          type: "QBO_WEBHOOK_TRIGGER",
+          name: "Invoice raised",
+          position: { x: 0, y: 0 },
+          data: { entities: ["Invoice"], operations: ["Create"] },
+        },
+        {
+          id: "pdf",
+          type: "QBO_GET_INVOICE_PDF",
+          name: "Fetch the PDF",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "pdf",
+            invoiceId: "{{qbo.entityId}}",
+          },
+        },
+        {
+          id: "file-it",
+          type: "DRIVE_UPLOAD",
+          name: "File it in Drive",
+          position: { x: 600, y: 0 },
+          data: {
+            variableName: "archived",
+            file: "{{{json pdf.file}}}",
+            folderId: "REPLACE_WITH_INVOICES_FOLDER_ID",
+          },
+        },
+      ],
+      edges: [
+        { source: "raised", target: "pdf" },
+        { source: "pdf", target: "file-it" },
+      ],
+    },
+  },
+  {
+    slug: "slack-deal-room-per-opportunity",
+    name: "A Slack channel per deal, created and staffed",
+    description:
+      'Takes a new opportunity over a webhook, opens a dedicated Slack channel for it, pulls the deal team in, and posts the opening summary. Channel names are normalised to Slack\'s rules first, so "Acme Corp — Q3 renewal" becomes a channel Slack will actually accept. Creating is safe to re-run: a name that already exists returns the existing channel rather than failing, so a retried delivery does not fail and does not make a second room. Inviting someone already in the channel is likewise not an error. The listing step is there so the run records what was already present — useful when you are wondering why a channel was reused. Supply a Slack credential with channels:manage.',
+    category: "Revenue",
+    domain: "ops",
+    tags: ["slack", "channel", "deal", "sales", "create", "invite"],
+    graph: {
+      nodes: [
+        {
+          id: "opportunity",
+          type: "WEBHOOK_TRIGGER",
+          name: "New opportunity",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "existing",
+          type: "SLACK_LIST_CHANNELS",
+          name: "Is there a room already?",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "existing",
+            nameFilter: "deal-{{webhook.body.accountSlug}}",
+            limit: 500,
+          },
+        },
+        {
+          id: "room",
+          type: "SLACK_CREATE_CHANNEL",
+          name: "Open the deal room",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "room",
+            // Called unconditionally: the node returns the existing channel
+            // when the name is taken, so no branch is needed and a retry is
+            // safe. `room.created` says which happened.
+            name: "deal-{{webhook.body.accountSlug}}",
+            isPrivate: false,
+            purpose: "Deal room for {{webhook.body.accountName}}",
+          },
+        },
+        {
+          id: "staff",
+          type: "SLACK_INVITE",
+          name: "Pull the deal team in",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "staffed",
+            channel: "{{room.channelId}}",
+            // Slack user IDs (U0123ABCD), not emails — the invite API takes
+            // ids only.
+            userIds: "{{webhook.body.teamUserIds}}",
+          },
+        },
+        {
+          id: "brief",
+          type: "SLACK_POST",
+          name: "Post the opening brief",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "posted",
+            channel: "{{room.channelId}}",
+            text: ":handshake: *{{webhook.body.accountName}}* — {{webhook.body.amount}}\nOwner: {{webhook.body.owner}}\nStage: {{webhook.body.stage}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "opportunity", target: "existing" },
+        { source: "existing", target: "room" },
+        { source: "room", target: "staff" },
+        { source: "staff", target: "brief" },
+      ],
+    },
+  },
+  {
+    slug: "meeting-briefing-slack-dm",
+    name: "DM each attendee before the meeting",
+    description:
+      "Watches your calendar, waits until shortly before each meeting starts, and sends every attendee a direct message with the agenda. Attendees are matched to Slack accounts by email, which is the part that needs care: the address must be the one on their Slack profile, and that is often not their work address. External guests have no Slack account at all, so the lookup is set to skip them quietly rather than fail — otherwise one contractor on the invite would stop everyone else being messaged. Meeting rooms are already filtered out, because Calendar counts them as attendees and a room has nobody to brief. Supply a Calendar credential and a Slack credential with users:read.email.",
+    category: "Ops",
+    domain: "ops",
+    // Calendar to read the meeting, Slack to deliver the briefing.
+    tier: "library",
+    tags: ["slack", "calendar", "meeting", "dm", "briefing", "reminder"],
+    graph: {
+      nodes: [
+        {
+          id: "upcoming",
+          type: "CALENDAR_TRIGGER",
+          name: "Meeting soon",
+          position: { x: 0, y: 0 },
+          data: {
+            calendarId: "primary",
+            lookaheadMinutes: 120,
+            pollIntervalSeconds: 300,
+          },
+        },
+        {
+          id: "hold",
+          type: "WAIT",
+          name: "Wait until it starts",
+          position: { x: 280, y: 0 },
+          data: { mode: "until", until: "{{event.start}}" },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One per attendee",
+          position: { x: 540, y: 0 },
+          // A dot-path against the node's input, not a template expression:
+          // SPLIT_OUT reads the array itself rather than a rendered string.
+          data: { path: "event.attendees", maxItems: 50 },
+        },
+        {
+          id: "dm",
+          type: "SLACK_DM_BY_EMAIL",
+          name: "DM the attendee",
+          position: { x: 800, y: 0 },
+          data: {
+            variableName: "dm",
+            email: "{{$item.email}}",
+            // An external guest has no Slack account; skipping is the
+            // expected outcome, not a failure of the run.
+            skipIfNotFound: true,
+            text: ":calendar: *{{event.summary}}* starts now.\n{{event.description}}\n{{event.htmlLink}}",
+          },
+        },
+        {
+          id: "done",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1060, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "upcoming", target: "hold" },
+        { source: "hold", target: "each" },
+        { source: "each", target: "dm" },
+        { source: "dm", target: "done" },
+      ],
+    },
+  },
+  {
+    slug: "webhook-payload-reshaper",
+    name: "Reshape a webhook and forward it",
+    description:
+      "Receives one service's webhook, reshapes the payload into the form another service expects, forwards it, and answers the original caller with the result. This is the glue you would otherwise write a small server for — the two systems never have to agree on a format. The forward is set to fail the run on a non-2xx, so a rejected hand-off shows as a failed execution rather than a silent drop. The target here is a public echo service; point it at your own endpoint, and add a credential on the HTTP node if it needs authentication.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["webhook", "transform", "forward", "proxy", "integration", "glue"],
+    graph: {
+      nodes: [
+        {
+          id: "incoming",
+          type: "WEBHOOK_TRIGGER",
+          name: "Source webhook",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "reshape",
+          type: "CODE",
+          name: "Reshape the payload",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const body = input.webhook?.body ?? {};\n\n// Whatever the source sends, emit the shape the target wants.\nreturn {\n  payload: {\n    external_id: String(body.id ?? body.uuid ?? ""),\n    full_name: [body.first_name, body.last_name].filter(Boolean).join(" ") || body.name || "",\n    contact_email: body.email ?? body.email_address ?? null,\n    source: "webhook",\n    received_at: new Date().toISOString(),\n  },\n};\n',
+          },
+        },
+        {
+          id: "forward",
+          type: "HTTP_REQUEST",
+          name: "Forward to the target",
+          position: { x: 560, y: 0 },
+          data: {
+            variableName: "forwarded",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json payload}}}",
+            headers: { "Content-Type": "application/json" },
+            // A hand-off the target rejected must fail the run. Defaulting the
+            // other way turns a dropped record into a green execution.
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "reply",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "Answer the caller",
+          position: { x: 840, y: 0 },
+          data: {
+            statusCode: 200,
+            contentType: "application/json",
+            body: '{"forwarded":true,"status": {{forwarded.httpResponse.status}} }',
+          },
+        },
+      ],
+      edges: [
+        { source: "incoming", target: "reshape" },
+        { source: "reshape", target: "forward" },
+        { source: "forward", target: "reply" },
+      ],
+    },
+  },
+  {
+    slug: "github-pr-opens-jira-issue",
+    name: "Every pull request gets a Jira issue",
+    description:
+      "When a pull request is opened, files a Jira issue that tracks it, with the author, the branch and a link back to the PR. The issue type is resolved by name against your project, so this works whether your team calls them Tasks, Stories or Bugs. Deliveries are rejected unless GitHub's HMAC signature verifies, so nobody can start your workflows by posting a payload that names your repository. Supply a GitHub credential and an Atlassian credential, and point a repository webhook at the GitHub endpoint.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["github", "jira", "pull request", "issue", "tracking", "webhook"],
+    graph: {
+      nodes: [
+        {
+          id: "pr",
+          type: "GITHUB_TRIGGER",
+          name: "Pull request opened",
+          position: { x: 0, y: 0 },
+          data: {
+            repo: "REPLACE_WITH_OWNER/REPO",
+            events: "pull_request",
+            actions: "opened,reopened",
+          },
+        },
+        {
+          id: "issue",
+          type: "JIRA_CREATE_ISSUE",
+          name: "File the tracking issue",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "tracked",
+            projectKey: "REPLACE_WITH_PROJECT_KEY",
+            issueType: "Task",
+            summary:
+              "Review PR #{{github.payload.pull_request.number}}: {{github.payload.pull_request.title}}",
+            description:
+              "Opened by {{github.sender}} on {{github.repository}}.\n\nBranch: {{github.payload.pull_request.head.ref}} → {{github.payload.pull_request.base.ref}}\n\n{{github.payload.pull_request.html_url}}",
+            labels: "code-review,from-github",
+          },
+        },
+      ],
+      edges: [{ source: "pr", target: "issue" }],
+    },
+  },
+  {
+    slug: "github-merge-closes-jira-issue",
+    name: "Merging the PR moves the Jira issue",
+    description:
+      'When a pull request is merged, moves the Jira issue named in its title or branch to the finished status and leaves a comment saying which PR did it. The transition is looked up by NAME against that issue\'s own workflow at run time — which is what makes this work in more than one project. Transition ids are assigned per workflow scheme, so an automation that hardcodes "31" works where it was written and silently fails everywhere else. Supply a GitHub credential and an Atlassian credential.',
+    category: "Ops",
+    domain: "ops",
+    tags: ["github", "jira", "merge", "transition", "status", "done"],
+    graph: {
+      nodes: [
+        {
+          id: "closed",
+          type: "GITHUB_TRIGGER",
+          name: "Pull request closed",
+          position: { x: 0, y: 0 },
+          data: {
+            repo: "REPLACE_WITH_OWNER/REPO",
+            events: "pull_request",
+            actions: "closed",
+          },
+        },
+        {
+          id: "merged",
+          type: "CONDITION",
+          name: "Actually merged?",
+          position: { x: 280, y: 0 },
+          data: {
+            // A closed PR is not a merged one. Without this the issue would
+            // also move when someone abandons a branch.
+            left: "{{github.payload.pull_request.merged}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "key",
+          type: "CODE",
+          name: "Find the issue key",
+          position: { x: 560, y: -80 },
+          data: {
+            code: 'const pr = input.github?.payload?.pull_request ?? {};\nconst haystack = `${pr.title ?? ""} ${pr.head?.ref ?? ""}`;\n\n// Jira keys look like ENG-123. Take the first one mentioned in the\n// title or the branch name.\nconst match = haystack.match(/[A-Z][A-Z0-9]+-\\d+/);\n\nreturn {\n  issueKey: match ? match[0] : "",\n  found: Boolean(match),\n  prNumber: pr.number ?? null,\n  prUrl: pr.html_url ?? "",\n};\n',
+          },
+        },
+        {
+          id: "named",
+          type: "CONDITION",
+          name: "Names an issue?",
+          position: { x: 840, y: -80 },
+          data: {
+            left: "{{found}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "move",
+          type: "JIRA_TRANSITION",
+          name: "Move it to Done",
+          position: { x: 1120, y: -140 },
+          data: {
+            variableName: "moved",
+            issueKey: "{{issueKey}}",
+            // A NAME, not an id. Resolved against this issue's workflow when
+            // the node runs, and matched against the destination status too,
+            // so "Done" works when the transition is called "Finish Work".
+            transition: "Done",
+            comment: "Merged in PR #{{prNumber}} — {{prUrl}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "closed", target: "merged" },
+        { source: "merged", target: "key", sourceHandle: "true" },
+        { source: "key", target: "named" },
+        { source: "named", target: "move", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "auto-pr-for-pushed-branch",
+    name: "Open a pull request for every feature branch",
+    description:
+      "Watches pushes and opens a draft pull request the moment a branch matching your prefix appears, so work in progress is visible before anyone remembers to raise it. Re-running is safe: an open PR for the same branch is returned rather than failing, and a branch with no commits ahead of the base is reported as exactly that rather than as an API error. Only a GitHub credential is needed.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["github", "pull request", "branch", "draft", "automation", "push"],
+    graph: {
+      nodes: [
+        {
+          id: "push",
+          type: "GITHUB_TRIGGER",
+          name: "Branch pushed",
+          position: { x: 0, y: 0 },
+          data: {
+            repo: "REPLACE_WITH_OWNER/REPO",
+            events: "push",
+          },
+        },
+        {
+          id: "branch",
+          type: "CODE",
+          name: "Read the branch",
+          position: { x: 280, y: 0 },
+          data: {
+            code: 'const ref = input.github?.payload?.ref ?? "";\nconst branch = ref.replace(/^refs\\/heads\\//, "");\nconst commits = input.github?.payload?.commits ?? [];\n\nreturn {\n  branch,\n  // Only branches the team prefixes as work. Change the prefix here.\n  isFeature: branch.startsWith("feat/"),\n  headline: commits.length > 0 ? commits[0].message.split("\\n")[0] : branch,\n};\n',
+          },
+        },
+        {
+          id: "wanted",
+          type: "CONDITION",
+          name: "A feature branch?",
+          position: { x: 560, y: 0 },
+          data: {
+            left: "{{isFeature}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "pr",
+          type: "GITHUB_CREATE_PR",
+          name: "Open a draft PR",
+          position: { x: 840, y: -60 },
+          data: {
+            variableName: "pr",
+            repo: "REPLACE_WITH_OWNER/REPO",
+            title: "{{headline}}",
+            head: "{{branch}}",
+            // Blank base means the repository's default branch, which is not
+            // always "main".
+            body: "Opened automatically when `{{branch}}` was pushed.",
+            draft: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "push", target: "branch" },
+        { source: "branch", target: "wanted" },
+        { source: "wanted", target: "pr", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "stale-pr-digest",
+    name: "Nudge the pull requests nobody reviewed",
+    description:
+      "Every morning, finds open pull requests that have gone quiet and posts one digest to the team channel instead of pinging people individually. The search uses GitHub's own query syntax, so you can narrow it to a team, a label or a path without touching the workflow. GitHub caps a search at 1000 results, and the node reports when it hit that rather than pretending it saw everything. Supply a GitHub credential and a Slack credential.",
+    category: "Ops",
+    domain: "ops",
+    // GitHub to search, Slack to post.
+    tier: "library",
+    tags: ["github", "slack", "pull request", "review", "stale", "digest"],
+    graph: {
+      nodes: [
+        {
+          id: "morning",
+          type: "SCHEDULE_TRIGGER",
+          name: "Weekday mornings",
+          position: { x: 0, y: 0 },
+          data: { cron: "0 9 * * 1-5", timezone: "UTC" },
+        },
+        {
+          id: "stale",
+          type: "GITHUB_SEARCH_PRS",
+          name: "Find the quiet ones",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "stale",
+            repo: "REPLACE_WITH_OWNER/REPO",
+            // GitHub's own qualifiers: untouched for three days, not a draft.
+            query: "draft:false updated:<{{$now.minusDays3.date}}",
+            state: "open",
+            limit: 50,
+          },
+        },
+        {
+          id: "summary",
+          type: "CODE",
+          name: "Write the digest",
+          position: { x: 560, y: 0 },
+          data: {
+            code: 'const prs = input.stale?.pullRequests ?? [];\n\nif (prs.length === 0) {\n  return { hasStale: false, digest: "" };\n}\n\nconst lines = prs\n  .slice(0, 15)\n  .map((pr) => `• <${pr.url}|#${pr.number}> ${pr.title} — ${pr.author}`);\n\nreturn {\n  hasStale: true,\n  count: prs.length,\n  digest: lines.join("\\n"),\n};\n',
+          },
+        },
+        {
+          id: "any",
+          type: "CONDITION",
+          name: "Anything to say?",
+          position: { x: 840, y: 0 },
+          data: {
+            // No message at all beats a daily "0 stale PRs" nobody reads.
+            left: "{{hasStale}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "post",
+          type: "SLACK_POST",
+          name: "Post the digest",
+          position: { x: 1120, y: -60 },
+          data: {
+            variableName: "posted",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: ":eyes: *{{count}} pull requests are waiting on review*\n\n{{digest}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "morning", target: "stale" },
+        { source: "stale", target: "summary" },
+        { source: "summary", target: "any" },
+        { source: "any", target: "post", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "fan-out-one-payload-to-many-calls",
+    name: "Split one payload into many calls",
+    description:
+      'Receives a batch — an array of records in one webhook — and makes a separate call per record, then answers the sender with a per-item result rather than a bare 200. Items are processed one at a time so a slow or failing target does not turn into a burst, and the aggregate reports which items failed instead of losing them. This is the shape most "send these 50 things somewhere" jobs actually need. Nothing to connect.',
+    category: "Ops",
+    domain: "ops",
+    tags: ["webhook", "batch", "fan-out", "split", "http", "aggregate"],
+    graph: {
+      nodes: [
+        {
+          id: "batch",
+          type: "WEBHOOK_TRIGGER",
+          name: "Batch arrives",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Normalise the batch",
+          position: { x: 280, y: 0 },
+          data: {
+            code: "const body = input.webhook?.body ?? {};\n\n// Accept either a bare array or { items: [...] }, because senders differ\n// and neither is worth arguing about.\nconst raw = Array.isArray(body) ? body : (body.items ?? []);\n\nreturn {\n  items: raw.map((item, index) => ({\n    index,\n    id: item.id ?? String(index),\n    payload: item,\n  })),\n};\n",
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One at a time",
+          position: { x: 560, y: 0 },
+          data: { path: "items", maxItems: 50 },
+        },
+        {
+          id: "deliver",
+          type: "HTTP_REQUEST",
+          name: "Deliver the item",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "delivery",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json $item.payload}}}",
+            headers: { "Content-Type": "application/json" },
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "collected",
+          type: "AGGREGATE",
+          name: "Collect the results",
+          position: { x: 1120, y: 0 },
+          data: {},
+        },
+        {
+          id: "reply",
+          type: "RESPOND_TO_WEBHOOK",
+          name: "Answer the sender",
+          position: { x: 1400, y: 0 },
+          data: {
+            statusCode: 200,
+            contentType: "application/json",
+            // The failed count is the point: a bare 200 would hide that three
+            // of fifty items never arrived.
+            body: '{"processed": {{count}},"failed": {{failed}} }',
+          },
+        },
+      ],
+      edges: [
+        { source: "batch", target: "shape" },
+        { source: "shape", target: "each" },
+        { source: "each", target: "deliver" },
+        { source: "deliver", target: "collected" },
+        { source: "collected", target: "reply" },
+      ],
+    },
+  },
+  {
+    slug: "paced-backfill-over-a-list",
+    name: "Work through a list without tripping a rate limit",
+    description:
+      "Takes a list, processes it one item at a time with a deliberate pause between each, and collects the results — the shape you need when the far end allows a handful of requests a second and will ban you for more. The pause is a durable wait rather than a busy loop, so the worker is free between items and a long backfill survives a redeploy. The aggregate reports which items failed rather than losing them. Nothing to connect.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["backfill", "rate limit", "batch", "pacing", "wait", "http"],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Run with a list",
+          position: { x: 0, y: 0 },
+          data: { payload: '{"ids":["a1","a2","a3"]}' },
+        },
+        {
+          id: "shape",
+          type: "CODE",
+          name: "Build the work list",
+          position: { x: 280, y: 0 },
+          data: {
+            code: "const ids = input.ids ?? [];\n\nreturn {\n  items: ids.map((id, index) => ({ id, index })),\n};\n",
+          },
+        },
+        {
+          id: "each",
+          type: "SPLIT_OUT",
+          name: "One at a time",
+          position: { x: 560, y: 0 },
+          data: { path: "items", maxItems: 200 },
+        },
+        {
+          id: "pace",
+          type: "WAIT",
+          name: "Pause between items",
+          position: { x: 840, y: 0 },
+          data: { mode: "duration", seconds: 2 },
+        },
+        {
+          id: "call",
+          type: "HTTP_REQUEST",
+          name: "Process the item",
+          position: { x: 1120, y: 0 },
+          data: {
+            variableName: "processed",
+            endpoint: "https://httpbin.org/anything/{{$item.id}}",
+            method: "GET",
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "done",
+          type: "AGGREGATE",
+          name: "Collect",
+          position: { x: 1400, y: 0 },
+          data: {},
+        },
+      ],
+      edges: [
+        { source: "start", target: "shape" },
+        { source: "shape", target: "each" },
+        { source: "each", target: "pace" },
+        { source: "pace", target: "call" },
+        { source: "call", target: "done" },
+      ],
+    },
+  },
+  {
+    slug: "escalate-if-nobody-responds",
+    name: "Escalate when nothing happens",
+    description:
+      "Raises a request, waits a set period, checks whether it moved, and escalates only if it did not. The wait is durable rather than a busy loop, so a two-hour hold costs nothing and survives a redeploy — and cancelling the run stops the wait instead of leaving it pending. This is the shape behind most SLA and approval-chase automations, and the part people usually get wrong is re-checking before escalating rather than escalating on a timer regardless. Nothing to connect; point the HTTP steps at your own system.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["escalation", "sla", "wait", "reminder", "chase", "timer"],
+    graph: {
+      nodes: [
+        {
+          id: "raised",
+          type: "WEBHOOK_TRIGGER",
+          name: "Request raised",
+          position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          id: "record",
+          type: "HTTP_REQUEST",
+          name: "Record it",
+          position: { x: 280, y: 0 },
+          data: {
+            variableName: "ticket",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            body: "{{{json webhook.body}}}",
+            headers: { "Content-Type": "application/json" },
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "grace",
+          type: "WAIT",
+          name: "Give them two hours",
+          position: { x: 560, y: 0 },
+          data: { mode: "duration", seconds: 7200 },
+        },
+        {
+          id: "recheck",
+          type: "HTTP_REQUEST",
+          name: "Has it moved?",
+          position: { x: 840, y: 0 },
+          data: {
+            variableName: "current",
+            endpoint: "https://httpbin.org/get",
+            method: "GET",
+            failOnNon2xx: false,
+            timeoutMs: 15000,
+          },
+        },
+        {
+          id: "judge",
+          type: "CODE",
+          name: "Decide",
+          position: { x: 1120, y: 0 },
+          data: {
+            code: 'const status = input.current?.httpResponse?.data?.status ?? "open";\n\n// Re-checking is the point. Escalating on a timer alone pages someone\n// about work that was finished ninety minutes ago.\nreturn {\n  stillOpen: status === "open",\n  status,\n};\n',
+          },
+        },
+        {
+          id: "stalled",
+          type: "CONDITION",
+          name: "Still open?",
+          position: { x: 1400, y: 0 },
+          data: {
+            left: "{{stillOpen}}",
+            operator: "equals",
+            right: "true",
+          },
+        },
+        {
+          id: "escalate",
+          type: "HTTP_REQUEST",
+          name: "Escalate",
+          position: { x: 1680, y: -60 },
+          data: {
+            variableName: "escalated",
+            endpoint: "REPLACE_WITH_YOUR_ESCALATION_WEBHOOK",
+            method: "POST",
+            body: '{"text":"No movement in two hours on {{webhook.body.id}}"}',
+            headers: { "Content-Type": "application/json" },
+            failOnNon2xx: true,
+            timeoutMs: 15000,
+          },
+        },
+      ],
+      edges: [
+        { source: "raised", target: "record" },
+        { source: "record", target: "grace" },
+        { source: "grace", target: "recheck" },
+        { source: "recheck", target: "judge" },
+        { source: "judge", target: "stalled" },
+        { source: "stalled", target: "escalate", sourceHandle: "true" },
+      ],
+    },
+  },
+  {
+    slug: "meeting-notes-to-action-list",
+    name: "Paste meeting notes, get an action list",
+    description:
+      "Publishes a form, pulls the decisions and owners out of whatever was pasted into it, and renders a one-page action list you can circulate. Extraction is structured rather than a free-text summary, so the output is fields a later step can branch on — an owner, a due date, a priority — instead of a paragraph somebody has to read. Values are escaped before they reach the HTML, because a name with an ampersand should not be able to break the layout. Nothing to connect; add an email or Slack node on the end when you want it delivered.",
+    category: "Ops",
+    domain: "ops",
+    tags: ["meeting", "notes", "actions", "extract", "pdf", "minutes"],
+    graph: {
+      nodes: [
+        {
+          id: "notes",
+          type: "FORM_TRIGGER",
+          name: "Paste the notes",
+          position: { x: 0, y: 0 },
+          data: {
+            title: "Turn meeting notes into actions",
+            description:
+              "Paste the raw notes. You will get back a tidy action list.",
+            submitLabel: "Extract actions",
+            successMessage: "Working on it — your action list is generating.",
+            fields: [
+              {
+                name: "title",
+                label: "Meeting",
+                type: "text",
+                required: true,
+              },
+              {
+                name: "notes",
+                label: "The notes",
+                type: "textarea",
+                required: true,
+                maxLength: 20000,
+              },
+            ],
+          },
+        },
+        {
+          id: "extract",
+          type: "AI_EXTRACT",
+          name: "Pull out the actions",
+          position: { x: 300, y: 0 },
+          data: {
+            variableName: "extracted",
+            model: "openai:gpt-4o-mini",
+            fallbackModels:
+              "anthropic:claude-3-5-haiku,google:gemini-3.6-flash",
+            content: "{{form.fields.notes}}",
+            fields: [
+              {
+                name: "decisions",
+                type: "string",
+                description:
+                  "The decisions actually made, one per line. Empty if none were.",
+              },
+              {
+                name: "actions",
+                type: "string",
+                description:
+                  "Action items as 'Owner — task — due date', one per line. Use 'Unassigned' when no owner was named rather than guessing.",
+              },
+              {
+                name: "risks",
+                type: "string",
+                description:
+                  "Anything flagged as a risk or a blocker, one per line. Empty if none were.",
+              },
+            ],
+          },
+        },
+        {
+          id: "render",
+          type: "CODE",
+          name: "Lay it out",
+          position: { x: 600, y: 0 },
+          data: {
+            code: 'const f = input.form?.fields ?? {};\nconst x = input.extracted ?? {};\n\n// Escaped before it reaches the HTML: a name containing & or < would\n// otherwise break the layout.\nconst esc = (v) =>\n  String(v ?? "")\n    .replace(/&/g, "&amp;")\n    .replace(/</g, "&lt;")\n    .replace(/>/g, "&gt;");\n\nconst list = (value) => {\n  const lines = String(value ?? "")\n    .split("\n")\n    .map((line) => line.trim())\n    .filter(Boolean);\n  return lines.length > 0\n    ? `<ul>${lines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>`\n    : "<p><em>None recorded.</em></p>";\n};\n\nreturn {\n  actionCount: String(x.actions ?? "").split("\n").filter((l) => l.trim()).length,\n  actionHtml: `<html><body style="font-family:sans-serif">\n  <h1>${esc(f.title)}</h1>\n  <h2>Decisions</h2>${list(x.decisions)}\n  <h2>Actions</h2>${list(x.actions)}\n  <h2>Risks</h2>${list(x.risks)}\n</body></html>`,\n};\n',
+          },
+        },
+        {
+          id: "pdf",
+          type: "HTML_TO_PDF",
+          name: "Render the list",
+          position: { x: 900, y: 0 },
+          data: {
+            variableName: "actionList",
+            html: "{{actionHtml}}",
+            filename: "actions.pdf",
+            pageSize: "A4",
+            orientation: "portrait",
+          },
+        },
+      ],
+      edges: [
+        { source: "notes", target: "extract" },
+        { source: "extract", target: "render" },
+        { source: "render", target: "pdf" },
       ],
     },
   },

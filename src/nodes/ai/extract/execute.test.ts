@@ -173,7 +173,7 @@ describe("AI_EXTRACT execute", () => {
   it("routes google credentials to the gemini credential slot", async () => {
     await execute(
       makeParams({
-        data: { model: "google:gemini-1.5-pro" },
+        data: { model: "google:gemini-3.6-flash" },
         credentials: { geminiCredentialId: { apiKey: "AIza-test" } },
       }),
     );
@@ -183,7 +183,7 @@ describe("AI_EXTRACT execute", () => {
       model: { providerId: string; modelId: string };
     };
     expect(callArgs.model.providerId).toBe("google");
-    expect(callArgs.model.modelId).toBe("gemini-1.5-pro");
+    expect(callArgs.model.modelId).toBe("gemini-3.6-flash");
   });
 
   it("routes anthropic credentials to the anthropic credential slot", async () => {
@@ -215,7 +215,9 @@ describe("AI_EXTRACT execute", () => {
     await expect(
       execute(makeParams({ data: { content: undefined } })),
     ).rejects.toThrow(
-      new NonRetriableError("AI Extract node: Source content is missing"),
+      // AF-M10-07 widened the message: an attachment is now an alternative to
+      // text content, so the error names both ways out.
+      /Source content is missing/,
     );
     expect(mockGenerateObject).not.toHaveBeenCalled();
   });

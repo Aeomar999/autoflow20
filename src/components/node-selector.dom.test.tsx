@@ -53,17 +53,38 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
       </Provider>,
     );
 
-    // Verify every offerable node is rendered
+    // The DOM is walked ONCE and the assertions run against a set.
+    //
+    // This used to call getByText twice per palette node, and getByText scans
+    // the whole document each time — quadratic against a palette that M10 is
+    // steadily growing. At ~90 nodes it took 11.6s and began failing under
+    // load in the combined unit+dom run while still passing alone, which is
+    // the worst way for a test to break: intermittently, and for a reason that
+    // has nothing to do with what it checks.
+    const rendered = new Set(
+      Array.from(document.querySelectorAll("*"))
+        .map((element) => element.textContent?.trim())
+        .filter((text): text is string => Boolean(text)),
+    );
+
     for (const node of nodePalette) {
-      expect(screen.getByText(node.label)).toBeTruthy();
-      expect(screen.getByText(node.description)).toBeTruthy();
+      expect(rendered.has(node.label), `no label for ${node.type}`).toBe(true);
+      expect(
+        rendered.has(node.description),
+        `no description for ${node.type}`,
+      ).toBe(true);
     }
 
     // Verify category headers exist
     expect(screen.getByText("Triggers")).toBeTruthy();
     expect(screen.getByText("AI Models")).toBeTruthy();
     expect(screen.getByText("Actions & Integrations")).toBeTruthy();
-  });
+    // The assertions above are linear (one DOM walk), but RENDERING the whole
+    // palette in jsdom is not free and gets slower with every family M10 adds.
+    // vitest's 5s default is meant for unit tests; this one mounts ~100
+    // components on purpose, so it gets a bound suited to what it does rather
+    // than failing intermittently under load.
+  }, 30_000);
 
   it("never offers a deprecated node type (AF-M5-09)", () => {
     // Latent by design since AF-M8-12 retired the last deprecated types: the
@@ -92,17 +113,19 @@ describe("NodeSelector / Node Palette (AF-M1-05)", () => {
 
     const searchInput = screen.getByPlaceholderText(/Search by name/i);
 
-    // Search for "slack"
+    // Search for "slack". AF-M10-17 retired the webhook-only node labelled
+    // exactly "Slack"; the palette now offers the Web API family, so the
+    // search term is the same and the label it must find is the replacement.
     fireEvent.change(searchInput, { target: { value: "slack" } });
 
-    expect(screen.getByText("Slack")).toBeTruthy();
+    expect(screen.getByText("Slack Post Message")).toBeTruthy();
     expect(screen.queryByText("Google Sheets Append")).toBeNull();
     expect(screen.queryByText("HTTP Request")).toBeNull();
 
     // Search for a keyword like "rest" (matches HTTP Request)
     fireEvent.change(searchInput, { target: { value: "rest" } });
     expect(screen.getByText("HTTP Request")).toBeTruthy();
-    expect(screen.queryByText("Slack")).toBeNull();
+    expect(screen.queryByText("Slack Post Message")).toBeNull();
 
     // Search for non-existent term
     fireEvent.change(searchInput, { target: { value: "xyznonexistent" } });

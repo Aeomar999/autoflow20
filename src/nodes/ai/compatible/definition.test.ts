@@ -13,9 +13,17 @@ describe("OPENAI_COMPATIBLE_CHAT definition", () => {
     );
   });
 
-  it("requires the OpenAI-compatible API-key credential", () => {
+  it("accepts an OpenAI-compatible OR an OpenRouter key", () => {
+    // AF-M10-23: OpenRouter is OpenAI-compatible, so it runs through this node
+    // rather than getting one of its own. Requiring users to re-enter the same
+    // key under a second credential type would be paperwork, not a
+    // distinction — hence the `a|b` requirement.
     expect(definition.credentials).toEqual([
-      { key: "credentialId", type: "openaiCompatible.apiKey", required: true },
+      {
+        key: "credentialId",
+        type: "openaiCompatible.apiKey|openrouter.apiKey",
+        required: true,
+      },
     ]);
   });
 

@@ -27,6 +27,7 @@ export const definition: NodeDefinition = {
   description:
     "Create a contact in HubSpot and store the returned contact object.",
   icon: "Contact",
+  logo: "/logos/hubspot.png",
   keywords: ["hubspot", "create", "contact", "crm", "lead"],
   configSchema,
   defaults: {},

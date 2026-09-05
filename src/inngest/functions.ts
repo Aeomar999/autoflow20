@@ -26,6 +26,7 @@ import {
 import { defaultOutputId, inputPorts, outputPorts } from "@/nodes/ports";
 import { getNodeRegistration, nodeRegistry } from "@/nodes/registry";
 import { resolveRunPolicy } from "@/nodes/shared/run-policy";
+import type { StepTools } from "@/nodes/types";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
 import { geminiChannel } from "./channels/gemini";
@@ -54,6 +55,7 @@ import {
   type GraphNodeExecution,
   markTakenEdges,
   OUTPUT_PORT_KEY,
+  SEGMENT_DROP_ITEM_KEY,
   type TraceNode,
   UNMATCHED_OUTPUT_PORT,
   type WebhookResponse,
@@ -148,6 +150,10 @@ function buildNodeInput(
     // everything after the join — the canonical route-then-respond shape.
     // Found by the AF-M9-16 acceptance suite on W1.
     delete merged[OUTPUT_PORT_KEY];
+    // AF-M10-10: same reasoning for the item-drop marker. It is a signal to
+    // the segment loop, not data, and leaving it in an input would make a
+    // downstream node look like it had dropped its own item.
+    delete merged[SEGMENT_DROP_ITEM_KEY];
     return merged;
   };
 
@@ -306,6 +312,157 @@ export const executeWorkflow = inngest.createFunction(
     "workflows/execute.workflow"
   >,
 );
+
+/**
+ * Step tooling for an executor that runs INSIDE the engine's own `step.run`
+ * (AF-M10-34).
+ *
+ * Inngest forbids nested step tooling, and it does not report that by
+ * throwing: the nested promise simply never settles, because the SDK ends the
+ * request expecting the platform to re-invoke. Handing a wrapped executor the
+ * real `step` therefore hangs it until the engine's per-node timeout fires,
+ * which is precisely what happened to every workflow before this existed —
+ * `MANUAL_TRIGGER` never returned, so no run ever reached node 1.
+ *
+ * `run` executes inline: the enclosing engine step is already the durability
+ * boundary for this node, so an inner one buys nothing. `sleep` and
+ * `waitForEvent` are the two that genuinely cannot be faked, so they throw a
+ * message naming the fix rather than silently returning and pretending a
+ * ten-minute wait happened.
+ *
+ * `publish` is queued rather than sent, and flushed by the caller once the
+ * step has returned. The editor's live node status depends on these events, so
+ * dropping them would trade a hang for a dead progress indicator.
+ */
+function inlineStepTools(
+  realPublish: (event: unknown) => Promise<{ ids: string[] }>,
+) {
+  const queued: unknown[] = [];
+
+  const step = {
+    run: async (_name: string, fn: () => unknown) => fn(),
+    sleep: async (name: string) => {
+      throw new NonRetriableError(
+        `A node executor called step.sleep("${name}") while running inside the engine's step. Sleeping durably requires the node's definition to set \`ownsSteps: true\`.`,
+      );
+    },
+    sleepUntil: async (name: string) => {
+      throw new NonRetriableError(
+        `A node executor called step.sleepUntil("${name}") while running inside the engine's step. Set \`ownsSteps: true\` on the node's definition.`,
+      );
+    },
+    waitForEvent: async (name: string) => {
+      throw new NonRetriableError(
+        `A node executor called step.waitForEvent("${name}") while running inside the engine's step. Set \`ownsSteps: true\` on the node's definition.`,
+      );
+    },
+    invoke: async (name: string) => {
+      throw new NonRetriableError(
+        `A node executor called step.invoke("${name}") while running inside the engine's step. Set \`ownsSteps: true\` on the node's definition.`,
+      );
+    },
+    sendEvent: async (_name: string, payload: unknown) => realPublish(payload),
+    // `step.ai.wrap(id, fn, ...args)` is how AI_LLM and AI_EXTRACT call the
+    // model. It is step tooling too, so inside the engine's step it has to be
+    // the plain call. Omitting it is not a safe default: `step.ai` would be
+    // undefined and the node would die on "Cannot read properties of
+    // undefined (reading 'wrap')" — which is exactly what the first repaired
+    // run did, having got past the trigger for the first time.
+    ai: {
+      wrap: async (
+        _id: string,
+        fn: (...args: never[]) => unknown,
+        ...args: never[]
+      ) => fn(...args),
+      infer: async (id: string) => {
+        throw new NonRetriableError(
+          `A node executor called step.ai.infer("${id}") while running inside the engine's step. Set \`ownsSteps: true\` on the node's definition.`,
+        );
+      },
+    },
+  } as unknown as StepTools;
+
+  return {
+    step,
+    publish: async (event: unknown) => {
+      queued.push(event);
+      return { ids: [] as string[] };
+    },
+    /** Send what the executor asked to publish, now that the step has ended. */
+    flush: async () => {
+      for (const event of queued) {
+        try {
+          await realPublish(event);
+        } catch {
+          // A dropped status event must never fail a node that succeeded.
+        }
+      }
+      queued.length = 0;
+    },
+  };
+}
+
+type EnginePublish = (event: unknown) => Promise<{ ids: string[] }>;
+
+/**
+ * Invoke one node executor on the correct side of the step boundary
+ * (AF-M10-34).
+ *
+ * Two tiers, because "durable" and "retryable" pull in opposite directions
+ * here:
+ *
+ * - A node that owns its steps is awaited DIRECTLY. No wrapper, and
+ *   deliberately no timeout race: when such an executor suspends, its promise
+ *   never settles — the SDK ends the request and the platform re-invokes —
+ *   so racing it against a timer would report a hang for behaviour that is
+ *   working exactly as designed. That race is what made every `WAIT` and every
+ *   long poll look like a 60-second failure.
+ * - Everything else runs INSIDE `step.run`, which is what gives it
+ *   memoisation, the per-node timeout and the retry loop. It receives inline
+ *   step tooling, because reaching the real `step` from in there is the
+ *   nesting Inngest forbids.
+ */
+async function runNodeExecutor(opts: {
+  ownsSteps: boolean;
+  stepName: string;
+  nodeName: string;
+  timeoutMs: number;
+  step: StepTools;
+  publish: EnginePublish;
+  call: (tools: {
+    step: StepTools;
+    publish: EnginePublish;
+  }) => Promise<Record<string, unknown>>;
+}): Promise<Record<string, unknown>> {
+  if (opts.ownsSteps) {
+    return opts.call({ step: opts.step, publish: opts.publish });
+  }
+
+  const tools = inlineStepTools(opts.publish);
+  try {
+    return (await opts.step.run(opts.stepName, async () => {
+      const executorPromise = opts.call({
+        step: tools.step,
+        publish: tools.publish,
+      });
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Node "${opts.nodeName}" timed out after ${opts.timeoutMs}ms`,
+              ),
+            ),
+          opts.timeoutMs,
+        );
+      });
+      return Promise.race([executorPromise, timeoutPromise]);
+    })) as Record<string, unknown>;
+  } finally {
+    // Outside the step, so the editor still sees what the node published.
+    await tools.flush();
+  }
+}
 
 /**
  * The `execute-workflow` handler, extracted from `inngest.createFunction` so
@@ -829,39 +986,46 @@ export async function executeWorkflowHandler({
       );
 
       // AF-M2-04: per-node retry loop with timeout.
-      const { maxAttempts, backoffMs } = nodeExec.retry;
+      const { backoffMs } = nodeExec.retry;
+      // AF-M10-34: a node that owns its steps opts out of the retry loop. Both
+      // the retry and the timeout are built on racing the executor's promise,
+      // and re-entering such an executor would replay step names Inngest has
+      // already memoised, handing it the first attempt's answer.
+      const ownsSteps = getNodeRegistration(node.type).ownsSteps === true;
+      const maxAttempts = ownsSteps ? 1 : nodeExec.retry.maxAttempts;
 
       for (let attemptNum = 1; attemptNum <= maxAttempts; attemptNum++) {
         attemptUsed = attemptNum;
         try {
-          result = (await step.run(
-            `segment-node:${node.id}:${suffix}:attempt:${attemptNum}`,
-            async () => {
-              const executorPromise = execute({
+          result = await runNodeExecutor({
+            ownsSteps,
+            stepName: `segment-node:${node.id}:${suffix}:attempt:${attemptNum}`,
+            nodeName: node.name,
+            timeoutMs: nodeExec.timeoutMs,
+            step,
+            publish,
+            call: (tools) =>
+              execute({
                 data: nodeExec.data,
                 nodeId: node.id,
+                workflowId,
+                executionId: execution.id,
                 userId,
                 organizationId,
                 context: nodeInputValue,
                 resolve: resolveTemplate,
-                step,
-                publish,
+                step: tools.step,
+                publish: tools.publish,
                 credentials: credentialsForNode,
-              });
-              const timeoutPromise = new Promise<never>((_, reject) => {
-                setTimeout(
-                  () =>
-                    reject(
-                      new Error(
-                        `Node "${node.name}" timed out after ${nodeExec.timeoutMs}ms`,
-                      ),
-                    ),
-                  nodeExec.timeoutMs,
-                );
-              });
-              return Promise.race([executorPromise, timeoutPromise]);
-            },
-          )) as Record<string, unknown>;
+                // AF-M10-10: the current item as a value, for nodes whose
+                // BEHAVIOUR changes inside a segment rather than whose text
+                // does. `itemScope` is undefined for the SPLIT_OUT and the
+                // AGGREGATE themselves, which is correct — neither is per-item.
+                ...(itemScope && itemIndex !== null
+                  ? { item: { value: itemScope.$item, index: itemIndex } }
+                  : {}),
+              }),
+          });
           break;
         } catch (err) {
           lastError = err;
@@ -987,6 +1151,8 @@ export async function executeWorkflowHandler({
     const count = items.length;
     const succeededOutputs: unknown[] = [];
     const failedIndices: number[] = [];
+    /** Items a FILTER/DEDUPE removed (AF-M10-10) — not failures. */
+    const droppedIndices: number[] = [];
 
     // Sequential per-item execution (ADR-0021 explicitly rules out parallel
     // items). `continueOnFail` on an interior node lets a failing item move on
@@ -996,6 +1162,7 @@ export async function executeWorkflowHandler({
       const item = items[i];
       let itemOutput: unknown = item; // identity when there are no interior nodes
       let itemFailed = false;
+      let itemDropped = false;
 
       for (const interiorId of segment.interiorNodeIds) {
         const interiorNode = requireSegmentNode(interiorId);
@@ -1009,6 +1176,20 @@ export async function executeWorkflowHandler({
             itemIndex: i,
             itemScope: { $item: item, $itemIndex: i },
           });
+
+          // AF-M10-10: FILTER and DEDUPE drop an item by returning
+          // `_dropItem`. The item is neither collected nor recorded as failed
+          // — it was handled correctly and simply should not continue. Its
+          // node rows stay SUCCESS, so the trace shows exactly where it left.
+          if (
+            itemOutput !== null &&
+            typeof itemOutput === "object" &&
+            (itemOutput as Record<string, unknown>)[SEGMENT_DROP_ITEM_KEY] ===
+              true
+          ) {
+            itemDropped = true;
+            break;
+          }
         } catch (error) {
           if (interiorExec.continueOnFail) {
             // Record the item as failed and write a FAILED trace-end for this
@@ -1042,8 +1223,11 @@ export async function executeWorkflowHandler({
         }
       }
 
-      if (!itemFailed) {
+      if (!itemFailed && !itemDropped) {
         succeededOutputs.push(itemOutput);
+      }
+      if (itemDropped) {
+        droppedIndices.push(i);
       }
     }
 
@@ -1055,6 +1239,10 @@ export async function executeWorkflowHandler({
       items: succeededOutputs,
       count,
       failed: failedIndices,
+      // AF-M10-10. Reported separately from `failed` because "filtered out" and
+      // "blew up" are different outcomes, and a template that branches on
+      // `failed.length` must not see a deliberate filter as an error.
+      dropped: droppedIndices,
     };
 
     // Make the aggregate resolvable + reachable downstream exactly like the
@@ -1265,43 +1453,37 @@ export async function executeWorkflowHandler({
       // AF-M2-04: Per-node retry loop with timeout.
       let result: Record<string, unknown> | undefined;
       let lastError: unknown;
-      const { maxAttempts, backoffMs } = nodeExec.retry;
+      const { backoffMs } = nodeExec.retry;
+      // AF-M10-34: see the segment path — a node that owns its steps runs
+      // outside the wrapper and therefore outside the retry loop too.
+      const ownsSteps = getNodeRegistration(node.type).ownsSteps === true;
+      const maxAttempts = ownsSteps ? 1 : nodeExec.retry.maxAttempts;
 
       for (let attemptNum = 1; attemptNum <= maxAttempts; attemptNum++) {
         attemptUsed = attemptNum;
         try {
-          // Wrap executor in step.run with a per-node timeout via
-          // Promise.race. step.run itself has no timeout option.
-          result = (await step.run(
-            `node:${node.id}:attempt:${attemptNum}`,
-            async () => {
-              const executorPromise = execute({
+          result = await runNodeExecutor({
+            ownsSteps,
+            stepName: `node:${node.id}:attempt:${attemptNum}`,
+            nodeName: node.name,
+            timeoutMs: nodeExec.timeoutMs,
+            step,
+            publish,
+            call: (tools) =>
+              execute({
                 data: nodeExec.data,
                 nodeId: node.id,
+                workflowId,
+                executionId: execution.id,
                 userId,
                 organizationId,
                 context: nodeInputValue,
                 resolve: resolveTemplate,
-                step,
-                publish,
+                step: tools.step,
+                publish: tools.publish,
                 credentials: credentialsForNode,
-              });
-
-              const timeoutPromise = new Promise<never>((_, reject) => {
-                setTimeout(
-                  () =>
-                    reject(
-                      new Error(
-                        `Node "${node.name}" timed out after ${nodeExec.timeoutMs}ms`,
-                      ),
-                    ),
-                  nodeExec.timeoutMs,
-                );
-              });
-
-              return Promise.race([executorPromise, timeoutPromise]);
-            },
-          )) as Record<string, unknown>;
+              }),
+          });
           break; // success — exit retry loop
         } catch (err) {
           lastError = err;

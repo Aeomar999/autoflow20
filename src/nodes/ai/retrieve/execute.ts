@@ -1,13 +1,14 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
 import { embedQuery } from "@/features/knowledge/lib/embedder";
-import { searchKnowledgeChunks } from "@/features/knowledge/lib/vector-search";
+import { resolveVectorStore } from "@/features/knowledge/server/vector-store";
 import type { NodeRun } from "@/nodes/types";
 import type { RetrieveKnowledgeData } from "./definition";
 
 export const execute: NodeRun<RetrieveKnowledgeData> = async ({
   data,
   userId,
+  organizationId,
   context,
   resolve,
   step,
@@ -50,9 +51,18 @@ export const execute: NodeRun<RetrieveKnowledgeData> = async ({
         userId,
       });
 
-      const chunks = await searchKnowledgeChunks({
+      // AF-M10-13: absent `store` means the internal pgvector table, so every
+      // node saved before external stores existed behaves identically.
+      const store = resolveVectorStore({
+        store: data.store,
         userId,
-        queryVector,
+        organizationId,
+        namespace: data.namespace ? resolve(data.namespace) : undefined,
+        secret: credentials?.pineconeCredentialId,
+      });
+
+      const found = await store.query({
+        vector: queryVector,
         sourceIds:
           sourceIdsArray && sourceIdsArray.length > 0
             ? sourceIdsArray
@@ -61,13 +71,15 @@ export const execute: NodeRun<RetrieveKnowledgeData> = async ({
         minSimilarity: data.minSimilarity ?? 0.5,
       });
 
-      return chunks;
+      return { matches: found, storeId: store.id };
     },
   );
 
+  const { matches, storeId } = searchResults;
+
   const formattedContext =
-    searchResults.length > 0
-      ? searchResults
+    matches.length > 0
+      ? matches
           .map(
             (c) =>
               `[Source: ${c.sourceName} | Similarity: ${(c.similarity * 100).toFixed(1)}%]
@@ -76,7 +88,7 @@ ${c.content}`,
           .join("\n\n---\n\n")
       : "";
 
-  const citations = searchResults.map((c) => ({
+  const citations = matches.map((c) => ({
     id: c.id,
     sourceId: c.sourceId,
     sourceName: c.sourceName,
@@ -89,9 +101,12 @@ ${c.content}`,
     [data.variableName]: {
       query: resolvedQuery,
       context: formattedContext,
-      chunks: searchResults,
+      chunks: matches,
       citations,
-      count: searchResults.length,
+      count: matches.length,
+      // Which store answered. A run that quietly searched the wrong index
+      // returns plausible-looking context, so this is worth recording.
+      store: storeId,
     },
   };
 };

@@ -90,7 +90,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     label: "Google Gemini",
     credentialType: "gemini.apiKey",
     requiresKey: true,
-    defaultModel: "gemini-1.5-flash",
+    defaultModel: "gemini-3.6-flash",
   },
   {
     id: "groq",
@@ -98,7 +98,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     credentialType: "groq.apiKey",
     requiresKey: true,
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
   },
   {
     id: "deepseek",
@@ -157,37 +157,72 @@ export const aiModelDefs: AiModelDef[] = [
     outputCostPer1M: 15,
   },
   // Google
+  //
+  // The 1.5 line was removed 2026-09-05: Google no longer serves it, and a
+  // request for it comes back "models/gemini-1.5-flash is not found for API
+  // version v1beta" — which reached a user as a failed run, not as a
+  // deprecation notice. Ids here are the stable ones the Generative Language
+  // ListModels endpoint reports as supporting generateContent.
+  // 2.5 went the same way as 1.5 while this was being written: listed by
+  // ListModels, but refused with "no longer available to new users. Please
+  // update your code to use models/gemini-3.6-flash". The ids below were each
+  // confirmed with a live one-token generation rather than read off a page.
   {
     provider: "google",
-    model: "gemini-1.5-flash",
+    model: "gemini-3.6-flash",
     adapter: "google",
     contextWindow: 1_048_576,
     capabilities: ["chat", "json", "vision", "audio", "toolUse"],
-    inputCostPer1M: 0.075,
-    outputCostPer1M: 0.3,
+    inputCostPer1M: 0.3,
+    outputCostPer1M: 2.5,
   },
   {
     provider: "google",
-    model: "gemini-1.5-pro",
+    model: "gemini-3.8-flash",
     adapter: "google",
-    contextWindow: 2_097_152,
+    contextWindow: 1_048_576,
+    capabilities: ["chat", "json", "vision", "audio", "toolUse"],
+    inputCostPer1M: 0.3,
+    outputCostPer1M: 2.5,
+  },
+  {
+    // Alias Google keeps pointed at the current flash. Useful as a fallback
+    // precisely because it does not rot the way a pinned id does.
+    provider: "google",
+    model: "gemini-flash-latest",
+    adapter: "google",
+    contextWindow: 1_048_576,
+    capabilities: ["chat", "json", "vision", "audio", "toolUse"],
+    inputCostPer1M: 0.3,
+    outputCostPer1M: 2.5,
+  },
+  {
+    // The pro tier needs billing enabled; a free-tier key gets a quota refusal
+    // rather than a missing-model error, which is a different fix.
+    provider: "google",
+    model: "gemini-pro-latest",
+    adapter: "google",
+    contextWindow: 1_048_576,
     capabilities: ["chat", "json", "vision", "audio", "toolUse"],
     inputCostPer1M: 1.25,
-    outputCostPer1M: 5,
+    outputCostPer1M: 10,
   },
   // Groq (OpenAI-compatible)
+  //
+  // Retired alongside the Gemini 1.5 line: Groq answers "The model
+  // `llama-3.3-70b-versatile` does not exist or you do not have access to it".
   {
     provider: "groq",
-    model: "llama-3.3-70b-versatile",
+    model: "openai/gpt-oss-120b",
     adapter: "openai",
     contextWindow: 131_072,
     capabilities: ["chat", "json", "toolUse"],
-    inputCostPer1M: 0.59,
-    outputCostPer1M: 0.79,
+    inputCostPer1M: 0.15,
+    outputCostPer1M: 0.75,
   },
   {
     provider: "groq",
-    model: "llama-3.1-8b-instant",
+    model: "openai/gpt-oss-20b",
     adapter: "openai",
     contextWindow: 131_072,
     capabilities: ["chat", "json", "toolUse"],
@@ -401,4 +436,169 @@ export function estimateRunCostUsd(modelId: string, usage: AiRunUsage): number {
     (Math.max(0, usage.inputTokens) / 1_000_000) * def.inputCostPer1M +
     (Math.max(0, usage.outputTokens) / 1_000_000) * def.outputCostPer1M;
   return roundUsd(usd);
+}
+
+/** Splits "provider:model" into its legs; a bare token is just a provider. */
+export function splitModelId(raw: string | undefined): {
+  provider: string;
+  modelHint: string | undefined;
+} {
+  if (!raw || raw.length === 0) {
+    return { provider: "", modelHint: undefined };
+  }
+  const colon = raw.indexOf(":");
+  if (colon === -1) {
+    return { provider: raw.trim(), modelHint: undefined };
+  }
+  return {
+    provider: raw.slice(0, colon).trim(),
+    modelHint: raw.slice(colon + 1).trim() || undefined,
+  };
+}
+
+/**
+ * The model a `provider:model` candidate names, or undefined when it names
+ * nothing registered (AF-M10-07).
+ *
+ * Lives here rather than in `fallback.ts` because the save-time validator runs
+ * on the client too, and `fallback.ts` is server-only — it builds language
+ * models and reads credentials. Answering "can this model see?" needs neither.
+ */
+export function findModelForCandidate(
+  candidate: string,
+): AiModelDef | undefined {
+  const { provider, modelHint } = splitModelId(candidate);
+  const providerDef = aiProviderById.get(provider as AiProviderId);
+  if (!providerDef) {
+    return undefined;
+  }
+  try {
+    return resolveAiModel(providerDef.id, modelHint);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Rough input-token cost of an attachment (AF-M10-07).
+ *
+ * Lives beside the rest of the cost math, and in a client-safe module, because
+ * the canvas estimator needs it and cannot import the server-only attachment
+ * resolver.
+ *
+ * Providers price images by tile count, which depends on dimensions this code
+ * does not decode. Bytes are the one signal available before the call, and the
+ * ratio below is calibrated against OpenAI's published high-detail tiling for
+ * typical photographic PNG/JPEG. It is an estimate; the RECORDED cost still
+ * comes from the provider's own usage numbers.
+ */
+export const ATTACHMENT_TOKENS_PER_KB = 12;
+
+export function estimateAttachmentTokens(totalBytes: number): number {
+  if (totalBytes <= 0) return 0;
+  return Math.ceil((totalBytes / 1024) * ATTACHMENT_TOKENS_PER_KB);
+}
+
+// ---------------------------------------------------------------------------
+// Media generation pricing (AF-M10-23)
+// ---------------------------------------------------------------------------
+
+/**
+ * Image and video generation is priced **per unit**, not per token, so it
+ * cannot live in `AiModelDef` — `inputCostPer1M` has no meaning for a model
+ * that charges 4 cents an image.
+ *
+ * It belongs in this file all the same: the cost pipeline
+ * (`__usage.costUsd` → `NodeExecution.costUsd`) is the same one, the editor's
+ * estimator reads from here, and a workflow that renders a video and then
+ * summarises it should show one bill rather than two systems' worth.
+ */
+export const MEDIA_UNITS = ["image", "second"] as const;
+export type MediaUnit = (typeof MEDIA_UNITS)[number];
+
+export interface AiMediaModelDef {
+  /** `provider:model`, matching the AI registry's key shape. */
+  id: string;
+  label: string;
+  kind: "image" | "video";
+  /** What one unit of `costPerUnitUsd` buys. */
+  unit: MediaUnit;
+  /** USD per unit. 0 for genuinely free endpoints. */
+  costPerUnitUsd: number;
+  /** Credential registry type, absent for keyless providers. */
+  credentialType?: string;
+}
+
+/**
+ * Published list prices at the time of writing. They drift, and that is
+ * expected: this is a cost ESTIMATE surfaced in the trace and the editor, not
+ * a billing record. A provider that returns its own cost should be preferred
+ * over this — none of these four do.
+ */
+export const aiMediaModels: AiMediaModelDef[] = [
+  {
+    id: "openai:gpt-image-1",
+    label: "OpenAI gpt-image-1",
+    kind: "image",
+    unit: "image",
+    // 1024×1024, standard quality. Higher quality and larger sizes cost more;
+    // the node passes the size through so this is the floor, not the ceiling.
+    costPerUnitUsd: 0.04,
+    credentialType: "openai.apiKey",
+  },
+  {
+    id: "openai:dall-e-3",
+    label: "OpenAI DALL·E 3",
+    kind: "image",
+    unit: "image",
+    costPerUnitUsd: 0.04,
+    credentialType: "openai.apiKey",
+  },
+  {
+    id: "pollinations:flux",
+    label: "Pollinations (Flux)",
+    kind: "image",
+    unit: "image",
+    // Genuinely free and keyless, which is why it is the one media node a
+    // credential-free template can use.
+    costPerUnitUsd: 0,
+  },
+  {
+    id: "google:veo-3",
+    label: "Google Veo 3",
+    kind: "video",
+    unit: "second",
+    costPerUnitUsd: 0.5,
+    credentialType: "google.oauth2",
+  },
+  {
+    id: "creatomate:render",
+    label: "Creatomate render",
+    kind: "video",
+    unit: "second",
+    // Creatomate meters credits rather than seconds; this is the approximate
+    // conversion at its published rate, and the node records the render's own
+    // reported duration so the estimate tracks reality.
+    costPerUnitUsd: 0.01,
+    credentialType: "creatomate.apiKey",
+  },
+];
+
+const mediaModelsById = new Map(aiMediaModels.map((def) => [def.id, def]));
+
+export function findMediaModel(id: string): AiMediaModelDef | undefined {
+  return mediaModelsById.get(id);
+}
+
+/**
+ * Cost of a generation, for the same `__usage.costUsd` the AI nodes report.
+ *
+ * An unknown model costs 0 rather than throwing: a media node whose pricing
+ * has not been added yet should still run and still record its output. A
+ * missing price is a reporting gap; refusing the run would be a worse one.
+ */
+export function estimateMediaCostUsd(id: string, units: number): number {
+  const def = mediaModelsById.get(id);
+  if (!def) return 0;
+  return roundUsd(def.costPerUnitUsd * Math.max(0, units));
 }

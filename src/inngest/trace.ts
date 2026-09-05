@@ -93,6 +93,24 @@ export const OUTPUT_PORT_KEY = "_outputPort" as const;
 export const UNMATCHED_OUTPUT_PORT = "__switch_unmatched__" as const;
 
 /**
+ * Convention for dropping the current item inside a fan-out segment
+ * (AF-M10-10).
+ *
+ * An interior node that returns this key tells the segment loop: stop the
+ * chain for THIS item and do not collect its output. `FILTER` uses it when an
+ * item does not match, `DEDUPE` when it has been seen before.
+ *
+ * It is deliberately not an error and deliberately not `continueOnFail`: the
+ * item was handled correctly and simply should not continue, so it belongs in
+ * neither the `failed` list nor the collected `items`. A fully-filtered
+ * segment produces `{ items: [], count: N, failed: [] }` and the run ends
+ * `SUCCESS` — filtering everything out is an answer, not a failure.
+ *
+ * Outside a segment the key is inert; a top-level `FILTER` filters an array.
+ */
+export const SEGMENT_DROP_ITEM_KEY = "_dropItem" as const;
+
+/**
  * Convention for token & cost capture across nodes (AF-M5-05).
  * Nodes performing AI calls or metering attach this to the returned context.
  */

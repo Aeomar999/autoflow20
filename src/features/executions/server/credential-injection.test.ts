@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { acceptedCredentialTypes } from "@/features/credentials/credential-match";
 import { credentialDefsById } from "@/features/credentials/credential-types";
 import { nodeManifest } from "@/nodes/manifest";
 import { nodeRegistry as registry } from "@/nodes/registry";
@@ -31,8 +32,20 @@ describe("AF-M3-04: node credential requirements", () => {
     // A requirement naming a type the credential registry has never heard of
     // cannot be resolved at run time and cannot be filtered in the config
     // form - the user is offered nothing and the node fails with no clue why.
+    //
+    // AF-M10-01 gave `type` a small grammar: `"*"` accepts any registered type
+    // and `"a|b"` accepts either (how a deprecated credential type keeps
+    // working through its overlap). Each alternative still has to exist, so
+    // the check resolves the requirement first rather than matching the raw
+    // string against the registry.
     const unknown = declared
-      .filter(({ requirement }) => !credentialDefsById.has(requirement.type))
+      .filter(({ requirement }) => {
+        const accepted = acceptedCredentialTypes(requirement.type);
+        return (
+          accepted !== "any" &&
+          !accepted.every((type) => credentialDefsById.has(type))
+        );
+      })
       .map(({ nodeType, requirement }) => `${nodeType}.${requirement.key}`);
 
     expect(

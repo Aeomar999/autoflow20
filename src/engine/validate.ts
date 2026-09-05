@@ -3,6 +3,8 @@ import {
   EXPRESSION_HELPERS,
   getTemplateRoots,
 } from "@/features/executions/template";
+import { findModelForCandidate } from "@/lib/ai/registry";
+import { MAX_WAIT_SECONDS } from "@/nodes/core/wait/definition";
 import { outputPorts } from "@/nodes/ports";
 import { RUN_POLICY_KEY, runPolicySchema } from "@/nodes/shared/run-policy";
 
@@ -119,6 +121,8 @@ export function validate(
   checkDisconnected(nodes, connections, errors);
   checkSegments(nodes, connections, errors);
   checkRespondNodes(nodes, connections, errors);
+  checkWaitBounds(nodes, errors);
+  checkVisionCapability(nodes, errors);
 
   // --- Registry-dependent checks (server only) ---
 
@@ -272,6 +276,95 @@ function checkTriggers(nodes: GraphNode[], errors: ValidationError[]): void {
       severity: "warning",
       message: `Workflow's only trigger "${triggers[0].name}" is disabled. No events will start this workflow until it is enabled.`,
     });
+  }
+}
+
+/**
+ * A `WAIT` may not exceed the platform's maximum (AF-M10-08).
+ *
+ * Enforced at SAVE time, as an error, because the alternative is finding out
+ * mid-run: a workflow that fails three days into a six-day wait has already
+ * burned three days, and the author is not watching. The `until` mode cannot
+ * be checked here — its target is computed at run time — so the executor
+ * carries the same ceiling and fails before sleeping.
+ */
+function checkWaitBounds(nodes: GraphNode[], errors: ValidationError[]): void {
+  for (const node of nodes) {
+    if (node.type !== "WAIT") continue;
+
+    const data = (node.data ?? {}) as {
+      mode?: unknown;
+      seconds?: unknown;
+    };
+    const mode = data.mode === "until" ? "until" : "duration";
+    if (mode !== "duration") continue;
+
+    const seconds = typeof data.seconds === "number" ? data.seconds : undefined;
+    if (seconds === undefined) continue;
+
+    if (seconds > MAX_WAIT_SECONDS) {
+      errors.push({
+        nodeId: node.id,
+        severity: "error",
+        message: `Wait "${node.name}" is set to ${Math.round(seconds / 86_400)} days, beyond the ${MAX_WAIT_SECONDS / 86_400}-day maximum. Shorten the wait, or split the workflow.`,
+      });
+    }
+  }
+}
+
+/**
+ * A node with attachments must use models that can see (AF-M10-07).
+ *
+ * At SAVE time, as an error, because the run-time alternative is a model that
+ * silently ignores the image and answers anyway — a confident summary of an
+ * invoice it never saw. That failure has no symptom until someone checks the
+ * numbers.
+ *
+ * Every model in the chain is checked, not just the primary: a fallback that
+ * cannot see would produce exactly that answer on the day the primary is down.
+ */
+function checkVisionCapability(
+  nodes: GraphNode[],
+  errors: ValidationError[],
+): void {
+  for (const node of nodes) {
+    if (node.type !== "AI_LLM" && node.type !== "AI_EXTRACT") continue;
+
+    const data = (node.data ?? {}) as {
+      attachments?: unknown;
+      model?: unknown;
+      fallbackModels?: unknown;
+    };
+    if (
+      typeof data.attachments !== "string" ||
+      data.attachments.trim().length === 0
+    ) {
+      continue;
+    }
+
+    const candidates = [
+      typeof data.model === "string" ? data.model : "",
+      ...(typeof data.fallbackModels === "string"
+        ? data.fallbackModels.split(/[,;\n]+/)
+        : []),
+    ]
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+    for (const candidate of candidates) {
+      const model = findModelForCandidate(candidate);
+      // An unresolvable model is `checkConfigs`' problem to report; naming it
+      // twice, differently, helps nobody.
+      if (!model) continue;
+
+      if (!model.capabilities.includes("vision")) {
+        errors.push({
+          nodeId: node.id,
+          severity: "error",
+          message: `"${node.name}" has an attachment, but model "${candidate}" does not support the "vision" capability and cannot read it. Choose a vision-capable model, or remove the attachment.`,
+        });
+      }
+    }
   }
 }
 
@@ -762,6 +855,12 @@ const ALWAYS_PRESENT_ROOTS: readonly string[] = [
  * Schedule, Google-Form and Stripe seed `schedule` / `googleForm` / `stripe`
  * respectively, matching what `cron.ts` and the google-form/stripe webhooks
  * place into context.
+ *
+ * AF-M10-14: `FORM_TRIGGER` seeds `form`, holding `{ nodeId, title,
+ * submittedAt, fields, files }` — deliberately nested under one root for the
+ * same reason `webhook` is, so a field named `title` cannot shadow the form's
+ * own metadata. AF-M10-05: a polling trigger seeds `trigger` alongside the
+ * item's own payload, which is spread flat because the shape is the provider's.
  */
 const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   WEBHOOK_TRIGGER: ["webhook"],
@@ -770,6 +869,22 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   SCHEDULE_TRIGGER: ["schedule"],
   GOOGLE_FORM_TRIGGER: ["googleForm"],
   STRIPE_TRIGGER: ["stripe"],
+  FORM_TRIGGER: ["form"],
+  /**
+   * Polling triggers (AF-M10-05) seed `trigger` — which the sweep always adds,
+   * carrying `nodeId`/`itemId`/`polledAt` — plus whatever the poller's item
+   * data spreads flat. The spread is per-connector, so each polling trigger
+   * names its own roots here rather than the sweep guessing them.
+   */
+  SHEETS_TRIGGER: ["trigger", "row", "sheet"],
+  GMAIL_TRIGGER: ["trigger", "message"],
+  DRIVE_TRIGGER: ["trigger", "file"],
+  CALENDAR_TRIGGER: ["trigger", "event"],
+  QBO_WEBHOOK_TRIGGER: ["trigger", "qbo"],
+  GITHUB_TRIGGER: ["github"],
+  AIRTABLE_TRIGGER: ["record", "table"],
+  TELEGRAM_TRIGGER: ["telegram"],
+  WAHA_TRIGGER: ["whatsapp"],
 };
 
 /** True when value is a template string (contains a Handlebars expression). */
@@ -835,18 +950,204 @@ function spreadPayloadRoots(node: GraphNode): string[] {
 }
 
 /**
+ * Top-level context keys a `CODE` node contributes (AF-M10-17).
+ *
+ * The executor spreads a returned object flat onto the context and stores a
+ * returned array as `items`. Neither is declared anywhere — the keys are
+ * whatever the JavaScript returns — so without this a completely ordinary
+ * graph (`CODE` returning `{ valid, errors }`, a `CONDITION` reading
+ * `{{valid}}`) was reported as referencing an unknown root. That is a false
+ * positive on a pattern the automation library uses repeatedly, and false
+ * positives are how a validator gets ignored.
+ *
+ * A literal `return { ... }` is statically readable, which is what an authored
+ * template writes. `items` is always added because the array branch needs no
+ * analysis. When the body returns something this cannot read — `return rows`,
+ * a conditional return — `null` is returned to say "unknowable", and the
+ * caller stops root-checking rather than inventing warnings it cannot stand
+ * behind.
+ */
+function codeReturnRoots(node: GraphNode): string[] | null {
+  if (node.type !== "CODE") return [];
+  const code = node.data?.code;
+  if (typeof code !== "string" || code.trim() === "") return [];
+
+  const roots = new Set<string>(["items"]);
+  let sawObjectReturn = false;
+
+  // One string- and comment-aware pass over the source. Blanking strings first
+  // would be simpler, but it erases QUOTED KEYS: `{ "delta": 4 }` becomes
+  // `{ "": 4 }`, the root goes unrecorded, and every reference to it is then
+  // reported as a typo — the exact false positive this function exists to
+  // prevent.
+  let i = 0;
+  while (i < code.length) {
+    const ch = code[i];
+
+    if (ch === "/" && code[i + 1] === "/") {
+      while (i < code.length && code[i] !== "\n") i += 1;
+      continue;
+    }
+    if (ch === "/" && code[i + 1] === "*") {
+      i += 2;
+      while (i < code.length && !(code[i] === "*" && code[i + 1] === "/")) {
+        i += 1;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      i = skipString(code, i);
+      continue;
+    }
+
+    if (
+      code.startsWith("return", i) &&
+      !/[\w$]/.test(code[i - 1] ?? "") &&
+      !/[\w$]/.test(code[i + 6] ?? "")
+    ) {
+      let j = i + 6;
+      while (j < code.length && /\s/.test(code[j])) j += 1;
+
+      // An array return is stored under `items`, already allowed above.
+      if (code[j] === "[") {
+        i = j + 1;
+        continue;
+      }
+      // `return someVariable`, `return cond ? a : b` — unknowable.
+      if (code[j] !== "{") return null;
+
+      const entries = topLevelEntries(code, j);
+      if (entries === null) return null;
+      for (const entry of entries) {
+        const name = leadingKey(entry);
+        if (name) roots.add(name);
+      }
+      sawObjectReturn = true;
+      i = j + 1;
+      continue;
+    }
+
+    i += 1;
+  }
+
+  // No return at all: the node contributes nothing, which is not the same as
+  // "unknowable".
+  return sawObjectReturn ? [...roots] : [];
+}
+
+/** Index just past the string literal starting at `start`. */
+function skipString(code: string, start: number): number {
+  const quote = code[start];
+  let i = start + 1;
+  while (i < code.length && code[i] !== quote) {
+    if (code[i] === "\\") i += 1;
+    i += 1;
+  }
+  return i + 1;
+}
+
+/**
+ * Split an object literal's top-level entries, starting at its `{`.
+ *
+ * Depth and string state are tracked together so a comma inside a nested
+ * object, an array, a call, or a string does not split an entry. Returns null
+ * if the literal never closes, which means this is not something to reason
+ * about statically.
+ */
+function topLevelEntries(code: string, open: number): string[] | null {
+  const entries: string[] = [];
+  let entry = "";
+  let depth = 0;
+  let i = open;
+
+  while (i < code.length) {
+    const ch = code[i];
+
+    // Comments inside the literal are dropped, not accumulated. A commented
+    // line between two properties is ordinary in authored code, and treating
+    // it as part of the following entry hides that entry's key — which then
+    // reads as an unknown root at every reference to it.
+    if (ch === "/" && code[i + 1] === "/") {
+      while (i < code.length && code[i] !== "\n") i += 1;
+      continue;
+    }
+    if (ch === "/" && code[i + 1] === "*") {
+      i += 2;
+      while (i < code.length && !(code[i] === "*" && code[i + 1] === "/")) {
+        i += 1;
+      }
+      i += 2;
+      continue;
+    }
+
+    if (ch === '"' || ch === "'" || ch === "`") {
+      const end = skipString(code, i);
+      entry += code.slice(i, end);
+      i = end;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[" || ch === "(") {
+      depth += 1;
+      if (depth > 1) entry += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "}" || ch === "]" || ch === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        entries.push(entry);
+        return entries;
+      }
+      entry += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "," && depth === 1) {
+      entries.push(entry);
+      entry = "";
+      i += 1;
+      continue;
+    }
+
+    entry += ch;
+    i += 1;
+  }
+
+  return null;
+}
+
+/** The key an object-literal entry declares: `key:`, `"key":`, or shorthand. */
+function leadingKey(entry: string): string | undefined {
+  const match = entry
+    .trim()
+    .match(
+      /^(?:"([A-Za-z_$][\w$]*)"|'([A-Za-z_$][\w$]*)'|([A-Za-z_$][\w$]*))\s*(?::|$)/,
+    );
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+/**
  * The set of top-level roots the graph, as a whole, can place in the template
  * context: always-present meta keys, every data node's `variableName`, every
  * SET node mapping key (first dot segment), and the trigger's seeded keys.
  * Forward references are permitted only when some node actually produces that
  * root — a reference to a root nobody produces is the porting bug we catch.
  */
-function computeValidRoots(nodes: GraphNode[]): Set<string> {
+function computeValidRoots(nodes: GraphNode[]): Set<string> | null {
   const valid = new Set<string>([
     ...ALWAYS_PRESENT_ROOTS,
     ...EXPRESSION_HELPERS,
   ]);
   for (const node of nodes) {
+    const codeRoots = codeReturnRoots(node);
+    // One unreadable CODE body makes the whole set unknowable: any root it
+    // produces would otherwise be reported as a typo.
+    if (codeRoots === null) return null;
+    for (const root of codeRoots) valid.add(root);
     const triggerRoots = TRIGGER_CONTEXT_ROOTS[node.type];
     if (triggerRoots) {
       for (const root of triggerRoots) valid.add(root);
@@ -856,6 +1157,19 @@ function computeValidRoots(nodes: GraphNode[]): Set<string> {
       valid.add(data.variableName);
     }
     for (const root of spreadPayloadRoots(node)) valid.add(root);
+    // AF-M10-34: a closed fan-out segment replaces the rolling context with
+    // its collected result — `context = aggregateResult` in the engine — so
+    // everything after an AGGREGATE really can read `items`, `count` and
+    // `failed`. The node carries no `variableName` (its config schema is
+    // empty), so nothing above adds them, and the validator was reporting a
+    // correct template as referencing an unknown root. It was hidden until
+    // now because the one template that does this had malformed braces, so
+    // the reference never parsed far enough to be checked.
+    if (node.type === AGGREGATE_TYPE) {
+      valid.add("items");
+      valid.add("count");
+      valid.add("failed");
+    }
     if (node.type === "SET") {
       const mappings = data.mappings;
       if (Array.isArray(mappings)) {
@@ -881,6 +1195,10 @@ function checkTemplateRoots(
 ): void {
   if (nodes.length === 0) return;
   const valid = computeValidRoots(nodes);
+  // A CODE node whose return this cannot read makes every root unknowable
+  // (AF-M10-17). Warning about roots we cannot enumerate would flag correct
+  // graphs, and a validator that cries wolf gets switched off.
+  if (valid === null) return;
 
   for (const node of nodes) {
     // AF-M9-04 parity: a disabled node never executes, so a half-written

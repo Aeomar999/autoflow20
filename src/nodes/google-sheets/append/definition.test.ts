@@ -13,9 +13,16 @@ describe("GOOGLE_SHEETS_APPEND definition", () => {
     );
   });
 
-  it("requires the Google OAuth2 credential", () => {
+  it("requires a Google credential, scoped or legacy (AF-M10-03)", () => {
+    // The scoped type is what a new binding gets; `google.oauth2` stays
+    // accepted so nodes saved before the split keep resolving their existing
+    // credential instead of failing at the next run (ADR-0011 / ADR-0023).
     expect(definition.credentials).toEqual([
-      { key: "credentialId", type: "google.oauth2", required: true },
+      {
+        key: "credentialId",
+        type: "google.sheets|google.oauth2",
+        required: true,
+      },
     ]);
   });
 

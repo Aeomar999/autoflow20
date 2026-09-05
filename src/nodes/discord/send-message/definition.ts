@@ -21,6 +21,7 @@ export const definition: NodeDefinition = {
   description:
     "Post a message to a Discord channel via webhook. Content supports templates.",
   icon: "MessageSquare",
+  logo: "/logos/discord.svg",
   keywords: ["discord", "message", "webhook", "chat", "notify"],
   configSchema,
   defaults: {},

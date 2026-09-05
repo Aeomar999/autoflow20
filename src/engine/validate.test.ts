@@ -744,6 +744,114 @@ describe("validate — template root inference", () => {
     expect(warnings).toHaveLength(0);
   });
 
+  // AF-M10-18: a CODE node spreads its RETURN VALUE onto the context, so its
+  // roots are declared nowhere. Without inference, an ordinary graph — CODE
+  // returning { valid, errors }, a CONDITION reading {{valid}} — was reported
+  // as referencing an unknown root, and a validator that cries wolf on correct
+  // graphs gets switched off.
+  it("infers every key of a CODE node's literal return, not just the first", () => {
+    // The bug this guards: matching keys with one regex consumed the comma
+    // that delimits the next key, so `{ a, b, c }` yielded only `a` and every
+    // later field was reported as unknown.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "CODE", "Shape", {
+          code: 'const ok = true; return { alpha: 1, beta: 2, gamma: ok, "delta": 4 };',
+        }),
+        makeNode("n2", "HTTP_REQUEST", "Use them", {
+          endpoint:
+            "https://example.com/{{alpha}}/{{beta}}/{{gamma}}/{{delta}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("looks past a comment sitting between two properties", () => {
+    // Ordinary in authored code, and the reason a catalogue template failed:
+    // a comment accumulated into the following entry hid its key.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "CODE", "Shape", {
+          code: "return { first: 1, /* why */ second: 2, third: 3 };",
+        }),
+        makeNode("n2", "HTTP_REQUEST", "Use it", {
+          endpoint: "https://example.com/{{second}}/{{third}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("infers shorthand keys in a CODE return", () => {
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "CODE", "Shape", {
+          code: "const branch = 'x'; const isFeature = true; return { branch, isFeature };",
+        }),
+        makeNode("n2", "HTTP_REQUEST", "Use it", {
+          endpoint: "https://example.com/{{isFeature}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("stops checking roots when a CODE return cannot be read statically", () => {
+    // `return someVariable` is unknowable. Guessing would flag correct graphs,
+    // so the whole check stands down rather than inventing warnings.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "CODE", "Shape", {
+          code: "const out = { a: 1 }; return out;",
+        }),
+        makeNode("n2", "HTTP_REQUEST", "Use it", {
+          endpoint: "https://example.com/{{anythingAtAll}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("still catches a genuine typo in a graph with no CODE node", () => {
+    // The check must not become a no-op: without a CODE node it works as it
+    // always did.
+    const graph: Graph = {
+      nodes: [
+        makeNode("t1", "MANUAL_TRIGGER", "Start"),
+        makeNode("n1", "HTTP_REQUEST", "Fetch", { variableName: "res" }),
+        makeNode("n2", "HTTP_REQUEST", "Report", {
+          endpoint: "https://example.com/{{reponse.data}}",
+        }),
+      ],
+      connections: [makeEdge("t1", "n1"), makeEdge("n1", "n2")],
+    };
+    const warnings = warningsOf(validate(graph)).filter((e) =>
+      e.message.includes("unknown root"),
+    );
+    expect(warnings.length).toBeGreaterThan(0);
+  });
+
   it("does not warn on a data root produced by a node's variableName", () => {
     const graph: Graph = {
       nodes: [

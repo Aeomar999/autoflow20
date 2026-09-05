@@ -2,6 +2,10 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { Client as PgClient } from "pg";
 import {
+  assertSafeEndpoint,
+  safeFetch,
+} from "@/features/executions/components/http-request/egress-guard";
+import {
   CREDENTIAL_KINDS,
   CREDENTIAL_TYPE_DEFINITIONS,
   type CredentialKind,
@@ -220,6 +224,59 @@ async function checkAuth(
   }
 }
 
+/**
+ * A connection test against a host the *user* supplied — a self-hosted WAHA
+ * instance, a Shopify shop domain, a Jira site (AF-M10-02).
+ *
+ * `checkAuth` calls `fetch` directly, which is fine for a fixed provider host
+ * baked into this file. It is not fine for a URL out of a credential: that URL
+ * is attacker-controllable input reaching a server-side fetch, and
+ * `http://169.254.169.254/...` in a "Base URL" field would make the
+ * connection-test button an SSRF probe. Everything user-supplied goes through
+ * the same egress guard the HTTP node uses — blocklist, DNS pinning, redirect
+ * re-vetting (ADR-0015, ADR-0017).
+ */
+async function checkGuardedAuth(
+  rawUrl: string,
+  headers: Record<string, string>,
+): Promise<CredentialTestResult> {
+  let url: URL;
+  try {
+    url = await assertSafeEndpoint(rawUrl);
+  } catch {
+    // A blocked or unparseable host is a connection problem from the user's
+    // point of view; the specific reason is deliberately not echoed back, so
+    // the test cannot be used to map the internal network.
+    return { ok: false, error: "CONNECTION" };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await safeFetch(url, {
+      headers,
+      signal: controller.signal,
+    });
+    if (response.ok) {
+      return { ok: true };
+    }
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, error: "AUTH" };
+    }
+    return { ok: false, error: "CONNECTION" };
+  } catch {
+    if (controller.signal.aborted) {
+      return { ok: false, error: "TIMEOUT" };
+    }
+    return { ok: false, error: "CONNECTION" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Strip a trailing slash so `${base}/api/x` never becomes `//api/x`. */
+const trimBase = (value: string): string => value.replace(/\/+$/, "");
+
 export const credentialTesters: Record<string, CredentialTester> = {
   "openai.apiKey": async (secret) => {
     const key = secret.apiKey;
@@ -290,6 +347,140 @@ export const credentialTesters: Record<string, CredentialTester> = {
     }
     return checkAuth("https://api.deepseek.com/models", {
       Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  // --- AF-M10-02: the automation library's services -------------------------
+  "apify.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.apify.com/v2/users/me", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "stripe.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    // The cheapest authenticated read Stripe offers: it returns the account
+    // the key belongs to and costs nothing.
+    return checkAuth("https://api.stripe.com/v1/balance", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "apollo.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.apollo.io/v1/auth/health", {
+      "X-Api-Key": key,
+      Accept: "application/json",
+    });
+  },
+  "mailerlite.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://connect.mailerlite.com/api/subscribers?limit=1", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "pinecone.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.pinecone.io/indexes", {
+      "Api-Key": key,
+      "X-Pinecone-API-Version": "2025-01",
+      Accept: "application/json",
+    });
+  },
+  "openrouter.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://openrouter.ai/api/v1/key", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "creatomate.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.creatomate.com/v1/renders?limit=1", {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "telegram.botToken": async (secret) => {
+    const token = secret.botToken;
+    if (!token) {
+      return { ok: false, error: "AUTH" };
+    }
+    // Telegram puts the token in the path, not a header — that is the API's
+    // shape, not a shortcut. `getMe` is the cheapest call it offers.
+    return checkAuth(
+      `https://api.telegram.org/bot${encodeURIComponent(token)}/getMe`,
+      { Accept: "application/json" },
+    );
+  },
+  "uploadPost.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkAuth("https://api.upload-post.com/api/uploadposts/users", {
+      Authorization: `ApiKey ${key}`,
+      Accept: "application/json",
+    });
+  },
+  "waha.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    const baseUrl = secret.baseUrl;
+    if (!key || !baseUrl) {
+      return { ok: false, error: "AUTH" };
+    }
+    return checkGuardedAuth(`${trimBase(baseUrl)}/api/sessions`, {
+      "X-Api-Key": key,
+      Accept: "application/json",
+    });
+  },
+  "shopify.accessToken": async (secret) => {
+    const token = secret.accessToken;
+    const shopDomain = secret.shopDomain;
+    if (!token || !shopDomain) {
+      return { ok: false, error: "AUTH" };
+    }
+    const host = shopDomain.includes("://")
+      ? trimBase(shopDomain)
+      : `https://${trimBase(shopDomain)}`;
+    return checkGuardedAuth(`${host}/admin/api/2025-01/shop.json`, {
+      "X-Shopify-Access-Token": token,
+      Accept: "application/json",
+    });
+  },
+  "jira.apiToken": async (secret) => {
+    const email = secret.email;
+    const token = secret.apiToken;
+    const siteUrl = secret.siteUrl;
+    if (!email || !token || !siteUrl) {
+      return { ok: false, error: "AUTH" };
+    }
+    const encoded = Buffer.from(`${email}:${token}`).toString("base64");
+    return checkGuardedAuth(`${trimBase(siteUrl)}/rest/api/3/myself`, {
+      Authorization: `Basic ${encoded}`,
       Accept: "application/json",
     });
   },

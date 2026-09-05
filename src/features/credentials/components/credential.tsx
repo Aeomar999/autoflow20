@@ -51,6 +51,7 @@ import {
   CREDENTIAL_TYPE_IDS,
   credentialDefsById,
   credentialManifest,
+  credentialPalette,
 } from "../credential-types";
 import {
   useCreateCredential,
@@ -182,6 +183,16 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
 
   const selectedType = form.watch("type");
   const def = credentialDefsById.get(selectedType) ?? credentialManifest[0];
+
+  /**
+   * Offered types: the palette, plus whatever this credential already is.
+   * A credential of a retired type must still open and render its own type in
+   * the (disabled) picker — dropping it from the list would show an empty
+   * select over a perfectly valid credential (AF-M10-03).
+   */
+  const typeOptions = credentialPalette.some((o) => o.type === def.type)
+    ? credentialPalette
+    : [def, ...credentialPalette];
 
   // Test connection state
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -337,7 +348,12 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {credentialManifest.map((option) => (
+                        {/* AF-M10-03: deprecated types stay resolvable but
+                            are not offered for creation, so their population
+                            can only shrink (ADR-0011's rule for credentials).
+                            An existing credential of a retired type keeps its
+                            own entry via `selectedDef` below. */}
+                        {typeOptions.map((option) => (
                           <SelectItem key={option.type} value={option.type}>
                             <div className="flex items-center gap-2">
                               <Image
@@ -360,6 +376,29 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                   </FormItem>
                 )}
               />
+
+              {def.deprecated ? (
+                <div
+                  role="note"
+                  className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm"
+                >
+                  <p className="font-medium">
+                    This credential type was retired on {def.deprecated.since}.
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {def.deprecated.reason}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    It keeps working — nothing you have built stops — but new
+                    credentials use{" "}
+                    <span className="font-medium text-foreground">
+                      {credentialDefsById.get(def.deprecated.replacedBy)
+                        ?.label ?? def.deprecated.replacedBy}
+                    </span>{" "}
+                    and its per-service scopes.
+                  </p>
+                </div>
+              ) : null}
 
               {def.oauth ? (
                 <div className="space-y-4 rounded-lg border border-hairline bg-well p-5">

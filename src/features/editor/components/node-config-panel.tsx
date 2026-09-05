@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { CredentialField } from "@/features/editor/components/credential-field";
 import {
   type ConfigListColumn,
   type ResolvedConfigField,
@@ -172,20 +173,66 @@ function FieldEditor({
         </select>
       );
     }
-    case "credential":
+    case "multiEnum": {
+      const options = field.enumValues ?? [];
+      const selected = Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === "string")
+        : [];
       return (
-        <div className="flex flex-col gap-1">
-          <input
-            id={inputId}
-            type="text"
-            disabled
-            className={baseFieldClass()}
-            placeholder={`Connect ${field.credential?.type ?? "credential"} in Credentials`}
-          />
-          <p className="text-xs text-muted-foreground">
-            Pick a connected credential in Credentials to configure this node.
-          </p>
+        <div
+          id={inputId}
+          className="flex flex-col gap-1.5 rounded-md border border-border p-2"
+        >
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex items-center gap-2 text-sm text-foreground"
+            >
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border"
+                checked={selected.includes(option)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...selected, option]
+                    : // Rebuilt from `options` order rather than push/splice, so
+                      // the saved array does not reorder itself as boxes are
+                      // toggled and produce a diff with no change in it.
+                      selected.filter((v) => v !== option);
+                  const ordered = options.filter((o) => next.includes(o));
+                  // An empty selection is "no filter" for every consumer, and
+                  // storing [] rather than dropping the key would read as a
+                  // filter that matches nothing.
+                  onValueChange(ordered.length > 0 ? ordered : undefined);
+                }}
+              />
+              {option}
+            </label>
+          ))}
         </div>
+      );
+    }
+    case "credential":
+      // `field.credential` is set for every field resolved as kind
+      // "credential" (config-schema.ts pairs it with the definition's
+      // requirement), but the type is nullable, so fall back rather than
+      // render a picker that cannot know what it accepts.
+      return field.credential ? (
+        <CredentialField
+          requirement={field.credential}
+          inputId={inputId}
+          value={value}
+          onValueChange={onValueChange}
+          className={baseFieldClass()}
+        />
+      ) : (
+        <input
+          id={inputId}
+          type="text"
+          disabled
+          className={baseFieldClass()}
+          placeholder="No credential requirement declared for this field"
+        />
       );
     case "kv-list":
     case "keyValueList":
@@ -637,6 +684,20 @@ export function NodeConfigPanel({
                 definition.deprecated.replacedBy}
             </span>
             .
+          </p>
+        </output>
+      ) : null}
+
+      {definition.accountRequirement ? (
+        // AF-M10-22: a requirement of the provider ACCOUNT, which no amount of
+        // reconnecting fixes. X's v2 write endpoints are not on the free tier;
+        // YouTube uploads need a quota increase. Both surface at run time as a
+        // 403 that reads like a permissions bug, so they are said here — while
+        // the node is being configured — instead.
+        <output className="block rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-xs">
+          <p className="font-medium text-foreground">Account requirement</p>
+          <p className="mt-1 text-muted-foreground">
+            {definition.accountRequirement}
           </p>
         </output>
       ) : null}

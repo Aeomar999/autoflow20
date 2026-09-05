@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import { validate } from "@/engine/validate";
+import { compileTemplate } from "@/features/executions/template";
 import { nodeManifest, nodePalette } from "@/nodes/manifest";
 import { nodeRegistry } from "@/nodes/registry";
 
 import { TEMPLATE_CATEGORIES } from "../constants";
-import { prepareTemplateGraph } from "../server/instantiate";
+import {
+  collectPendingSetup,
+  prepareTemplateGraph,
+} from "../server/instantiate";
 import { checkCatalog, checkTemplate, formatIssues } from "./harness";
 import { templateCatalog, toSeedRow } from "./index";
 import {
+  MAX_LIBRARY_CREDENTIALS,
+  MAX_STARTER_CREDENTIALS,
   MIN_TEMPLATES_PER_DOMAIN,
   TEMPLATE_DOMAINS,
   type TemplateSpec,
+  tierOf,
 } from "./types";
 
 /**
@@ -22,8 +29,24 @@ import {
  * `seed:templates` runs the same harness before it writes.
  */
 
-/** 21 from AF-M7-02, plus the three AF-M9-15 reference-parity templates. */
-const EXPECTED_TEMPLATE_COUNT = 24;
+/**
+ * The catalogue's size, asserted so a template cannot be added or lost without
+ * someone saying so in a diff.
+ *
+ * It stopped being worth enumerating what each entry demonstrates once M10
+ * began adding families a handful at a time — the list went stale faster than
+ * it was read. What the count is FOR is unchanged: 21 shipped with AF-M7-02,
+ * and everything since has been added by a task that also updated this number.
+ * The tests below say what actually matters about the set — every palette node
+ * demonstrated, no deprecated types, the credential rules, the domain floor.
+ */
+const EXPECTED_TEMPLATE_COUNT = 100;
+
+/** A `{{ ... }}` expression; the capture is its body. */
+const EXPRESSION = /\{\{+([^}]*)\}\}+/g;
+
+/** A bare name inside an expression or a Code body. */
+const IDENTIFIER = /[A-Za-z_$][A-Za-z0-9_$]*/g;
 
 describe("template catalogue", () => {
   it(`ships ${EXPECTED_TEMPLATE_COUNT} templates`, () => {
@@ -105,26 +128,55 @@ describe("template catalogue", () => {
 
   it("never asks a new user to wire up more than one credential", () => {
     // This is the "no free-plan-busting mandatory credentials" acceptance in
-    // its enforceable form. A template needing two connectors is one nobody
-    // finishes setting up, whatever their plan.
-    for (const template of templateCatalog) {
+    // its enforceable form. A starter template needing two connectors is one
+    // nobody finishes setting up, whatever their plan.
+    //
+    // AF-M10-15 scoped this to the starter tier rather than relaxing it. The
+    // M10 library ports automations that are multi-service in the source --
+    // Calendar plus Gmail, Sheets plus Gmail -- and a rule that admitted those
+    // for everyone would stop being the onboarding promise it was written as.
+    for (const template of templateCatalog.filter(
+      (t) => tierOf(t) === "starter",
+    )) {
       const row = toSeedRow(template);
       expect(
         row.credentialCount,
-        `${template.slug} requires ${row.credentialCount} credentials`,
-      ).toBeLessThanOrEqual(1);
+        `starter template ${template.slug} requires ${row.credentialCount} credentials`,
+      ).toBeLessThanOrEqual(MAX_STARTER_CREDENTIALS);
+    }
+  });
+
+  it("keeps library entries within a setup a user still completes", () => {
+    // "library" is not "uncapped". An entry needing five connectors is one
+    // nobody finishes either, and the cap is what stops the tier becoming the
+    // label anything gets when the starter rule is inconvenient.
+    for (const template of templateCatalog.filter(
+      (t) => tierOf(t) === "library",
+    )) {
+      const row = toSeedRow(template);
+      expect(
+        row.credentialCount,
+        `library template ${template.slug} requires ${row.credentialCount} credentials`,
+      ).toBeLessThanOrEqual(MAX_LIBRARY_CREDENTIALS);
+      // A library entry that needs one credential is a starter entry that
+      // mislabelled itself, and it would dodge the stricter rule for free.
+      expect(
+        row.credentialCount,
+        `${template.slug} is tier "library" but needs ${row.credentialCount} credentials -- it belongs in "starter"`,
+      ).toBeGreaterThan(MAX_STARTER_CREDENTIALS);
     }
   });
 
   it("keeps a meaningful share of the gallery credential-free", () => {
-    const free = templateCatalog.filter(
-      (t) => toSeedRow(t).credentialCount === 0,
-    );
+    // Measured over starter entries, not the whole catalogue. Every library
+    // entry needs a connector by definition, so counting them in the
+    // denominator would make this floor easier to clear the more
+    // credential-bound templates M10 adds -- the opposite of what it is for.
+    const starter = templateCatalog.filter((t) => tierOf(t) === "starter");
+    const free = starter.filter((t) => toSeedRow(t).credentialCount === 0);
     // A gallery where every entry needs a connector is a gallery a brand-new
     // account cannot try at all. A third is the floor; nine ship today.
-    expect(free.length).toBeGreaterThanOrEqual(
-      Math.ceil(EXPECTED_TEMPLATE_COUNT / 3),
-    );
+    expect(free.length).toBeGreaterThanOrEqual(Math.ceil(starter.length / 3));
   });
 
   it("derives node and credential counts from the graph", () => {
@@ -183,10 +235,212 @@ describe("template catalogue", () => {
   });
 
   it("declares exactly the credential placeholders the install surfaces", () => {
+    // AF-M10-15: `credentialCount` counts distinct credential TYPES — what the
+    // user must connect — while the install surfaces one placeholder per node
+    // FIELD. A template whose two Sheets nodes share one credential has two
+    // placeholders and one connection, so the row's number is the size of the
+    // placeholder set's type set, not its length.
     for (const template of templateCatalog) {
       const prepared = prepareTemplateGraph(template.graph);
       const required = prepared.pendingCredentials.filter((c) => !c.optional);
-      expect(required).toHaveLength(toSeedRow(template).credentialCount);
+      const distinctTypes = new Set(required.map((c) => c.credentialType));
+
+      expect(
+        distinctTypes.size,
+        `${template.slug}: seed row disagrees with the install placeholders`,
+      ).toBe(toSeedRow(template).credentialCount);
+
+      // Every placeholder still has to correspond to a real requirement.
+      expect(required.length).toBeGreaterThanOrEqual(distinctTypes.size);
+    }
+  });
+
+  it("bakes in no workspace ids, only placeholders the install surfaces", () => {
+    // AF-M10-25. A real spreadsheet id, Drive folder, Slack channel or QBO
+    // account id in a shipped template is one of two bugs: it leaks the
+    // author's workspace, or - the finance case - it points somebody's books
+    // at a sandbox company that accepts the write and loses it. The only
+    // per-installation values allowed are REPLACE_WITH_* placeholders, and
+    // every one of them must reach `pendingSetup`, so the install page can
+    // say what is still owed rather than the value hiding in the JSON.
+    const idField =
+      /^(spreadsheetId|baseId|tableId|folderId|channel|customerId|vendorId|itemId|priceId|expenseAccountId|paymentAccountId|depositToAccountId|entityId|invoiceId)$/;
+
+    // A NAME is fine to ship: Airtable takes `Incidents` as a table, Slack
+    // takes `#alerts`, and both are sensible defaults an installer can keep.
+    // An opaque ID is not, because it can only ever have come from one
+    // workspace. So the rule is shaped against the id formats rather than
+    // against everything that is not a placeholder.
+    const looksLikeAnId = [
+      /^(app|tbl|rec|viw|fld)[A-Za-z0-9]{14}$/, // Airtable
+      /^[A-Za-z0-9_-]{25,}$/, // Google file, sheet and folder ids
+      /^[CGD][A-Z0-9]{8,}$/, // Slack channel
+      /^(price|prod|cus|acct)_[A-Za-z0-9]{8,}$/, // Stripe
+      /^\d+$/, // QuickBooks: company, item, account and tax-code ids
+    ];
+
+    for (const template of templateCatalog) {
+      const declared = new Set(
+        collectPendingSetup(template.graph.nodes).map(
+          (v) => `${v.nodeId}:${v.field}:${v.placeholder}`,
+        ),
+      );
+
+      for (const node of template.graph.nodes) {
+        for (const [key, value] of Object.entries(node.data ?? {})) {
+          if (!idField.test(key) || typeof value !== "string") continue;
+          if (value === "" || value.includes("{{")) continue;
+
+          if (value.startsWith("REPLACE_WITH_")) {
+            expect(
+              declared.has(`${node.id}:${key}:${value}`),
+              `${template.slug}/${node.id}.${key} is not reported as pending setup`,
+            ).toBe(true);
+            continue;
+          }
+
+          expect(
+            looksLikeAnId.some((shape) => shape.test(value)),
+            `${template.slug}/${node.id}.${key} = ${JSON.stringify(value)} is an opaque id from somebody's workspace - use a REPLACE_WITH_* placeholder`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("names every setup placeholder in uppercase, so the install page can read it", () => {
+    // `humanisePlaceholder` turns REPLACE_WITH_SPREADSHEET_ID into
+    // "Spreadsheet id". A lowercase or camelCase token renders as noise, and
+    // a bare REPLACE_WITH_ says nothing at all.
+    for (const template of templateCatalog) {
+      for (const value of collectPendingSetup(template.graph.nodes)) {
+        expect(
+          value.placeholder,
+          `${template.slug}/${value.nodeId}.${value.field}`,
+        ).toMatch(/^REPLACE_WITH_[A-Z][A-Z0-9_]*[A-Z0-9]$/);
+      }
+    }
+  });
+
+  it("reads every value a SET node writes", () => {
+    // AF-M10-26. A SET mapping nothing ever references is dead config that
+    // reads as meaningful: somebody installing the template sees a value
+    // being computed per branch and assumes it matters. Same class as the
+    // dead CONDITION keys AF-M10-24 found — a key the schema accepts, that
+    // no code path consults.
+    //
+    // The check is whole-graph rather than downstream-only: a SET whose only
+    // purpose is the workflow's final output is still a value a reader of a
+    // *template* would expect to see used.
+    for (const template of templateCatalog) {
+      const written = new Map<string, string>();
+
+      for (const node of template.graph.nodes) {
+        if (node.type !== "SET") continue;
+        const mappings = (node.data?.mappings ?? []) as Array<{
+          key?: unknown;
+        }>;
+        for (const mapping of mappings) {
+          if (typeof mapping.key === "string")
+            written.set(mapping.key, node.id);
+        }
+      }
+
+      if (written.size === 0) continue;
+
+      // Names appearing anywhere a value can be READ: inside a `{{ }}`
+      // expression, or in a Code node's body. Collected as identifiers
+      // rather than matched with a per-key regex — a key interpolated into
+      // a pattern IS a pattern, and a word boundary written inside a
+      // template literal is a backspace character rather than a boundary,
+      // which is how the first version of this rule passed everything.
+      const read = new Set<string>();
+      const addNames = (source: string): void => {
+        for (const name of source.match(IDENTIFIER) ?? []) read.add(name);
+      };
+
+      const walk = (value: unknown): void => {
+        if (typeof value === "string") {
+          for (const match of value.matchAll(EXPRESSION)) addNames(match[1]);
+          return;
+        }
+        if (Array.isArray(value)) {
+          value.forEach(walk);
+          return;
+        }
+        if (value && typeof value === "object") {
+          for (const [field, entry] of Object.entries(
+            value as Record<string, unknown>,
+          )) {
+            // A SET's own `key` is the write, not a read. Counting it
+            // would make every mapping trivially referenced.
+            if (field === "key") continue;
+            if (field === "code" && typeof entry === "string") {
+              addNames(entry);
+              continue;
+            }
+            walk(entry);
+          }
+        }
+      };
+      for (const node of template.graph.nodes) walk(node.data ?? {});
+
+      // `$json` serialises the whole context, so a node that returns it reads
+      // every value the graph has set — by shape rather than by name. An API
+      // template answering `{{{json $json}}}` is the ordinary case, and
+      // demanding a by-name reference would push authors to enumerate keys
+      // that are already all being returned.
+      if (read.has("$json")) continue;
+
+      for (const [key, nodeId] of written) {
+        expect(
+          read.has(key),
+          `${template.slug}/${nodeId} sets "${key}" and nothing reads it`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("compiles every Handlebars expression it ships", () => {
+    // AF-M10-34. A template whose expression will not COMPILE fails at the
+    // node, at run time, for the installer — and the schema check cannot see
+    // it, because an uncompilable string is still a valid string.
+    //
+    // Found the hard way: two RESPOND_TO_WEBHOOK bodies ended
+    // `{{{json record}}}}` — a triple-stache butted against JSON's own
+    // closing brace makes four, which Handlebars lexes as a raw-block close.
+    // The catalogue had shipped it since M9 and every gate was green.
+    for (const template of templateCatalog) {
+      for (const node of template.graph.nodes) {
+        const walk = (value: unknown, path: string): void => {
+          if (typeof value === "string") {
+            if (!value.includes("{{")) return;
+            expect(
+              // Invoked, not merely compiled: `Handlebars.compile` is lazy and
+              // defers parsing to the first call, so asserting on construction
+              // alone passes a template that cannot parse — which is exactly
+              // how the first version of this rule missed the bug it exists for.
+              () => compileTemplate(value)({}),
+              `${template.slug}/${node.id}.${path}`,
+            ).not.toThrow();
+            return;
+          }
+          if (Array.isArray(value)) {
+            value.forEach((entry, i) => {
+              walk(entry, `${path}.${i}`);
+            });
+            return;
+          }
+          if (value && typeof value === "object") {
+            for (const [key, entry] of Object.entries(
+              value as Record<string, unknown>,
+            )) {
+              walk(entry, path ? `${path}.${key}` : key);
+            }
+          }
+        };
+        walk(node.data ?? {}, "");
+      }
     }
   });
 
@@ -217,13 +471,13 @@ describe("harness", () => {
         },
         {
           id: "notify",
-          type: "SLACK",
+          type: "SLACK_POST",
           name: "Notify",
           position: { x: 240, y: 0 },
           data: {
             variableName: "post",
-            webhookUrl: "https://hooks.slack.com/services/A/B/C",
-            content: "hello",
+            channel: "C0123ABCD",
+            text: "hello",
           },
         },
       ],
@@ -239,7 +493,7 @@ describe("harness", () => {
     const leaked = structuredClone(sound);
     // Shaped like a cuid2 (24 lowercase alphanumerics, contains digits) —
     // exactly what an author copying from their own workspace would paste.
-    (leaked.graph.nodes[1].data as Record<string, unknown>).content =
+    (leaked.graph.nodes[1].data as Record<string, unknown>).text =
       "see run cm4x9k2p0000108l3f7g2h1d";
     expect(formatIssues([checkTemplate(leaked)])).toEqual([
       expect.stringContaining("looks like a cuid"),
@@ -263,7 +517,7 @@ describe("harness", () => {
 
   it("rejects a secret-shaped token", () => {
     const withSecret = structuredClone(sound);
-    (withSecret.graph.nodes[1].data as Record<string, unknown>).content =
+    (withSecret.graph.nodes[1].data as Record<string, unknown>).text =
       "token xoxb-000000000000-abcdef";
     expect(formatIssues([checkTemplate(withSecret)])).toContainEqual(
       expect.stringContaining("secret prefix"),

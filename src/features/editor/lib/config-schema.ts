@@ -14,6 +14,7 @@ import type { CredentialRequirement } from "@/nodes/types";
  *   array<{ ...scalar columns }>         → "fieldList" (rows of simple
  *                                          fields, e.g. AI Extract's fields)
  *   field whose key matches a definition.credentials entry → "credential"
+ *   z.array(z.enum([...])) → "multiEnum" (a checkbox group)
  *   optional / nullable / default wrappers → flagged `optional`
  *
  * Anything else throws `UnsupportedConfigFieldError` so the panel can fail
@@ -37,6 +38,7 @@ export type ConfigFieldKind =
   | "number"
   | "boolean"
   | "enum"
+  | "multiEnum"
   | "kv-list"
   | "keyValueList"
   | "fieldList"
@@ -139,6 +141,7 @@ function resolveListColumns(
       case "kv-list":
       case "keyValueList":
       case "fieldList":
+      case "multiEnum":
         throw new UnsupportedConfigFieldError(
           fieldKey,
           `is a \`z.array\` whose element column "${key}" is itself a list config field; nested lists are not supported by the config form`,
@@ -199,7 +202,20 @@ function baseKind(
     }
     case "array": {
       const element = def.element as ZodTypeAny;
-      if (defOf(element).type === "object") {
+      // A list of choices from a fixed set — webhook event types, entity
+      // filters. Rendered as a checkbox group rather than a row editor,
+      // because "which of these" is not "add a row".
+      const elementDef = defOf(element);
+      if (elementDef.type === "enum") {
+        const entries = elementDef.entries as
+          | Record<string, string>
+          | undefined;
+        return {
+          kind: "multiEnum",
+          enumValues: entries ? Object.values(entries) : [],
+        };
+      }
+      if (elementDef.type === "object") {
         const shape = ((
           element as ZodTypeAny as { shape?: Record<string, ZodTypeAny> }
         ).shape ?? {}) as Record<string, ZodTypeAny>;
@@ -222,7 +238,7 @@ function baseKind(
       }
       throw new UnsupportedConfigFieldError(
         fieldKey,
-        "is a `z.array` whose element is neither `z.object({ key: z.string(), value: z.string() })` nor a row of scalar config columns; only those two array shapes are supported by the config form",
+        "is a `z.array` whose element is not an enum, a `z.object({ key: z.string(), value: z.string() })`, or a row of scalar config columns; only those three array shapes are supported by the config form",
       );
     }
     default:

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { describeCredentialRequirement } from "@/features/credentials/credential-match";
 import {
   findNodeReference,
   nodeReference,
@@ -32,6 +33,7 @@ const KIND_LABELS: Record<ResolvedConfigField["kind"], string> = {
   number: "number",
   boolean: "true / false",
   enum: "one of",
+  multiEnum: "any of",
   "kv-list": "key–value pairs",
   keyValueList: "key–value pairs",
   fieldList: "list of rows",
@@ -83,8 +85,10 @@ const FieldRow = ({ field }: { field: ResolvedConfigField }) => (
 
     {field.credential ? (
       <p className="text-xs text-muted-foreground">
-        Credential type <code>{field.credential.type}</code>. Stored encrypted;
-        the value is never returned to the browser or written to a trace.
+        Accepts{" "}
+        <code>{describeCredentialRequirement(field.credential.type)}</code>.
+        Stored encrypted; the value is never returned to the browser or written
+        to a trace.
       </p>
     ) : null}
   </li>
@@ -234,7 +238,9 @@ export default async function NodeDetailPage({
                 {entry.credentials
                   .map(
                     (credential) =>
-                      `${credential.type}${credential.required ? "" : " (optional)"}`,
+                      `${describeCredentialRequirement(credential.type)}${
+                        credential.required ? "" : " (optional)"
+                      }`,
                   )
                   .join(", ")}
               </dd>
