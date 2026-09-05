@@ -1,4 +1,4 @@
-import { parseAsInteger, parseAsString } from "nuqs/server";
+import { parseAsArrayOf, parseAsInteger, parseAsString } from "nuqs/server";
 import { PAGINATION } from "@/config/constants";
 
 export const executionsParams = {
@@ -9,4 +9,8 @@ export const executionsParams = {
     .withDefault(PAGINATION.DEFAULT_PAGE_SIZE)
     .withOptions({ clearOnDefault: true }),
   status: parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
+  search: parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
+  workflowIds: parseAsArrayOf(parseAsString)
+    .withDefault([])
+    .withOptions({ clearOnDefault: true }),
 };

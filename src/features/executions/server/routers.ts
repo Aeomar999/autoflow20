@@ -27,7 +27,13 @@ export const executionsRouter = createTRPCRouter({
   list: orgViewerProcedure
     .input(
       z.object({
-        workflowId: z.string().optional(),
+        /**
+         * Free-text search of workflow name (case-insensitive contains) or
+         * execution id (startsWith) — same matching semantics as the command
+         * palette search (`src/features/search/server/routers.ts`).
+         */
+        search: z.string().max(200).optional(),
+        workflowIds: z.array(z.string()).max(100).optional(),
         status: executionStatusSchema.optional(),
         startedAfter: z.date().optional(),
         startedBefore: z.date().optional(),
@@ -42,7 +48,8 @@ export const executionsRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const {
-        workflowId,
+        search,
+        workflowIds,
         status,
         startedAfter,
         startedBefore,
@@ -51,11 +58,29 @@ export const executionsRouter = createTRPCRouter({
         pageSize,
       } = input;
 
+      const q = search?.trim();
+
       const where = {
         workflow: {
           organizationId: ctx.org.id,
-          ...(workflowId ? { id: workflowId } : {}),
+          ...(workflowIds && workflowIds.length > 0
+            ? { id: { in: workflowIds } }
+            : {}),
         },
+        // Search is scoped through the same org guard; it can neither
+        // widen outside the tenant nor escape the workflowIds filter.
+        ...(q
+          ? {
+              OR: [
+                { id: { startsWith: q, mode: "insensitive" as const } },
+                {
+                  workflow: {
+                    name: { contains: q, mode: "insensitive" as const },
+                  },
+                },
+              ],
+            }
+          : {}),
         // Test runs (AF-M2-08) are filtered out unless explicitly queried.
         mode: mode ?? { not: "TEST" },
         ...(status ? { status } : {}),

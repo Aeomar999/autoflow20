@@ -10,6 +10,17 @@ type ExecutionStatusFilter =
   | "TIMED_OUT"
   | "";
 
+const toListInput = (params: Record<string, unknown>) => {
+  const { search, workflowIds, status, ...rest } = params;
+  const selectedWorkflowIds = workflowIds as string[] | null | undefined;
+  return {
+    ...rest,
+    search: (search as string)?.trim() || undefined,
+    workflowIds: selectedWorkflowIds?.length ? selectedWorkflowIds : undefined,
+    status: (status as ExecutionStatusFilter) || undefined,
+  };
+};
+
 /**
  * Hook to fetch all executions using suspense.
  * Auto-refreshes every 3s while any execution is RUNNING.
@@ -19,10 +30,7 @@ export const useSuspenseExecutions = () => {
   const [params] = useExecutionsParams();
 
   return useSuspenseQuery({
-    ...trpc.executions.list.queryOptions({
-      ...params,
-      status: (params.status as ExecutionStatusFilter) || undefined,
-    }),
+    ...trpc.executions.list.queryOptions(toListInput(params)),
     refetchInterval: (query) => {
       const data = query.state.data;
       if (data?.items?.some((e) => e.status === "RUNNING")) {
@@ -42,10 +50,7 @@ export const useExecutions = () => {
   const [params] = useExecutionsParams();
 
   return useQuery({
-    ...trpc.executions.list.queryOptions({
-      ...params,
-      status: (params.status as ExecutionStatusFilter) || undefined,
-    }),
+    ...trpc.executions.list.queryOptions(toListInput(params)),
     refetchInterval: (query) => {
       const data = query.state.data;
       if (data?.items?.some((e) => e.status === "RUNNING")) {

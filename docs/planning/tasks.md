@@ -3081,3 +3081,60 @@ Realistically **#22 alone is end-to-end green today**; #4, #11, #17, #24 and #32
 need one Phase B family first. Anything beyond that is a template that has been
 authored, not an automation that works — and the difference is the whole point of
 AF-M10-34.
+
+---
+
+## UX improvement plan addenda (2026-09-05) — tasks from `docs/ux-improvement-plan.md`
+
+We decided to merge plan items **2.1** (add search to executions page) and **2.2**
+(add workflow name filter to executions page) into one task because they touch the
+same landing page, the same tRPC procedure (`executions.list`), the same nuqs param
+module, and the same filter bar — one PR, one acceptance set.
+
+### ⬜ AF-UX-01 · Executions search + workflow multi-select filter · 1d
+
+**Why:** The executions page has only a status filter (`docs/ux-improvement-plan.md`
+§2.1, §2.2). Users with many workflows cannot find a specific run: there is no way to
+search by workflow name or execution id, and no way to scope the list to one or a few
+workflows. `executions.list` (`src/features/executions/server/routers.ts`) currently
+accepts a single optional `workflowId` — no caller anywhere passes it — plus
+`status`, `startedAfter/Before`, `mode`, `page`, `pageSize`.
+
+**Design decisions (locked 2026-09-05):**
+- **Search matches workflow name OR execution id.** Reuse the search-router semantics
+  (`src/features/search/server/routers.ts:68-81`): execution `id` by `startsWith`
+  (users type a short id prefix from a log line), workflow name by case-insensitive
+  `contains`. The whole OR branch stays under the existing
+  `workflow: { organizationId: ctx.org.id }` tenancy guard.
+- **Server-side filtering, debounce at the URL layer.** The search param is a real
+  nav param in the URL (like `status`), debounced via nuqs `debounce(300)` when bound.
+  No client-side list filtering: pagination and `count` stay server-truthful.
+- **Replace single `workflowId` with `workflowIds: string[]`.** No caller uses the
+  single form today (`prefetch.ts` builds input via `inferInput<typeof
+  trpc.executions.list>` so the type change is compile-checked; `execution.tsx`
+  invalidates an empty-key query). The router keeps `where.workflow.id IN
+  workflowIds` scoped through the org.
+- **Workflow dropdown feeds from `workflows.getMany`** (org-scoped, already ships
+  id + name) so the option set is identical to what a user sees on the Workflows
+  page — no new cross-feature data path.
+
+**Depends on:** none at runtime; work is gated by buildware (`npm run build`) only.
+**Acceptance**
+- [ ] Search input renders at the top of the executions list and filters by workflow
+      name or execution id, case-insensitive, on the server (reuse search-router
+      matching: id `startsWith`, name `contains`).
+- [ ] Results update as the user types, debounced ~300ms via the nuqs `debounce`
+      limit; no refetch per keystroke.
+- [ ] Clear (×) button in the search input resets the query and the list.
+- [ ] Empty filter state distinct from the "no runs yet" onboarding empty state —
+      "No executions match your filters" with a way back.
+- [ ] Workflow dropdown lists the user's workflows (from `workflows.getMany`),
+      supports multi-select, and shows a count of selected workflows.
+- [ ] Workflow filter AND-combines with the existing status filter server-side
+      (both survive a page reload as URL params).
+- [ ] Clear-filters affordance resets search + workflow + status together.
+- [ ] Authz: search/`workflowIds` filtering happens inside the org-scoped `where`,
+      never post-fetch; org B cannot use org A's workflow id to widen results.
+- [ ] Unit test for the new params (search/workflowIds serialize, clearOnDefault);
+      integration test proving search + `workflowIds` stay tenant-scoped.
+- [ ] `npm run build` passes, no new lint warnings; progress.md + tasks.md updated.

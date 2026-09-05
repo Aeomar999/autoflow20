@@ -1,16 +1,20 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   GlobeIcon,
   KeyboardIcon,
   PlayIcon,
+  SearchIcon,
   TimerIcon,
   WebhookIcon,
+  XIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo } from "react";
+import { debounce } from "nuqs";
+import { memo, useEffect, useState } from "react";
 
 import {
   DataTable,
@@ -36,6 +40,22 @@ import {
   EntityPagination,
   ErrorView,
 } from "@/components/entity-components";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -43,7 +63,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PAGINATION } from "@/config/constants";
 import type { ExecutionStatus } from "@/generated/prisma/browser";
+import { useTRPC } from "@/trpc/client";
 
 import { useExecutions, useSuspenseExecutions } from "../hooks/use-executions";
 import { useExecutionsParams } from "../hooks/use-executions-params";
@@ -97,6 +119,12 @@ const ExecutionsTableHead = () => (
 export const ExecutionsList = () => {
   const executions = useSuspenseExecutions();
   const items = executions.data.items;
+  const [params] = useExecutionsParams();
+
+  const hasActiveFilters =
+    (params.search ?? "") !== "" ||
+    (params.workflowIds ?? []).length > 0 ||
+    (params.status ?? "") !== "";
 
   return (
     <DataTable>
@@ -104,7 +132,7 @@ export const ExecutionsList = () => {
       <TBody>
         {items.length === 0 ? (
           <TableEmpty colSpan={COLUMNS}>
-            <ExecutionsEmpty />
+            {hasActiveFilters ? <ExecutionsNoResults /> : <ExecutionsEmpty />}
           </TableEmpty>
         ) : (
           items.map((execution) => (
@@ -167,11 +195,174 @@ const ExecutionsStatusFilter = () => {
   );
 };
 
+/**
+ * Debounced search by execution id or workflow name. The input reflects
+ * keystrokes immediately while URL updates are coalesced 300ms apart (nuqs
+ * `limitUrlUpdates`), so pagination and prefetch stay behind a single URL
+ * state.
+ */
+const ExecutionsSearchInput = () => {
+  const [params, setParams] = useExecutionsParams();
+  const [value, setValue] = useState(params.search ?? "");
+
+  // Reconcile with external resets (i.e. "Clear filters").
+  useEffect(() => {
+    setValue(params.search ?? "");
+  }, [params.search]);
+
+  const apply = (next: string) => {
+    setValue(next);
+    setParams(
+      { ...params, search: next, page: 1 },
+      { limitUrlUpdates: debounce(300) },
+    );
+  };
+
+  const clear = () => {
+    setValue("");
+    setParams({ ...params, search: null, page: 1 });
+  };
+
+  return (
+    <div className="relative w-64">
+      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        aria-label="Search executions"
+        placeholder="Search runs or workflows…"
+        value={value}
+        onChange={(event) => apply(event.target.value)}
+        className="h-8 border-hairline bg-well pr-8 pl-8 text-sm shadow-none"
+      />
+      {value !== "" && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          onClick={clear}
+          className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <XIcon className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Multi-select workflow filter. Lists every workflow in the current org
+ * (pageSize capped at MAX_PAGE_SIZE) and combines with the status filter via
+ * AND in the URL params.
+ */
+const ExecutionsWorkflowFilter = () => {
+  const [params, setParams] = useExecutionsParams();
+  const [open, setOpen] = useState(false);
+  const trpc = useTRPC();
+
+  const workflows = useQuery(
+    trpc.workflows.getMany.queryOptions({
+      page: 1,
+      pageSize: PAGINATION.MAX_PAGE_SIZE,
+      search: "",
+    }),
+  );
+
+  const selected = params.workflowIds ?? [];
+  const selectedCount = selected.length;
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id)
+      ? selected.filter((entry) => entry !== id)
+      : [...selected, id];
+    setParams({ ...params, workflowIds: next, page: 1 });
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 border-hairline bg-panel text-xs text-muted-foreground shadow-none hover:text-foreground"
+          aria-label="Filter by workflow"
+        >
+          Workflows
+          {selectedCount > 0 && (
+            <span className="ml-1 rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary">
+              {selectedCount}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search workflows…" />
+          <CommandList>
+            <CommandEmpty>No workflows found</CommandEmpty>
+            <CommandGroup>
+              {workflows.data?.items.map((workflow) => (
+                <CommandItem
+                  key={workflow.id}
+                  value={workflow.name}
+                  onSelect={() => toggle(workflow.id)}
+                >
+                  <Checkbox
+                    checked={selected.includes(workflow.id)}
+                    className="pointer-events-none"
+                  />
+                  <span className="truncate">{workflow.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+/** Resets search, workflow and status filters in one click. */
+const ExecutionsClearFilters = () => {
+  const [params, setParams] = useExecutionsParams();
+
+  const hasFilters =
+    (params.search ?? "") !== "" ||
+    (params.workflowIds ?? []).length > 0 ||
+    (params.status ?? "") !== "";
+
+  if (!hasFilters) return null;
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-8 px-2 text-xs text-muted-foreground shadow-none hover:text-foreground"
+      onClick={() =>
+        setParams({
+          ...params,
+          search: null,
+          workflowIds: null,
+          status: null,
+          page: 1,
+        })
+      }
+    >
+      <XIcon className="size-3.5" />
+      Clear filters
+    </Button>
+  );
+};
+
 export const ExecutionsHeader = () => (
   <PageHeader
     title="Executions"
     description="View your workflow execution history"
-    actions={<ExecutionsStatusFilter />}
+    actions={
+      <>
+        <ExecutionsSearchInput />
+        <ExecutionsWorkflowFilter />
+        <ExecutionsStatusFilter />
+        <ExecutionsClearFilters />
+      </>
+    }
   />
 );
 
@@ -224,6 +415,30 @@ export const ExecutionsLoading = () => (
 export const ExecutionsError = () => (
   <ErrorView message="Error loading executions" />
 );
+
+/** Filtered result set is empty but filters are active — distinct from onboarding. */
+export const ExecutionsNoResults = () => {
+  const [params, setParams] = useExecutionsParams();
+
+  const clear = () =>
+    setParams({
+      ...params,
+      search: null,
+      workflowIds: null,
+      status: null,
+      page: 1,
+    });
+
+  return (
+    <EmptyView
+      icon={SearchIcon}
+      title="No matching runs"
+      message="No runs match your current filters. Try a different search or clear the filters."
+      onNew={clear}
+      actionLabel="Clear filters"
+    />
+  );
+};
 
 export const ExecutionsEmpty = () => {
   const router = useRouter();
