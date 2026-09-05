@@ -266,6 +266,7 @@ export const Editor = memo(function Editor({
         </NodeStatusProvider>
         {selectedNode && selectedDefinition ? (
           <NodeConfigPanel
+            workflowId={workflowId}
             node={selectedNode}
             definition={selectedDefinition}
             onNodeChange={patchSelectedNode}

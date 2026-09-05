@@ -3091,6 +3091,51 @@ We decided to merge plan items **2.1** (add search to executions page) and **2.2
 same landing page, the same tRPC procedure (`executions.list`), the same nuqs param
 module, and the same filter bar — one PR, one acceptance set.
 
+### ✅ AF-UX-02 · Per-node cost/tokens in execution detail · 0.5d · **DONE 2026-09-05**
+
+**Why:** `docs/ux-improvement-plan.md` §2.4 — "Cost/Tokens Breakdown Per
+Execution". The execution detail view shows total cost and total tokens, but the
+node trace table shows only per-node cost; users cannot tell which node burned
+the most spend or tokens. Plan criteria 3 (cost comparison between executions)
+and 4 (cost trend over time) already ship in the costs dashboard
+(`src/features/costs/components/cost-trend-chart.tsx`,
+`cost-breakdown-tables.tsx`); this task covers criteria 1–2. The router already
+selects per-node `tokensIn`/`tokensOut`/`costUsd`
+(`src/features/executions/server/routers.ts:165-184`) and `TraceRow`
+(`src/features/executions/components/execution.tsx:74-96`) carries them — the
+data exists, the UI does not render it.
+
+**Design decisions (locked 2026-09-05):**
+- **Pure share rule in `src/features/executions/lib/cost-share.ts`.** A node is
+  flagged "expensive" when its cost is **strictly more than 10% of the run's
+  total node cost** (the run total is the sum of `trace.costUsd`, so cached
+  hits — which record $0 — can never be flagged). Guarded for null/zero/costless
+  runs. Unit-tested; mirrors the IO-free `costs/lib/aggregate.ts` pattern.
+- **Single "Tokens" column, `in / out`, `toLocaleString()`** — matches the stat
+  card's token formatting and the "in / out" vocabulary already in this view.
+  Hidden below `sm` like Duration. The column renders only when the run has at
+  least one trace with tokens (avoids a column of dashes on webhook flows); the
+  expanded-row `colSpan` follows.
+- **Highlight = `text-warning` + `font-medium` on the cost cell** with a
+  percentage tooltip ("N% of this run's spend"), plus a `StatusPill
+  tone="warning"` legend in the panel header when any node crosses the
+  threshold. No new dependency; reuses the existing warning token.
+
+**Depends on:** nothing beyond the data the executions router already selects.
+**Acceptance**
+- [x] Per-node token counts render in the execution detail trace table
+      (`in / out`, thousands-separated), only when the run produced tokens.
+- [x] A node costing more than 10% of the run's total node cost is visually
+      highlighted in the Cost cell with a percentage tooltip; nodes at exactly
+      10% or below, zero-cost nodes, and costless runs are never highlighted.
+- [x] A ">10% of spend" warning legend appears in the panel header exactly when
+      ≥1 node is highlighted.
+- [x] Unit test for the share rule: threshold bound (exact 10% not flagged),
+      null/zero/null-cost guards, and total ≤ 0 guards all covered.
+- [x] `npm run build` passes, no new lint warnings; progress.md + tasks.md
+      updated. Scope note in the PR: plan criteria 3–4 are pre-existing in the
+      costs dashboard, deliberately out of this PR.
+
 ### ✅ AF-UX-01 · Executions search + workflow multi-select filter · 1d · **DONE 2026-09-05**
 
 **Why:** The executions page has only a status filter (`docs/ux-improvement-plan.md`
