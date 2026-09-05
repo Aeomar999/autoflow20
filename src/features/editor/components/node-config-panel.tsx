@@ -1,7 +1,7 @@
 "use client";
 
 import { CronExpressionParser } from "cron-parser";
-import { SparklesIcon } from "lucide-react";
+import { PlayIcon, SparklesIcon } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { CredentialField } from "@/features/editor/components/credential-field";
 import {
   type ConfigListColumn,
@@ -22,6 +23,7 @@ import {
   formatUsdCost,
 } from "@/features/editor/lib/cost-estimate";
 import type { EditorNode } from "@/features/editor/store/atoms";
+import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
 import { findManifestEntry } from "@/nodes/manifest";
 import { RUN_POLICY_KEY, resolveRunPolicy } from "@/nodes/shared/run-policy";
 import type { NodeDefinition } from "@/nodes/types";
@@ -650,10 +652,12 @@ export function NodeConfigForm({
 }
 
 export function NodeConfigPanel({
+  workflowId,
   node,
   definition,
   onNodeChange,
 }: {
+  workflowId: string;
   node: EditorNode;
   definition: NodeDefinition;
   onNodeChange: (patch: Partial<EditorNode>) => void;
@@ -778,6 +782,10 @@ export function NodeConfigPanel({
         data={node.data}
         onDataChange={(data) => onNodeChange({ data })}
       />
+
+      {node.type === "WEBHOOK_TRIGGER" && (
+        <WebhookTester workflowId={workflowId} />
+      )}
     </aside>
   );
 }
@@ -908,5 +916,77 @@ function RunSettings({
         </p>
       </div>
     </details>
+  );
+}
+
+function WebhookTester({ workflowId }: { workflowId: string }) {
+  const { data: workflow } = useSuspenseWorkflow(workflowId);
+  const [payload, setPayload] = useState(
+    '{\n  "domain": "stripe.com",\n  "email": "contact@stripe.com"\n}',
+  );
+  const [isLoading, setIsLoading] = useState(false);
+
+  if (!workflow.webhookSecret) {
+    return (
+      <div className="border-t border-border pt-3 mt-4">
+        <p className="text-xs text-muted-foreground">
+          Save and publish this workflow to test webhooks.
+        </p>
+      </div>
+    );
+  }
+
+  const handleRun = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/webhooks/${workflowId}/inbound`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": workflow.webhookSecret!,
+        },
+        body: payload,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Webhook triggered successfully!");
+      } else {
+        toast.error(`Webhook failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (e: any) {
+      toast.error(`Request failed: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-border pt-4 mt-4">
+      <h3 className="text-sm font-medium mb-2">Test Webhook Payload</h3>
+      <p className="text-xs text-muted-foreground mb-3">
+        Paste a JSON payload below and click Run to trigger this workflow
+        directly.
+      </p>
+      <textarea
+        className="w-full flex min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono text-xs mb-3"
+        rows={5}
+        value={payload}
+        onChange={(e) => setPayload(e.target.value)}
+      />
+      <button
+        type="button"
+        onClick={handleRun}
+        disabled={isLoading}
+        className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 w-full"
+      >
+        {isLoading ? (
+          "Running..."
+        ) : (
+          <>
+            <PlayIcon className="mr-2 h-4 w-4" /> Run Webhook
+          </>
+        )}
+      </button>
+    </div>
   );
 }
