@@ -263,7 +263,7 @@ export const opsTemplates: TemplateSpec[] = [
           data: {
             variableName: "handoff",
             baseUrl: "https://api.groq.com/openai/v1",
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             systemPrompt:
               "You write on-call handoffs. Lead with what the next engineer must watch. Be terse.",
             userPrompt:
@@ -316,7 +316,7 @@ export const opsTemplates: TemplateSpec[] = [
           data: {
             variableName: "expense",
             model: "openai:gpt-4o-mini",
-            fallbackModels: "google:gemini-1.5-flash",
+            fallbackModels: "google:gemini-3.6-flash",
             content:
               "Receipt text submitted by {{webhook.body.submittedBy}}:\n\n{{webhook.body.text}}",
             fields: [
@@ -1492,7 +1492,7 @@ export const opsTemplates: TemplateSpec[] = [
           data: {
             statusCode: 200,
             contentType: "application/json",
-            body: '{"forwarded":true,"status":{{forwarded.httpResponse.status}}}',
+            body: '{"forwarded":true,"status": {{forwarded.httpResponse.status}} }',
           },
         },
       ],
@@ -1825,7 +1825,7 @@ export const opsTemplates: TemplateSpec[] = [
             contentType: "application/json",
             // The failed count is the point: a bare 200 would hide that three
             // of fifty items never arrived.
-            body: '{"processed":{{count}},"failed":{{failed}}}',
+            body: '{"processed": {{count}},"failed": {{failed}} }',
           },
         },
       ],
@@ -2053,7 +2053,7 @@ export const opsTemplates: TemplateSpec[] = [
             variableName: "extracted",
             model: "openai:gpt-4o-mini",
             fallbackModels:
-              "anthropic:claude-3-5-haiku,google:gemini-1.5-flash",
+              "anthropic:claude-3-5-haiku,google:gemini-3.6-flash",
             content: "{{form.fields.notes}}",
             fields: [
               {

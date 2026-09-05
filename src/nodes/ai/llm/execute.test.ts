@@ -196,7 +196,7 @@ describe("AI_LLM execute", () => {
   it("routes google credentials to the gemini credential slot", async () => {
     await execute(
       makeParams({
-        data: { ...defaultData, model: "google:gemini-1.5-pro" },
+        data: { ...defaultData, model: "google:gemini-3.6-flash" },
         credentials: { geminiCredentialId: { apiKey: "AIza-test" } },
       }),
     );
@@ -206,7 +206,7 @@ describe("AI_LLM execute", () => {
       model: { providerId: string; modelId: string };
     };
     expect(callArgs.model.providerId).toBe("google");
-    expect(callArgs.model.modelId).toBe("gemini-1.5-pro");
+    expect(callArgs.model.modelId).toBe("gemini-3.6-flash");
   });
 
   it("routes anthropic credentials to the anthropic credential slot", async () => {

@@ -266,7 +266,7 @@ export const dataTemplates: TemplateSpec[] = [
             variableName: "doc",
             model: "openai:gpt-4o-mini",
             fallbackModels:
-              "anthropic:claude-3-5-haiku,google:gemini-1.5-flash",
+              "anthropic:claude-3-5-haiku,google:gemini-3.6-flash",
             content: "{{webhook.body.text}}",
             fields: [
               {
@@ -825,7 +825,7 @@ export const dataTemplates: TemplateSpec[] = [
             customerId: "{{qboCustomerId}}",
             // Stripe reports in the currency's minor unit, so 4999 is 49.99.
             lines:
-              '[{"description":"Stripe payment {{stripe.raw.id}}","amount":{{stripe.raw.amount}}}]',
+              '[{"description":"Stripe payment {{stripe.raw.id}}","amount": {{stripe.raw.amount}} }]',
             depositToAccountId: "REPLACE_WITH_DEPOSIT_ACCOUNT_ID",
             customerMemo: "Stripe {{stripe.eventId}}",
           },
@@ -1038,7 +1038,7 @@ export const dataTemplates: TemplateSpec[] = [
           data: {
             statusCode: 202,
             contentType: "application/json",
-            body: '{"status":"accepted","record":{{{json record}}}}',
+            body: '{"status":"accepted","record": {{{json record}}} }',
           },
         },
         {
@@ -1051,7 +1051,7 @@ export const dataTemplates: TemplateSpec[] = [
             contentType: "application/json",
             // Naming the failing fields is what makes this an API rather than
             // a black box: a caller that gets a bare 400 cannot fix anything.
-            body: '{"status":"rejected","errors":{{{json errors}}}}',
+            body: '{"status":"rejected","errors": {{{json errors}}} }',
           },
         },
       ],
@@ -1550,7 +1550,7 @@ export const dataTemplates: TemplateSpec[] = [
           position: { x: 520, y: 0 },
           data: {
             variableName: "intake",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o",
             content:
               "Read the attached document — faxes come through as images, so treat what you see as the source, including any tables and form fields. Extract the intake fields. If a field is absent or unreadable, leave it empty rather than guessing.",
@@ -1728,7 +1728,7 @@ export const dataTemplates: TemplateSpec[] = [
           position: { x: 840, y: -80 },
           data: {
             variableName: "answer",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "anthropic:claude-3-5-sonnet",
             systemPrompt:
               "You answer questions using only the supplied context. If the context does not answer the question, say so plainly rather than filling the gap from your own knowledge.",
@@ -1809,7 +1809,7 @@ export const dataTemplates: TemplateSpec[] = [
             variableName: "clean",
             model: "openai:gpt-4o-mini",
             fallbackModels:
-              "anthropic:claude-3-5-haiku,google:gemini-1.5-flash",
+              "anthropic:claude-3-5-haiku,google:gemini-3.6-flash",
             content:
               "Normalize this record for a clean contact list: trim whitespace, fix obvious casing, and drop clearly invalid values. Output one object for the single record below.\n{{{json $item}}}",
             fields: [

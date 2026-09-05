@@ -1442,7 +1442,7 @@ export const marketingTemplates: TemplateSpec[] = [
           position: { x: 1300, y: 0 },
           data: {
             variableName: "proposal",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o",
             systemPrompt:
               "You write Upwork proposals. Open with the client's actual problem, not with your credentials. Name one thing you would do first. Under 200 words. Replace the knowledge base below with your own.\n\nKNOWLEDGE BASE: We build workflow automations. Ten years across integrations and data pipelines. Fixed-price discovery, then delivery.",
@@ -1587,7 +1587,8 @@ export const marketingTemplates: TemplateSpec[] = [
           data: {
             variableName: "draft",
             model: "openai:gpt-4o",
-            fallbackModels: "anthropic:claude-3-5-sonnet,google:gemini-1.5-pro",
+            fallbackModels:
+              "anthropic:claude-3-5-sonnet,google:gemini-3.6-flash",
             systemPrompt:
               "You write cold emails that reference one specific, checkable fact. No flattery, no 'I hope this finds you well', under 120 words, one question at the end.",
             userPrompt:
@@ -1687,7 +1688,7 @@ export const marketingTemplates: TemplateSpec[] = [
           position: { x: 1040, y: 0 },
           data: {
             variableName: "email",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o,anthropic:claude-3-5-sonnet",
             systemPrompt:
               "You write cold emails. Output the subject line, then a line containing only ---, then the body. Under 120 words. No flattery and no 'quick question'.",
@@ -1824,7 +1825,7 @@ export const marketingTemplates: TemplateSpec[] = [
           position: { x: 1560, y: 0 },
           data: {
             variableName: "opening",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o",
             systemPrompt:
               "You read a career history and write ONE opening line that could only be written about this person. Reference a move, a span, or a change of direction — never a job title alone. Output the subject line, then a line containing only ---, then the opening line.",
@@ -2106,7 +2107,7 @@ export const marketingTemplates: TemplateSpec[] = [
           position: { x: 1680, y: -80 },
           data: {
             variableName: "draft",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o",
             systemPrompt:
               "You write cold emails that open on a hiring signal. Reference the specific role and why it implies a need. Never say 'I noticed you're hiring' — say what the hire implies. Under 120 words.",

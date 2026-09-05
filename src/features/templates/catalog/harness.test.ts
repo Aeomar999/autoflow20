@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { validate } from "@/engine/validate";
+import { compileTemplate } from "@/features/executions/template";
 import { nodeManifest, nodePalette } from "@/nodes/manifest";
 import { nodeRegistry } from "@/nodes/registry";
 
@@ -396,6 +397,49 @@ describe("template catalogue", () => {
           read.has(key),
           `${template.slug}/${nodeId} sets "${key}" and nothing reads it`,
         ).toBe(true);
+      }
+    }
+  });
+
+  it("compiles every Handlebars expression it ships", () => {
+    // AF-M10-34. A template whose expression will not COMPILE fails at the
+    // node, at run time, for the installer — and the schema check cannot see
+    // it, because an uncompilable string is still a valid string.
+    //
+    // Found the hard way: two RESPOND_TO_WEBHOOK bodies ended
+    // `{{{json record}}}}` — a triple-stache butted against JSON's own
+    // closing brace makes four, which Handlebars lexes as a raw-block close.
+    // The catalogue had shipped it since M9 and every gate was green.
+    for (const template of templateCatalog) {
+      for (const node of template.graph.nodes) {
+        const walk = (value: unknown, path: string): void => {
+          if (typeof value === "string") {
+            if (!value.includes("{{")) return;
+            expect(
+              // Invoked, not merely compiled: `Handlebars.compile` is lazy and
+              // defers parsing to the first call, so asserting on construction
+              // alone passes a template that cannot parse — which is exactly
+              // how the first version of this rule missed the bug it exists for.
+              () => compileTemplate(value)({}),
+              `${template.slug}/${node.id}.${path}`,
+            ).not.toThrow();
+            return;
+          }
+          if (Array.isArray(value)) {
+            value.forEach((entry, i) => {
+              walk(entry, `${path}.${i}`);
+            });
+            return;
+          }
+          if (value && typeof value === "object") {
+            for (const [key, entry] of Object.entries(
+              value as Record<string, unknown>,
+            )) {
+              walk(entry, path ? `${path}.${key}` : key);
+            }
+          }
+        };
+        walk(node.data ?? {}, "");
       }
     }
   });
