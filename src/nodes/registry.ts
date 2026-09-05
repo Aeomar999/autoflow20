@@ -68,6 +68,18 @@ import stripeCreatePaymentLink from "./payments/stripe-create-payment-link";
 import stripeFindOrCreateCustomer from "./payments/stripe-find-or-create-customer";
 import stripeGetCustomer from "./payments/stripe-get-customer";
 import paymentsStripeTrigger from "./payments/stripe-trigger";
+import peopleBackgroundCheck from "./people/background-check";
+import peopleBenefitsEnrollment from "./people/benefits-enrollment";
+import peopleCandidateSchedule from "./people/candidate-schedule";
+import peopleCandidateScoreRank from "./people/candidate-score-rank";
+import peopleEmployeeHired from "./people/employee-hired";
+import peopleExitInterview from "./people/exit-interview";
+import peopleIllnessSummary from "./people/illness-summary";
+import peopleNegotiationIqSummary from "./people/negotiation-iq-summary";
+import peopleOffboardingChecklist from "./people/offboarding-checklist";
+import peopleOfferLetter from "./people/offer-letter";
+import peopleOnboardingChecklist from "./people/onboarding-checklist";
+import peopleOrientation from "./people/orientation";
 import postgresQuery from "./postgres/query";
 import qboAttach from "./quickbooks/attach";
 import qboCreateCustomer from "./quickbooks/create-customer";
@@ -316,6 +328,18 @@ export const nodeRegistry = createNodeRegistry(
     airtableCreateRecord,
     hubspotCreateContact,
     paymentsStripeTrigger,
+    peopleBackgroundCheck,
+    peopleBenefitsEnrollment,
+    peopleCandidateSchedule,
+    peopleCandidateScoreRank,
+    peopleEmployeeHired,
+    peopleExitInterview,
+    peopleIllnessSummary,
+    peopleNegotiationIqSummary,
+    peopleOffboardingChecklist,
+    peopleOfferLetter,
+    peopleOnboardingChecklist,
+    peopleOrientation,
     postgresQuery,
     httpHttpRequest,
     filesDownload,

@@ -3315,16 +3315,26 @@ computed per workflow rather than defaulted.
       clean except the 2 pre-existing `node-config-panel.tsx` warnings (untouched);
       people scope + catalog harness 165 tests pass.
 
-### ⬜ AF-M11-04 · W1 Acquisition workflow graph · 2d
+### ✅ AF-M11-04 · W1 Acquisition workflow graph · 2d · **DONE 2026-09-05**
 
 **Acceptance**
-- [ ] Graph implements the brief's acquisition flow: trigger → screen → score → offer →
-      `core.approval` gate → emit `employee.hired`.
-- [ ] Emits the handoff through `applyEmployeeHandoff` semantics (creates the
+- [x] Graph implements the brief's acquisition flow: trigger → screen → score → offer →
+      `core.approval` gate → emit `employee.hired`. Ships as the `EMPLOYEE_HIRED` node
+      plus the "Screen, score, approve and record a hire" template (`people.ts`), with a
+      credential-free `HTTP_REQUEST` "Notify the hiring team" sink on the gate's `rejected`
+      branch.
+- [x] Emits the handoff through `applyEmployeeHandoff` semantics (creates the
       `Employee` at `OFFERED` with a stable `employeeRef`); re-runs are idempotent and
-      never duplicate the row.
-- [ ] Runs under `npm run dev:all` via an Inngest function; node-level tests exercise
-      the happy path and the conflict path.
+      never duplicate the row — the node returns `already-current`/`conflict` outcomes as
+      values (branchable via `{{hire.outcome}}`), never as thrown errors.
+- [x] Runs under `npm run dev:all` via an Inngest function; node-level tests exercise
+      the happy path and the conflict path (`execute.test.ts`: created / optional-field
+      passthrough / conflict-not-throw / missing variableName / missing employeeRef /
+      missing organizationId / schema-invalid input; `definition.test.ts`: long-field and
+      variableName rejection).
+- [x] Verified 2026-09-05: people scope + catalogue harness 180 tests pass (was 165);
+      `npm run build` clean; lint clean for changed files (pre-existing
+      `node-config-panel.tsx` warnings untouched); `docs/nodes/employee-hired.md` written.
 
 ### ⬜ AF-M11-05 · W2 Onboarding workflow graph · 2d
 

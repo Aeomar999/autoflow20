@@ -241,6 +241,17 @@ export const updateNodeSchemas = [
   makeNodeSchema("AI_RETRIEVE", configOf("AI_RETRIEVE")),
   makeNodeSchema("AI_LLM", configOf("AI_LLM")),
   makeNodeSchema("AI_EXTRACT", configOf("AI_EXTRACT")),
+  makeNodeSchema("BACKGROUND_CHECK", configOf("BACKGROUND_CHECK")),
+  makeNodeSchema("BENEFITS_ENROLLMENT", configOf("BENEFITS_ENROLLMENT")),
+  makeNodeSchema("CANDIDATE_SCHEDULE", configOf("CANDIDATE_SCHEDULE")),
+  makeNodeSchema("CANDIDATE_SCORE_RANK", configOf("CANDIDATE_SCORE_RANK")),
+  makeNodeSchema("EXIT_INTERVIEW", configOf("EXIT_INTERVIEW")),
+  makeNodeSchema("ILLNESS_SUMMARY", configOf("ILLNESS_SUMMARY")),
+  makeNodeSchema("NEGOTIATION_IQ_SUMMARY", configOf("NEGOTIATION_IQ_SUMMARY")),
+  makeNodeSchema("OFFBOARDING_CHECKLIST", configOf("OFFBOARDING_CHECKLIST")),
+  makeNodeSchema("OFFER_LETTER", configOf("OFFER_LETTER")),
+  makeNodeSchema("ONBOARDING_CHECKLIST", configOf("ONBOARDING_CHECKLIST")),
+  makeNodeSchema("ORIENTATION", configOf("ORIENTATION")),
 ] as const;
 
 export const saveWorkflowInputSchema = z.object({
