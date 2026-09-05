@@ -68,6 +68,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 
+import { EXPENSIVE_COST_SHARE, isExpensiveCostShare } from "../lib/cost-share";
 import { ExecutionStatusPill } from "../lib/status";
 
 /** Compatible with the router's output (costUsd is number, not Prisma Decimal). */
@@ -280,6 +281,16 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
   const tokensOut = execution.tokensOut ?? 0;
   const traces = (execution.nodeExecutions ?? []) as TraceRow[];
 
+  // AF-UX-02: the run's total node cost is the sum of its traces, so a cached
+  // hit (records $0) can never push a run into "expensive" territory.
+  const totalCost = traces.reduce((sum, trace) => sum + trace.costUsd, 0);
+  const showTokens = traces.some(
+    (trace) => trace.tokensIn > 0 || trace.tokensOut > 0,
+  );
+  const anyExpensiveTrace = traces.some((trace) =>
+    isExpensiveCostShare(trace.costUsd, totalCost),
+  );
+
   return (
     <>
       <PageHeader
@@ -475,6 +486,14 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
             <span className="text-xs text-muted-foreground tabular-nums">
               {traces.length} {traces.length === 1 ? "step" : "steps"}
             </span>
+            {anyExpensiveTrace ? (
+              <StatusPill
+                tone="warning"
+                title="Amber cost = more than 10% of this run's total spend"
+              >
+                &gt;{Math.round(EXPENSIVE_COST_SHARE * 100)}% of spend
+              </StatusPill>
+            ) : null}
           </PanelHeader>
           <DataTable>
             <THead>
@@ -490,6 +509,15 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
                 <TH align="right" className="hidden sm:table-cell">
                   Duration
                 </TH>
+                {showTokens ? (
+                  <TH
+                    align="right"
+                    className="hidden sm:table-cell"
+                    title="Input / output tokens for this node"
+                  >
+                    Tokens
+                  </TH>
+                ) : null}
                 <TH align="right">Cost</TH>
                 <TH align="right">
                   <span className="sr-only">Actions</span>
@@ -503,6 +531,8 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
                   trace={trace}
                   executionId={executionId}
                   isRetryable={isRetryable}
+                  totalCost={totalCost}
+                  showTokens={showTokens}
                 />
               ))}
             </TBody>
@@ -519,10 +549,14 @@ const NodeTraceRow = ({
   trace,
   executionId,
   isRetryable,
+  totalCost,
+  showTokens,
 }: {
   trace: TraceRow;
   executionId: string;
   isRetryable: boolean;
+  totalCost: number;
+  showTokens: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const trpc = useTRPC();
@@ -539,6 +573,12 @@ const NodeTraceRow = ({
   );
   const cost = formatCost(trace.costUsd);
   const duration = formatDuration(trace.durationMs);
+  // AF-UX-02: highlight nodes above 10% of the run's total spend.
+  const expensive = isExpensiveCostShare(trace.costUsd, totalCost);
+  const spendShare =
+    expensive && totalCost > 0
+      ? `${Math.round((trace.costUsd / totalCost) * 100)}% of this run's spend`
+      : undefined;
 
   return (
     <>
@@ -616,8 +656,29 @@ const NodeTraceRow = ({
         >
           {duration ?? "-"}
         </TD>
-        <TD align="right" className="font-mono tabular-nums">
-          {cost ?? <span className="text-muted-foreground">-</span>}
+        {showTokens ? (
+          <TD
+            align="right"
+            className="hidden font-mono text-muted-foreground tabular-nums sm:table-cell"
+            title={`${trace.tokensIn.toLocaleString()} in / ${trace.tokensOut.toLocaleString()} out`}
+          >
+            {trace.tokensIn > 0 || trace.tokensOut > 0
+              ? `${trace.tokensIn.toLocaleString()} / ${trace.tokensOut.toLocaleString()}`
+              : "-"}
+          </TD>
+        ) : null}
+        <TD
+          align="right"
+          className={cn(
+            "font-mono tabular-nums",
+            expensive && "font-medium text-warning",
+          )}
+        >
+          {cost !== null ? (
+            <span title={spendShare}>{cost}</span>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
         </TD>
         <TD align="right">
           {isRetryable && trace.status !== NodeExecutionStatus.SKIPPED ? (
@@ -654,7 +715,10 @@ const NodeTraceRow = ({
 
       {isOpen && hasDetails ? (
         <tr className="border-b border-hairline bg-well">
-          <td colSpan={TRACE_COLUMNS} className="px-4 pt-1 pb-4">
+          <td
+            colSpan={TRACE_COLUMNS + (showTokens ? 1 : 0)}
+            className="px-4 pt-1 pb-4"
+          >
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 Attempt {trace.attempt}
