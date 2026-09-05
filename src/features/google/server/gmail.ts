@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { googleFetch, paginate } from "./google-client";
 
 /**
@@ -9,8 +10,6 @@ import { googleFetch, paginate } from "./google-client";
  * Two shapes the library needs: send a message (with attachments that came
  * from the blob store), and find new mail matching a query.
  */
-
-const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 /** Attachment bytes one message may carry. Gmail's own ceiling is 25 MB. */
 export const MAX_GMAIL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -178,7 +177,7 @@ export async function sendGmail(args: {
   where: string;
 }): Promise<{ id: string; threadId: string; labelIds: string[] }> {
   return googleFetch(args.secret, {
-    url: `${GMAIL_API}/messages/send`,
+    url: `${serviceEndpoint("gmail")}/messages/send`,
     method: "POST",
     body: {
       raw: args.raw,
@@ -310,7 +309,7 @@ export async function listGmailMessages(args: {
         messages?: Array<{ id?: string }>;
         nextPageToken?: string;
       }>(args.secret, {
-        url: `${GMAIL_API}/messages`,
+        url: `${serviceEndpoint("gmail")}/messages`,
         query: {
           q: args.query || undefined,
           labelIds: args.labelIds?.join(",") || undefined,
@@ -338,7 +337,7 @@ export async function getGmailMessage(args: {
   const raw = await googleFetch<Parameters<typeof parseGmailMessage>[0]>(
     args.secret,
     {
-      url: `${GMAIL_API}/messages/${encodeURIComponent(args.messageId)}`,
+      url: `${serviceEndpoint("gmail")}/messages/${encodeURIComponent(args.messageId)}`,
       query: { format: "full" },
       where: args.where,
     },

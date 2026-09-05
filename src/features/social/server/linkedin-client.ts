@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { uploadStoredFile } from "./upload-stream";
 
 /**
@@ -19,7 +20,6 @@ import { uploadStoredFile } from "./upload-stream";
  * which is why this is one function rather than three the caller sequences.
  */
 
-const LINKEDIN_API = "https://api.linkedin.com/v2";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /** LinkedIn's own image ceiling. */
@@ -80,18 +80,21 @@ async function linkedinFetch<T>(
     where: string;
   },
 ): Promise<T> {
-  const response = await fetch(`${LINKEDIN_API}${request.path}`, {
-    method: request.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      // Required on every v2 call. Without it LinkedIn applies legacy response
-      // shaping and several fields come back under different names.
-      "X-Restli-Protocol-Version": "2.0.0",
+  const response = await fetch(
+    `${serviceEndpoint("linkedin")}${request.path}`,
+    {
+      method: request.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        // Required on every v2 call. Without it LinkedIn applies legacy response
+        // shaping and several fields come back under different names.
+        "X-Restli-Protocol-Version": "2.0.0",
+      },
+      body: request.body ? JSON.stringify(request.body) : undefined,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     },
-    body: request.body ? JSON.stringify(request.body) : undefined,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  );
 
   const text = await response.text();
   if (!response.ok) throw classify(response.status, text, request.where);

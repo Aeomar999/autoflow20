@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one Stripe client for workflow actions (AF-M10-20).
@@ -18,7 +19,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  * someone's billing records.
  */
 
-const STRIPE_API = "https://api.stripe.com/v1";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface StripeCustomer {
@@ -155,7 +155,7 @@ export async function stripeFetch<T>(
   }
 
   const method = request.method ?? "GET";
-  const url = new URL(`${STRIPE_API}${request.path}`);
+  const url = new URL(`${serviceEndpoint("stripe")}${request.path}`);
   if (request.query) {
     for (const [key, value] of toFormBody(request.query).entries()) {
       url.searchParams.append(key, value);

@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The Airtable client for the AF-M10-20 nodes.
@@ -18,7 +19,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  * someone opens the view.
  */
 
-const AIRTABLE_API = "https://api.airtable.com/v0";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /** Airtable's own page size, and its hard cap. */
@@ -106,7 +106,7 @@ export async function airtableFetch<T>(
   }
 
   const url = new URL(
-    `${AIRTABLE_API}/${encodeURIComponent(request.baseId)}/${encodeURIComponent(
+    `${serviceEndpoint("airtable")}/${encodeURIComponent(request.baseId)}/${encodeURIComponent(
       request.table,
     )}${request.recordPath ? `/${encodeURIComponent(request.recordPath)}` : ""}`,
   );

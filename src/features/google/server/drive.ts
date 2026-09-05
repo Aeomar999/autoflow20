@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { googleFetch, googleFetchBytes, paginate } from "./google-client";
 
 /**
@@ -10,9 +11,6 @@ import { googleFetch, googleFetchBytes, paginate } from "./google-client";
  * download what appears, and **move it somewhere else when done** — the move
  * is what stops the next poll reprocessing the same contract.
  */
-
-const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
-const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 
 /** Per-file download ceiling for a node. */
 export const MAX_DRIVE_FILE_BYTES = 100 * 1024 * 1024;
@@ -106,7 +104,7 @@ export async function listDriveFiles(args: {
         files?: Array<Record<string, unknown>>;
         nextPageToken?: string;
       }>(args.secret, {
-        url: DRIVE_API,
+        url: serviceEndpoint("google-drive"),
         query: {
           q: clauses.join(" and "),
           fields: `nextPageToken,files(${FILE_FIELDS})`,
@@ -134,7 +132,7 @@ export async function getDriveFile(args: {
   where: string;
 }): Promise<DriveFile> {
   const raw = await googleFetch<Record<string, unknown>>(args.secret, {
-    url: `${DRIVE_API}/${encodeURIComponent(args.fileId)}`,
+    url: `${serviceEndpoint("google-drive")}/${encodeURIComponent(args.fileId)}`,
     query: { fields: FILE_FIELDS, supportsAllDrives: true },
     where: args.where,
   });
@@ -168,7 +166,7 @@ export async function downloadDriveFile(args: {
 
   if (exportAs) {
     const data = await googleFetchBytes(args.secret, {
-      url: `${DRIVE_API}/${encodeURIComponent(args.file.id)}/export`,
+      url: `${serviceEndpoint("google-drive")}/${encodeURIComponent(args.file.id)}/export`,
       query: { mimeType: exportAs.mimeType },
       maxBytes,
       where: args.where,
@@ -192,7 +190,7 @@ export async function downloadDriveFile(args: {
   }
 
   const data = await googleFetchBytes(args.secret, {
-    url: `${DRIVE_API}/${encodeURIComponent(args.file.id)}`,
+    url: `${serviceEndpoint("google-drive")}/${encodeURIComponent(args.file.id)}`,
     query: { alt: "media", supportsAllDrives: true },
     maxBytes,
     where: args.where,
@@ -233,7 +231,7 @@ export async function uploadDriveFile(args: {
   ]);
 
   const raw = await googleFetch<Record<string, unknown>>(args.secret, {
-    url: DRIVE_UPLOAD_API,
+    url: serviceEndpoint("google-drive-upload"),
     method: "POST",
     query: {
       uploadType: "multipart",
@@ -276,7 +274,7 @@ export async function moveDriveFile(args: {
   }
 
   const raw = await googleFetch<Record<string, unknown>>(args.secret, {
-    url: `${DRIVE_API}/${encodeURIComponent(args.fileId)}`,
+    url: `${serviceEndpoint("google-drive")}/${encodeURIComponent(args.fileId)}`,
     method: "PATCH",
     query: {
       addParents: args.toFolderId,

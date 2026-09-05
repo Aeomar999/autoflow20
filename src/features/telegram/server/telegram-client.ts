@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { TELEGRAM_MAX_DOWNLOAD_BYTES } from "../constants";
 
 /**
@@ -17,7 +18,6 @@ import { TELEGRAM_MAX_DOWNLOAD_BYTES } from "../constants";
  *    harder.
  */
 
-const TELEGRAM_API = "https://api.telegram.org";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface TelegramMessage {
@@ -107,7 +107,7 @@ export async function telegramFetch<T>(
   }
 
   const response = await fetch(
-    `${TELEGRAM_API}/bot${botToken}/${request.method}`,
+    `${serviceEndpoint("telegram")}/bot${botToken}/${request.method}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -204,7 +204,7 @@ export async function downloadTelegramFile(args: {
   }
 
   const response = await fetch(
-    `${TELEGRAM_API}/file/bot${botToken}/${file.file_path}`,
+    `${serviceEndpoint("telegram")}/file/bot${botToken}/${file.file_path}`,
     { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
   );
 

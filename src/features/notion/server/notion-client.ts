@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one Notion client (AF-M10-18).
@@ -19,7 +20,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  *    check.
  */
 
-const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -107,7 +107,7 @@ export async function notionFetch<T>(
     );
   }
 
-  const url = new URL(`${NOTION_API}${request.path}`);
+  const url = new URL(`${serviceEndpoint("notion")}${request.path}`);
   for (const [key, value] of Object.entries(request.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));
   }

@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one GitHub REST client (AF-M10-18).
@@ -19,7 +20,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  *   cause is a missing scope or an org that has not approved the OAuth app.
  */
 
-const GITHUB_API = "https://api.github.com";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 /** Pages one listing will walk. A bound, not a guess. */
@@ -133,7 +133,7 @@ async function githubRaw<T>(
     );
   }
 
-  const url = new URL(`${GITHUB_API}${request.path}`);
+  const url = new URL(`${serviceEndpoint("github")}${request.path}`);
   for (const [key, value] of Object.entries(request.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));
   }

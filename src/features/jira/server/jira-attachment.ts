@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * Jira attachment upload (AF-M10-18).
@@ -15,7 +16,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  * Jira attachment integration does not work.
  */
 
-const ATLASSIAN_API = "https://api.atlassian.com";
 const UPLOAD_TIMEOUT_MS = 60_000;
 
 export interface JiraAttachment {
@@ -58,7 +58,7 @@ export async function uploadJiraAttachment(args: {
   );
 
   const response = await fetch(
-    `${ATLASSIAN_API}/ex/jira/${cloudId}/rest/api/3/issue/${args.issueKey}/attachments`,
+    `${serviceEndpoint("atlassian")}/ex/jira/${cloudId}/rest/api/3/issue/${args.issueKey}/attachments`,
     {
       method: "POST",
       headers: {

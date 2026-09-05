@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * The one Apollo client (AF-M10-19).
@@ -18,7 +19,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  *    downstream.
  */
 
-const APOLLO_API = "https://api.apollo.io/api/v1";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface ApolloPerson {
@@ -97,7 +97,7 @@ export async function apolloFetch<T>(
     );
   }
 
-  const response = await fetch(`${APOLLO_API}${args.path}`, {
+  const response = await fetch(`${serviceEndpoint("apollo")}${args.path}`, {
     method: "POST",
     headers: {
       // Apollo's current auth. Older examples put `api_key` in the body, which

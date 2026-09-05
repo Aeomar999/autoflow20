@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 
 /**
  * X (Twitter) v2 posting (AF-M10-22).
@@ -18,7 +19,6 @@ import type { CredentialSecret } from "@/features/credentials/server/vault";
  * two are one call.
  */
 
-const X_API = "https://api.x.com/2";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface XPost {
@@ -116,7 +116,7 @@ export async function postToX(args: {
     );
   }
 
-  const response = await fetch(`${X_API}/tweets`, {
+  const response = await fetch(`${serviceEndpoint("x")}/tweets`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,

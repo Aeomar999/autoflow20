@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { googleFetch } from "./google-client";
 
 /**
@@ -11,8 +12,6 @@ import { googleFetch } from "./google-client";
  * one of those automations addresses columns by name, and every one of them
  * would otherwise reimplement "row 1 is the header, map the rest onto it".
  */
-
-const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 
 /** Rows one read returns. Sheets itself caps a response long before this. */
 export const MAX_SHEET_ROWS = 5000;
@@ -111,7 +110,7 @@ export async function readSheet(args: {
     range?: string;
     values?: string[][];
   }>(args.secret, {
-    url: `${SHEETS_API}/${encodeURIComponent(args.spreadsheetId)}/values/${encodeURIComponent(args.range)}`,
+    url: `${serviceEndpoint("google-sheets")}/${encodeURIComponent(args.spreadsheetId)}/values/${encodeURIComponent(args.range)}`,
     query: {
       // Formatted values, so a currency cell reads as the user sees it rather
       // than as a raw float — these values are usually going into an email.
@@ -169,7 +168,7 @@ export async function updateSheetRow(args: {
     updatedRange?: string;
     updatedCells?: number;
   }>(args.secret, {
-    url: `${SHEETS_API}/${encodeURIComponent(args.spreadsheetId)}/values/${encodeURIComponent(range)}`,
+    url: `${serviceEndpoint("google-sheets")}/${encodeURIComponent(args.spreadsheetId)}/values/${encodeURIComponent(range)}`,
     method: "PUT",
     query: { valueInputOption: "USER_ENTERED" },
     body: { values: [args.values] },
@@ -193,7 +192,7 @@ export async function appendSheetRows(args: {
   const response = await googleFetch<{
     updates?: { updatedRange?: string; updatedRows?: number };
   }>(args.secret, {
-    url: `${SHEETS_API}/${encodeURIComponent(args.spreadsheetId)}/values/${encodeURIComponent(args.range)}:append`,
+    url: `${serviceEndpoint("google-sheets")}/${encodeURIComponent(args.spreadsheetId)}/values/${encodeURIComponent(args.range)}:append`,
     method: "POST",
     query: {
       valueInputOption: "USER_ENTERED",

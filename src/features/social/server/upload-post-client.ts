@@ -2,6 +2,7 @@ import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
 import { readFileStream } from "@/features/files/server/file-service";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { formatBytes } from "./upload-stream";
 
 /**
@@ -17,7 +18,6 @@ import { formatBytes } from "./upload-stream";
  * worker heap per concurrent run.
  */
 
-const UPLOAD_POST_API = "https://api.upload-post.com/api";
 const REQUEST_TIMEOUT_MS = 120_000;
 
 /** Instagram's own limits, refused here so the error names the number. */
@@ -124,7 +124,7 @@ export async function publishViaUploadPost(args: {
   form.append(args.isVideo ? "video" : "photos[]", blob, filename);
 
   const response = await fetch(
-    `${UPLOAD_POST_API}/upload${args.isVideo ? "" : "_photos"}`,
+    `${serviceEndpoint("upload-post")}/upload${args.isVideo ? "" : "_photos"}`,
     {
       method: "POST",
       headers: {

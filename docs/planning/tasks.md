@@ -2925,6 +2925,25 @@ and `EXPECTED_TEMPLATE_COUNT` moved 93 → 96.
 
 #### Phase D — proving it
 
+#### Phase C descoped after AF-M10-27 (user decision, 2026-09-05)
+
+**AF-M10-28 through AF-M10-32 are cut. Automations #24–#35 are not authored.**
+
+The milestone ships **23 of the 35** reference automations. The reason is not
+time: nothing authored so far has been *proven*. Phase C's own rule is that a
+template is done when AF-M10-34 runs it green, and on 2026-09-05 all 100
+catalogue entries were authored-only. Adding twelve more unproven graphs makes
+that pile larger, not better.
+
+Ordering the other way round is also better work. Once AF-M10-34's fixture
+infrastructure exists, a template can be proven as it is written instead of
+joining a backlog, so the remaining automations are cheaper and safer to author
+later than they are now.
+
+This cuts more than the descope list further down calls for — that list names
+#33/#34 and #31 first, and says nothing about #24–#30. Recorded here so the
+difference between "descoped per plan" and "descoped by decision" stays visible.
+
 ### ⬜ AF-M10-33 · Fixture-server contract suites for every service node · 2.5d
 **Depends on:** Phase B
 **Acceptance**
@@ -2940,7 +2959,7 @@ The milestone's definition of done.
 **Acceptance**
 - [ ] `tests/integration/automations/` drives each of the 35 catalogue graphs through `runGraph` against the fixture server, asserting terminal `SUCCESS` and the expected `NodeExecution` count, order and statuses.
 - [ ] Trigger payloads are injected through `runGraph`'s `initialData` option. ~~This task cannot close until AF-M9-01 lands it.~~ **Unblocked 2026-09-03** — that box closed with AF-M9-10; the note above was stale when AF-M10-24 checked it.
-- [ ] **Client base-URL redirection, moved here from Phase C (2026-09-04).** The fixture server only redirects `node.data.endpoint`, so it can reach `HTTP_REQUEST` and nothing else; every Phase B client (`const APIFY_API = …`, and the same for Apollo, Google, Gmail, Sheets, Stripe, Shopify, Airtable, Telegram, WAHA) hardcodes its base URL as a module constant. Without a seam, ~30 of the 35 cannot be driven offline at all. This is the task's real first step, not a detail of it.
+- [x] **Client base-URL redirection, moved here from Phase C (2026-09-04). DONE 2026-09-05.** `src/lib/server/service-endpoints.ts` holds all 27 bases; 21 client files and 36 use sites moved onto `serviceEndpoint(name)`, and Shopify's per-shop host and QuickBooks' sandbox/production pair onto `redirectedServiceUrl`. Redirection is gated twice — `NODE_ENV=test` **and** a loopback origin — and a malformed or non-loopback override throws rather than falling back to the real endpoint, because falling back turns "this test redirects Stripe" into "this test charged a real card". Each service gets its own path segment so a fixture can tell a Sheets call from a Drive one, and the client's own path suffix survives, which is the part a contract test asserts on. `service-endpoints.test.ts` carries a guard that fails on any newly hardcoded base — it found `YOUTUBE_UPLOAD_API` immediately, which a hand-written survey had missed because the declaration wraps across two lines. `tests/integration/service-endpoint-redirect.integration.test.ts` proves the seam through real clients against a real socket, since a client that captured its base at import time would pass the unit test and fail this one.
 - [ ] No network access, no credentials, no manual intervention; suite runs in the existing `integration` project.
 - [ ] A staging checklist records which of the 35 have additionally been run against real accounts, with dates — CI-green and provider-green are different claims and the docs must not blur them.
 - [ ] progress.md updated

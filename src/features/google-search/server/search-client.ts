@@ -1,6 +1,7 @@
 import "server-only";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { CredentialSecret } from "@/features/credentials/server/vault";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import { GOOGLE_MAPS_PAGE_SIZE, GOOGLE_SEARCH_PAGE_SIZE } from "../constants";
 
 /**
@@ -19,8 +20,6 @@ import { GOOGLE_MAPS_PAGE_SIZE, GOOGLE_SEARCH_PAGE_SIZE } from "../constants";
  *   `*`, which would silently bill at the highest tier on every call.
  */
 
-const CUSTOM_SEARCH_API = "https://www.googleapis.com/customsearch/v1";
-const PLACES_API = "https://places.googleapis.com/v1/places:searchText";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface SearchResult {
@@ -72,7 +71,7 @@ export async function customSearch(args: {
     );
   }
 
-  const url = new URL(CUSTOM_SEARCH_API);
+  const url = new URL(serviceEndpoint("google-custom-search"));
   url.searchParams.set("key", apiKey);
   url.searchParams.set("cx", cx);
   url.searchParams.set("q", args.query);
@@ -218,7 +217,7 @@ export async function placesTextSearch(args: {
     );
   }
 
-  const response = await fetch(PLACES_API, {
+  const response = await fetch(serviceEndpoint("google-places"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
