@@ -33,7 +33,7 @@ export const supportTemplates: TemplateSpec[] = [
           data: {
             variableName: "triage",
             model: "openai:gpt-4o-mini",
-            fallbackModels: "google:gemini-1.5-flash",
+            fallbackModels: "google:gemini-3.6-flash",
             content:
               "Subject: {{webhook.body.subject}}\n\nBody:\n{{webhook.body.message}}\n\nFrom: {{webhook.body.email}}",
             fields: [
@@ -283,7 +283,7 @@ export const supportTemplates: TemplateSpec[] = [
           data: {
             variableName: "digest",
             model: "openai:gpt-4o-mini",
-            fallbackModels: "groq:llama-3.3-70b-versatile",
+            fallbackModels: "groq:openai/gpt-oss-120b",
             systemPrompt:
               "You cluster support escalations by underlying cause. Report only clusters the data supports.",
             userPrompt:

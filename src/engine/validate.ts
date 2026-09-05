@@ -1157,6 +1157,19 @@ function computeValidRoots(nodes: GraphNode[]): Set<string> | null {
       valid.add(data.variableName);
     }
     for (const root of spreadPayloadRoots(node)) valid.add(root);
+    // AF-M10-34: a closed fan-out segment replaces the rolling context with
+    // its collected result — `context = aggregateResult` in the engine — so
+    // everything after an AGGREGATE really can read `items`, `count` and
+    // `failed`. The node carries no `variableName` (its config schema is
+    // empty), so nothing above adds them, and the validator was reporting a
+    // correct template as referencing an unknown root. It was hidden until
+    // now because the one template that does this had malformed braces, so
+    // the reference never parsed far enough to be checked.
+    if (node.type === AGGREGATE_TYPE) {
+      valid.add("items");
+      valid.add("count");
+      valid.add("failed");
+    }
     if (node.type === "SET") {
       const mappings = data.mappings;
       if (Array.isArray(mappings)) {

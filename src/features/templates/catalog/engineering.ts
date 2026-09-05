@@ -371,7 +371,7 @@ export const engineeringTemplates: TemplateSpec[] = [
           position: { x: 1300, y: 0 },
           data: {
             variableName: "notes",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o",
             systemPrompt:
               "You write release notes for people who do not read code. Group by what changed for the user, not by component. Say what each change lets someone do now that they could not before. Never invent a change that is not in the input. End with a short section titled 'Changes without a ticket' listing those commit subjects verbatim, or omit the section if there are none. Plain text, no code blocks.",

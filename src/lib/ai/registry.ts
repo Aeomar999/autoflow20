@@ -90,7 +90,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     label: "Google Gemini",
     credentialType: "gemini.apiKey",
     requiresKey: true,
-    defaultModel: "gemini-1.5-flash",
+    defaultModel: "gemini-3.6-flash",
   },
   {
     id: "groq",
@@ -98,7 +98,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     credentialType: "groq.apiKey",
     requiresKey: true,
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
   },
   {
     id: "deepseek",
@@ -157,37 +157,72 @@ export const aiModelDefs: AiModelDef[] = [
     outputCostPer1M: 15,
   },
   // Google
+  //
+  // The 1.5 line was removed 2026-09-05: Google no longer serves it, and a
+  // request for it comes back "models/gemini-1.5-flash is not found for API
+  // version v1beta" — which reached a user as a failed run, not as a
+  // deprecation notice. Ids here are the stable ones the Generative Language
+  // ListModels endpoint reports as supporting generateContent.
+  // 2.5 went the same way as 1.5 while this was being written: listed by
+  // ListModels, but refused with "no longer available to new users. Please
+  // update your code to use models/gemini-3.6-flash". The ids below were each
+  // confirmed with a live one-token generation rather than read off a page.
   {
     provider: "google",
-    model: "gemini-1.5-flash",
+    model: "gemini-3.6-flash",
     adapter: "google",
     contextWindow: 1_048_576,
     capabilities: ["chat", "json", "vision", "audio", "toolUse"],
-    inputCostPer1M: 0.075,
-    outputCostPer1M: 0.3,
+    inputCostPer1M: 0.3,
+    outputCostPer1M: 2.5,
   },
   {
     provider: "google",
-    model: "gemini-1.5-pro",
+    model: "gemini-3.8-flash",
     adapter: "google",
-    contextWindow: 2_097_152,
+    contextWindow: 1_048_576,
+    capabilities: ["chat", "json", "vision", "audio", "toolUse"],
+    inputCostPer1M: 0.3,
+    outputCostPer1M: 2.5,
+  },
+  {
+    // Alias Google keeps pointed at the current flash. Useful as a fallback
+    // precisely because it does not rot the way a pinned id does.
+    provider: "google",
+    model: "gemini-flash-latest",
+    adapter: "google",
+    contextWindow: 1_048_576,
+    capabilities: ["chat", "json", "vision", "audio", "toolUse"],
+    inputCostPer1M: 0.3,
+    outputCostPer1M: 2.5,
+  },
+  {
+    // The pro tier needs billing enabled; a free-tier key gets a quota refusal
+    // rather than a missing-model error, which is a different fix.
+    provider: "google",
+    model: "gemini-pro-latest",
+    adapter: "google",
+    contextWindow: 1_048_576,
     capabilities: ["chat", "json", "vision", "audio", "toolUse"],
     inputCostPer1M: 1.25,
-    outputCostPer1M: 5,
+    outputCostPer1M: 10,
   },
   // Groq (OpenAI-compatible)
+  //
+  // Retired alongside the Gemini 1.5 line: Groq answers "The model
+  // `llama-3.3-70b-versatile` does not exist or you do not have access to it".
   {
     provider: "groq",
-    model: "llama-3.3-70b-versatile",
+    model: "openai/gpt-oss-120b",
     adapter: "openai",
     contextWindow: 131_072,
     capabilities: ["chat", "json", "toolUse"],
-    inputCostPer1M: 0.59,
-    outputCostPer1M: 0.79,
+    inputCostPer1M: 0.15,
+    outputCostPer1M: 0.75,
   },
   {
     provider: "groq",
-    model: "llama-3.1-8b-instant",
+    model: "openai/gpt-oss-20b",
     adapter: "openai",
     contextWindow: 131_072,
     capabilities: ["chat", "json", "toolUse"],

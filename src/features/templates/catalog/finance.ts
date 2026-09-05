@@ -138,7 +138,7 @@ export const financeTemplates: TemplateSpec[] = [
           position: { x: 1080, y: 140 },
           data: {
             variableName: "invoice",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o",
             content:
               "Extract the invoice below. If a field is absent, leave it empty rather than guessing, and let the confidence reflect that.\n\n{{pages.text}}",
@@ -155,7 +155,7 @@ export const financeTemplates: TemplateSpec[] = [
             // converge on one confidence check, so downstream reads `invoice`
             // without caring which route the file took.
             variableName: "invoice",
-            model: "google:gemini-1.5-pro",
+            model: "google:gemini-3.6-flash",
             fallbackModels: "openai:gpt-4o",
             content:
               "Extract the invoice in the attached image. If a field is absent or unreadable, leave it empty rather than guessing, and let the confidence reflect that.",
