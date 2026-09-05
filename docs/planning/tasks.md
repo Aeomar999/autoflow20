@@ -3091,7 +3091,7 @@ We decided to merge plan items **2.1** (add search to executions page) and **2.2
 same landing page, the same tRPC procedure (`executions.list`), the same nuqs param
 module, and the same filter bar — one PR, one acceptance set.
 
-### ⬜ AF-UX-01 · Executions search + workflow multi-select filter · 1d
+### ✅ AF-UX-01 · Executions search + workflow multi-select filter · 1d · **DONE 2026-09-05**
 
 **Why:** The executions page has only a status filter (`docs/ux-improvement-plan.md`
 §2.1, §2.2). Users with many workflows cannot find a specific run: there is no way to
@@ -3120,21 +3120,21 @@ accepts a single optional `workflowId` — no caller anywhere passes it — plus
 
 **Depends on:** none at runtime; work is gated by buildware (`npm run build`) only.
 **Acceptance**
-- [ ] Search input renders at the top of the executions list and filters by workflow
+- [x] Search input renders at the top of the executions list and filters by workflow
       name or execution id, case-insensitive, on the server (reuse search-router
       matching: id `startsWith`, name `contains`).
-- [ ] Results update as the user types, debounced ~300ms via the nuqs `debounce`
+- [x] Results update as the user types, debounced ~300ms via the nuqs `debounce`
       limit; no refetch per keystroke.
-- [ ] Clear (×) button in the search input resets the query and the list.
-- [ ] Empty filter state distinct from the "no runs yet" onboarding empty state —
+- [x] Clear (×) button in the search input resets the query and the list.
+- [x] Empty filter state distinct from the "no runs yet" onboarding empty state —
       "No executions match your filters" with a way back.
-- [ ] Workflow dropdown lists the user's workflows (from `workflows.getMany`),
+- [x] Workflow dropdown lists the user's workflows (from `workflows.getMany`),
       supports multi-select, and shows a count of selected workflows.
-- [ ] Workflow filter AND-combines with the existing status filter server-side
+- [x] Workflow filter AND-combines with the existing status filter server-side
       (both survive a page reload as URL params).
-- [ ] Clear-filters affordance resets search + workflow + status together.
-- [ ] Authz: search/`workflowIds` filtering happens inside the org-scoped `where`,
+- [x] Clear-filters affordance resets search + workflow + status together.
+- [x] Authz: search/`workflowIds` filtering happens inside the org-scoped `where`,
       never post-fetch; org B cannot use org A's workflow id to widen results.
-- [ ] Unit test for the new params (search/workflowIds serialize, clearOnDefault);
+- [x] Unit test for the new params (search/workflowIds serialize, clearOnDefault);
       integration test proving search + `workflowIds` stay tenant-scoped.
-- [ ] `npm run build` passes, no new lint warnings; progress.md + tasks.md updated.
+- [x] `npm run build` passes, no new lint warnings; progress.md + tasks.md updated.
