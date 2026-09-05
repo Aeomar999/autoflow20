@@ -37,6 +37,8 @@ export const configSchema = z.object({
 
 export const definition: NodeDefinition = {
   type: "APPROVAL",
+  // Parks on `waitForEvent` until a human answers, which can be days.
+  ownsSteps: true,
   version: 1,
   category: "LOGIC",
   label: "Approval",

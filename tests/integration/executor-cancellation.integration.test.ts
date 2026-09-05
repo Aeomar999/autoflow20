@@ -195,11 +195,17 @@ describe.runIf(hasDb)("Executor cooperative cancellation (AF-M8-27)", () => {
     });
 
     // Simulate the cancel route firing mid-run: flip the row the moment the
-    // trigger node's internal `manual-trigger` step completes and before the
-    // next node's cancel-check reads it.
+    // trigger node's step completes and before the next node's cancel-check
+    // reads it.
+    //
+    // AF-M10-34: this used to hook `manual-trigger`, the step the trigger's
+    // executor opened inside the engine's own. Executors no longer reach the
+    // real step tooling — nesting it is what hung every production run — so
+    // the hook is now the engine's node step, which is the boundary this test
+    // actually means and the only one a deployed run has.
     let flipped = false;
     const step = makeStep(async (name) => {
-      if (name === "manual-trigger" && !flipped) {
+      if (name === `node:${triggerNodeId}:attempt:1` && !flipped) {
         flipped = true;
         await prisma.execution.update({
           where: { id: executionId },

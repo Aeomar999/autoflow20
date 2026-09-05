@@ -145,7 +145,7 @@ async function main() {
       workflowId: workflow.id,
       userId,
       organizationId: org.id,
-      ...(initialData ?? {}),
+      ...(initialData ? { initialData } : {}),
     },
   };
 

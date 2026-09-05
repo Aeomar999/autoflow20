@@ -32,6 +32,8 @@ export const configSchema = z.object({
 
 export const definition: NodeDefinition = {
   type: "WAIT",
+  // The whole node is a durable sleep; inline it and it stops surviving a redeploy.
+  ownsSteps: true,
   version: 1,
   category: "LOGIC",
   label: "Wait",

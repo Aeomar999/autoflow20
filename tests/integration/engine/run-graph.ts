@@ -30,9 +30,22 @@ function makeStep(opts?: {
   log?: string[];
 }) {
   let failures = 0;
+  // AF-M10-34: real Inngest forbids step tooling inside a step callback, and
+  // does not report it by throwing — the nested promise simply never settles.
+  // A double that happily ran nested callbacks inline is what let every
+  // executor call `step.run` inside the engine's own step and still pass 246
+  // integration tests, while no workflow could execute in production at all.
+  // Refusing here makes the double no more permissive than the thing it stands
+  // in for.
+  let depth = 0;
   return {
     run: async (_name: string, fn: () => unknown) => {
       opts?.log?.push(_name);
+      if (depth > 0) {
+        throw new Error(
+          `nested step.run("${_name}") — real Inngest would hang here. The executor must receive inline step tooling, or its definition must set \`ownsSteps: true\`.`,
+        );
+      }
       const failSpec = opts?.failSteps;
       if (
         failSpec &&
@@ -45,7 +58,13 @@ function makeStep(opts?: {
         // exercised rather than simulated.
         throw new Error(`injected transient failure #${failures}`);
       }
-      const value = await fn();
+      depth += 1;
+      let value: unknown;
+      try {
+        value = await fn();
+      } finally {
+        depth -= 1;
+      }
       if (value === undefined || value === null) return value;
       try {
         return JSON.parse(JSON.stringify(value));
