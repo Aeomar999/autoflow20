@@ -19,13 +19,24 @@ export function toTableRows(value: unknown): Record<string, unknown>[] | null {
   const isPlainObject = (v: unknown): v is Record<string, unknown> =>
     typeof v === "object" && v !== null && !Array.isArray(v);
 
+  let rows: Record<string, unknown>[] | null = null;
+
   if (Array.isArray(value)) {
     if (value.length === 0) return null;
-    return value.every(isPlainObject)
+    rows = value.every(isPlainObject)
       ? (value as Record<string, unknown>[])
       : null;
+  } else if (isPlainObject(value)) {
+    rows = [value];
   }
-  return isPlainObject(value) ? [value] : null;
+
+  if (rows === null) return null;
+
+  // Reject rows where every object is empty — an empty table looks like missing data
+  // and defeats the purpose of the JSON fallback (see module docstring).
+  if (rows.every((r) => Object.keys(r).length === 0)) return null;
+
+  return rows;
 }
 
 function cellText(value: unknown): string {

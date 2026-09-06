@@ -28,6 +28,19 @@ describe("toTableRows", () => {
   it("refuses an empty array", () => {
     expect(toTableRows([])).toBeNull();
   });
+
+  it("refuses an empty object", () => {
+    expect(toTableRows({})).toBeNull();
+  });
+
+  it("refuses an array of empty objects", () => {
+    expect(toTableRows([{}])).toBeNull();
+    expect(toTableRows([{}, {}])).toBeNull();
+  });
+
+  it("tabulates mixed rows where some are empty but at least one has keys", () => {
+    expect(toTableRows([{}, { a: 1 }])).toEqual([{}, { a: 1 }]);
+  });
 });
 
 describe("DataViewer", () => {
@@ -66,5 +79,14 @@ describe("DataViewer", () => {
     render(<DataViewer value={[{ a: 1 }, { b: 2 }]} label="Output" />);
     // Row 1 has no `b`, row 2 has no `a` - two blanks.
     expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("falls back to JSON with no table toggle when the value is an empty object", () => {
+    render(<DataViewer value={{}} label="Output" />);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Output as table" }),
+    ).toBeNull();
+    expect(screen.getByText("{}")).toBeTruthy();
   });
 });
