@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildNodeTestRunPlan,
+  buildRunToNodePlan,
   buildTestGraph,
   buildTestRunPlan,
   type TestGraph,
@@ -170,6 +171,47 @@ describe("buildNodeTestRunPlan (single-node)", () => {
     );
     expect(() => buildNodeTestRunPlan(linearGraph(), "missing")).toThrow(
       /not found/,
+    );
+  });
+});
+
+describe("buildRunToNodePlan (AF-UX-15, run-up-to)", () => {
+  it("runs every upstream node and stops after the target", () => {
+    const plan = buildRunToNodePlan(linearGraph(), target.id);
+    // The whole point: nothing is skipped, so the target receives real input.
+    expect(plan.skipNodes).toEqual([]);
+    expect(plan.endAfterNodeId).toBe(target.id);
+    expect(plan.skipReason).toBeUndefined();
+  });
+
+  it("carries the whole graph in the snapshot", () => {
+    const plan = buildRunToNodePlan(linearGraph(), target.id);
+    expect(plan.graphSnapshot.nodes).toHaveLength(4);
+  });
+
+  it("targeting the trigger runs it alone", () => {
+    const plan = buildRunToNodePlan(linearGraph(), trigger.id);
+    expect(plan.skipNodes).toEqual([]);
+    expect(plan.endAfterNodeId).toBe(trigger.id);
+  });
+
+  it("throws when the target does not exist in the draft", () => {
+    expect(() => buildRunToNodePlan(linearGraph(), "missing")).toThrow(
+      TestRunError,
+    );
+    expect(() => buildRunToNodePlan(linearGraph(), "missing")).toThrow(
+      /not found/,
+    );
+  });
+
+  it("rejects an invalid draft with a clear error", () => {
+    const graph: TestGraph = {
+      nodes: [trigger, { ...target, type: "SCHEDULE_TRIGGER" }],
+      connections: [],
+    };
+    expect(() => buildRunToNodePlan(graph, target.id)).toThrow(TestRunError);
+    expect(() => buildRunToNodePlan(graph, target.id)).toThrow(
+      /Multiple trigger/i,
     );
   });
 });

@@ -19,6 +19,7 @@ import {
 } from "@/trpc/init";
 import {
   buildNodeTestRunPlan,
+  buildRunToNodePlan,
   buildTestGraph,
   buildTestRunPlan,
   type TestRunPlan,
@@ -141,6 +142,14 @@ export const workflowsRouter = createTRPCRouter({
           }),
         ),
         testNodeId: z.string().min(1).max(64).optional(),
+        /**
+         * AF-UX-15. "node" is the bottom-bar Test-node semantic: run only the
+         * target, skipping everything upstream. "upTo" runs the chain from the
+         * trigger through the target, which is what gives the node detail
+         * view's Input pane something real to show. Defaults to "node" so
+         * every existing caller is unchanged.
+         */
+        mode: z.enum(["node", "upTo"]).default("node"),
         initialData: z.record(z.string(), z.unknown()).optional(),
       }),
     )
@@ -156,9 +165,13 @@ export const workflowsRouter = createTRPCRouter({
       const graph = buildTestGraph(input.nodes, input.edges);
       let plan: TestRunPlan;
       try {
-        plan = input.testNodeId
-          ? buildNodeTestRunPlan(graph, input.testNodeId)
-          : buildTestRunPlan(graph);
+        if (!input.testNodeId) {
+          plan = buildTestRunPlan(graph);
+        } else if (input.mode === "upTo") {
+          plan = buildRunToNodePlan(graph, input.testNodeId);
+        } else {
+          plan = buildNodeTestRunPlan(graph, input.testNodeId);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new TRPCError({ code: "BAD_REQUEST", message });

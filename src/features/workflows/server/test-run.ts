@@ -127,6 +127,35 @@ export function buildNodeTestRunPlan(
   };
 }
 
+/**
+ * Plan a "run up to this node" test run (AF-UX-15): every node from the
+ * trigger through `targetNodeId` executes, and the engine stops scheduling
+ * straight after the target.
+ *
+ * Distinct from `buildNodeTestRunPlan`, which skips every upstream node and
+ * therefore hands the target no input at all. The node detail view's Input
+ * pane has nothing to show under that policy, so it plans through this one.
+ * `endAfterNodeId` is honoured by the runner independently of `skipNodes`,
+ * so an empty skip list still stops the run at the target.
+ */
+export function buildRunToNodePlan(
+  graph: TestGraph,
+  targetNodeId: string,
+): TestRunPlan {
+  const target = graph.nodes.find((n) => n.id === targetNodeId);
+  if (!target) {
+    throw new TestRunError(`Node "${targetNodeId}" not found in the draft`);
+  }
+
+  assertValidGraph(graph);
+
+  return {
+    graphSnapshot: graph,
+    skipNodes: [],
+    endAfterNodeId: targetNodeId,
+  };
+}
+
 function assertValidGraph(graph: TestGraph): void {
   const { errors } = validate(
     {
