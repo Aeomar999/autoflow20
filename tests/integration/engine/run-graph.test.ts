@@ -1545,7 +1545,11 @@ describe.runIf(hasDb)("Engine execution integration (AF-M9-01)", () => {
  * caught it — they call `markTakenEdges` with hand-built port ids, so the
  * poisoned value never appears.
  */
-describe("branch rejoin (AF-M9-16 regression)", () => {
+// AF-M0-11: this regression block was appended OUTSIDE the file's
+// `describe.runIf(hasDb)` wrapper (line 24), so on a DB-less run it dialled the
+// unresolvable-host DATABASE_URL the integration setup falls back to and failed
+// instead of skipping itself visibly. Same guard as the rest of the file.
+describe.runIf(hasDb)("branch rejoin (AF-M9-16 regression)", () => {
   beforeEach(async () => {
     await prisma.nodeExecution.deleteMany({});
     await prisma.execution.deleteMany({});

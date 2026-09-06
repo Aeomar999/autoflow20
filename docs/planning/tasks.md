@@ -169,6 +169,16 @@ Wiring that up surfaced a second, worse problem: skipping is opt-in per suite (`
 
 ---
 
+### ✅ AF-M0-11 · Guard the branch-rejoin integration suite for DB-less runs · 0.25d · *(added 2026-09-06)* · DONE 2026-09-06
+**Reality (2026-09-06):** `tests/integration/engine/run-graph.test.ts` wraps the whole file in `describe.runIf(hasDb)` (line 24) so the suite skips itself when `TEST_DATABASE_URL` is absent — except the **"branch rejoin (AF-M9-16 regression)"** block (line ~1548), which was appended **outside** the runIf wrapper (top-level indentation). Without a test DB the integration setup repoints `DATABASE_URL` at `test-database-url-is-not-set.invalid`, so the unguarded suite ran and its `beforeEach` crashed with `PrismaClientKnownRequestError: Can't reach database server` — `npm run test` failed 3 tests on any checkout without Postgres. (The unresolvable-host repoint makes wrongly dialling a real dev DB structurally impossible, but the suite still *failed* instead of *skipping*.)
+
+**Acceptance**
+- [x] The branch-rejoin block is wrapped in `describe.runIf(hasDb)` like the rest of the file, so a DB-less run skips it visibly instead of failing.
+- [x] Verified: `npx vitest run --project integration tests/integration/engine/run-graph.test.ts` without `TEST_DATABASE_URL` → **0 failed | 31 skipped (31)**, test file skipped, exit 0 (was 3 failed | 28 skipped).
+- [x] `tsc --noEmit` unchanged from the pre-task baseline; biome clean on the changed file; progress.md + tasks.md updated.
+
+---
+
 ### ✅ AF-M7-06 · Landing page at `/` · 2d · *(pulled forward from M7, 2026-08-26)* · DONE 2026-08-26
 Currently a 404 that the sidebar logo links to; trivially demoable win, no dependencies.
 
