@@ -304,7 +304,9 @@ describe("saveable types track the registry (AF-M8-24)", () => {
       (schema) => (schema.shape.type as { value: string }).value,
     ),
   );
-  const registered = new Set(nodeRegistry.list().map((definition) => definition.type));
+  const registered = new Set(
+    nodeRegistry.list().map((definition) => definition.type),
+  );
 
   it("can save every registered node type", () => {
     const unsaveable = [...registered].filter((type) => !saveable.has(type));

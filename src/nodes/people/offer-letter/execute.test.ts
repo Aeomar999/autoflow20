@@ -1,8 +1,17 @@
 import { NonRetriableError } from "inngest";
 import { describe, expect, it, vi } from "vitest";
 import { withResolve } from "@/nodes/shared/test-params";
-import type { StepTools } from "@/nodes/types";
+import type { StepTools, WorkflowContext } from "@/nodes/types";
+import type { OfferLetterData } from "./execute";
 import { execute } from "./execute";
+
+/**
+ * `execute` returns `WorkflowContext` (`Record<string, unknown>`), so a field
+ * read off the stored result is `unknown`. Narrowed once here rather than cast
+ * at each assertion, so the assertions stay readable and the shape is stated
+ * in one place (AF-M11-15).
+ */
+const offerIn = (result: WorkflowContext) => result.offer as { letter: string };
 
 describe("OFFER_LETTER execute", () => {
   const step = {
@@ -10,7 +19,7 @@ describe("OFFER_LETTER execute", () => {
   } as unknown as StepTools;
   const publish = vi.fn().mockResolvedValue(undefined);
 
-  const data = {
+  const data: OfferLetterData = {
     variableName: "offer",
     companyName: "Acme",
     roleTitle: "Staff Engineer",
@@ -45,11 +54,11 @@ describe("OFFER_LETTER execute", () => {
         generatedAt: expect.any(String),
       }),
     );
-    expect(result.offer.letter).toContain(
+    expect(offerIn(result).letter).toContain(
       "We are pleased to offer you the position of Staff Engineer at Acme, starting on 2026-07-01",
     );
-    expect(result.offer.letter).toContain("£150,000 base salary");
-    expect(result.offer.letter).toContain("not yet approved for signature");
+    expect(offerIn(result).letter).toContain("£150,000 base salary");
+    expect(offerIn(result).letter).toContain("not yet approved for signature");
   });
 
   it("resolves template fields from context", async () => {
@@ -70,7 +79,7 @@ describe("OFFER_LETTER execute", () => {
         roleTitle: "Staff Engineer",
       }),
     );
-    expect(result.offer.letter).toContain("Dear Grace Hopper,");
+    expect(offerIn(result).letter).toContain("Dear Grace Hopper,");
   });
 
   it("appends extra terms when provided", async () => {
@@ -85,7 +94,7 @@ describe("OFFER_LETTER execute", () => {
       }),
     );
 
-    expect(result.offer.letter).toContain("Sign-on bonus of £10,000");
+    expect(offerIn(result).letter).toContain("Sign-on bonus of £10,000");
   });
 
   it("omits the extra-terms section when none are provided", async () => {
@@ -100,7 +109,7 @@ describe("OFFER_LETTER execute", () => {
       }),
     );
 
-    expect(result.offer.letter).not.toContain("Additional terms:");
+    expect(offerIn(result).letter).not.toContain("Additional terms:");
   });
 
   it("uses the contract employment label", async () => {
@@ -115,7 +124,7 @@ describe("OFFER_LETTER execute", () => {
       }),
     );
 
-    expect(result.offer.letter).toContain("contract engagement");
+    expect(offerIn(result).letter).toContain("contract engagement");
   });
 
   it("rejects a missing variable name", async () => {

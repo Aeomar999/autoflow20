@@ -5,7 +5,13 @@ import type { z } from "zod";
 import type { NodeRun } from "@/nodes/types";
 import type { rubricItemSchema } from "./definition";
 
-type RubricItem = z.infer<typeof rubricItemSchema>;
+/**
+ * The config as AUTHORED, not as parsed: `execute` reads the saved node config
+ * directly, so a field the schema fills with `.default()` may legitimately be
+ * absent here. `z.infer` is `z.output` and would declare it required, which is
+ * why the executor's own `?? ...` fallbacks looked redundant (AF-M11-15).
+ */
+type RubricItem = z.input<typeof rubricItemSchema>;
 
 type CandidateScore = {
   name: string;
@@ -14,7 +20,7 @@ type CandidateScore = {
   rank: number;
 };
 
-type CandidateScoreRankData = {
+export type CandidateScoreRankData = {
   variableName?: string;
   candidatesJson?: string;
   rubric?: RubricItem[];

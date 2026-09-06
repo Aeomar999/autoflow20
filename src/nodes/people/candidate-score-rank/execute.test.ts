@@ -1,8 +1,25 @@
 import { NonRetriableError } from "inngest";
 import { describe, expect, it, vi } from "vitest";
 import { withResolve } from "@/nodes/shared/test-params";
-import type { StepTools } from "@/nodes/types";
+import type { StepTools, WorkflowContext } from "@/nodes/types";
 import { execute } from "./execute";
+
+/**
+ * `execute` returns `WorkflowContext` (`Record<string, unknown>`), so a field
+ * read off the stored result is `unknown`. Narrowed once here rather than cast
+ * at each assertion, so the assertions stay readable and the shape is stated
+ * in one place (AF-M11-15).
+ */
+const shortlistIn = (result: WorkflowContext) =>
+  result.shortlist as {
+    ranking: {
+      name: string;
+      scores: Record<string, number>;
+      totalScore: number;
+      rank: number;
+    }[];
+    rubric: unknown;
+  };
 
 const rubric = [
   { key: "skills", label: "Skills fit", weight: 0.6 },
@@ -75,7 +92,7 @@ describe("CANDIDATE_SCORE_RANK execute", () => {
     );
 
     expect(
-      result.shortlist.ranking.map((c: { name: string }) => c.name),
+      shortlistIn(result).ranking.map((c: { name: string }) => c.name),
     ).toEqual(["Ava", "Zoe"]);
   });
 
@@ -97,7 +114,7 @@ describe("CANDIDATE_SCORE_RANK execute", () => {
       }),
     );
 
-    expect(result.shortlist.ranking[0]).toEqual({
+    expect(shortlistIn(result).ranking[0]).toEqual({
       name: "Ada",
       scores: { skills: 8, culture: 8 },
       totalScore: 8,
