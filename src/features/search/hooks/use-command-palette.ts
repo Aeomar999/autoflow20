@@ -79,6 +79,10 @@ export function useCommandPaletteResults(
       kind: "credential",
       results: rankResults(search.data?.credentials ?? [], query),
     },
+    {
+      kind: "employee",
+      results: rankResults(search.data?.employees ?? [], query),
+    },
   ];
 
   return {

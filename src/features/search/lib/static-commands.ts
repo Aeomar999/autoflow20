@@ -43,6 +43,13 @@ export const NAVIGATION_COMMANDS: SearchResult[] = [
   },
   {
     kind: "navigation",
+    id: "nav-employees",
+    title: "Employees",
+    subtitle: "People the lifecycle workflows manage",
+    href: "/employees",
+  },
+  {
+    kind: "navigation",
     id: "nav-knowledge",
     title: "Knowledge Base",
     subtitle: "Documents for retrieval",

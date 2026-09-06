@@ -85,6 +85,23 @@ const employeeSelect = {
   updatedAt: true,
 } satisfies Prisma.EmployeeSelect;
 
+/**
+ * The shape `applyEmployeeHandoff` writes into `AuditLog.after`. Parsed rather
+ * than cast: `after` is an untyped `Json` column, so anything reading it is
+ * reading external input (rule §7 in `engineering_rules.md`).
+ */
+const auditDetailSchema = z.object({
+  from: employeeStatusSchema.optional(),
+  to: employeeStatusSchema.optional(),
+  status: employeeStatusSchema.optional(),
+});
+
+/**
+ * A lifecycle is a handful of transitions, not a feed. Capped so one pathological
+ * record (a workflow looping a handoff) cannot return an unbounded page.
+ */
+const TIMELINE_LIMIT = 200;
+
 function assertFound<T>(value: T | null): T {
   if (value === null) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found." });
@@ -126,6 +143,37 @@ export const employeesRouter = createTRPCRouter({
         hasPreviousPage: page > 1,
       };
     }),
+
+  /**
+   * AF-M11-09. How many people sit at each phase of the chain, for the list
+   * header and for whatever dashboards come later.
+   *
+   * One `groupBy` rather than six `count`s, and every status in the contract
+   * appears in the result even at zero — a phase missing from the summary
+   * would read as "not applicable" rather than "nobody here yet". Statuses
+   * outside the contract (the column is an open-set String) are carried
+   * through as themselves in `other`, never folded into a known bucket.
+   */
+  countByStatus: orgViewerProcedure.query(async ({ ctx }) => {
+    const rows = await prisma.employee.groupBy({
+      by: ["status"],
+      where: { organizationId: ctx.org.id },
+      _count: { _all: true },
+    });
+
+    const counts = new Map(rows.map((row) => [row.status, row._count._all]));
+
+    return {
+      total: rows.reduce((sum, row) => sum + row._count._all, 0),
+      byStatus: EMPLOYEE_STATUSES.map((status) => ({
+        status,
+        count: counts.get(status) ?? 0,
+      })),
+      other: rows
+        .filter((row) => !employeeStatusSchema.safeParse(row.status).success)
+        .map((row) => ({ status: row.status, count: row._count._all })),
+    };
+  }),
 
   getById: orgViewerProcedure
     .input(z.object({ id: z.string().min(1) }))
@@ -213,6 +261,64 @@ export const employeesRouter = createTRPCRouter({
           })
           .then((rows) => rows[0] ?? null),
       );
+    }),
+
+  /**
+   * AF-M11-08. The status-chain timeline for one employee.
+   *
+   * There is no separate handoff-event table: `applyEmployeeHandoff` audits
+   * every mutation (`employee.created` / `employee.status_changed`) with the
+   * transition in `after`, so the audit log *is* the phase history. Reading it
+   * here rather than adding a second write path keeps one source of truth —
+   * and means a transition that skipped the audit would be visibly missing
+   * from the timeline rather than quietly reconstructed from `status`.
+   *
+   * Ordered oldest-first: the chain reads forward, the way it happened.
+   */
+  timeline: orgViewerProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      // Confirms the row is this tenant's before any audit read. A foreign id
+      // is NOT_FOUND, never an empty timeline that looks like "no history".
+      assertFound(
+        await prisma.employee.findFirst({
+          where: { id: input.id, organizationId: ctx.org.id },
+          select: { id: true },
+        }),
+      );
+
+      const entries = await prisma.auditLog.findMany({
+        where: {
+          organizationId: ctx.org.id,
+          resourceType: "employee",
+          resourceId: input.id,
+        },
+        orderBy: { createdAt: "asc" },
+        take: TIMELINE_LIMIT,
+        select: {
+          id: true,
+          action: true,
+          actorType: true,
+          createdAt: true,
+          after: true,
+        },
+      });
+
+      return entries.map((entry) => {
+        const detail = auditDetailSchema.safeParse(entry.after);
+        return {
+          id: entry.id,
+          action: entry.action,
+          actorType: entry.actorType,
+          createdAt: entry.createdAt,
+          // A row whose payload does not parse still appears, with its
+          // transition unknown — dropping it would hide a real event.
+          from: detail.success ? (detail.data.from ?? null) : null,
+          to: detail.success
+            ? (detail.data.to ?? detail.data.status ?? null)
+            : null,
+        };
+      });
     }),
 
   applyHandoff: orgEditorProcedure
