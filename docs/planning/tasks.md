@@ -3101,6 +3101,73 @@ We decided to merge plan items **2.1** (add search to executions page) and **2.2
 same landing page, the same tRPC procedure (`executions.list`), the same nuqs param
 module, and the same filter bar — one PR, one acceptance set.
 
+### ✅ AF-UX-04 · Confirm before replacing INITIAL placeholder trigger · 0.5d · **DONE 2026-09-06**
+
+**Why:** `docs/ux-improvement-plan.md` §1.1 — "Destructive Replace of Trigger". A
+fresh workflow is seeded with a placeholder `INITIAL` node (name "Start", a
+`MANUAL_TRIGGER` alias — the seed shape is in
+`src/features/workflows/schemas.ts:131`). Dropping any node onto that canvas today
+replaces the placeholder unconditionally in `editor.tsx`'s `onDrop`
+(`setNodes([newNode])`, around line 217) with no warning. Users lose the start of
+their workflow headlessly; if they never re-add a trigger the workflow becomes
+un-runnable. Plan baseline: when a drop would replace the `INITIAL` placeholder,
+show a confirmation dialog.
+
+**Design decisions (locked 2026-09-05):**
+- **Dialog lives at the drop site as its own component** —
+  `src/features/editor/components/initial-trigger-replace-dialog.tsx`, rendered by
+  `editor.tsx`. The plan text named `node-config-panel.tsx` as the host, but the
+  replacement happens in the canvas `onDrop`, not in the config panel — the
+  component ships next to the mutation it guards. The config panel is not the
+  destructive surface.
+- **Pending-drop model.** `onDrop` builds the node exactly as today, then:
+  no trigger on the canvas → `setNodes(prev => [...prev, newNode])` (unchanged);
+  `INITIAL` present and the user dismissed the prompt → `setNodes([newNode])`
+  (unchanged, the skip-flag path); `INITIAL` present and not dismissed → stash the
+  built node in state and open the dialog. **Confirm commits the replacement (and
+  the graph becomes dirty); Cancel aborts the drop completely** — no node appears,
+  the graph is untouched, no dirty flag is set.
+- **"Don't show this again" persisted** under
+  `autoflow-editor-dismiss-initial-replace`
+  (`src/features/editor/lib/initial-replace.ts`), following the `autoflow-theme`
+  localStorage convention (`src/components/theme-provider.tsx`). Reads/writes are
+  SSR-guarded and isolated in try/catch: when storage is unavailable the helpers
+  degrade to "never dismissed", so the caller always shows the prompt — the safe
+  default is to ask, never to skip silently.
+- **Pure rule in the lib.** `resolveInitialReplaceBehavior(hasInitialTrigger,
+  dismissed)` returns `"add" | "commit" | "confirm"`, unit-tested. The `onDrop`
+  branch is a three-way switch over a tested function, not embedded `if`s.
+- **Copy is explicit that the placeholder is removed:** title "Replace the
+  placeholder trigger?"; body states the dropped node replaces the seed "Start"
+  node and the workflow will not run until another trigger is added. Cancel is the
+  default focus. The checkbox resets per dialog open, so a later prompt needs the
+  decision re-made even though the persisted flag still applies.
+
+**Depends on:** nothing beyond the existing `INITIAL` `MANUAL_TRIGGER` alias, the
+`hasInitialTrigger` drop branch, and the `EditorNode` type.
+
+**Acceptance**
+- [x] Dropping a node onto a fresh seeded workflow (single `INITIAL` node) shows
+      the confirmation dialog instead of silently replacing the placeholder.
+- [x] Confirm replaces the placeholder with the dropped node and marks the canvas
+      dirty.
+- [x] Cancel (button, Escape) aborts the drop: no node is added, the graph is
+      unchanged, and no dirty flag is set. Clicking the overlay does NOT resolve
+      the prompt — Radix `AlertDialog` deliberately blocks outside-pointer
+      dismissal (an alert forces an explicit choice), pinned as a guard-rail
+      test.
+- [x] Dropping when no trigger exists appends the node as before — no dialog.
+- [x] "Don't show this again" persists; after checking it, a later drop on an
+      `INITIAL` canvas replaces the placeholder silently. Clearing the key (or
+      unavailable storage) restores the prompt.
+- [x] `initial-replace.test.ts` covers the resolver matrix (all 4
+      combinations) and the SSR/no-storage fallbacks;
+      `initial-trigger-replace-dialog.dom.test.tsx` covers render, confirm,
+      cancel, Escape, the overlay click guard-rail, and persist-the-flag.
+- [x] `tsc --noEmit` output unchanged from the pre-task baseline (main is
+      known-red from M11 debt, see `docs/planning/progress.md`); `npm run lint`
+      and the new tests pass; progress.md + tasks.md updated.
+
 ### ✅ AF-UX-03 · Save state feedback in editor header · 0.25d · **DONE 2026-09-05**
 
 **Why:** `docs/ux-improvement-plan.md` §1.4 — "Save State Feedback" (P0 area, so
