@@ -33,11 +33,13 @@ import {
   type EditorNode,
   edgesAtom,
   editorAtom,
+  nodeSelectorOpenAtom,
   nodesAtom,
   saveStatusAtom,
   selectedNodeIdAtom,
 } from "../store/atoms";
 import { NodeStatusProvider } from "../store/node-status-context";
+import { useGraphHistory } from "../store/use-graph-history";
 import { AddNodeButton } from "./add-node-button";
 import { CostEstimateBadge } from "./cost-estimate-badge";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
@@ -81,6 +83,19 @@ export const Editor = memo(function Editor({
   // INITIAL placeholder trigger. null while idle.
   const [pendingDrop, setPendingDrop] = useState<EditorNode | null>(null);
 
+  const nodeSelectorOpen = useAtomValue(nodeSelectorOpenAtom);
+
+  // AF-UX-05: undo/redo history seeded from server data. Disabled while an
+  // overlay owns the keyboard so shortcuts never mutate the graph under it.
+  const { commit: historyCommit, ensureInitialized } = useGraphHistory({
+    disabled: pendingDrop !== null || nodeSelectorOpen,
+  });
+
+  // Typed-config edits coalesce into one undo step per burst (leading edge).
+  const CONFIG_TYPING_FOLD_MS = 400;
+  // Node + connected-edge removals for one delete gesture fold into one step.
+  const STRUCTURAL_FOLD_MS = 150;
+
   // Snapshot of the last server-known state. Used to compute isDirty.
   const serverSnapshotRef = useRef<{
     nodes: Node[];
@@ -89,7 +104,9 @@ export const Editor = memo(function Editor({
 
   // Initialize atoms from server data; rebuild snapshot on workflow refetch
   // (e.g. after CONFLICT reload or successful save + query invalidation).
+  // History is seeded once per Editor mount; later refetches leave undo intact.
   useEffect(() => {
+    ensureInitialized({ nodes: workflow.nodes, edges: workflow.edges });
     setNodes(workflow.nodes);
     setEdges(workflow.edges);
     serverSnapshotRef.current = {
@@ -97,11 +114,20 @@ export const Editor = memo(function Editor({
       edges: structuredClone(workflow.edges),
     };
     setSaveStatus("saved");
-  }, [workflow, setNodes, setEdges, setSaveStatus]);
+  }, [workflow, setNodes, setEdges, setSaveStatus, ensureInitialized]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      setNodes((prev) => applyNodeChanges(changes, prev));
+      let nextNodes: EditorNode[] | null = null;
+      setNodes((prev) => {
+        nextNodes = applyNodeChanges(changes, prev);
+        return nextNodes;
+      });
+      if (nextNodes !== null && changes.some((c) => c.type === "remove")) {
+        // One undo step per delete gesture; the connected-edge removals that
+        // follow fold into this same step via STRUCTURAL_FOLD_MS.
+        historyCommit({ nodes: nextNodes, edges }, STRUCTURAL_FOLD_MS);
+      }
 
       const hasMeaningfulChange = changes.some(
         (c) => c.type !== "dimensions" && c.type !== "select",
@@ -110,28 +136,48 @@ export const Editor = memo(function Editor({
         setSaveStatus("unsaved");
       }
     },
-    [setNodes, setSaveStatus],
+    [edges, historyCommit, setNodes, setSaveStatus],
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      setEdges((prev) => applyEdgeChanges(changes, prev));
+      let nextEdges: Edge[] | null = null;
+      setEdges((prev) => {
+        nextEdges = applyEdgeChanges(changes, prev);
+        return nextEdges;
+      });
+      if (nextEdges !== null && changes.some((c) => c.type === "remove")) {
+        historyCommit({ nodes, edges: nextEdges }, STRUCTURAL_FOLD_MS);
+      }
 
       const hasMeaningfulChange = changes.some((c) => c.type !== "select");
       if (hasMeaningfulChange) {
         setSaveStatus("unsaved");
       }
     },
-    [setEdges, setSaveStatus],
+    [historyCommit, nodes, setEdges, setSaveStatus],
   );
 
   const onConnect = useCallback(
     (params: Connection) => {
-      setEdges((prev) => addEdge(params, prev));
+      let nextEdges: Edge[] | null = null;
+      setEdges((prev) => {
+        nextEdges = addEdge(params, prev);
+        return nextEdges;
+      });
+      if (nextEdges !== null) {
+        historyCommit({ nodes, edges: nextEdges }, STRUCTURAL_FOLD_MS);
+      }
       setSaveStatus("unsaved");
     },
-    [setEdges, setSaveStatus],
+    [historyCommit, nodes, setEdges, setSaveStatus],
   );
+
+  // Completing a drag is the one undoable step for all position changes that
+  // flowed through onNodesChange while the node moved.
+  const onNodeDragStop = useCallback(() => {
+    historyCommit({ nodes, edges });
+  }, [edges, historyCommit, nodes]);
 
   const onSelectionChange = useCallback(
     ({ nodes: selected }: { nodes: Node[] }) => {
@@ -158,14 +204,20 @@ export const Editor = memo(function Editor({
   const patchSelectedNode = useCallback(
     (patch: Partial<EditorNode>) => {
       if (!selectedNodeId) return;
-      setNodes((prev) =>
-        prev.map((node) =>
+      let nextNodes: EditorNode[] | null = null;
+      setNodes((prev) => {
+        nextNodes = prev.map((node) =>
           node.id === selectedNodeId ? { ...node, ...patch } : node,
-        ),
-      );
+        );
+        return nextNodes;
+      });
+      if (nextNodes !== null) {
+        // Keystroke bursts coalesce into one undo step (AF-UX-05).
+        historyCommit({ nodes: nextNodes, edges }, CONFIG_TYPING_FOLD_MS);
+      }
       setSaveStatus("unsaved");
     },
-    [selectedNodeId, setNodes, setSaveStatus],
+    [edges, historyCommit, selectedNodeId, setNodes, setSaveStatus],
   );
 
   const hasManualTrigger = useMemo(
@@ -177,10 +229,11 @@ export const Editor = memo(function Editor({
   const commitInitialReplace = useCallback(() => {
     if (pendingDrop) {
       setNodes([pendingDrop]);
+      historyCommit({ nodes: [pendingDrop], edges }, STRUCTURAL_FOLD_MS);
       setSaveStatus("unsaved");
     }
     setPendingDrop(null);
-  }, [pendingDrop, setNodes, setSaveStatus]);
+  }, [edges, historyCommit, pendingDrop, setNodes, setSaveStatus]);
 
   const editorInstance = useAtomValue(editorAtom);
 
@@ -241,12 +294,20 @@ export const Editor = memo(function Editor({
 
       if (hasInitialTrigger) {
         setNodes([newNode]);
+        historyCommit({ nodes: [newNode], edges }, STRUCTURAL_FOLD_MS);
       } else {
-        setNodes((prev) => [...prev, newNode]);
+        let nextNodes: EditorNode[] | null = null;
+        setNodes((prev) => {
+          nextNodes = [...prev, newNode];
+          return nextNodes;
+        });
+        if (nextNodes !== null) {
+          historyCommit({ nodes: nextNodes, edges }, STRUCTURAL_FOLD_MS);
+        }
       }
       setSaveStatus("unsaved");
     },
-    [editorInstance, nodes, setNodes, setSaveStatus],
+    [edges, historyCommit, editorInstance, nodes, setNodes, setSaveStatus],
   );
 
   return (
@@ -259,6 +320,7 @@ export const Editor = memo(function Editor({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeDragStop={onNodeDragStop}
             onSelectionChange={onSelectionChange}
             onDragOver={onDragOver}
             onDrop={onDrop}

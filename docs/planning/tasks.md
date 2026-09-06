@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-09-05 (AF-M11 opened — employee lifecycle mega-workflow substrate; AF-M11-00/01/02 ✅ complete; AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ complete; AF-M10 Phase A complete)
+**Last updated:** 2026-09-06 (AF-M11-13 ✅ complete — EMPLOYEE_HIRED save-boundary fix; AF-M11-00/01/02/03/04 ✅ complete; AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ complete; AF-M10 Phase A complete)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -3168,6 +3168,84 @@ show a confirmation dialog.
       known-red from M11 debt, see `docs/planning/progress.md`); `npm run lint`
       and the new tests pass; progress.md + tasks.md updated.
 
+### ✅ AF-UX-05 · Undo/redo for canvas edits · 1d · **DONE 2026-09-06**
+
+**Why:** `docs/ux-improvement-plan.md` §4.3 — `Ctrl/Cmd + Z` undo and
+`Ctrl/Cmd + Shift + Z` redo. Destructive canvas actions were one-way: deleting a
+node or edge, connecting, replacing a config field, or dragging a node had no
+reversal short of manual reconstruction — and a mistaken delete of the initial
+trigger (post AF-UX-04) is unrecoverable without it.
+
+**Design decisions (locked 2026-09-06):**
+- **History lives in the store as a plain helper**, not in React —
+  `src/features/editor/lib/graph-history.ts` (`GraphHistory`), unit-tested with
+  zero components. Snapshot shape is `{ nodes, edges }` (the same `EditorNode[]` /
+  `Edge[]` typing as the atoms). Caps at `LIMIT = 100` undo steps; deep-clones
+  each stored snapshot with `structuredClone` so a later caller mutating a
+  returned snapshot can never corrupt history (asserted in a test); equal
+  snapshots are no-ops (a re-save that changed nothing adds no step).
+- **Commit model with fold windows.** The editor calls `commit(next, foldMs?)`
+  with the *pre-change* state pushed as the undo step. Within `foldMs` of the
+  last commit, the candidate is folded into the preceding step instead of a new
+  one — typing in a config input (`CONFIG_TYPING_FOLD_MS = 400`) collapses to
+  one undo step per field, and structural gestures remove/connect/drop
+  (`STRUCTURAL_FOLD_MS = 150`) collapse drag-tick noise; `onNodeDragStop` and
+  explicit drops commit without folding. Completed folds are merged at the
+  *front* of a single undo step, so undo still returns the state before the
+  interaction began.
+- **Snapshots come from render scope, not the store.** `editor.tsx` captures
+  `nextNodes` / `nextEdges` inside the functional jotai setters (`setNodes(prev
+  => { next = …; return next; })` — primitive atoms update synchronously, so the
+  capture is safe), then commits with render-scope `edges` / `nodes`. The hook
+  never reads the store. This keeps every commit exactly what the mutation just
+  produced, on the path that actually applied it.
+- **Undo/redo are dirtying operations.** Both go through the same
+  `applySnapshot` that restores `past`/`redo` state and sets
+  `setSaveStatus("unsaved")` + `saveStatusAtom` — because a reverted graph *is*
+  an unsaved edit (the load path must never paint a reverted graph as "saved",
+  or a refresh would silently re-apply it). `lastSavedAtAtom` is left stale so
+  the header's "Last saved" readout keeps the real last-save time; an undo after
+  a save therefore shows "saved Nm ago" plus the unsaved badge, which is
+  accurate.
+- **Keyboard, not buttons.** `Ctrl/Cmd + Z` undo, `Ctrl/Cmd + Shift + Z` and
+  `Ctrl + Y` redo, handled in the hook (P0 of §4.3's list; the other shortcuts —
+  save, delete, select-all, command palette — are separate tasks). The listener
+  is a `window` keydown added once per mount and re-keyed on `redo`/`undo`; it
+  bails when the event target is INPUT/TEXTAREA/SELECT/`contentEditable` (never
+  steal typing undo) and when `disabledRef.current` is true (a drop is pending
+  in the AF-UX-04 dialog, or the node selector is open). `disabled` is the only
+  hook option; the hook short-circuits to a no-op history until enabled.
+- **Seed once from the load path.** The editor's load effect calls
+  `ensureInitialized({ nodes, edges })` guarded by `!isInitialized()`; a
+  workflow refetch after autosave does NOT reset history (a conflict-reload
+  leaves stale undo steps behind — accepted limitation, the graph is visually
+  current). Hook uses `useSetAtom` only; `historyRef`/`disabledRef` keep the
+  helper and gate outside the re-keyed effect.
+- **Interplay with AF-UX-04.** `disabled` covers `pendingDrop !== null`
+  (confirm dialog holds a node that has not been added) and the node-selector
+  popover's `nodeSelectorOpenAtom`. Committing a confirm-replacement drop routes
+  through the same `STRUCTURAL_FOLD_MS` path, so Undo restores the replaced
+  `INITIAL` placeholder exactly as it was.
+- **No ADR:** entry-level wiring inside an existing feature, consistent with the
+  AF-UX-03/AF-UX-04 precedent (no schema, no cross-feature boundary). The
+  keyboard-and-fold model is documented here and in the file headers.
+
+**Acceptance criteria (all verified, and see `docs/planning/progress.md`):**
+- [x] `Ctrl/Cmd + Z` undoes the last structural/config/drag change; repeated
+      undo walks the stack to the seed state and then no-ops.
+- [x] `Ctrl/Cmd + Shift + Z` and `Ctrl + Y` redo; undo resets the redo branch
+      (classic behavior, asserted in a test).
+- [x] Typing a config field then dragging a node then deleting an edge undoes
+      by gesture, each in one step, to the pre-gesture snapshot.
+- [x] Undo marks the graph unsaved; the header shows the unsaved indicator and
+      (where applicable) "Last saved: X ago", never falsely "saved".
+- [x] Keyboard does not fire while a config input or the drop-confirm dialog /
+      node selector is focused; typing in a field never triggers undo.
+- [x] `graph-history.test.ts` (12 tests) covers push/undo/redo/no-op/fold/fold
+      timeout/undo-resets-redo/deep-clone/limit; lint clean on all changed
+      files; `next build` green. `tsc --noEmit` unchanged from the known-red
+      pre-task baseline (see `progress.md`), nothing new in editor files.
+
 ### ✅ AF-UX-03 · Save state feedback in editor header · 0.25d · **DONE 2026-09-05**
 
 **Why:** `docs/ux-improvement-plan.md` §1.4 — "Save State Feedback" (P0 area, so
@@ -3477,3 +3555,29 @@ computed per workflow rather than defaulted.
 - [ ] The M4 manual-trigger payload injection can drive the W1 entry node, so the whole
       chain is demoable in-editor without a live ATS. `npm run build` + `npm run lint`
       clean; docs updated in the same change.
+
+### ✅ AF-M11-13 · EMPLOYEE_HIRED save-boundary fix · 0.5d · **DONE 2026-09-06**
+
+**Root cause:** `EMPLOYEE_HIRED` was registered (`src/nodes/registry.ts`) — so the
+engine runs it — but registered *only* there. It was missing from both
+`src/nodes/manifest.ts` (the palette) and `updateNodeSchemas` in
+`src/features/workflows/schemas.ts` (the save boundary), so an editor save of any
+workflow containing the node was rejected. Template seeding writes around the save
+schema, which is why the AF-M11-04 smoke test passed despite the defect.
+
+**Why the AF-M8-24 guard missed it:** `schemas.test.ts` builds its `registered` set
+from `nodeManifest`, not from `nodeRegistry`. A type that is registry-only (or
+manifest-only) drifts by the whole guard.
+
+**Acceptance**
+- [x] `EMPLOYEE_HIRED` listed in `src/nodes/manifest.ts` (import + entry) so the node
+      appears in the palette; `nodePalette`/`findManifestEntry` behaviour unchanged.
+- [x] `makeNodeSchema("EMPLOYEE_HIRED", configOf("EMPLOYEE_HIRED"))` added to
+      `updateNodeSchemas` in `src/features/workflows/schemas.ts`, so a workflow with
+      the node passes the save boundary.
+- [x] Guard tightened: `schemas.test.ts` compares saveable types against
+      `nodeRegistry.list()`, so a registry-only type fails the build and is named
+      with a message.
+- [ ] Verified: `npx vitest run` on the touched scopes passes; `npm run build` clean;
+      `npm run lint` clean (the 2 pre-existing `node-config-panel.tsx` warnings
+      untouched); docs updated in the same change.
