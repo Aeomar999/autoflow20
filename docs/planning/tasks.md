@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-09-05 (AF-M11 opened — employee lifecycle mega-workflow substrate; AF-M11-00/01/02 ✅ complete; AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ complete; AF-M10 Phase A complete)
+**Last updated:** 2026-09-06 (AF-M11-13 ✅ complete — EMPLOYEE_HIRED save-boundary fix; AF-M11-00/01/02/03/04 ✅ complete; AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ complete; AF-M10 Phase A complete)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -3555,3 +3555,29 @@ computed per workflow rather than defaulted.
 - [ ] The M4 manual-trigger payload injection can drive the W1 entry node, so the whole
       chain is demoable in-editor without a live ATS. `npm run build` + `npm run lint`
       clean; docs updated in the same change.
+
+### ✅ AF-M11-13 · EMPLOYEE_HIRED save-boundary fix · 0.5d · **DONE 2026-09-06**
+
+**Root cause:** `EMPLOYEE_HIRED` was registered (`src/nodes/registry.ts`) — so the
+engine runs it — but registered *only* there. It was missing from both
+`src/nodes/manifest.ts` (the palette) and `updateNodeSchemas` in
+`src/features/workflows/schemas.ts` (the save boundary), so an editor save of any
+workflow containing the node was rejected. Template seeding writes around the save
+schema, which is why the AF-M11-04 smoke test passed despite the defect.
+
+**Why the AF-M8-24 guard missed it:** `schemas.test.ts` builds its `registered` set
+from `nodeManifest`, not from `nodeRegistry`. A type that is registry-only (or
+manifest-only) drifts by the whole guard.
+
+**Acceptance**
+- [x] `EMPLOYEE_HIRED` listed in `src/nodes/manifest.ts` (import + entry) so the node
+      appears in the palette; `nodePalette`/`findManifestEntry` behaviour unchanged.
+- [x] `makeNodeSchema("EMPLOYEE_HIRED", configOf("EMPLOYEE_HIRED"))` added to
+      `updateNodeSchemas` in `src/features/workflows/schemas.ts`, so a workflow with
+      the node passes the save boundary.
+- [x] Guard tightened: `schemas.test.ts` compares saveable types against
+      `nodeRegistry.list()`, so a registry-only type fails the build and is named
+      with a message.
+- [ ] Verified: `npx vitest run` on the touched scopes passes; `npm run build` clean;
+      `npm run lint` clean (the 2 pre-existing `node-config-panel.tsx` warnings
+      untouched); docs updated in the same change.

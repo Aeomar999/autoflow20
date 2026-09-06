@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
-import { nodeManifest } from "@/nodes/manifest";
+import { nodeRegistry } from "@/nodes/registry";
 import { saveWorkflowInputSchema, updateNodeSchemas } from "./schemas";
 
 const position = { x: 0, y: 0 };
@@ -304,14 +304,14 @@ describe("saveable types track the registry (AF-M8-24)", () => {
       (schema) => (schema.shape.type as { value: string }).value,
     ),
   );
-  const registered = new Set(nodeManifest.map((definition) => definition.type));
+  const registered = new Set(nodeRegistry.list().map((definition) => definition.type));
 
   it("can save every registered node type", () => {
     const unsaveable = [...registered].filter((type) => !saveable.has(type));
 
     expect(
       unsaveable,
-      `these node types are in the palette but cannot be saved: ${unsaveable.join(", ")}`,
+      `these node types are registered but cannot be saved: ${unsaveable.join(", ")}`,
     ).toEqual([]);
   });
 
@@ -428,7 +428,7 @@ describe("saveWorkflowInputSchema — per-node run policy (AF-M9-06)", () => {
     // `z.object({}).optional()` and AGGREGATE's is `z.object({}).default({})`,
     // neither of which exposes `.extend`.
     const broken: string[] = [];
-    for (const def of nodeManifest) {
+    for (const def of nodeRegistry.list()) {
       const schema = updateNodeSchemas.find(
         (s) => s.shape.type.value === def.type,
       );
