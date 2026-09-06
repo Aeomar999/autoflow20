@@ -203,6 +203,7 @@ export const updateNodeSchemas = [
   makeNodeSchema("AIRTABLE_READ", configOf("AIRTABLE_READ")),
   makeNodeSchema("AIRTABLE_UPDATE", configOf("AIRTABLE_UPDATE")),
   makeNodeSchema("AIRTABLE_TRIGGER", configOf("AIRTABLE_TRIGGER")),
+  makeNodeSchema("BAMBOOHR_TRIGGER", configOf("BAMBOOHR_TRIGGER")),
   makeNodeSchema("SHOPIFY_CREATE_ORDER", configOf("SHOPIFY_CREATE_ORDER")),
   makeNodeSchema(
     "MAILERLITE_FIND_SUBSCRIBER",
@@ -247,6 +248,8 @@ export const updateNodeSchemas = [
   makeNodeSchema("CANDIDATE_SCORE_RANK", configOf("CANDIDATE_SCORE_RANK")),
   makeNodeSchema("EMPLOYEE_ACTIVE", configOf("EMPLOYEE_ACTIVE")),
   makeNodeSchema("EMPLOYEE_HIRED", configOf("EMPLOYEE_HIRED")),
+  makeNodeSchema("EMPLOYEE_OFFBOARDED", configOf("EMPLOYEE_OFFBOARDED")),
+  makeNodeSchema("EMPLOYEE_OFFBOARDING", configOf("EMPLOYEE_OFFBOARDING")),
   makeNodeSchema("EMPLOYEE_ONBOARDING", configOf("EMPLOYEE_ONBOARDING")),
   makeNodeSchema("EXIT_INTERVIEW", configOf("EXIT_INTERVIEW")),
   makeNodeSchema("ILLNESS_SUMMARY", configOf("ILLNESS_SUMMARY")),

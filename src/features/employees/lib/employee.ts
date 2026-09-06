@@ -80,11 +80,19 @@ export const employeeOffboardingSchema = z.object({
   exitReason: z.string().trim().max(500).optional(),
 });
 
+/** W4 terminal: the exit is complete. No transition leaves OFFBOARDED. */
+export const employeeOffboardedSchema = z.object({
+  event: z.literal("employee.offboarded"),
+  employeeRef: employeeRefSchema,
+  exitDate: dateOnlySchema.or(z.iso.datetime()).optional(),
+});
+
 export const employeeHandoffSchema = z.discriminatedUnion("event", [
   employeeHiredSchema,
   employeeOnboardingSchema,
   employeeActiveSchema,
   employeeOffboardingSchema,
+  employeeOffboardedSchema,
 ]);
 
 export type EmployeeHiredInput = z.infer<typeof employeeHiredSchema>;
@@ -93,4 +101,5 @@ export type EmployeeActiveInput = z.infer<typeof employeeActiveSchema>;
 export type EmployeeOffboardingInput = z.infer<
   typeof employeeOffboardingSchema
 >;
+export type EmployeeOffboardedInput = z.infer<typeof employeeOffboardedSchema>;
 export type EmployeeHandoffInput = z.infer<typeof employeeHandoffSchema>;
