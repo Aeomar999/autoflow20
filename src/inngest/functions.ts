@@ -677,6 +677,21 @@ export async function executeWorkflowHandler({
         }));
       }
 
+      // AF-UX-06: persist the resolved graph on the execution. Pre-created
+      // runs (manual `workflows.run`, public API, retry-from-node) carry no
+      // `graphSnapshot` — without this write the run-progress panel has
+      // nothing to track. Idempotent for legacy/webhook runs that already
+      // stored the snapshot at creation.
+      await prisma.execution.update({
+        where: { id: execution.id },
+        data: {
+          graphSnapshot: {
+            nodes: nodeRows,
+            connections: connectionRows,
+          } as Prisma.InputJsonValue,
+        },
+      });
+
       const { errors, order } = validate(
         { nodes: nodeRows, connections: connectionRows },
         // Registry is imported dynamically on the server to avoid
