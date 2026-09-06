@@ -1,19 +1,25 @@
 "use client";
 
-import type { Node } from "@xyflow/react";
 import { getDefaultStore } from "jotai";
 import { FlaskConicalIcon, MousePointerClickIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTestWorkflow } from "@/features/workflows/hooks/use-workflows";
-import { edgesAtom, nodesAtom } from "../store/atoms";
+import { type EditorNode, edgesAtom, nodesAtom } from "../store/atoms";
 
 const jotaiStore = getDefaultStore();
 
+// `disabled` is load-bearing: buildTestGraph reads it to mark the nodes the
+// engine must skip. Dropping it here silently ran every disabled node.
 const takeDraftNodes = () =>
   jotaiStore
     .get(nodesAtom)
-    .filter((n): n is Node & { type: string } => Boolean(n.type))
-    .map((n) => ({ id: n.id, type: n.type, data: n.data }));
+    .filter((n): n is EditorNode & { type: string } => Boolean(n.type))
+    .map((n) => ({
+      id: n.id,
+      type: n.type,
+      data: n.data,
+      disabled: n.disabled,
+    }));
 
 export const TestWorkflowButton = ({ workflowId }: { workflowId: string }) => {
   const testWorkflow = useTestWorkflow();

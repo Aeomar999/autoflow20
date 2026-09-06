@@ -22,6 +22,8 @@ import {
   buildRunToNodePlan,
   buildTestGraph,
   buildTestRunPlan,
+  draftEdgeSchema,
+  draftNodeSchema,
   type TestRunPlan,
 } from "./test-run";
 
@@ -124,23 +126,8 @@ export const workflowsRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string().min(1).max(64),
-        nodes: z
-          .array(
-            z.object({
-              id: z.string().min(1).max(64),
-              type: z.string().min(1).max(128),
-              data: z.record(z.string(), z.unknown()).optional(),
-            }),
-          )
-          .min(1),
-        edges: z.array(
-          z.object({
-            source: z.string().min(1).max(64),
-            target: z.string().min(1).max(64),
-            sourceHandle: z.string().max(128).nullish(),
-            targetHandle: z.string().max(128).nullish(),
-          }),
-        ),
+        nodes: z.array(draftNodeSchema).min(1),
+        edges: z.array(draftEdgeSchema),
         testNodeId: z.string().min(1).max(64).optional(),
         /**
          * AF-UX-15. "node" is the bottom-bar Test-node semantic: run only the

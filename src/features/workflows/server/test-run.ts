@@ -7,6 +7,7 @@
  * test runs.
  */
 
+import { z } from "zod";
 import { validate } from "@/engine/validate";
 import { computeSkipNodes } from "@/features/executions/server/executions-router-helpers";
 import { resolveEdgePorts } from "@/nodes/ports";
@@ -27,6 +28,29 @@ export type DraftEdge = {
   sourceHandle?: string | null;
   targetHandle?: string | null;
 };
+
+/**
+ * Wire schema for a canvas node arriving at `workflows.testRun` (AF-UX-15).
+ *
+ * Lives here, next to `DraftNode`, rather than inline in the router, because
+ * the two must not drift: `buildTestGraph` reads `disabled`, and while the
+ * router declared only id/type/data Zod stripped it — so every disabled node
+ * ran in every test run. Keeping the schema beside the type it mirrors makes
+ * that class of omission a unit test rather than a production surprise.
+ */
+export const draftNodeSchema = z.object({
+  id: z.string().min(1).max(64),
+  type: z.string().min(1).max(128),
+  data: z.record(z.string(), z.unknown()).optional(),
+  disabled: z.boolean().optional(),
+});
+
+export const draftEdgeSchema = z.object({
+  source: z.string().min(1).max(64),
+  target: z.string().min(1).max(64),
+  sourceHandle: z.string().max(128).nullish(),
+  targetHandle: z.string().max(128).nullish(),
+});
 
 export type GraphNode = {
   id: string;

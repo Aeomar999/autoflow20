@@ -4,6 +4,7 @@ import {
   buildRunToNodePlan,
   buildTestGraph,
   buildTestRunPlan,
+  draftNodeSchema,
   type TestGraph,
   TestRunError,
 } from "./test-run";
@@ -213,5 +214,36 @@ describe("buildRunToNodePlan (AF-UX-15, run-up-to)", () => {
     expect(() => buildRunToNodePlan(graph, target.id)).toThrow(
       /Multiple trigger/i,
     );
+  });
+});
+
+describe("draftNodeSchema (AF-UX-15)", () => {
+  it("preserves `disabled` so buildTestGraph can skip the node", () => {
+    // The bug this locks: the router's inline schema declared only
+    // id/type/data, Zod stripped `disabled`, and every disabled node ran.
+    const parsed = draftNodeSchema.parse({
+      id: "n2",
+      type: "SET",
+      data: {},
+      disabled: true,
+    });
+    expect(parsed.disabled).toBe(true);
+  });
+
+  it("leaves `disabled` undefined when the client omits it", () => {
+    const parsed = draftNodeSchema.parse({ id: "n1", type: "SET" });
+    expect(parsed.disabled).toBeUndefined();
+  });
+
+  it("a parsed disabled node reaches the snapshot as disabled", () => {
+    const graph = buildTestGraph(
+      [
+        draftNodeSchema.parse({ id: "n1", type: "MANUAL_TRIGGER" }),
+        draftNodeSchema.parse({ id: "n2", type: "SET", disabled: true }),
+      ],
+      [{ source: "n1", target: "n2" }],
+    );
+    expect(graph.nodes[0].disabled).toBe(false);
+    expect(graph.nodes[1].disabled).toBe(true);
   });
 });
