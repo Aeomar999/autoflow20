@@ -222,6 +222,62 @@ AutoFlow has a solid foundation with clean route hierarchy, disciplined dirty tr
 
 ---
 
+### 2.5 Live Run Progress (node-to-node + to 100%)
+
+**Current behavior:** While an execution is running, the detail page shows only
+high-level stats (status, started/completed, duration) and, once traces exist,
+the "Node traces" panel. There is no sense of *where* in the graph the run is or
+*how much* of the workflow has completed.
+
+**Problem:** A run of a long or fan-out-heavy workflow looks frozen until it
+finishes; users cannot tell whether it is making progress, which node is active,
+or whether it is stuck.
+
+**Solution:**
+- Add a "Run progress" panel between the stats grid and the error callout.
+- Overall progress: `done / total` nodes to 100%, rendered as a Progress bar
+  with "N of M nodes · NN%" labeling. `total` is the deterministic topological
+  node order of the execution's `graphSnapshot` (registryless `validate()`
+  `order`); `done` counts distinct nodeIds that reached a terminal state
+  (`SUCCESS` / `FAILED` / `SKIPPED`). Segment interior nodes write one
+  NodeExecution row per item, so counting is by distinct nodeId, not rows.
+- Node list: one row per node in topological order — position badge, name/type,
+  status pill, connecting line. Active nodes get a running animation; skipped
+  nodes are dimmed; nodes with no trace yet are "Pending" while the run is
+  active and "Not run" once the run is terminal (cancelled / timed-out runs can
+  leave `RUNNING`-state work unresolved — those are shown as not run, so the
+  percent freezes below 100 instead of lying).
+- No new transport or tRPC procedure: reuse the existing 3s polling in
+  `useSuspenseExecution`. `executions.getOne` computes a `flow` field server-side
+  from the already-returned `graphSnapshot` and `nodeExecutions`.
+- Slides in naturally with §2.3 (per-node trace detail) — this is the
+  at-a-glance view; §2.3 is the drill-down.
+
+**Files to modify:**
+- `src/inngest/functions.ts` — persist `graphSnapshot` on pre-created
+  executions in `prepare-workflow` (currently only legacy/webhook-created runs
+  and test runs store it, so live manual runs would have nothing to track).
+- `src/features/executions/lib/flow.ts` (new) — pure `computeExecutionFlow`.
+- `src/features/executions/lib/flow.test.ts` (new) — mandatory unit tests.
+- `src/features/executions/server/routers.ts` — add `flow` to `getOne`.
+- `src/features/executions/components/execution-flow.tsx` (new) — the panel.
+- `src/features/executions/components/execution.tsx` — mount the panel.
+
+**Acceptance criteria:**
+- [ ] Live progress bar shows done/total node count and percent to 100% while a
+      run is in flight, driven by existing 3s polling
+- [ ] Node list shows each graph node in topological order with status
+      (running/active, done, skipped, pending/not-run)
+- [ ] Segment fan-out counts a node once regardless of how many items it ran
+- [ ] Percent reaches 100 only when every node reached a terminal state; a
+      cancelled or timed-out run freezes below 100 with remaining nodes "Not run"
+- [ ] Production manual runs and retry-from-node runs carry a `graphSnapshot`
+      (`functions.ts` persist) so the panel works there too
+- [ ] Credentials never appear in the progress payload; only node id/name/type
+      and aggregate counts leave the server
+
+---
+
 ## 3. File/Upload Handling UX
 
 ### 3.1 Enhanced Knowledge Upload with Progress
