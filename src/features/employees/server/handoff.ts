@@ -14,6 +14,7 @@ import type {
   EmployeeHandoffInput,
   EmployeeHiredInput,
   EmployeeOffboardingInput,
+  EmployeeOnboardingInput,
   EmployeeStatus,
 } from "@/features/employees/lib/employee";
 import type { Prisma } from "@/generated/prisma/client";
@@ -242,6 +243,40 @@ async function handleHired(
   }
 }
 
+async function handleOnboarding(
+  organizationId: string,
+  input: EmployeeOnboardingInput,
+): Promise<HandoffOutcome> {
+  const existing = await prisma.employee.findFirst({
+    where: { organizationId, employeeRef: input.employeeRef },
+  });
+
+  if (!existing) {
+    return conflictOutcome("ONBOARDING", input.employeeRef, null, {
+      kind: "conflict",
+      reason: "unknown employee",
+    });
+  }
+
+  const guard: TransitionGuard = {
+    allowedFrom: ["OFFERED"],
+    idempotentAt: "ONBOARDING",
+    to: "ONBOARDING",
+  };
+  const step = evalGuard(existing.status as EmployeeStatus, guard);
+  if (step.kind === "idempotent") {
+    return {
+      outcome: "already-current",
+      employee: existing,
+      status: "ONBOARDING",
+    };
+  }
+  if (step.kind === "conflict") {
+    return conflictOutcome("ONBOARDING", input.employeeRef, existing, step);
+  }
+  return applyTransition(organizationId, existing, "ONBOARDING", {});
+}
+
 async function handleActive(
   organizationId: string,
   input: EmployeeActiveInput,
@@ -318,6 +353,8 @@ export async function applyEmployeeHandoff(
   switch (input.event) {
     case "employee.hired":
       return handleHired(organizationId, input);
+    case "employee.onboarding":
+      return handleOnboarding(organizationId, input);
     case "employee.active":
       return handleActive(organizationId, input);
     case "employee.offboarding":

@@ -457,7 +457,7 @@ export const peopleTemplates: TemplateSpec[] = [
           position: { x: 0, y: 0 },
           data: {
             payload:
-              '{"employeeRef":"EMP-ADA-009","candidateName":"Ada Boateng","candidateEmail":"ada@example.com","roleTitle":"Account Executive","department":"Sales","companyName":"Acme Corp","startDate":"2026-11-01","workLocation":"London","compensationText":"GBP 150,000 base salary; sign-on bonus of GBP 10,000","approverEmail":"hiring-manager@example.com","candidates":[{"name":"Ada Boateng","experience":"Six years in enterprise sales","notes":"Closes multi-threaded deals"},{"name":"Barbara Liskov","experience":"Four years in SaaS sales","notes":"Strong pipeline hygiene"}]}',
+              '{"employeeRef":"EMP-ADA-009","candidateName":"Ada Boateng","candidateEmail":"ada@example.com","roleTitle":"Account Executive","department":"Sales","companyName":"Acme Corp","startDate":"2026-11-01","workLocation":"London","compensationText":"GBP 150,000 base salary; sign-on bonus of GBP 10,000","approverEmail":"hiring-manager@example.com","candidates":[{"name":"Ada Boateng","experience":"Six years in enterprise sales","notes":"Closes multi-threaded deals","scores":{"roleFit":5,"companyFit":5,"availability":5}},{"name":"Barbara Liskov","experience":"Four years in SaaS sales","notes":"Strong pipeline hygiene","scores":{"roleFit":4,"companyFit":4,"availability":3}}]}',
           },
         },
         {
@@ -575,6 +575,201 @@ export const peopleTemplates: TemplateSpec[] = [
         { source: "gate", sourceHandle: "approved", target: "offer" },
         { source: "offer", target: "hire" },
         { source: "gate", sourceHandle: "rejected", target: "notify" },
+      ],
+    },
+  },
+  {
+    slug: "onboard-new-hire",
+    name: "Onboard a signed hire through to day one",
+    description:
+      "Picks up a signed hire and carries them through onboarding: builds a role-aware checklist, requests the background check, plans the orientation session, submits benefits enrollment, and posts the IT access request. If the hire's start date is known, the run waits until that date before wrapping up; if it is missing or cannot be waited on, the run finishes immediately instead of stalling. Either way the record is moved from ONBOARDING to ACTIVE exactly once, keyed by the stable employee reference.",
+    category: "Ops",
+    domain: "ops",
+    tags: [
+      "onboarding",
+      "new hire",
+      "checklist",
+      "orientation",
+      "benefits",
+      "it access",
+      "employee.onboarding",
+      "employee.active",
+    ],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Signed hire",
+          position: { x: 0, y: 0 },
+          data: {
+            payload:
+              '{"employeeRef":"EMP-AMA-010","candidateName":"Ama Mensah","candidateEmail":"ama@example.com","roleTitle":"Product Designer","department":"Design","companyName":"Acme Corp","startDate":"2026-10-05","workLocation":"Accra","compensationText":"GHS 240,000 base salary; joining bonus of GHS 12,000","approverEmail":"hiring-manager@example.com"}',
+          },
+        },
+        {
+          id: "onboarding",
+          type: "EMPLOYEE_ONBOARDING",
+          name: "Start Onboarding",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "onboarding",
+            employeeRef: "{{employeeRef}}",
+          },
+        },
+        {
+          id: "checklist",
+          type: "ONBOARDING_CHECKLIST",
+          name: "Build the onboarding checklist",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "checklist",
+            roleTitle: "{{roleTitle}}",
+            items: [
+              {
+                key: "laptopAndAccess",
+                label: "Issue laptop and day-one system access",
+                owner: "IT Ops",
+                dueOffsetDays: 1,
+              },
+              {
+                key: "toolsAndAccounts",
+                label: "Create accounts in company tools",
+                owner: "IT Ops",
+                dueOffsetDays: 1,
+              },
+              {
+                key: "buddyAssign",
+                label: "Assign a peer buddy for the first two weeks",
+                owner: "People Ops",
+                dueOffsetDays: 0,
+              },
+            ],
+          },
+        },
+        {
+          id: "vetting",
+          type: "BACKGROUND_CHECK",
+          name: "Run the final background check",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "vetting",
+            candidateName: "{{candidateName}}",
+            candidateEmail: "{{candidateEmail}}",
+            checkType: "standard",
+            notes:
+              "Confirm the signed offer terms and the start-date commitments before day one",
+          },
+        },
+        {
+          id: "orientation",
+          type: "ORIENTATION",
+          name: "Plan the orientation session",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "orientation",
+            sessionName: "New-hire orientation - {{candidateName}}",
+            startDate: "{{startDate}}",
+            locationOrMode: "{{workLocation}}",
+            durationMinutes: 120,
+            agendaItems: [
+              {
+                time: "09:00",
+                topic: "Welcome, team intro and housekeeping",
+                owner: "People Ops",
+              },
+              {
+                time: "10:00",
+                topic: "Role expectations and first-week goals",
+                owner: "Hiring Manager",
+              },
+              {
+                time: "11:00",
+                topic: "Tools walkthrough and security basics",
+                owner: "IT Ops",
+              },
+            ],
+          },
+        },
+        {
+          id: "benefits",
+          type: "BENEFITS_ENROLLMENT",
+          name: "Submit benefits enrollment",
+          position: { x: 1300, y: 0 },
+          data: {
+            variableName: "benefits",
+            employeeName: "{{candidateName}}",
+            plan: "medical",
+            dependentsCount: 0,
+            notes:
+              "Enroll by day five; payroll deduction starts with the first pay run",
+          },
+        },
+        {
+          id: "ittools",
+          type: "HTTP_REQUEST",
+          name: "Request IT access",
+          position: { x: 1560, y: 0 },
+          data: {
+            variableName: "ittools",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"event":"it_access_requested","employeeRef":"{{employeeRef}}","name":"{{candidateName}}","role":"{{roleTitle}}","startDate":"{{startDate}}"}',
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "has-date",
+          type: "CONDITION",
+          name: "Start date known?",
+          position: { x: 1820, y: 0 },
+          data: {
+            left: "{{startDate}}",
+            operator: "is_not_empty",
+          },
+        },
+        {
+          id: "wait",
+          type: "WAIT",
+          name: "Wait until day one",
+          position: { x: 2080, y: -120 },
+          data: {
+            mode: "until",
+            until: "{{startDate}}",
+          },
+        },
+        {
+          id: "done",
+          type: "MERGE",
+          name: "Rejoin",
+          position: { x: 2340, y: 0 },
+          data: {},
+        },
+        {
+          id: "active",
+          type: "EMPLOYEE_ACTIVE",
+          name: "Mark Employee Active",
+          position: { x: 2600, y: 0 },
+          data: {
+            variableName: "active",
+            employeeRef: "{{employeeRef}}",
+            activeAt: "{{startDate}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "onboarding" },
+        { source: "onboarding", target: "checklist" },
+        { source: "checklist", target: "vetting" },
+        { source: "vetting", target: "orientation" },
+        { source: "orientation", target: "benefits" },
+        { source: "benefits", target: "ittools" },
+        { source: "ittools", target: "has-date" },
+        { source: "has-date", sourceHandle: "true", target: "wait" },
+        { source: "has-date", sourceHandle: "false", target: "done" },
+        { source: "wait", target: "done" },
+        { source: "done", target: "active" },
       ],
     },
   },
