@@ -3145,6 +3145,240 @@ live without new transport — it reuses the existing 3s `useSuspenseExecution` 
 
 ---
 
+### Live-run choreography epic (2026-09-06) — AF-UX-07 → AF-UX-14
+
+We decided to split the live node-to-node execution UX (plan item **2.6** in
+`docs/ux-improvement-plan.md` — "Live-Run Choreography — from One Node Process to
+Another") into the eight tasks below. The dependency pipeline is
+**07 → 08 → (09, 10) → (11, 12, 13) → 14**: AF-UX-07/08 are the transport + shared
+choreography foundations everything else consumes; AF-UX-09/10 migrate the canvas
+and the detail page onto them; AF-UX-11/12/13 are independent visual-semantics tasks
+on top of 08; AF-UX-14 needs 09 and 10. One PR per task; the tests each task lists
+follow `docs/engineering/testing_strategy.md` §3.
+
+---
+
+### ⬜ AF-UX-07 · Run-scoped realtime status channel (`execution:<id>`) · 1.5d
+
+**Why:** Today executors publish to 16 static per-node-type realtime channels with a
+`status` topic that carries only `{ nodeId, status: "loading"|"success"|"error" }`.
+Two concurrent runs of the same workflow clobber each other's canvas lights, and the
+payload is too coarse for queued/retry/fan-out semantics. Also fixes the load-bearing
+copy-paste bug where `src/nodes/core/switch/execute.ts` publishes through the
+manual-trigger channel.
+
+**What:**
+- `src/inngest/channels/*`: add a per-execution channel `execution:<executionId>`
+  with a `node-status` topic typed `{ executionId, nodeId, status: RUNNING|WAITING|
+  SUCCESS|FAILED|SKIPPED, attempt, itemIndex?, itemTotal? }` (the `NodeExecutionStatus`
+  vocabulary; ids/statuses/counts only — no credentials, input, output, or error
+  text). Keep the 16 legacy channels until AF-UX-09/10 migrate off them.
+- `src/inngest/functions.ts` + `src/nodes/**/execute.ts`: thread `executionId` into
+  the per-node run so executors can publish — add a `publishRunStatus()` helper and
+  migrate every publish call site; `switch` publishes through the run channel, never
+  `manualTriggerChannel()`.
+- `src/features/executions/components/*/actions/*`: replace the per-type `fetch<X>
+  RealtimeToken` actions with one `fetchExecutionRealtimeToken(executionId)` minted
+  per run and ownership-checked (cross-tenant / other-run mints denied).
+
+**Acceptance criteria:**
+- [ ] Every executor status change publishes `{ executionId, nodeId, status, attempt }`
+      (+ `itemIndex`/`itemTotal` for fan-out items) to the run's channel
+- [ ] `switch` publishes through the run channel, never the manual-trigger channel
+- [ ] Two concurrent runs of the same workflow never cross-paint
+- [ ] Payloads carry ids/statuses/counts only — no credentials, input, output, error
+- [ ] Realtime tokens are per-run and ownership-gated; cross-org mints are denied
+- [ ] Canvas behaviour is unchanged (legacy channels still live until AF-UX-09/10)
+
+**Tests:** channel payload schema; executor publish invariants (per-run, per node);
+per-run token authorization (cross-org denial).
+
+---
+
+### ⬜ AF-UX-08 · Shared live-run choreography layer · 2d
+
+**Why:** The canvas and the detail mini graph must render the same run the same way.
+A single run-scoped status model, pure phase derivation, handoff-edge selection,
+deterministic layout, and a reduced-motion gate built once replace duplicated
+per-surface logic.
+
+**What:**
+- `src/features/executions/lib/live-run.ts` (new, pure): `LiveRunState` keyed
+  `(runId, nodeId)` with a monotonic guard — an older attempt can never overwrite a
+  newer one, and run A events never mutate run B.
+- `lifecycleFor(graph, events)` → per-node `initial | queued | running | succeeded |
+  failed | skipped | waiting` (queued = upstream terminal, node not yet started;
+  waiting = parked on an approval or similar).
+- `handoffEdges(edges, frontier)` → the edge ids leaving a just-terminal node — the
+  ones the UI animates; no edge ids travel over the wire.
+- Layered auto-layout helper for the mini graph (deterministic, cycle-tolerant,
+  falls back to snapshot order).
+- `motionSafe()` — `prefers-reduced-motion` gate wrapping every animation decision.
+- `src/features/executions/components/live-run/`: `useLiveRun({ executionId })` (one
+  `useInngestSubscription`, one channel), `RunBar` (run # · status · elapsed · live
+  % · stop), shared status pills.
+
+**Acceptance criteria:**
+- [ ] One `useLiveRun` subscription replaces the 16-subscription `NodeStatusProvider`
+      surface contract
+- [ ] `lifecycleFor`/`handoffEdges`/layout are pure and unit-tested exhaustively
+- [ ] Monotonic guard: stale attempts and cross-run events are dropped, newest wins
+- [ ] Reduced motion disables edge/pulse animation everywhere via `motionSafe()`
+
+**Tests:** `live-run.test.ts` unit suite — linear, branch, fan-out, retry-correction
+(stale attempt dropped), cross-run isolation, queued/waiting derivation, handoff-edge
+selection, layout determinism, cycle fallback.
+
+---
+
+### ⬜ AF-UX-09 · Editor canvas live-run handoff · 2d
+
+**Why:** The editor paints per-node lights on a 3-value vocabulary over a static web
+of 16 subscriptions; the run never visibly moves. Wiring the canvas to the
+choreography layer makes the seam between nodes legible and kills the cross-run
+clobbering.
+
+**What:**
+- `src/features/editor/store/node-status-context.tsx`: swap the 16-channel
+  `NodeStatusProvider` for `useLiveRun` on the active test execution, keeping the
+  `Map<nodeId, NodeStatus>` surface so node components barely change.
+- `src/components/react-flow/node-status-indicator.tsx`: add a `queued` variant;
+  multi-node runs use a subtle border pulse while a single-node "Test this node"
+  keeps its full spinner.
+- `src/features/editor/components/editor.tsx`: `handoffEdges` edges get
+  `animated: true` as the run passes through them.
+- RunBar pinned under the canvas header; starting a new test run resets the lights;
+  events for a finished/stale `executionId` are ignored (no cross-run repaint).
+- `test-workflow-button.tsx` exposes the run id that `useLiveRun` subscribes to.
+
+**Acceptance criteria:**
+- [ ] Nodes walk queued → running → terminal on the canvas; the taken edge animates
+      during the handoff
+- [ ] A new test resets all lights; stale-run events never repaint the canvas
+- [ ] Single-node test keeps the existing spinner; multi-node runs pulse
+- [ ] RunBar shows run # · status · elapsed · live % (and stop), and is accessible
+
+**Tests:** provider/choreography integration (new test resets lights, cross-run
+isolation via `useLiveRun`); reduced-motion path.
+
+---
+
+### ⬜ AF-UX-10 · Execution detail mini live graph + timings · 2.5d
+
+**Why:** The detail page today shows only the §2.5 list on a 3s poll; fast runs finish
+before the poll ever fires. A read-only live graph of the run's `graphSnapshot` makes
+where-the-run-is visible (and alive) without ditching the textual trace.
+
+**What:**
+- `src/features/executions/components/execution-flow-graph.tsx` (new): read-only
+  `<ReactFlow>` over `graphSnapshot` (`nodesDraggable={false}`, pan/zoom/fitView, no
+  palette/registry) — layout = persisted positions when the snapshot carries them,
+  else the AF-UX-08 layered auto-layout; list-only fallback for unusable geometry/
+  cycles.
+- Realtime via `useLiveRun`; the existing 3s poll stays only as final reconciliation
+  — DB rows win over a live success a later retry contradicts.
+- `src/features/executions/lib/flow.ts` + `getOne`: extend with per-node `startedAt`/
+  `finishedAt`/`durationMs`/`attempt` (all already on `nodeExecutions`), surfaced in
+  the node pill/tooltip.
+- `src/features/executions/components/execution.tsx`: graph above the §2.5 list
+  (list retained as the textual trace).
+
+**Acceptance criteria:**
+- [ ] The mini graph renders every node of the run's snapshot, live via one realtime
+      subscription
+- [ ] Per-node duration + attempt appear in the pill/tooltip
+- [ ] The 3s poll reconciles and wins on any disagreement
+- [ ] §2.5 list unchanged and still rendered below the graph
+- [ ] Reduced motion and bad-geometry fallbacks are covered
+
+**Tests:** flow duration/attempt mapping; layout determinism; reconciliation
+(DB-wins) unit; fallback path.
+
+---
+
+### ⬜ AF-UX-11 · Attempt/retry surfacing · 1d
+
+**Why:** A retrying node currently flickers loading→running with no way to tell a
+transient retry from a real failure; only the final state surfaces the error.
+
+**What:**
+- `attempt` badge on the canvas badge, the mini-graph pill, and the §2.5 list row
+  when `attempt > 1`.
+- "Retrying (2/3)" transition state replaces the flicker; the final `FAILED` alone
+  surfaces the error text.
+- AF-UX-08's monotonic guard prevents a stale attempt from clobbering a newer one.
+
+**Acceptance criteria:**
+- [ ] Attempts > 1 are visibly badged on every surface
+- [ ] Non-final retries read as "retrying", never as a completed failure
+- [ ] Stale attempt events cannot regress the displayed state
+
+**Tests:** attempt badge mapping; stale-attempt monotonicity.
+
+---
+
+### ⬜ AF-UX-12 · Fan-out item progress (`N / M items`) · 1d
+
+**Why:** A 57-item fan-out looks identical to an empty segment until it finishes;
+users cannot see how much remains.
+
+**What:**
+- `itemIndex`/`itemTotal` from the run payload drive an `N / M items` micro-progress
+  on segment interior nodes (canvas badge + list row + mini-graph pill).
+- When `itemTotal` is absent, derive the counts from the `nodeExecutions` rows.
+- A node is terminal only when all its items are terminal; the AF-UX-06 node-count
+  percent semantics are unchanged.
+
+**Acceptance criteria:**
+- [ ] Interior fan-out nodes show `N / M items` on all three surfaces
+- [ ] Aggregates derive from rows when the payload lacks `itemTotal`
+- [ ] AF-UX-06 total/percent counting is untouched
+
+**Tests:** item aggregate derivation; terminal-when-all-items rule.
+
+---
+
+### ⬜ AF-UX-13 · WAITING + SKIPPED semantics everywhere · 0.5d
+
+**Why:** A node parked on an approval looks identical to a hung node, and a skipped
+node reads like a running one on some surfaces.
+
+**What:**
+- `WAITING` renders as an amber, non-spinner ring (parked ≠ hung) on canvas, list,
+  and mini graph.
+- `SKIPPED` is dimmed with a dashed border and a "Skipped" tooltip, identical on
+  every surface.
+- AF-UX-06 cancel/timeout freeze behaviour is untouched.
+
+**Acceptance criteria:**
+- [ ] WAITING is visually distinct from RUNNING on all three surfaces
+- [ ] SKIPPED is dimmed/dashed + tooltip everywhere
+- [ ] Cancel/timeout freeze behaviour unchanged
+
+---
+
+### ⬜ AF-UX-14 · Rerun + last-run breadcrumb + replay-from-here · 1d
+
+**Why:** A finished test run gives no path back — no rerun, no link to the running
+detail, no way to resume from a failure.
+
+**What:**
+- RunBar shows a final summary and a "Re-run" action that refires `useTestWorkflow`.
+- A "Last run" breadcrumb above the canvas links to the detail page (mini graph).
+- A FAILED node's pill/tooltip affords "Replay from here" (`executions.retryFromNode`)
+  — surfaced when the run carries a `graphSnapshot`.
+- All controls keyboard-accessible and reduced-motion-safe.
+
+**Acceptance criteria:**
+- [ ] Re-run starts a fresh run and resets the lights
+- [ ] "Last run" links to the correct detail page
+- [ ] "Replay from here" starts a retry at the failed node on the snapshot it ran
+- [ ] Controls are keyboard-accessible and reduced-motion-safe
+
+**Tests:** rerun/breadcrumb affordances; replay-from-node wiring (snapshot present).
+
+---
+
 ### ✅ AF-UX-04 · Confirm before replacing INITIAL placeholder trigger · 0.5d · **DONE 2026-09-06**
 
 **Why:** `docs/ux-improvement-plan.md` §1.1 — "Destructive Replace of Trigger". A
@@ -3552,60 +3786,238 @@ computed per workflow rather than defaulted.
       (pre-existing `schemas.test.ts` format + `node-config-panel.tsx` warnings remain
       in unmodified files).
 
-### ⬜ AF-M11-06 · W3 Tenure workflow graph · 1.5d
+### ✅ AF-M11-06 · W3 Tenure workflow graph · 1.5d
 
 **Acceptance**
-- [ ] Triggered by `employee.active`; runs tenure intervals (welcome + scheduled
+- [x] Triggered by `employee.active`; runs tenure intervals (welcome + scheduled
       check-ins via the existing schedule/wait triggers).
-- [ ] Enrichment/notification-only — never mutates `status`.
+- [x] Enrichment/notification-only — never mutates `status`.
+- [x] Verified 2026-09-06: template `tenure-check-ins` authored in `catalog/people.ts` —
+      `MANUAL_TRIGGER` (payload modelling the `employee.active` handoff context) →
+      welcome `HTTP_REQUEST` → 30/60/90-day check-ins, each gated behind a `WAIT` in
+      `duration` mode at exactly `MAX_WAIT_SECONDS` (2,592,000s), with the quarterly
+      360-review notification at the 90-day mark. Enrichment/notification-only, as
+      specified — no lifecycle node, never mutates `status`. `EXPECTED_TEMPLATE_COUNT`
+      108 → 109; harness 29 → 29 and templates scope 51 tests pass; `npm run build`
+      clean; biome clean on changed files. No new node types (reuses existing
+      `MANUAL_TRIGGER`/`WAIT`/`HTTP_REQUEST`), so neither registry nor `updateNodeSchemas`
+      moved.
 
-### ⬜ AF-M11-07 · W4 Offboarding workflow graph · 2d
+### ✅ AF-M11-07 · W4 Offboarding workflow graph · 2d
 
 **Acceptance**
-- [ ] Triggered by an offboarding request; moves `ACTIVE→OFFBOARDING` setting
+- [x] Triggered by an offboarding request; moves `ACTIVE→OFFBOARDING` setting
       `exitDate`/`exitReason`.
-- [ ] Exit interview, access revocation, and checklist steps; completes the run at
+- [x] Exit interview, access revocation, and checklist steps; completes the run at
       `OFFBOARDED` exactly once (end-state idempotent).
-- [ ] Uses only registry node types between the two exit-status boundaries.
+- [x] Uses only registry node types between the two exit-status boundaries.
+- [x] Verified 2026-09-06: the chain had no terminal step — `employeeHandoffSchema`
+      stopped at `employee.offboarding`, so `OFFBOARDED` was reachable in
+      `EMPLOYEE_TRANSITIONS` and by nothing else. Added `employeeOffboardedSchema`
+      + `handleOffboarded` (`allowedFrom: ["OFFBOARDING"]`, `idempotentAt:
+      "OFFBOARDED"` — the guard's idempotent status and target are the same value
+      because it is an end state, which is what makes the completion exactly-once
+      on replay), and two nodes: `EMPLOYEE_OFFBOARDING` (`UserMinus`) and
+      `EMPLOYEE_OFFBOARDED` (`UserRoundX`). Both registered in all three places
+      AF-M11-13 named — `registry.ts`, `manifest.ts` and `updateNodeSchemas` — so
+      the save boundary accepts them. Template `offboard-employee-lifecycle`
+      (request → offboarding → exit interview → checklist → access revocation →
+      offboarded) demonstrates both; `EXPECTED_TEMPLATE_COUNT` 109 → 110.
+      Optional fields that resolve to nothing are sent as **absent, not `""`** —
+      an offboarding request with no known last day still opens the phase. 298
+      tests pass across templates/people/workflows (was 259 + 5 new files);
+      `npm run build` clean; biome clean on changed files. Docs:
+      `docs/nodes/employee-offboarding.md`, `docs/nodes/employee-offboarded.md`.
 
-### ⬜ AF-M11-08 · Employees page · 2d
+### ✅ AF-M11-08 · Employees page · 2d
 
 **Acceptance**
-- [ ] `/employees` under the dashboard shell: list with status/department/start date,
+- [x] `/employees` under the dashboard shell: list with status/department/start date,
       status filter, pagination (`PAGINATION` constants), empty + loading states.
-- [ ] Detail view shows the status-chain timeline (handoff events) and core fields.
-- [ ] Manual create + patch forms wired to the new procedures; no business logic in
+- [x] Detail view shows the status-chain timeline (handoff events) and core fields.
+- [x] Manual create + patch forms wired to the new procedures; no business logic in
       the route.
+- [x] Verified 2026-09-06: `src/features/employees/{params,hooks,lib,components}` +
+      `src/app/(dashboard)/(rest)/employees/{page,[employeeId]/page}.tsx`, following
+      the executions/credentials pattern exactly (nuqs params → `params-loader` →
+      `prefetch` → `HydrateClient` → suspense list, ErrorBoundary beside every
+      Suspense). **The timeline needed no new table**: `applyEmployeeHandoff` already
+      audits every mutation with the transition in `after`, so a new `employees.timeline`
+      procedure reads the audit log — one source of truth, and a transition that
+      skipped the audit is visibly missing rather than reconstructed from `status`.
+      `after` is an untyped `Json` column, so it is **parsed** with a zod schema, not
+      cast, and the read is capped at 200 rows. **Neither form can touch `status`** —
+      the guarded handoff layer is the only writer, so a "set status" control would be
+      a second unguarded way into the chain. Chain rendering is a pure, unit-tested
+      helper (`lib/status-chain.ts`, 9 tests) rather than logic in the component: an
+      unknown status (the column is an open set) leaves every step "upcoming" instead
+      of guessing a position. Sidebar entry added under Operate.
 
-### ⬜ AF-M11-09 · Employee search + status reporting · 1d
+### ✅ AF-M11-09 · Employee search + status reporting · 1d
 
 **Acceptance**
-- [ ] Search router matches `fullName` / `employeeRef` / `email`, org-scoped,
+- [x] Search router matches `fullName` / `employeeRef` / `email`, org-scoped,
       case-insensitive, inside `where` (never fetch-then-filter).
-- [ ] Count-by-status summary for the list header; feeds future dashboarding.
+- [x] Count-by-status summary for the list header; feeds future dashboarding.
+- [x] Verified 2026-09-06: a fourth scoped `findMany` in `search.query`'s existing
+      `Promise.all`, with the three-way OR **inside** the `organizationId`-scoped
+      `where`; new `employee` result kind threaded through `SearchResults`, the group
+      labels/order, the palette icon and `useCommandPaletteResults`. Palette subtitle
+      is `status · employeeRef` — enough to tell two people with the same name apart,
+      with contact details deliberately left off. `employees.countByStatus` is one
+      `groupBy`, not six counts, and returns **every** status in the contract at zero
+      as well as any open-set status outside it (carried in `other`, never folded into
+      a known bucket) — a phase missing from the summary would read as "not
+      applicable" rather than "nobody here yet". Each chip filters the list, so the
+      summary doubles as navigation. Nav entry `/employees` added to the static
+      commands (its route-exists guard passes).
 
-### ⬜ AF-M11-10 · HRIS connector credentials + polling triggers · 2d
+### ✅ AF-M11-10 · HRIS connector credentials + polling triggers · 2d
 
 **Acceptance**
-- [ ] Credential types for the HR systems the four workflows call added to the M3
+- [x] Credential types for the HR systems the four workflows call added to the M3
       vault registry, each with the no-plaintext-log guard.
-- [ ] External polling opens use the M10 `TriggerState` pattern, not a bespoke trigger.
+- [x] External polling opens use the M10 `TriggerState` pattern, not a bespoke trigger.
+- [x] Verified 2026-09-06: four types added — `bamboohr.apiKey` (key + company
+      domain), `greenhouse.apiKey` (Harvest), `lever.apiKey`, and
+      `personio.clientCredentials`. The first three ship testers built on the existing
+      `checkAuth`/`checkGuardedAuth` helpers (BambooHR through the **guarded** one,
+      since its company domain lands in the URL — the value is also charset-checked so
+      it cannot re-point the authority); Personio carries a `notTestableReason`
+      instead, because its only entry point is a POST that **mints** a rate-limited
+      token and a test button that quietly burns one is worse than no button. All four
+      use the generic mark: no brand asset for these providers ships in
+      `public/logos`, and approximating someone's trademark to fill a field is not a
+      thing to do. `BAMBOOHR_TRIGGER` registers a `PollingTrigger` on the AF-M10-05
+      framework (ADR-0024) — **no bespoke trigger and no second scheduler**: identity
+      is the stable BambooHR employee id, so a person dispatches once and an edit does
+      not re-fire the chain, and the framework's first-poll suppression means
+      activating against a 400-person directory starts zero runs. Registered in
+      `registry.ts` / `manifest.ts` / `updateNodeSchemas`, roots declared in
+      `TRIGGER_CONTEXT_ROOTS`, demonstrated by the `hris-new-hire-to-onboarding`
+      template (`EXPECTED_TEMPLATE_COUNT` 110 → 111). An employee with no work email
+      or no id is **not dispatched** — the first would fail `employeeHiredSchema` at
+      the second node, the second cannot be deduplicated and would re-run forever —
+      and a failed poll throws rather than returning `[]`, which would be
+      indistinguishable from "nothing new". 16 node tests; docs in
+      `docs/nodes/bamboohr-trigger.md`.
 
-### ⬜ AF-M11-11 · Lifecycle integration tests · 1d
+### ✅ AF-M11-11 · Lifecycle integration tests · 1d
 
 **Acceptance**
-- [ ] Cross-tenant: org B cannot read or mutate org A employee rows; `employeeRef`
+- [x] Cross-tenant: org B cannot read or mutate org A employee rows; `employeeRef`
       conflicts across orgs do not collide.
-- [ ] Handoff idempotency + status guard: replaying a handoff yields `already-current`;
+- [x] Handoff idempotency + status guard: replaying a handoff yields `already-current`;
       illegal transitions yield `conflict`, never a thrown 500.
-- [ ] Audit rows exist for every mutation; no PII in any error/log surface.
+- [x] Audit rows exist for every mutation; no PII in any error/log surface.
+- [x] Verified 2026-09-06: `tests/integration/employees-lifecycle.integration.test.ts`
+      — **17 tests, all passing against a real Postgres** (`npx vitest run --project
+      integration`). Everything runs through the real router and the real
+      `applyEmployeeHandoff`. Tenancy: list scoping, cross-org read/patch returning
+      `NOT_FOUND` (not `FORBIDDEN` — the latter would confirm the row exists), a
+      spoofed `x-organization-id` header changing nothing, the same `employeeRef`
+      living in two orgs without colliding, and a duplicate inside one org as
+      `BAD_REQUEST`. Guards: the full `CANDIDATE → OFFBOARDED` walk, a replay landing
+      on `already-current` with `updatedAt` unchanged, the exit completing exactly
+      once (asserted as **5 `status_changed` audit rows and no sixth**), and both
+      conflict paths returning values rather than throwing. Audit/PII: every mutation
+      leaves a `SYSTEM` row, and the audit payload, the `logger.warn` conflict line
+      and the not-found message are each asserted to contain **none** of the fixture's
+      name, work email, personal email or manager email.
 
-### ⬜ AF-M11-12 · Manual trigger → employee.hired wiring · 1d
+### ✅ AF-M11-12 · Manual trigger → employee.hired wiring · 1d
 
 **Acceptance**
-- [ ] The M4 manual-trigger payload injection can drive the W1 entry node, so the whole
+- [x] The M4 manual-trigger payload injection can drive the W1 entry node, so the whole
       chain is demoable in-editor without a live ATS. `npm run build` + `npm run lint`
       clean; docs updated in the same change.
+- [x] Verified 2026-09-06: the mechanism already worked — `MANUAL_TRIGGER` spreads a
+      parsed JSON payload flat onto the run context — but **the chain was not actually
+      demoable**: the four phase templates demoed three different people
+      (`EMP-ADA-009` in W1, `EMP-AMA-010` in W2–W4), so running them in order needed
+      hand-editing between phases. Aligned all four on one subject and one
+      `employeeRef`, and pinned it: `src/features/employees/lifecycle-chain.test.ts`
+      runs each template's own `MANUAL_TRIGGER` for real, feeds the context it
+      produces into that phase's lifecycle node with its authored config (handoff
+      layer mocked), and asserts the resulting handoff input is fully resolved — no
+      surviving `{{ }}`, no field resolved to `""`. A payload key drifting away from a
+      node's expression now fails the build instead of failing a user on their first
+      run. W3 is asserted to author **no** lifecycle node at all, which is what keeps
+      tenure enrichment-only. 7 tests.
+
+### ✅ AF-M11-14 · Lifecycle nodes reject a blank optional field · 0.5d · **DONE 2026-09-06**
+
+**Root cause:** each lifecycle node had its own copy of an inline
+`resolvedField`/`requiredField` pair, and the copies diverged. `EMPLOYEE_HIRED` and
+`EMPLOYEE_ACTIVE` passed an optional field whose expression resolved to nothing
+straight through as `""`. An empty string is not "absent" to the contract —
+`dateOnlySchema` and `z.string().email()` both reject it — so
+`activeAt: "{{startDate}}"` on a run whose payload carried no `startDate` threw
+`NonRetriableError` and killed the run at its last node.
+
+**Why it matters:** that is exactly the case AF-M11-05 was specified to tolerate
+("tolerates an unknown start date"). The W2 template routes a missing `startDate`
+around the `WAIT` with a `CONDITION`, but both branches still reach
+`EMPLOYEE_ACTIVE`, so the no-start-date path failed anyway — the criterion was
+ticked against a graph that could not run.
+
+**Acceptance**
+- [x] One shared helper (`src/nodes/people/shared/lifecycle-fields.ts`) provides
+      `required` / `optional` field resolution and the variable-name/tenant guards;
+      all five lifecycle nodes use it, so the rule exists once.
+- [x] An optional field whose expression resolves to nothing is **absent**, never
+      `""`.
+- [x] Regression tests that fail before the fix: `EMPLOYEE_ACTIVE` with
+      `activeAt: "{{startDate}}"` and no `startDate`, and `EMPLOYEE_HIRED` with all
+      four optional fields unresolved — both now assert the handoff input omits them.
+      (Confirmed failing beforehand: "the active input is invalid — activeAt Invalid
+      input.")
+
+### ✅ AF-M11-15 · Clear the M11 typecheck debt in the people node tests · 0.5d
+
+**Why:** `npx tsc --noEmit` is red with **36 errors, every one in an M11 test file**
+— `src/nodes/people/{offer-letter,onboarding-checklist,offboarding-checklist,candidate-score-rank,orientation,benefits-enrollment}/execute.test.ts`
+and `src/features/editor/components/node-config-panel.dom.test.tsx`. Recorded in
+`progress.md` since AF-UX-04 as the "known-red M11 baseline"; it predates this
+milestone's closing work and none of the tasks above own it. The tests pass at run
+time (`next build` does not typecheck test files), so this is type-safety debt, not
+a behavioural bug — but the milestone should not be called finished with its own
+typecheck red.
+
+**Two error shapes, both mechanical:**
+- `TS18046: 'result.X' is of type 'unknown'` — `execute` returns
+  `WorkflowContext` (`Record<string, unknown>`); the assertion needs a narrow.
+- `TS2345` on `withResolve({...})` — a heterogeneous array literal in the fixture
+  (`{ owner?: undefined }` on some members) does not unify with the node's
+  `*Data` type; the fixture needs an explicit annotation.
+
+**Acceptance**
+- [x] `npx tsc --noEmit` reports **zero** errors (was 36).
+- [x] Every test still asserts the same behaviour — 2,199 unit + dom tests pass,
+      unchanged in count.
+- [x] `npm run build` clean; `npm run lint` clean apart from one untracked working-tree
+      file the author added (`docs/HR Lifecycle/Recruitment/… .json`, a data export —
+      not reformatted here) and the two long-standing `node-config-panel.tsx` warnings.
+      The pre-existing `schemas.test.ts` formatting error, noted and left by AF-M11-05,
+      is fixed (formatter only), so the repo's own lint gate works again.
+
+**What it actually was.** Not all cosmetic — two of the three shapes were real
+type bugs that the fixtures had been contorted around:
+
+1. **`z.infer` where the executor needs `z.input`.** `ChecklistItem`,
+   `RubricItem` and `AgendaItem` were `z.infer<typeof …Schema>`, which is
+   `z.output` — so a field declared `.default(0)` typed as **required**. But
+   `execute` reads the **saved node config directly**, un-parsed, where a
+   defaulted field is legitimately absent; the executors' own
+   `item.dueOffsetDays ?? 0` fallbacks say so and looked redundant against the
+   type. Switched to `z.input`, which is what "the config as authored" means.
+2. **`NodeConfigPanel` gained a required `workflowId`** (it feeds the
+   `WebhookTester`) and its DOM-test fixtures were never updated — 6 of the 36.
+3. The rest were narrowing: `execute` returns `WorkflowContext`
+   (`Record<string, unknown>`), so reading a field off the stored result is
+   `unknown`. Narrowed once per file through a small helper rather than cast at
+   each assertion, and the six module-local `*Data` types are now exported so a
+   fixture can be annotated with the node's own contract instead of a hand-copy.
 
 ### ✅ AF-M11-13 · EMPLOYEE_HIRED save-boundary fix · 0.5d · **DONE 2026-09-06**
 
