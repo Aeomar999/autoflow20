@@ -3101,6 +3101,50 @@ We decided to merge plan items **2.1** (add search to executions page) and **2.2
 same landing page, the same tRPC procedure (`executions.list`), the same nuqs param
 module, and the same filter bar — one PR, one acceptance set.
 
+### ✅ AF-UX-06 · Live run progress (node-to-node + to 100%) · 1d · **DONE 2026-09-06**
+
+**Why:** `docs/ux-improvement-plan.md` §2.5. While an execution runs, the detail
+page shows no sense of *where* in the graph the run is or how much has completed;
+a fan-out-heavy run looks frozen until it finishes. A "Run progress" panel (overall
+`Progress` bar to 100% plus a topological node-by-node status list) makes the run
+live without new transport — it reuses the existing 3s `useSuspenseExecution` polling.
+
+**What:**
+- `src/inngest/functions.ts`: persist `graphSnapshot` on pre-created executions in
+  `prepare-workflow`. Today only legacy/webhook-created runs (functions.ts:610-613)
+  and test runs (workflows router) store it — manual/API/retry pre-created runs
+  (workflows router, `v1/workflows/[id]/run`, executions `retryFromNode`) have
+  `graphSnapshot: null`, so nothing to track. One idempotent write of the resolved
+  nodes/connections covers every path.
+- `src/features/executions/lib/flow.ts` (new, pure): `computeExecutionFlow` →
+  `{ total, done, percent, order, nodes }`. `order` = registryless `validate()`
+  order over the snapshot (topological, includes isolated + disabled); `total` =
+  order length; `done` = distinct nodeIds with a terminal row (SUCCESS/FAILED/
+  SKIPPED — segment interior nodes write one row per item, so count by nodeId);
+  `percent` = `total ? min(100, round(done/total*100)) : 100`. Cycle → fall back
+  to snapshot node order. Defensively normalize snapshot before `validate`.
+- `flow.test.ts` (new): linear 0→25→75→100; branch skip (SKIPPED counts);
+  segment multi-row dedupe; disabled node in total; cancel freeze (RUNNING rows
+  don't count, percent < 100); WAITING not done; empty graph = 100; cycle
+  fallback; missing name/fromOutput normalized; unknown nodeIds in traces ignored.
+- `server/routers.ts`: `getOne` computes and returns `flow` from the already-read
+  `graphSnapshot` + `nodeExecutions`.
+- `components/execution-flow.tsx` (new): `Progress` bar + "N of M nodes · NN%",
+  vertical node list in order (position badge, name/type, status pill, connector,
+  animate-pulse on running, dimmed skipped, pending = "Not run" on terminal runs).
+- `components/execution.tsx`: mount the panel after `StatGrid`.
+
+**Acceptance criteria:**
+- [ ] Live progress bar shows done/total and percent while a run is in flight
+- [ ] Node list shows each node in topological order with status
+- [ ] Segment fan-out counts a node once regardless of item count
+- [ ] 100% only when every node reaches a terminal state; cancel/timeout freezes
+      below 100 with remaining nodes "Not run"
+- [ ] Production manual + retry-from-node runs have a `graphSnapshot` (functions.ts)
+- [ ] Only node id/name/type + aggregate counts leave the server
+
+---
+
 ### ✅ AF-UX-04 · Confirm before replacing INITIAL placeholder trigger · 0.5d · **DONE 2026-09-06**
 
 **Why:** `docs/ux-improvement-plan.md` §1.1 — "Destructive Replace of Trigger". A

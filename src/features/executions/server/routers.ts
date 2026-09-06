@@ -9,6 +9,7 @@ import {
   orgEditorProcedure,
   orgViewerProcedure,
 } from "@/trpc/init";
+import { computeExecutionFlow } from "../lib/flow";
 import { computeSkipNodes } from "./executions-router-helpers";
 
 const executionStatusSchema = z.enum([
@@ -183,6 +184,7 @@ export const executionsRouter = createTRPCRouter({
           ...ne,
           costUsd: Number(ne.costUsd),
         })),
+        flow: computeExecutionFlow(row.graphSnapshot, row.nodeExecutions),
       };
     }),
 

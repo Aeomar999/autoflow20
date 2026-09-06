@@ -67,9 +67,9 @@ import {
 } from "@/generated/prisma/browser";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
-
 import { EXPENSIVE_COST_SHARE, isExpensiveCostShare } from "../lib/cost-share";
 import { ExecutionStatusPill } from "../lib/status";
+import { ExecutionFlowPanel } from "./execution-flow";
 
 /** Compatible with the router's output (costUsd is number, not Prisma Decimal). */
 type TraceRow = {
@@ -387,6 +387,12 @@ export const ExecutionView = ({ executionId }: { executionId: string }) => {
           }
         />
       </StatGrid>
+
+      <ExecutionFlowPanel
+        flow={execution.flow}
+        nodeExecutions={execution.nodeExecutions}
+        isRunning={isRunning}
+      />
 
       {execution.error && (
         <Callout tone="danger" title="This run failed">
