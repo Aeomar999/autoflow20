@@ -4,6 +4,10 @@ import { NonRetriableError } from "inngest";
 import type { EmployeeActiveInput } from "@/features/employees/lib/employee";
 import { employeeActiveSchema } from "@/features/employees/lib/employee";
 import { applyEmployeeHandoff } from "@/features/employees/server/handoff";
+import {
+  assertLifecycleContext,
+  lifecycleFields,
+} from "@/nodes/people/shared/lifecycle-fields";
 import type { NodeRun } from "@/nodes/types";
 
 type EmployeeActiveData = {
@@ -20,36 +24,17 @@ export const execute: NodeRun<EmployeeActiveData> = async ({
   organizationId,
 }) => {
   const where = "Mark Employee Active node";
+  const scope = assertLifecycleContext(data, organizationId, where);
+  const field = lifecycleFields(resolve, where);
 
-  if (!data.variableName?.trim()) {
-    throw new NonRetriableError(`${where}: Variable name is missing`);
-  }
-  const variableName = data.variableName;
-
-  if (!organizationId) {
-    throw new NonRetriableError(
-      `${where}: the run has no organizationId; it cannot scope the employee write.`,
-    );
-  }
-
-  const resolvedField = (value: string | undefined) =>
-    value === undefined ? undefined : resolve(value).trim();
-  const requiredField = (value: string | undefined, label: string) => {
-    const field = resolvedField(value);
-    if (!field) {
-      throw new NonRetriableError(
-        `${where}: the ${label} expression resolved to nothing.`,
-      );
-    }
-    return field;
-  };
+  // An unknown start date leaves `activeAt` ABSENT, not "" — the handoff then
+  // stamps the transition time itself (AF-M11-14).
+  const activeAt = field.optional(data.activeAt);
 
   const input: EmployeeActiveInput = {
     event: "employee.active",
-    employeeRef: requiredField(data.employeeRef, "employee reference"),
-    ...(data.activeAt !== undefined
-      ? { activeAt: resolvedField(data.activeAt) }
-      : {}),
+    employeeRef: field.required(data.employeeRef, "employee reference"),
+    ...(activeAt !== undefined ? { activeAt } : {}),
   };
 
   const outcome = await step.run("emit-employee-active", async () => {
@@ -62,11 +47,11 @@ export const execute: NodeRun<EmployeeActiveData> = async ({
       );
     }
 
-    return applyEmployeeHandoff(organizationId, parsed.data);
+    return applyEmployeeHandoff(scope.organizationId, parsed.data);
   });
 
   return {
     ...context,
-    [variableName]: outcome,
+    [scope.variableName]: outcome,
   };
 };

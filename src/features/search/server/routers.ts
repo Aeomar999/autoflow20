@@ -50,56 +50,94 @@ export const searchRouter = createTRPCRouter({
 
       const statuses = matchingStatuses(q);
 
-      const [workflows, executions, credentials] = await Promise.all([
-        prisma.workflow.findMany({
-          where: {
-            organizationId,
-            ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
-          },
-          orderBy: { updatedAt: "desc" },
-          take,
-          select: { id: true, name: true, updatedAt: true },
-        }),
-        prisma.execution.findMany({
-          where: {
-            // Execution carries no organizationId of its own; it reaches the
-            // tenant through its workflow (data_model.md §2.4).
-            workflow: { organizationId },
-            ...(q
-              ? {
-                  OR: [
-                    { id: { startsWith: q } },
-                    ...(statuses.length > 0
-                      ? [{ status: { in: statuses } }]
-                      : []),
-                    {
-                      workflow: {
-                        name: { contains: q, mode: "insensitive" as const },
+      const [workflows, executions, credentials, employees] = await Promise.all(
+        [
+          prisma.workflow.findMany({
+            where: {
+              organizationId,
+              ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
+            },
+            orderBy: { updatedAt: "desc" },
+            take,
+            select: { id: true, name: true, updatedAt: true },
+          }),
+          prisma.execution.findMany({
+            where: {
+              // Execution carries no organizationId of its own; it reaches the
+              // tenant through its workflow (data_model.md §2.4).
+              workflow: { organizationId },
+              ...(q
+                ? {
+                    OR: [
+                      { id: { startsWith: q } },
+                      ...(statuses.length > 0
+                        ? [{ status: { in: statuses } }]
+                        : []),
+                      {
+                        workflow: {
+                          name: { contains: q, mode: "insensitive" as const },
+                        },
                       },
-                    },
-                  ],
-                }
-              : {}),
-          },
-          orderBy: { startedAt: "desc" },
-          take,
-          select: {
-            id: true,
-            status: true,
-            startedAt: true,
-            workflow: { select: { name: true } },
-          },
-        }),
-        prisma.credential.findMany({
-          where: {
-            organizationId,
-            ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
-          },
-          orderBy: { updatedAt: "desc" },
-          take,
-          select: { id: true, name: true, type: true },
-        }),
-      ]);
+                    ],
+                  }
+                : {}),
+            },
+            orderBy: { startedAt: "desc" },
+            take,
+            select: {
+              id: true,
+              status: true,
+              startedAt: true,
+              workflow: { select: { name: true } },
+            },
+          }),
+          prisma.credential.findMany({
+            where: {
+              organizationId,
+              ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
+            },
+            orderBy: { updatedAt: "desc" },
+            take,
+            select: { id: true, name: true, type: true },
+          }),
+          /**
+           * AF-M11-09. People are found by the three things a user actually has
+           * in front of them: the name, the `employeeRef` off a workflow run,
+           * and the work email. The whole OR sits INSIDE the tenant-scoped
+           * `where` — never a fetch-then-filter, which would leak the existence
+           * of another tenant's people through result counts and timings.
+           */
+          prisma.employee.findMany({
+            where: {
+              organizationId,
+              ...(q
+                ? {
+                    OR: [
+                      {
+                        fullName: { contains: q, mode: "insensitive" as const },
+                      },
+                      {
+                        employeeRef: {
+                          contains: q,
+                          mode: "insensitive" as const,
+                        },
+                      },
+                      { email: { contains: q, mode: "insensitive" as const } },
+                    ],
+                  }
+                : {}),
+            },
+            orderBy: { updatedAt: "desc" },
+            take,
+            select: {
+              id: true,
+              fullName: true,
+              employeeRef: true,
+              status: true,
+            },
+          }),
+        ],
+      );
 
       return {
         workflows: workflows.map(
@@ -131,6 +169,17 @@ export const searchRouter = createTRPCRouter({
             // preview has no business in a global search result.
             subtitle: credential.type,
             href: `/credentials/${credential.id}`,
+          }),
+        ),
+        employees: employees.map(
+          (employee): SearchResult => ({
+            kind: "employee",
+            id: employee.id,
+            title: employee.fullName,
+            // Status plus the business key — enough to tell two people with
+            // the same name apart. Contact details stay off the palette.
+            subtitle: `${employee.status} · ${employee.employeeRef}`,
+            href: `/employees/${employee.id}`,
           }),
         ),
       };

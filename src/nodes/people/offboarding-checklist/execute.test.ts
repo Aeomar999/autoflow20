@@ -1,8 +1,31 @@
 import { NonRetriableError } from "inngest";
 import { describe, expect, it, vi } from "vitest";
 import { withResolve } from "@/nodes/shared/test-params";
-import type { StepTools } from "@/nodes/types";
+import type { StepTools, WorkflowContext } from "@/nodes/types";
+import type { OffboardingChecklistData } from "./execute";
 import { execute } from "./execute";
+
+/**
+ * `execute` returns `WorkflowContext` (`Record<string, unknown>`), so a field
+ * read off the stored result is `unknown`. Narrowed once here rather than cast
+ * at each assertion, so the assertions stay readable and the shape is stated
+ * in one place (AF-M11-15).
+ */
+const offboardingIn = (result: WorkflowContext) =>
+  result.offboarding as {
+    checklist: {
+      phase: string;
+      role: string;
+      items: {
+        key: string;
+        label: string;
+        owner?: string;
+        dueOffsetDays: number;
+        completed: boolean;
+      }[];
+      generatedAt: string;
+    };
+  };
 
 describe("OFFBOARDING_CHECKLIST execute", () => {
   const step = {
@@ -27,7 +50,7 @@ describe("OFFBOARDING_CHECKLIST execute", () => {
             },
             { key: "payroll", label: "Final payroll payout" },
           ],
-        },
+        } satisfies OffboardingChecklistData,
         userId: "user-1",
         context: {},
         step,
@@ -77,7 +100,7 @@ describe("OFFBOARDING_CHECKLIST execute", () => {
       }),
     );
 
-    expect(result.offboarding.checklist).toEqual(
+    expect(offboardingIn(result).checklist).toEqual(
       expect.objectContaining({
         phase: "OFFBOARDING",
         role: "",
@@ -94,7 +117,7 @@ describe("OFFBOARDING_CHECKLIST execute", () => {
           variableName: "offboarding",
           roleTitle: "{{employee.role}}",
           items: [{ key: "access", label: "Revoke system access" }],
-        },
+        } satisfies OffboardingChecklistData,
         userId: "user-1",
         context: { employee: { role: "Designer" } },
         step,
@@ -102,7 +125,7 @@ describe("OFFBOARDING_CHECKLIST execute", () => {
       }),
     );
 
-    expect(result.offboarding.checklist.role).toBe("Designer");
+    expect(offboardingIn(result).checklist.role).toBe("Designer");
   });
 
   it("rejects a missing variable name", async () => {

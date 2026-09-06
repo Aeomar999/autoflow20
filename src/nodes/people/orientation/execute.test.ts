@@ -1,8 +1,25 @@
 import { NonRetriableError } from "inngest";
 import { describe, expect, it, vi } from "vitest";
 import { withResolve } from "@/nodes/shared/test-params";
-import type { StepTools } from "@/nodes/types";
+import type { StepTools, WorkflowContext } from "@/nodes/types";
 import { execute } from "./execute";
+
+/**
+ * `execute` returns `WorkflowContext` (`Record<string, unknown>`), so a field
+ * read off the stored result is `unknown`. Narrowed once here rather than cast
+ * at each assertion, so the assertions stay readable and the shape is stated
+ * in one place (AF-M11-15).
+ */
+const orientationIn = (result: WorkflowContext) =>
+  result.orientation as {
+    orientation: {
+      sessionName: string;
+      startDate?: string;
+      locationOrMode?: string;
+      durationMinutes: number;
+      agenda: { time?: string; topic: string; owner?: string }[];
+    };
+  };
 
 describe("ORIENTATION execute", () => {
   const step = {
@@ -98,7 +115,7 @@ describe("ORIENTATION execute", () => {
       }),
     );
 
-    expect(result.orientation.orientation).toEqual(
+    expect(orientationIn(result).orientation).toEqual(
       expect.objectContaining({
         sessionName: "Welcome Grace",
         startDate: "2026-07-06",

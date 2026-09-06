@@ -136,6 +136,7 @@ describe("NodeConfigPanel (AF-M1-06)", () => {
   it("renders the node title, rename, notes, and enable switch", () => {
     render(
       <NodeConfigPanel
+        workflowId="wf_test"
         node={httpNode}
         definition={httpDefinition}
         onNodeChange={patch}
@@ -150,6 +151,7 @@ describe("NodeConfigPanel (AF-M1-06)", () => {
   it("renames the node through onNodeChange", () => {
     render(
       <NodeConfigPanel
+        workflowId="wf_test"
         node={httpNode}
         definition={httpDefinition}
         onNodeChange={patch}
@@ -164,6 +166,7 @@ describe("NodeConfigPanel (AF-M1-06)", () => {
   it("disables the node through onNodeChange", () => {
     render(
       <NodeConfigPanel
+        workflowId="wf_test"
         node={httpNode}
         definition={httpDefinition}
         onNodeChange={patch}
@@ -177,6 +180,7 @@ describe("NodeConfigPanel (AF-M1-06)", () => {
   it("says nothing about deprecation for a current node type", () => {
     render(
       <NodeConfigPanel
+        workflowId="wf_test"
         node={httpNode}
         definition={httpDefinition}
         onNodeChange={patch}
@@ -189,6 +193,7 @@ describe("NodeConfigPanel (AF-M1-06)", () => {
   it("renders a deprecation notice if the node definition is deprecated (AF-M5-09)", () => {
     const { getAllByText, queryByText } = render(
       <NodeConfigPanel
+        workflowId="wf_test"
         node={{ ...mockDeprecatedNode }}
         definition={mockDeprecatedDefinition}
         onNodeChange={vi.fn()}
@@ -315,6 +320,7 @@ describe("NodeConfigPanel — Run settings (AF-M9-06)", () => {
   function renderPanel(node: EditorNode = httpNode) {
     return render(
       <NodeConfigPanel
+        workflowId="wf_test"
         node={node}
         definition={httpDefinition}
         onNodeChange={patch}

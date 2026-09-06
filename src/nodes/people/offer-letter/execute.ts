@@ -9,7 +9,7 @@ const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
   contract: "Contract engagement",
 };
 
-type OfferLetterData = {
+export type OfferLetterData = {
   variableName?: string;
   companyName?: string;
   roleTitle?: string;

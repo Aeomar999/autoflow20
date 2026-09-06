@@ -13,6 +13,7 @@ import {
   LogOutIcon,
   SettingsIcon,
   SparklesIcon,
+  UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -64,6 +65,7 @@ export const NAV_GROUPS = [
     label: "Operate",
     items: [
       { title: "Executions", icon: HistoryIcon, url: "/executions" },
+      { title: "Employees", icon: UsersIcon, url: "/employees" },
       { title: "Monitoring", icon: LineChartIcon, url: "/monitoring" },
       { title: "Costs", icon: CoinsIcon, url: "/costs" },
     ],

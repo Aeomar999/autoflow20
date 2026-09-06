@@ -1,8 +1,23 @@
 import { NonRetriableError } from "inngest";
 import { describe, expect, it, vi } from "vitest";
 import { withResolve } from "@/nodes/shared/test-params";
-import type { StepTools } from "@/nodes/types";
+import type { StepTools, WorkflowContext } from "@/nodes/types";
 import { execute } from "./execute";
+
+/**
+ * `execute` returns `WorkflowContext` (`Record<string, unknown>`), so a field
+ * read off the stored result is `unknown`. Narrowed once here rather than cast
+ * at each assertion, so the assertions stay readable and the shape is stated
+ * in one place (AF-M11-15).
+ */
+const benefitsIn = (result: WorkflowContext) =>
+  result.benefits as {
+    employeeName: string;
+    plan: string;
+    dependentsCount: number;
+    notes?: string;
+    status: string;
+  };
 
 describe("BENEFITS_ENROLLMENT execute", () => {
   const step = {
@@ -102,7 +117,7 @@ describe("BENEFITS_ENROLLMENT execute", () => {
       }),
     );
 
-    expect(result.benefits.employeeName).toBe("Grace Hopper");
+    expect(benefitsIn(result).employeeName).toBe("Grace Hopper");
   });
 
   it("rejects a missing variable name", async () => {

@@ -5,6 +5,7 @@ import {
   assertSafeEndpoint,
   safeFetch,
 } from "@/features/executions/components/http-request/egress-guard";
+import { serviceEndpoint } from "@/lib/server/service-endpoints";
 import {
   CREDENTIAL_KINDS,
   CREDENTIAL_TYPE_DEFINITIONS,
@@ -480,6 +481,51 @@ export const credentialTesters: Record<string, CredentialTester> = {
     }
     const encoded = Buffer.from(`${email}:${token}`).toString("base64");
     return checkGuardedAuth(`${trimBase(siteUrl)}/rest/api/3/myself`, {
+      Authorization: `Basic ${encoded}`,
+      Accept: "application/json",
+    });
+  },
+  // --- AF-M11-10: HR systems ------------------------------------------------
+  "bamboohr.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    const companyDomain = secret.companyDomain;
+    if (!key || !companyDomain) {
+      return { ok: false, error: "AUTH" };
+    }
+    // The domain is a PATH segment on a fixed host, but a value like
+    // "acme/../..@evil.example" would re-point the URL's authority, so it is
+    // charset-checked here and the request still goes through the egress
+    // guard. BambooHR subdomains are alphanumerics and hyphens.
+    if (!/^[A-Za-z0-9-]{1,64}$/.test(companyDomain)) {
+      return { ok: false, error: "CONNECTION" };
+    }
+    // BambooHR authenticates as Basic <apiKey>:<anything>; "x" is the value
+    // their own documentation uses for the unused password half.
+    const encoded = Buffer.from(`${key}:x`).toString("base64");
+    return checkGuardedAuth(
+      `${serviceEndpoint("bamboohr")}/${companyDomain}/v1/meta/fields`,
+      { Authorization: `Basic ${encoded}`, Accept: "application/json" },
+    );
+  },
+  "greenhouse.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    // Harvest is Basic auth with the key as the username and no password.
+    const encoded = Buffer.from(`${key}:`).toString("base64");
+    return checkAuth(`${serviceEndpoint("greenhouse")}/users?per_page=1`, {
+      Authorization: `Basic ${encoded}`,
+      Accept: "application/json",
+    });
+  },
+  "lever.apiKey": async (secret) => {
+    const key = secret.apiKey;
+    if (!key) {
+      return { ok: false, error: "AUTH" };
+    }
+    const encoded = Buffer.from(`${key}:`).toString("base64");
+    return checkAuth(`${serviceEndpoint("lever")}/opportunities?limit=1`, {
       Authorization: `Basic ${encoded}`,
       Accept: "application/json",
     });

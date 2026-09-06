@@ -3,7 +3,7 @@ import "server-only";
 import { NonRetriableError } from "inngest";
 import type { NodeRun } from "@/nodes/types";
 
-type BenefitsEnrollmentData = {
+export type BenefitsEnrollmentData = {
   variableName?: string;
   employeeName?: string;
   plan?: "medical" | "dental" | "vision" | "life" | "401k";

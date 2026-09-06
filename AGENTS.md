@@ -14,22 +14,23 @@ You are working on **AutoFlow**, an AI-native workflow automation and agent orch
 
 ## 1. Reality check — read this before you assume anything
 
-The product vision in `../Documents/ProjectDocuments/` describes a finished platform. **The code does not implement most of it.** AutoFlow today is a well-scaffolded SaaS shell with workflow CRUD and a canvas that cannot save.
+The product vision in `../Documents/ProjectDocuments/` describes a finished platform. **Most of the platform-level machinery now ships** — but do not take that on faith either; several rows below flag enforcement that still needs code-level verification, and every edge case is still yours to check.
 
-**Do not assume these exist. They do not:**
+**Verified live (read the file, don't trust this table):**
 
 | Assumed | Reality |
 |---|---|
-| An execution engine | Does not exist. Nothing runs a workflow. |
-| A node library | One registered node type (`core.manual-trigger`) with a real definition, execute, and canvas component — but no palette to add nodes and no engine to run them. |
+| An execution engine | **Ships.** Inngest-backed durable runner (`src/inngest/functions.ts`, ADR-0002) with per-node `step.run` memoization, per-node input resolution (ADR-0019), a 1 MiB node-output cap that fails loudly (`MAX_NODE_OUTPUT_BYTES`, ADR-0018), and graph validation (`src/engine/validate.ts`). Expressions are hardened Handlebars compiled through `src/features/executions/template.ts` (ADR-0007). |
+| A node library | **Ships, ~100+ registered types.** Core (trigger/schedule/webhook-trigger/condition/switch/merge/split-out/filter/set/code/wait/approval/dedupe/aggregate/respond-to-webhook…) plus 25+ service families — http, slack, telegram, gmail, discord, notion, drive, jira, google-sheets, quickbooks, shopify, hubspot, apollo, apify, mailerlite, airtable, postgres, google-search, ai (`llm`/`retrieve`/`extract`), media (image/video gen), payments/stripe, social (x/youtube/linkedin), people (HR). Palette lives in `src/nodes/**/definition.ts`. |
 | Canvas persistence | Works — explicit Save + 1.5s-debounced autosave (`workflows.saveGraph`, optimistic revision check), a Saving…/Saved "Last saved: X ago"/failed status line (AF-UX-03), and a beforeunload guard. Edits persist across refresh. |
-| Executions page | `<p>Executions Page</p>` |
-| Credentials store | `<p>Credentials Page</p>` — no model, no encryption, no OAuth. |
-| Multi-model AI | 5 SDK packages installed; one demo Inngest function calls Groq for a lasagna recipe. |
-| RBAC / workspaces / audit | None. Authorization is a single `userId` ownership check. |
-| Agents, RAG, templates, marketplace, public API, SDK | Agents, RAG, marketplace, public API, SDK: none. **Templates: the gallery system ships** (AF-M7-01) — `Template` model + `templates.list`/`getOne`/`instantiate` with credential placeholders and `/templates` + `/templates/[slug]` UI; 20 authored templates are AF-M7-02 backlog. |
-| Tests, CI | **Zero.** `npm test` does not exist yet. |
-| A landing page | There is no `src/app/page.tsx`. `/` 404s. |
+| Executions | **Ships.** List + detail pages (`(dashboard)/(rest)/executions/*`), `Execution`/`NodeExecution` models, trace/usage (`src/inngest/trace.ts`), retention (ADR-0016), cancellation. |
+| Credentials store | **Ships.** Envelope encryption (ADR-0004, `src/features/credentials/server/vault.ts`), credential registry + wildcard typing (ADR-0008/0023), OAuth connect/callback + 15-min refresh cron, generic HTTP auth modes + response redaction (ADR-0022). **No plaintext read path.** UI at `(dashboard)/(rest)/credentials/*`. |
+| Multi-model AI | **Ships.** Provider registry (ADR-0009), `ai/llm|retrieve|extract` nodes, response cache (`AiResponseCache`, `src/inngest/ai-cache.ts`). |
+| RBAC / workspaces / audit | **Models + UI ship** (`Organization`/`Member`/`Invitation`/`Workspace`/`AuditLog`, settings members + audit-logs pages). Whether authorization is actually enforced end-to-end (vs. a single `userId` check) — **verify in code before building on it.** |
+| Agents, RAG, marketplace, public API, SDK | RAG: **ships** (`KnowledgeSource`/`KnowledgeChunk` + `src/features/knowledge/` vector store, embedder, chunker, extractor). Public API: **ships** (`/api/v1/*`, `ApiKey` model). Agents, marketplace, SDK: none. **Templates: gallery ships** (AF-M7-01) — `Template` model + list/get/instantiate + `/templates` UI. |
+| Tests, CI | **Ships.** `npm test` = `vitest run`, `npm run test:e2e` = Playwright, plus a vitest integration project and docker test-DB scripts. Test files exist across engine, crypto/vault, credentials security, oauth, knowledge, trace. CI configuration: **verify it exists before claiming covered.** |
+| A landing page | **Ships.** `src/app/page.tsx` plus `/docs`, `/support`, `/status`, `/terms`, `/privacy`, `/dpa`. |
+| Webhooks / OAuth endpoints / approvals / notifications / costs / monitoring | **Ship.** `api/webhooks/*` (incl. stripe, quickbooks, github, google-form, telegram, waha), `api/oauth/*`, `api/approvals/respond`, `(dashboard)/(rest)/approvals|notifications|costs|monitoring|knowledge`. |
 
 Before claiming any feature works, **open the file and verify**. If a doc and the code disagree, the code is the truth and the doc is a bug — fix the doc in the same PR.
 
@@ -62,7 +63,7 @@ autoflow/
 │   │   └── testing_strategy.md                ← what must be tested
 │   ├── operations/
 │   │   └── environment_setup.md               ← env vars, local setup, troubleshooting
-│   ├── decisions/                             ← ADRs 0001–0006
+│   ├── decisions/                             ← ADRs 0001–0025
 │   └── reference/
 │       └── glossary.md                        ← workflow vs. agent vs. execution
 ├── prisma/{schema.prisma,migrations/}
@@ -165,7 +166,7 @@ npx prisma migrate dev --name <snake_case_name>
 npx prisma generate  # after any schema change; output is src/generated/prisma
 ```
 
-`npm test` and `npm run test:e2e` **do not exist yet** — they are created in task `AF-M0-06`. Until then, "I ran the tests" is a false statement.
+Tests exist: `npm test` (vitest run), `npm run test:watch`, `npm run test:e2e` (Playwright), `npm run test:integration` (vitest, DB-backed). `test:db:up` / `test:db:down` drive the docker test DB.
 
 ---
 

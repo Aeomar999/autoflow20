@@ -10,6 +10,7 @@ import airtableUpdate from "./airtable/update";
 import apifyGetDataset from "./apify/get-dataset";
 import apifyRun from "./apify/run";
 import apolloEnrich from "./apollo/enrich";
+import bamboohrTrigger from "./bamboohr/trigger";
 import calendarTrigger from "./calendar/trigger";
 import coreAggregate from "./core/aggregate";
 import coreApproval from "./core/approval";
@@ -74,6 +75,8 @@ import peopleCandidateSchedule from "./people/candidate-schedule";
 import peopleCandidateScoreRank from "./people/candidate-score-rank";
 import peopleEmployeeActive from "./people/employee-active";
 import peopleEmployeeHired from "./people/employee-hired";
+import peopleEmployeeOffboarded from "./people/employee-offboarded";
+import peopleEmployeeOffboarding from "./people/employee-offboarding";
 import peopleEmployeeOnboarding from "./people/employee-onboarding";
 import peopleExitInterview from "./people/exit-interview";
 import peopleIllnessSummary from "./people/illness-summary";
@@ -308,6 +311,7 @@ export const nodeRegistry = createNodeRegistry(
     airtableRead,
     airtableUpdate,
     airtableTrigger,
+    bamboohrTrigger,
     shopifyCreateOrder,
     mailerliteFindSubscriber,
     mailerliteCreateSubscriber,
@@ -336,6 +340,8 @@ export const nodeRegistry = createNodeRegistry(
     peopleCandidateScoreRank,
     peopleEmployeeActive,
     peopleEmployeeHired,
+    peopleEmployeeOffboarded,
+    peopleEmployeeOffboarding,
     peopleEmployeeOnboarding,
     peopleExitInterview,
     peopleIllnessSummary,

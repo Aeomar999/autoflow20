@@ -3,7 +3,7 @@
 **Status:** Active
 **Created:** 2026-09-04
 **Owner:** Engineering / Product
-**Last updated:** 2026-09-04
+**Last updated:** 2026-09-06
 
 > This document synthesizes findings from deep UX exploration across the AutoFlow platform.
 > Priorities are based on user impact, frequency of interaction, and implementation effort.
@@ -277,6 +277,84 @@ or whether it is stuck.
       and aggregate counts leave the server
 
 ---
+
+### 2.6 Live-Run Choreography — from One Node Process to Another
+
+**Status:** Planned (2026-09-06) — epic `AF-UX-07 → AF-UX-14` in `docs/planning/tasks.md`.
+
+**Current behavior:** Test runs on the canvas paint per-node `loading / success / error`
+directly into node borders (`NodeStatusProvider` over 16 per-node-type realtime channel
+subscriptions). The execution detail page shows the §2.5 progress list on a 3s poll. The run
+itself never visibly *moves*: downstream nodes stay blank until their first event, the
+connecting edges never animate, retries/attempts and fan-out item counts are invisible to the
+eye, a node parked on an approval looks identical to a working one, and two concurrent runs of
+the same workflow clobber each other's lights (events carry only `nodeId`).
+
+**Problem:** The seam between nodes — the actual handoff — is the least legible moment of a
+run. Users cannot see which node is queued next, which branch the routing actually took,
+whether a pause means waiting, retrying, or stuck, or how much of a 57-item fan-out remains.
+Fast runs finish before the 3s poll fires, so the detail page never shows them moving at all.
+
+**Solution:**
+- **Transport (AF-UX-07)** — one realtime channel per execution (`execution:<id>`) with a
+  `node-status` topic: `{ executionId, nodeId, status: RUNNING|WAITING|SUCCESS|FAILED|
+  SKIPPED, attempt, itemIndex?, itemTotal? }`. Executors publish through the run, not a static
+  per-type channel (also fixing `switch` publishing through the manual-trigger channel).
+  Realtime tokens are minted per run and ownership-checked.
+- **Shared choreography layer (AF-UX-08)** — run-scoped status model with a monotonic guard;
+  pure `queued / running / succeeded / failed / skipped / waiting` phase derivation;
+  handoff-edge selection (the edges leaving the node that just went terminal are the ones that
+  animate); a deterministic layered layout for the mini graph; and a reduced-motion gate. One
+  `useLiveRun` subscription replaces the 16-subscription provider.
+- **Canvas (AF-UX-09)** — nodes walk queued → running → terminal; the taken edge pulses while
+  the downstream node queues; a pinned RunBar (run # · status · elapsed · live % · stop)
+  frames the run; starting a new test resets the lights and stale-run events are ignored.
+- **Detail page (AF-UX-10)** — a read-only mini live graph renders the run's `graphSnapshot`
+  (persisted positions, else layered auto-layout) painted by the same choreography via one
+  realtime subscription; the 3s poll remains only as final reconciliation (DB rows win).
+  Per-node duration + attempt surface in the node tooltip (via the §2.5 `flow` extension);
+  the §2.5 list stays below as the textual trace.
+- **Retries (AF-UX-11)** — attempt badges and explicit "retrying (2/3)" transitions instead of
+  flicker.
+- **Fan-out (AF-UX-12)** — segment interior nodes show `N / M items` progress.
+- **WAITING / SKIPPED (AF-UX-13)** — parked-on-approval reads as waiting, never hung; skipped
+  is dimmed identically on every surface.
+- **Landing (AF-UX-14)** — the RunBar summarizes the finished run, the canvas re-runs, a "last
+  run" breadcrumb links to the detail mini graph, and a failed node affords "Replay from here"
+  (§2.3).
+
+**Principles:** (1) Realtime paints, the DB settles — a final state is never rendered from
+realtime alone when the DB row denies it. (2) Edge movement is derived client-side from the
+frontier; the payload carries no edge ids. (3) One choreography component set, shared by the
+canvas and the mini graph, built once. (4) Reduced motion gates every animation; credentials,
+node input/output, and error text never cross the realtime channel (ids, statuses, and
+aggregate counts only).
+
+**Files to modify (mapped per task in `docs/planning/tasks.md`):**
+- `src/inngest/channels/*` — per-execution run channel
+- `src/inngest/functions.ts` + `src/nodes/**/execute.ts` — `publishRunStatus()`; switch fix
+- `src/features/executions/components/*/actions/*` — per-run token mint (ownership-gated)
+- `src/features/executions/lib/live-run.ts` (+ `.test.ts`) — reducer / frontier / handoff /
+  layout / motion gate
+- `src/features/executions/components/live-run/*` — `useLiveRun`, `RunBar`, shared pills
+- `src/components/react-flow/node-status-indicator.tsx` — `queued` variant; border pulse
+- `src/features/editor/**` — canvas migration (editor.tsx, node-status-context.tsx,
+  test-workflow-button.tsx)
+- `src/features/executions/**` — detail migration (execution-flow-graph.tsx new; flow.ts +
+  `getOne` timings; execution.tsx; §2.5 list retained)
+
+**Acceptance criteria (epic):**
+- [ ] A run visibly travels: each node walks queued → running → terminal, the connecting
+      edge animating during every handoff
+- [ ] Routing is legible (only the taken branch animates); retries, attempts, fan-out item
+      counts, WAITING, and SKIPPED are all visually distinct
+- [ ] Two concurrent runs never cross-paint; a previous run's late events never repaint
+- [ ] The detail graph is live (realtime) with per-node duration/attempt and always settles
+      to DB truth
+- [ ] Reduced motion disables edge/pulse animation everywhere
+- [ ] No credentials/input/output/error text in any realtime payload; per-run tokens are
+      ownership-gated
+- [ ] Ships as `AF-UX-07 → AF-UX-14`, one PR per task, mandatory tests per surface
 
 ## 3. File/Upload Handling UX
 

@@ -8,6 +8,7 @@ export type SearchResultKind =
   | "workflow"
   | "execution"
   | "credential"
+  | "employee"
   | "navigation"
   | "action";
 
@@ -27,6 +28,7 @@ export interface SearchResults {
   workflows: SearchResult[];
   executions: SearchResult[];
   credentials: SearchResult[];
+  employees: SearchResult[];
 }
 
 export const SEARCH_GROUP_LABELS: Record<SearchResultKind, string> = {
@@ -35,6 +37,7 @@ export const SEARCH_GROUP_LABELS: Record<SearchResultKind, string> = {
   workflow: "Workflows",
   execution: "Executions",
   credential: "Credentials",
+  employee: "People",
 };
 
 /** Render order of the groups in the palette. */
@@ -44,4 +47,5 @@ export const SEARCH_GROUP_ORDER: SearchResultKind[] = [
   "workflow",
   "execution",
   "credential",
+  "employee",
 ];

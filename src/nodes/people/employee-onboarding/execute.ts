@@ -4,6 +4,10 @@ import { NonRetriableError } from "inngest";
 import type { EmployeeOnboardingInput } from "@/features/employees/lib/employee";
 import { employeeOnboardingSchema } from "@/features/employees/lib/employee";
 import { applyEmployeeHandoff } from "@/features/employees/server/handoff";
+import {
+  assertLifecycleContext,
+  lifecycleFields,
+} from "@/nodes/people/shared/lifecycle-fields";
 import type { NodeRun } from "@/nodes/types";
 
 type EmployeeOnboardingData = {
@@ -19,33 +23,12 @@ export const execute: NodeRun<EmployeeOnboardingData> = async ({
   organizationId,
 }) => {
   const where = "Start Onboarding node";
-
-  if (!data.variableName?.trim()) {
-    throw new NonRetriableError(`${where}: Variable name is missing`);
-  }
-  const variableName = data.variableName;
-
-  if (!organizationId) {
-    throw new NonRetriableError(
-      `${where}: the run has no organizationId; it cannot scope the employee write.`,
-    );
-  }
-
-  const resolvedField = (value: string | undefined) =>
-    value === undefined ? undefined : resolve(value).trim();
-  const requiredField = (value: string | undefined, label: string) => {
-    const field = resolvedField(value);
-    if (!field) {
-      throw new NonRetriableError(
-        `${where}: the ${label} expression resolved to nothing.`,
-      );
-    }
-    return field;
-  };
+  const scope = assertLifecycleContext(data, organizationId, where);
+  const field = lifecycleFields(resolve, where);
 
   const input: EmployeeOnboardingInput = {
     event: "employee.onboarding",
-    employeeRef: requiredField(data.employeeRef, "employee reference"),
+    employeeRef: field.required(data.employeeRef, "employee reference"),
   };
 
   const outcome = await step.run("emit-employee-onboarding", async () => {
@@ -58,11 +41,11 @@ export const execute: NodeRun<EmployeeOnboardingData> = async ({
       );
     }
 
-    return applyEmployeeHandoff(organizationId, parsed.data);
+    return applyEmployeeHandoff(scope.organizationId, parsed.data);
   });
 
   return {
     ...context,
-    [variableName]: outcome,
+    [scope.variableName]: outcome,
   };
 };

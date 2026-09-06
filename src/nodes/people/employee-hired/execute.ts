@@ -4,6 +4,10 @@ import { NonRetriableError } from "inngest";
 import type { EmployeeHiredInput } from "@/features/employees/lib/employee";
 import { employeeHiredSchema } from "@/features/employees/lib/employee";
 import { applyEmployeeHandoff } from "@/features/employees/server/handoff";
+import {
+  assertLifecycleContext,
+  lifecycleFields,
+} from "@/nodes/people/shared/lifecycle-fields";
 import type { NodeRun } from "@/nodes/types";
 
 type EmployeeHiredData = {
@@ -26,48 +30,27 @@ export const execute: NodeRun<EmployeeHiredData> = async ({
   organizationId,
 }) => {
   const where = "Record New Hire node";
+  const scope = assertLifecycleContext(data, organizationId, where);
+  const field = lifecycleFields(resolve, where);
 
-  if (!data.variableName?.trim()) {
-    throw new NonRetriableError(`${where}: Variable name is missing`);
-  }
-  const variableName = data.variableName;
-
-  if (!organizationId) {
-    throw new NonRetriableError(
-      `${where}: the run has no organizationId; it cannot scope the employee write.`,
-    );
-  }
-
-  const resolvedField = (value: string | undefined) =>
-    value === undefined ? undefined : resolve(value).trim();
-  const requiredField = (value: string | undefined, label: string) => {
-    const field = resolvedField(value);
-    if (!field) {
-      throw new NonRetriableError(
-        `${where}: the ${label} expression resolved to nothing.`,
-      );
-    }
-    return field;
-  };
+  // Optional fields whose expressions resolve to nothing are ABSENT, not "" —
+  // an ATS payload missing a department or a manager email must not fail the
+  // hire (AF-M11-14).
+  const department = field.optional(data.department);
+  const managerEmail = field.optional(data.managerEmail);
+  const personalEmail = field.optional(data.personalEmail);
+  const startDate = field.optional(data.startDate);
 
   const input: EmployeeHiredInput = {
     event: "employee.hired",
-    employeeRef: requiredField(data.employeeRef, "employee reference"),
-    email: requiredField(data.email, "candidate email"),
-    fullName: requiredField(data.fullName, "candidate full name"),
-    role: requiredField(data.role, "role"),
-    ...(data.department !== undefined
-      ? { department: resolvedField(data.department) }
-      : {}),
-    ...(data.managerEmail !== undefined
-      ? { managerEmail: resolvedField(data.managerEmail) }
-      : {}),
-    ...(data.personalEmail !== undefined
-      ? { personalEmail: resolvedField(data.personalEmail) }
-      : {}),
-    ...(data.startDate !== undefined
-      ? { startDate: resolvedField(data.startDate) }
-      : {}),
+    employeeRef: field.required(data.employeeRef, "employee reference"),
+    email: field.required(data.email, "candidate email"),
+    fullName: field.required(data.fullName, "candidate full name"),
+    role: field.required(data.role, "role"),
+    ...(department !== undefined ? { department } : {}),
+    ...(managerEmail !== undefined ? { managerEmail } : {}),
+    ...(personalEmail !== undefined ? { personalEmail } : {}),
+    ...(startDate !== undefined ? { startDate } : {}),
   };
 
   const outcome = await step.run("emit-employee-hired", async () => {
@@ -80,11 +63,11 @@ export const execute: NodeRun<EmployeeHiredData> = async ({
       );
     }
 
-    return applyEmployeeHandoff(organizationId, parsed.data);
+    return applyEmployeeHandoff(scope.organizationId, parsed.data);
   });
 
   return {
     ...context,
-    [variableName]: outcome,
+    [scope.variableName]: outcome,
   };
 };

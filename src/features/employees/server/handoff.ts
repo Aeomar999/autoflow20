@@ -13,6 +13,7 @@ import type {
   EmployeeActiveInput,
   EmployeeHandoffInput,
   EmployeeHiredInput,
+  EmployeeOffboardedInput,
   EmployeeOffboardingInput,
   EmployeeOnboardingInput,
   EmployeeStatus,
@@ -346,6 +347,53 @@ async function handleOffboarding(
   });
 }
 
+/**
+ * AF-M11-07. Terminal step of the chain: `OFFBOARDING → OFFBOARDED`.
+ *
+ * `OFFBOARDED` is an end state — `EMPLOYEE_TRANSITIONS` leaves it with no
+ * successors — so the guard's idempotent status and its target are the same
+ * value. A replayed W4 run therefore lands on `already-current` and completes
+ * the exit exactly once, while a record that never reached `OFFBOARDING`
+ * returns `conflict` rather than skipping the offboarding phase entirely.
+ */
+async function handleOffboarded(
+  organizationId: string,
+  input: EmployeeOffboardedInput,
+): Promise<HandoffOutcome> {
+  const existing = await prisma.employee.findFirst({
+    where: { organizationId, employeeRef: input.employeeRef },
+  });
+
+  if (!existing) {
+    return conflictOutcome("OFFBOARDED", input.employeeRef, null, {
+      kind: "conflict",
+      reason: "unknown employee",
+    });
+  }
+
+  const guard: TransitionGuard = {
+    allowedFrom: ["OFFBOARDING"],
+    idempotentAt: "OFFBOARDED",
+    to: "OFFBOARDED",
+  };
+  const step = evalGuard(existing.status as EmployeeStatus, guard);
+  if (step.kind === "idempotent") {
+    return {
+      outcome: "already-current",
+      employee: existing,
+      status: "OFFBOARDED",
+    };
+  }
+  if (step.kind === "conflict") {
+    return conflictOutcome("OFFBOARDED", input.employeeRef, existing, step);
+  }
+  return applyTransition(organizationId, existing, "OFFBOARDED", {
+    // The exit date is set when offboarding opens; W4's closing step may carry
+    // the real last day, but it must never blank one already recorded.
+    ...(input.exitDate ? { exitDate: resolveDate(input.exitDate) } : {}),
+  });
+}
+
 export async function applyEmployeeHandoff(
   organizationId: string,
   input: EmployeeHandoffInput,
@@ -359,5 +407,7 @@ export async function applyEmployeeHandoff(
       return handleActive(organizationId, input);
     case "employee.offboarding":
       return handleOffboarding(organizationId, input);
+    case "employee.offboarded":
+      return handleOffboarded(organizationId, input);
   }
 }

@@ -94,6 +94,35 @@ describe("EMPLOYEE_ACTIVE execute", () => {
     expect(input).not.toHaveProperty("activeAt");
   });
 
+  it("treats an unknown start date as absent, not an empty string", async () => {
+    // AF-M11-14 regression. The W2 template authors `activeAt: "{{startDate}}"`
+    // and is specified to tolerate an unknown start date; passing "" through
+    // failed `dateOnlySchema` and took down the last node of the run.
+    handoffMock.mockResolvedValue(transitionedOutcome);
+
+    const result = await execute(
+      withResolve({
+        nodeId: "node-1",
+        data: {
+          variableName: "active",
+          employeeRef: "EMP-ADA-009",
+          activeAt: "{{startDate}}",
+        },
+        userId: "user-1",
+        organizationId: "org-1",
+        context: {},
+        step,
+        publish,
+      }),
+    );
+
+    expect(handoffMock).toHaveBeenCalledWith("org-1", {
+      event: "employee.active",
+      employeeRef: "EMP-ADA-009",
+    });
+    expect(result.active).toEqual(transitionedOutcome);
+  });
+
   it("resolves template fields from context", async () => {
     handoffMock.mockResolvedValue(transitionedOutcome);
 

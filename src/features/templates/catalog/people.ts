@@ -3,10 +3,18 @@ import type { TemplateSpec } from "./types";
 /**
  * People-team templates (AF-M11-03).
  *
- * Six `Ops` gallery entries demonstrating the people node family on single
- * rails: every graph is a linear trigger-anchored chain over the `people/*`
- * registry nodes, and none of them require a credential at install time (the
- * AI summaries treat their provider keys as optional).
+ * `Ops` gallery entries demonstrating the people node family: every graph is a
+ * trigger-anchored chain over the `people/*` registry nodes, and none of them
+ * require a credential at install time (the AI summaries treat their provider
+ * keys as optional).
+ *
+ * The four PHASE templates — `screen-score-approve-and-hire` (W1),
+ * `onboard-new-hire` (W2), `tenure-check-ins` (W3) and
+ * `offboard-employee-lifecycle` (W4) — deliberately share one demo subject
+ * and one `employeeRef` (AF-M11-12). Installing all four and pressing Run in
+ * order walks a single `Employee` row through the whole chain from the
+ * editor, with no ATS and no hand-editing between phases; `lifecycle-chain.test.ts`
+ * pins that, so a payload edit that breaks the chain fails the build.
  */
 export const peopleTemplates: TemplateSpec[] = [
   {
@@ -604,7 +612,7 @@ export const peopleTemplates: TemplateSpec[] = [
           position: { x: 0, y: 0 },
           data: {
             payload:
-              '{"employeeRef":"EMP-AMA-010","candidateName":"Ama Mensah","candidateEmail":"ama@example.com","roleTitle":"Product Designer","department":"Design","companyName":"Acme Corp","startDate":"2026-10-05","workLocation":"Accra","compensationText":"GHS 240,000 base salary; joining bonus of GHS 12,000","approverEmail":"hiring-manager@example.com"}',
+              '{"employeeRef":"EMP-ADA-009","candidateName":"Ada Boateng","candidateEmail":"ada@example.com","roleTitle":"Account Executive","department":"Sales","companyName":"Acme Corp","startDate":"2026-11-01","workLocation":"London","compensationText":"GBP 150,000 base salary; sign-on bonus of GBP 10,000","approverEmail":"hiring-manager@example.com"}',
           },
         },
         {
@@ -770,6 +778,360 @@ export const peopleTemplates: TemplateSpec[] = [
         { source: "has-date", sourceHandle: "false", target: "done" },
         { source: "wait", target: "done" },
         { source: "done", target: "active" },
+      ],
+    },
+  },
+  {
+    slug: "tenure-check-ins",
+    name: "Welcome an active employee and run tenure check-ins",
+    description:
+      "Picks up an employee as they become active and runs their tenure on rails: a welcome notice, then scheduled check-ins at 30, 60 and 90 days with a quarterly 360 review at the last mark. It only notifies and carries context forward — it never mutates the employee record.",
+    category: "Ops",
+    domain: "ops",
+    tags: [
+      "tenure",
+      "check-in",
+      "performance review",
+      "360 review",
+      "retention",
+      "employee.active",
+    ],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Active employee",
+          position: { x: 0, y: 0 },
+          data: {
+            payload:
+              '{"employeeRef":"EMP-ADA-009","employeeName":"Ada Boateng","roleTitle":"Account Executive","department":"Sales","managerName":"Adjoa Asante","activeSince":"2026-11-01"}',
+          },
+        },
+        {
+          id: "welcome",
+          type: "HTTP_REQUEST",
+          name: "Send the tenure welcome",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "welcome",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"event":"tenure_welcome","employeeRef":"{{employeeRef}}","employeeName":"{{employeeName}}","roleTitle":"{{roleTitle}}","department":"{{department}}","managerName":"{{managerName}}","activeSince":"{{activeSince}}","message":"Tenure tracking started - check-ins are scheduled at 30, 60 and 90 days"}',
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "wait-30-days",
+          type: "WAIT",
+          name: "Wait 30 days",
+          position: { x: 520, y: 0 },
+          data: {
+            mode: "duration",
+            seconds: 2592000,
+          },
+        },
+        {
+          id: "checkin-30-days",
+          type: "HTTP_REQUEST",
+          name: "30-day check-in",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "checkin30",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"event":"tenure_checkin_30","employeeRef":"{{employeeRef}}","employeeName":"{{employeeName}}","roleTitle":"{{roleTitle}}","managerName":"{{managerName}}","daysActive":"30","stage":"30-day check-in","action":"Hold the first tenure check-in and confirm ramp-up is on track"}',
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "wait-60-days",
+          type: "WAIT",
+          name: "Wait 60 days",
+          position: { x: 1040, y: 0 },
+          data: {
+            mode: "duration",
+            seconds: 2592000,
+          },
+        },
+        {
+          id: "checkin-60-days",
+          type: "HTTP_REQUEST",
+          name: "60-day check-in",
+          position: { x: 1300, y: 0 },
+          data: {
+            variableName: "checkin60",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"event":"tenure_checkin_60","employeeRef":"{{employeeRef}}","employeeName":"{{employeeName}}","roleTitle":"{{roleTitle}}","managerName":"{{managerName}}","daysActive":"60","stage":"60-day check-in","action":"Collect informal feedback and nominate the employee for the 90-day 360 review"}',
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "wait-90-days",
+          type: "WAIT",
+          name: "Wait 90 days",
+          position: { x: 1560, y: 0 },
+          data: {
+            mode: "duration",
+            seconds: 2592000,
+          },
+        },
+        {
+          id: "review-quarterly",
+          type: "HTTP_REQUEST",
+          name: "Quarterly 360 review",
+          position: { x: 1820, y: 0 },
+          data: {
+            variableName: "review90",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"event":"tenure_review_quarterly","employeeRef":"{{employeeRef}}","employeeName":"{{employeeName}}","roleTitle":"{{roleTitle}}","managerName":"{{managerName}}","daysActive":"90","stage":"Quarterly 360 review","action":"Collect peer feedback and deliver the aggregated performance review to the manager"}',
+            failOnNon2xx: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "welcome" },
+        { source: "welcome", target: "wait-30-days" },
+        { source: "wait-30-days", target: "checkin-30-days" },
+        { source: "checkin-30-days", target: "wait-60-days" },
+        { source: "wait-60-days", target: "checkin-60-days" },
+        { source: "checkin-60-days", target: "wait-90-days" },
+        { source: "wait-90-days", target: "review-quarterly" },
+      ],
+    },
+  },
+  {
+    slug: "offboard-employee-lifecycle",
+    name: "Run an exit from request to offboarded",
+    description:
+      "Closes the lifecycle for a departing employee: opens offboarding against the employee record (ACTIVE to OFFBOARDING, recording the last day and the reason), plans the exit interview, builds the dated offboarding checklist, posts the access-revocation request, and completes the exit exactly once. OFFBOARDED is an end state, so a re-run is a no-op and an employee who never entered offboarding returns a conflict instead of skipping the phase.",
+    category: "Ops",
+    domain: "ops",
+    tags: [
+      "offboarding",
+      "exit",
+      "leaver",
+      "access revocation",
+      "checklist",
+      "employee.offboarding",
+      "employee.offboarded",
+    ],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "MANUAL_TRIGGER",
+          name: "Offboarding request",
+          position: { x: 0, y: 0 },
+          data: {
+            payload:
+              '{"employeeRef":"EMP-ADA-009","employeeName":"Ada Boateng","roleTitle":"Account Executive","department":"Sales","managerName":"Adjoa Asante","lastDay":"2027-01-15","exitReason":"Resigned to join a startup"}',
+          },
+        },
+        {
+          id: "offboarding",
+          type: "EMPLOYEE_OFFBOARDING",
+          name: "Start Offboarding",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "offboarding",
+            employeeRef: "{{employeeRef}}",
+            exitDate: "{{lastDay}}",
+            exitReason: "{{exitReason}}",
+          },
+        },
+        {
+          id: "exit-interview",
+          type: "EXIT_INTERVIEW",
+          name: "Plan the exit interview",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "exitInterview",
+            employeeName: "{{employeeName}}",
+            departureDate: "{{lastDay}}",
+            interviewer: "{{managerName}}",
+            format: "video",
+            focusAreas: [
+              { area: "What would have kept you here?" },
+              { area: "Feedback on the team and culture" },
+              { area: "Knowledge and handover concerns" },
+            ],
+          },
+        },
+        {
+          id: "checklist",
+          type: "OFFBOARDING_CHECKLIST",
+          name: "Build the offboarding checklist",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "checklist",
+            roleTitle: "{{roleTitle}}",
+            items: [
+              {
+                key: "handover",
+                label: "Document knowledge and hand over open work",
+                owner: "{{managerName}}",
+                dueOffsetDays: 0,
+              },
+              {
+                key: "asset_return",
+                label: "Return laptop, badge and keys",
+                owner: "IT Admin",
+                dueOffsetDays: 1,
+              },
+              {
+                key: "payroll_final",
+                label: "Confirm final payroll and benefits end date",
+                owner: "People Ops",
+                dueOffsetDays: 2,
+              },
+              {
+                key: "exit_followup",
+                label: "Close the exit interview and archive feedback",
+                owner: "People Ops",
+                dueOffsetDays: 7,
+              },
+            ],
+          },
+        },
+        {
+          id: "revoke-access",
+          type: "HTTP_REQUEST",
+          name: "Revoke system access",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "revoke",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"event":"access_revocation_requested","employeeRef":"{{employeeRef}}","employeeName":"{{employeeName}}","roleTitle":"{{roleTitle}}","department":"{{department}}","lastDay":"{{lastDay}}","scope":["email","sso","vpn","code repositories","payroll portal"]}',
+            failOnNon2xx: true,
+          },
+        },
+        {
+          id: "offboarded",
+          type: "EMPLOYEE_OFFBOARDED",
+          name: "Complete Offboarding",
+          position: { x: 1300, y: 0 },
+          data: {
+            variableName: "offboarded",
+            employeeRef: "{{employeeRef}}",
+            exitDate: "{{lastDay}}",
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "offboarding" },
+        { source: "offboarding", target: "exit-interview" },
+        { source: "exit-interview", target: "checklist" },
+        { source: "checklist", target: "revoke-access" },
+        { source: "revoke-access", target: "offboarded" },
+      ],
+    },
+  },
+  {
+    slug: "hris-new-hire-to-onboarding",
+    name: "Open the lifecycle from your HRIS",
+    description:
+      "Watches your BambooHR employee directory and opens the lifecycle for each new person automatically — no ATS export, no manual trigger. Records the hire against the HRIS employee id, so the reference the handoffs are keyed by is the same one your HR system uses and a re-poll can never duplicate the row. Connect BambooHR and activate; the people already in the directory are never replayed.",
+    category: "Ops",
+    domain: "ops",
+    tags: [
+      "hris",
+      "bamboohr",
+      "new hire",
+      "polling",
+      "acquisition",
+      "employee.hired",
+      "onboarding",
+    ],
+    graph: {
+      nodes: [
+        {
+          id: "start",
+          type: "BAMBOOHR_TRIGGER",
+          name: "New employee in BambooHR",
+          position: { x: 0, y: 0 },
+          data: {
+            pollIntervalSeconds: 900,
+          },
+        },
+        {
+          id: "hire",
+          type: "EMPLOYEE_HIRED",
+          name: "Record New Hire",
+          position: { x: 260, y: 0 },
+          data: {
+            variableName: "hire",
+            employeeRef: "{{employee.employeeRef}}",
+            email: "{{employee.email}}",
+            fullName: "{{employee.fullName}}",
+            role: "{{employee.role}}",
+            department: "{{employee.department}}",
+            managerEmail: "{{employee.managerEmail}}",
+            startDate: "{{employee.startDate}}",
+          },
+        },
+        {
+          id: "onboarding",
+          type: "EMPLOYEE_ONBOARDING",
+          name: "Start Onboarding",
+          position: { x: 520, y: 0 },
+          data: {
+            variableName: "onboarding",
+            employeeRef: "{{employee.employeeRef}}",
+          },
+        },
+        {
+          id: "checklist",
+          type: "ONBOARDING_CHECKLIST",
+          name: "Build the onboarding checklist",
+          position: { x: 780, y: 0 },
+          data: {
+            variableName: "checklist",
+            roleTitle: "{{employee.role}}",
+            items: [
+              {
+                key: "laptopAndAccess",
+                label: "Issue laptop and day-one system access",
+                owner: "IT Ops",
+                dueOffsetDays: 1,
+              },
+              {
+                key: "buddyAssign",
+                label: "Assign a peer buddy for the first two weeks",
+                owner: "People Ops",
+                dueOffsetDays: 0,
+              },
+            ],
+          },
+        },
+        {
+          id: "notify",
+          type: "HTTP_REQUEST",
+          name: "Notify the people team",
+          position: { x: 1040, y: 0 },
+          data: {
+            variableName: "notify",
+            endpoint: "https://httpbin.org/post",
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: '{"event":"hris_new_hire","employeeRef":"{{employee.employeeRef}}","name":"{{employee.fullName}}","role":"{{employee.role}}","startDate":"{{employee.startDate}}","outcome":"{{hire.outcome}}"}',
+            failOnNon2xx: true,
+          },
+        },
+      ],
+      edges: [
+        { source: "start", target: "hire" },
+        { source: "hire", target: "onboarding" },
+        { source: "onboarding", target: "checklist" },
+        { source: "checklist", target: "notify" },
       ],
     },
   },

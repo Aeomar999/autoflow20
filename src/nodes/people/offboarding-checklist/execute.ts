@@ -5,9 +5,10 @@ import type { z } from "zod";
 import type { NodeRun } from "@/nodes/types";
 import type { checklistItemSchema } from "./definition";
 
-type ChecklistItem = z.infer<typeof checklistItemSchema>;
+/** The config as AUTHORED — see `candidate-score-rank/execute.ts` (AF-M11-15). */
+type ChecklistItem = z.input<typeof checklistItemSchema>;
 
-type OffboardingChecklistData = {
+export type OffboardingChecklistData = {
   variableName?: string;
   roleTitle?: string;
   items?: ChecklistItem[];

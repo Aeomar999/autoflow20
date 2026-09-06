@@ -107,6 +107,43 @@ describe("EMPLOYEE_HIRED execute", () => {
     );
   });
 
+  it("treats optional fields that resolve to nothing as absent", async () => {
+    // AF-M11-14 regression. The W1 template authors `department`,
+    // `managerEmail` and `startDate` as expressions; an ATS payload that omits
+    // them resolved to "" and failed the email/date schemas, killing the hire.
+    handoffMock.mockResolvedValue(createdOutcome);
+
+    await execute(
+      withResolve({
+        nodeId: "node-1",
+        data: {
+          variableName: "hire",
+          employeeRef: "EMP-ADA-009",
+          email: "ada@example.com",
+          fullName: "Ada Boateng",
+          role: "Account Executive",
+          department: "{{department}}",
+          managerEmail: "{{managerEmail}}",
+          personalEmail: "{{personalEmail}}",
+          startDate: "{{startDate}}",
+        },
+        userId: "user-1",
+        organizationId: "org-1",
+        context: {},
+        step,
+        publish,
+      }),
+    );
+
+    expect(handoffMock).toHaveBeenCalledWith("org-1", {
+      event: "employee.hired",
+      employeeRef: "EMP-ADA-009",
+      email: "ada@example.com",
+      fullName: "Ada Boateng",
+      role: "Account Executive",
+    });
+  });
+
   it("resolves template fields from context", async () => {
     handoffMock.mockResolvedValue(createdOutcome);
 

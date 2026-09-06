@@ -848,6 +848,66 @@ export const CREDENTIAL_TYPE_DEFINITIONS: CredentialTypeDef[] = [
       },
     ],
   },
+  // --- AF-M11-10: the HR systems the lifecycle workflows connect to ---------
+  //
+  // All four carry the generic mark: no brand asset for these providers ships
+  // in `public/logos`, and drawing an approximation of someone's trademark is
+  // not a thing to do to fill a field. Swap in the real mark if one is added.
+  {
+    type: "bamboohr.apiKey",
+    kind: "basic",
+    label: "BambooHR API key",
+    description:
+      "API key + company domain for a BambooHR account (HRIS: employee directory, new hires)",
+    logo: "/logos/logo.svg",
+    testable: true,
+    fields: [
+      { key: "apiKey", label: "API key", secret: true },
+      {
+        key: "companyDomain",
+        label: "Company domain",
+        secret: false,
+        placeholder: "acme",
+      },
+    ],
+  },
+  {
+    type: "greenhouse.apiKey",
+    kind: "basic",
+    label: "Greenhouse Harvest API key",
+    description:
+      "Harvest API key for Greenhouse (ATS: candidates, applications, offers)",
+    logo: "/logos/logo.svg",
+    testable: true,
+    fields: [{ key: "apiKey", label: "Harvest API key", secret: true }],
+  },
+  {
+    type: "lever.apiKey",
+    kind: "basic",
+    label: "Lever API key",
+    description: "Data API key for Lever (ATS: opportunities and offers)",
+    logo: "/logos/logo.svg",
+    testable: true,
+    fields: [{ key: "apiKey", label: "API key", secret: true }],
+  },
+  {
+    type: "personio.clientCredentials",
+    kind: "apiKey",
+    label: "Personio API credentials",
+    description:
+      "Client ID + secret for the Personio Personnel Data API (HRIS, EU)",
+    logo: "/logos/logo.svg",
+    // Personio has no authenticated GET that does not first cost a token: the
+    // only entry point is a POST to /auth that MINTS a short-lived token and
+    // counts against the account's token budget. A "test connection" button
+    // that quietly burns a rate-limited credential is worse than no button.
+    notTestableReason:
+      "Personio authenticates by exchanging the client id and secret for a short-lived token; there is no cheap authenticated read to probe, and minting a token on a button press consumes a rate-limited budget.",
+    fields: [
+      { key: "clientId", label: "Client ID", secret: true },
+      { key: "clientSecret", label: "Client secret", secret: true },
+    ],
+  },
 ];
 
 /**

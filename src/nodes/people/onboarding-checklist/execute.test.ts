@@ -1,8 +1,31 @@
 import { NonRetriableError } from "inngest";
 import { describe, expect, it, vi } from "vitest";
 import { withResolve } from "@/nodes/shared/test-params";
-import type { StepTools } from "@/nodes/types";
+import type { StepTools, WorkflowContext } from "@/nodes/types";
+import type { OnboardingChecklistData } from "./execute";
 import { execute } from "./execute";
+
+/**
+ * `execute` returns `WorkflowContext` (`Record<string, unknown>`), so a field
+ * read off the stored result is `unknown`. Narrowed once here rather than cast
+ * at each assertion, so the assertions stay readable and the shape is stated
+ * in one place (AF-M11-15).
+ */
+const onboardingIn = (result: WorkflowContext) =>
+  result.onboarding as {
+    checklist: {
+      phase: string;
+      role: string;
+      items: {
+        key: string;
+        label: string;
+        owner?: string;
+        dueOffsetDays: number;
+        completed: boolean;
+      }[];
+      generatedAt: string;
+    };
+  };
 
 describe("ONBOARDING_CHECKLIST execute", () => {
   const step = {
@@ -27,7 +50,7 @@ describe("ONBOARDING_CHECKLIST execute", () => {
             },
             { key: "buddy", label: "Assign onboarding buddy" },
           ],
-        },
+        } satisfies OnboardingChecklistData,
         userId: "user-1",
         context: {},
         step,
@@ -77,7 +100,7 @@ describe("ONBOARDING_CHECKLIST execute", () => {
       }),
     );
 
-    expect(result.onboarding.checklist).toEqual(
+    expect(onboardingIn(result).checklist).toEqual(
       expect.objectContaining({
         role: "",
         items: [],
@@ -93,7 +116,7 @@ describe("ONBOARDING_CHECKLIST execute", () => {
           variableName: "onboarding",
           roleTitle: "{{employee.role}}",
           items: [{ key: "laptop", label: "Provision laptop" }],
-        },
+        } satisfies OnboardingChecklistData,
         userId: "user-1",
         context: { employee: { role: "Designer" } },
         step,
@@ -101,7 +124,7 @@ describe("ONBOARDING_CHECKLIST execute", () => {
       }),
     );
 
-    expect(result.onboarding.checklist.role).toBe("Designer");
+    expect(onboardingIn(result).checklist.role).toBe("Designer");
   });
 
   it("rejects a missing variable name", async () => {
@@ -112,7 +135,7 @@ describe("ONBOARDING_CHECKLIST execute", () => {
           data: {
             roleTitle: "Staff Engineer",
             items: [{ key: "laptop", label: "Provision laptop" }],
-          },
+          } satisfies OnboardingChecklistData,
           userId: "user-1",
           context: {},
           step,

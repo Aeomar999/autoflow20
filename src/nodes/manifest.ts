@@ -9,6 +9,7 @@ import { definition as airtableUpdate } from "./airtable/update/definition";
 import { definition as apifyGetDataset } from "./apify/get-dataset/definition";
 import { definition as apifyRun } from "./apify/run/definition";
 import { definition as apolloEnrich } from "./apollo/enrich/definition";
+import { definition as bamboohrTrigger } from "./bamboohr/trigger/definition";
 import { definition as calendarTrigger } from "./calendar/trigger/definition";
 import { definition as coreAggregate } from "./core/aggregate/definition";
 import { definition as coreApproval } from "./core/approval/definition";
@@ -73,6 +74,8 @@ import { definition as peopleCandidateSchedule } from "./people/candidate-schedu
 import { definition as peopleCandidateScoreRank } from "./people/candidate-score-rank/definition";
 import { definition as peopleEmployeeActive } from "./people/employee-active/definition";
 import { definition as peopleEmployeeHired } from "./people/employee-hired/definition";
+import { definition as peopleEmployeeOffboarded } from "./people/employee-offboarded/definition";
+import { definition as peopleEmployeeOffboarding } from "./people/employee-offboarding/definition";
 import { definition as peopleEmployeeOnboarding } from "./people/employee-onboarding/definition";
 import { definition as peopleExitInterview } from "./people/exit-interview/definition";
 import { definition as peopleIllnessSummary } from "./people/illness-summary/definition";
@@ -183,6 +186,7 @@ export const nodeManifest: NodeDefinition[] = [
   airtableRead,
   airtableUpdate,
   airtableTrigger,
+  bamboohrTrigger,
   shopifyCreateOrder,
   mailerliteFindSubscriber,
   mailerliteCreateSubscriber,
@@ -211,6 +215,8 @@ export const nodeManifest: NodeDefinition[] = [
   peopleCandidateScoreRank,
   peopleEmployeeActive,
   peopleEmployeeHired,
+  peopleEmployeeOffboarded,
+  peopleEmployeeOffboarding,
   peopleEmployeeOnboarding,
   peopleExitInterview,
   peopleIllnessSummary,

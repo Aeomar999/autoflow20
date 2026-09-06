@@ -883,6 +883,7 @@ const TRIGGER_CONTEXT_ROOTS: Record<string, readonly string[]> = {
   QBO_WEBHOOK_TRIGGER: ["trigger", "qbo"],
   GITHUB_TRIGGER: ["github"],
   AIRTABLE_TRIGGER: ["record", "table"],
+  BAMBOOHR_TRIGGER: ["trigger", "employee", "source"],
   TELEGRAM_TRIGGER: ["telegram"],
   WAHA_TRIGGER: ["whatsapp"],
 };

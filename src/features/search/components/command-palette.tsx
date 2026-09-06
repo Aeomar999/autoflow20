@@ -6,6 +6,7 @@ import {
   PlayIcon,
   PlusIcon,
   SearchIcon,
+  UsersIcon,
   WorkflowIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -42,6 +43,7 @@ const KIND_ICONS: Record<
   workflow: WorkflowIcon,
   execution: PlayIcon,
   credential: KeyRoundIcon,
+  employee: UsersIcon,
 };
 
 const KIND_FALLBACK_ICON = BookOpenIcon;
@@ -94,11 +96,11 @@ export const CommandPalette = () => {
         open={open}
         onOpenChange={setOpen}
         title="Command palette"
-        description="Search workflows, executions, credentials, and pages"
+        description="Search workflows, executions, credentials, people, and pages"
         commandProps={{ shouldFilter: false }}
       >
         <CommandInput
-          placeholder="Search workflows, runs, credentials…"
+          placeholder="Search workflows, runs, credentials, people…"
           value={query}
           onValueChange={setQuery}
         />

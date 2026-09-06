@@ -5,9 +5,10 @@ import type { z } from "zod";
 import type { NodeRun } from "@/nodes/types";
 import type { agendaItemSchema } from "./definition";
 
-type AgendaItem = z.infer<typeof agendaItemSchema>;
+/** The config as AUTHORED — see `candidate-score-rank/execute.ts` (AF-M11-15). */
+type AgendaItem = z.input<typeof agendaItemSchema>;
 
-type OrientationData = {
+export type OrientationData = {
   variableName?: string;
   sessionName?: string;
   startDate?: string;
