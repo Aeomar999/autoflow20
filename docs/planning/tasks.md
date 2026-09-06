@@ -3535,15 +3535,22 @@ computed per workflow rather than defaulted.
       `npm run build` clean; lint clean for changed files (pre-existing
       `node-config-panel.tsx` warnings untouched); `docs/nodes/employee-hired.md` written.
 
-### ⬜ AF-M11-05 · W2 Onboarding workflow graph · 2d
+### ✅ AF-M11-05 · W2 Onboarding workflow graph · 2d
 
 **Acceptance**
-- [ ] Triggered by the W1 `employee.hired` handoff; moves the employee
+- [x] Triggered by the W1 `employee.hired` handoff; moves the employee
       `OFFERED→ONBOARDING`.
-- [ ] Start-date wait computed against `MAX_WAIT_SECONDS` (milestone note above), not
+- [x] Start-date wait computed against `MAX_WAIT_SECONDS` (milestone note above), not
       the default; tolerates an unknown start date.
-- [ ] Onboarding steps (checklist, verification, orientation, benefits, IT access) →
+- [x] Onboarding steps (checklist, verification, orientation, benefits, IT access) →
       emit `employee.active`.
+- [x] Verified 2026-09-06: node registration (manifest/registry/`updateNodeSchemas`),
+      `applyEmployeeHandoff` onboarding path, and template `onboard-new-hire` authored.
+      Template harness 29 → 29 (first run failed on a camelCase `hasDate` node id — the
+      harness requires kebab-case slugs; renamed to `has-date`); schemas + both node
+      suites pass, 86 tests total; `npm run build` clean. Lint clean for changed files
+      (pre-existing `schemas.test.ts` format + `node-config-panel.tsx` warnings remain
+      in unmodified files).
 
 ### ⬜ AF-M11-06 · W3 Tenure workflow graph · 1.5d
 

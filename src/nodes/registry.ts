@@ -72,7 +72,9 @@ import peopleBackgroundCheck from "./people/background-check";
 import peopleBenefitsEnrollment from "./people/benefits-enrollment";
 import peopleCandidateSchedule from "./people/candidate-schedule";
 import peopleCandidateScoreRank from "./people/candidate-score-rank";
+import peopleEmployeeActive from "./people/employee-active";
 import peopleEmployeeHired from "./people/employee-hired";
+import peopleEmployeeOnboarding from "./people/employee-onboarding";
 import peopleExitInterview from "./people/exit-interview";
 import peopleIllnessSummary from "./people/illness-summary";
 import peopleNegotiationIqSummary from "./people/negotiation-iq-summary";
@@ -332,7 +334,9 @@ export const nodeRegistry = createNodeRegistry(
     peopleBenefitsEnrollment,
     peopleCandidateSchedule,
     peopleCandidateScoreRank,
+    peopleEmployeeActive,
     peopleEmployeeHired,
+    peopleEmployeeOnboarding,
     peopleExitInterview,
     peopleIllnessSummary,
     peopleNegotiationIqSummary,

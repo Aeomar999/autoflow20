@@ -59,6 +59,12 @@ export const employeeHiredSchema = z.object({
   startDate: dateOnlySchema.optional(),
 });
 
+/** W1 → W2: the signed hire officially enters onboarding. */
+export const employeeOnboardingSchema = z.object({
+  event: z.literal("employee.onboarding"),
+  employeeRef: employeeRefSchema,
+});
+
 /** W2 → W3: onboarding finished, employee is active. */
 export const employeeActiveSchema = z.object({
   event: z.literal("employee.active"),
@@ -76,11 +82,13 @@ export const employeeOffboardingSchema = z.object({
 
 export const employeeHandoffSchema = z.discriminatedUnion("event", [
   employeeHiredSchema,
+  employeeOnboardingSchema,
   employeeActiveSchema,
   employeeOffboardingSchema,
 ]);
 
 export type EmployeeHiredInput = z.infer<typeof employeeHiredSchema>;
+export type EmployeeOnboardingInput = z.infer<typeof employeeOnboardingSchema>;
 export type EmployeeActiveInput = z.infer<typeof employeeActiveSchema>;
 export type EmployeeOffboardingInput = z.infer<
   typeof employeeOffboardingSchema

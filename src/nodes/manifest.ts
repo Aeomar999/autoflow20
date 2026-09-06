@@ -71,7 +71,9 @@ import { definition as peopleBackgroundCheck } from "./people/background-check/d
 import { definition as peopleBenefitsEnrollment } from "./people/benefits-enrollment/definition";
 import { definition as peopleCandidateSchedule } from "./people/candidate-schedule/definition";
 import { definition as peopleCandidateScoreRank } from "./people/candidate-score-rank/definition";
+import { definition as peopleEmployeeActive } from "./people/employee-active/definition";
 import { definition as peopleEmployeeHired } from "./people/employee-hired/definition";
+import { definition as peopleEmployeeOnboarding } from "./people/employee-onboarding/definition";
 import { definition as peopleExitInterview } from "./people/exit-interview/definition";
 import { definition as peopleIllnessSummary } from "./people/illness-summary/definition";
 import { definition as peopleNegotiationIqSummary } from "./people/negotiation-iq-summary/definition";
@@ -207,7 +209,9 @@ export const nodeManifest: NodeDefinition[] = [
   peopleBenefitsEnrollment,
   peopleCandidateSchedule,
   peopleCandidateScoreRank,
+  peopleEmployeeActive,
   peopleEmployeeHired,
+  peopleEmployeeOnboarding,
   peopleExitInterview,
   peopleIllnessSummary,
   peopleNegotiationIqSummary,
