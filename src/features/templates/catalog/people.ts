@@ -457,7 +457,7 @@ export const peopleTemplates: TemplateSpec[] = [
           position: { x: 0, y: 0 },
           data: {
             payload:
-              '{"employeeRef":"EMP-ADA-009","candidateName":"Ada Boateng","candidateEmail":"ada@example.com","roleTitle":"Account Executive","department":"Sales","companyName":"Acme Corp","startDate":"2026-11-01","workLocation":"London","compensationText":"GBP 150,000 base salary; sign-on bonus of GBP 10,000","approverEmail":"hiring-manager@example.com","candidates":[{"name":"Ada Boateng","experience":"Six years in enterprise sales","notes":"Closes multi-threaded deals"},{"name":"Barbara Liskov","experience":"Four years in SaaS sales","notes":"Strong pipeline hygiene"}]}',
+              '{"employeeRef":"EMP-ADA-009","candidateName":"Ada Boateng","candidateEmail":"ada@example.com","roleTitle":"Account Executive","department":"Sales","companyName":"Acme Corp","startDate":"2026-11-01","workLocation":"London","compensationText":"GBP 150,000 base salary; sign-on bonus of GBP 10,000","approverEmail":"hiring-manager@example.com","candidates":[{"name":"Ada Boateng","experience":"Six years in enterprise sales","notes":"Closes multi-threaded deals","scores":{"roleFit":5,"companyFit":5,"availability":5}},{"name":"Barbara Liskov","experience":"Four years in SaaS sales","notes":"Strong pipeline hygiene","scores":{"roleFit":4,"companyFit":4,"availability":3}}]}',
           },
         },
         {
