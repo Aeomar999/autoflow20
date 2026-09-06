@@ -18,13 +18,17 @@ import {
   ReactFlowProvider,
 } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ErrorView, LoadingView } from "@/components/entity-components";
 import { NodeSelector } from "@/components/node-selector";
 import { nodeComponents } from "@/config/node-components";
 import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
 import { findManifestEntry } from "@/nodes/manifest";
+import {
+  isInitialReplaceDismissed,
+  resolveInitialReplaceBehavior,
+} from "../lib/initial-replace";
 import {
   type EditorNode,
   edgesAtom,
@@ -37,6 +41,7 @@ import { NodeStatusProvider } from "../store/node-status-context";
 import { AddNodeButton } from "./add-node-button";
 import { CostEstimateBadge } from "./cost-estimate-badge";
 import { ExecuteWorkflowButton } from "./execute-workflow-button";
+import { InitialTriggerReplaceDialog } from "./initial-trigger-replace-dialog";
 import { NodeConfigPanel } from "./node-config-panel";
 import { NotificationPrefsToggle } from "./notification-prefs-toggle";
 import {
@@ -71,6 +76,10 @@ export const Editor = memo(function Editor({
   const edges = useAtomValue(edgesAtom);
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
+
+  // A node waiting on the AF-UX-04 confirm dialog before it may replace the
+  // INITIAL placeholder trigger. null while idle.
+  const [pendingDrop, setPendingDrop] = useState<EditorNode | null>(null);
 
   // Snapshot of the last server-known state. Used to compute isDirty.
   const serverSnapshotRef = useRef<{
@@ -164,6 +173,15 @@ export const Editor = memo(function Editor({
     [nodes],
   );
 
+  // AF-UX-04: the user confirmed replacing the INITIAL placeholder trigger.
+  const commitInitialReplace = useCallback(() => {
+    if (pendingDrop) {
+      setNodes([pendingDrop]);
+      setSaveStatus("unsaved");
+    }
+    setPendingDrop(null);
+  }, [pendingDrop, setNodes, setSaveStatus]);
+
   const editorInstance = useAtomValue(editorAtom);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -209,6 +227,17 @@ export const Editor = memo(function Editor({
         name: definition.label,
         position: flowPosition,
       };
+
+      // AF-UX-04: replacing the seed INITIAL trigger is destructive — ask
+      // first unless the user dismissed the prompt.
+      const behavior = resolveInitialReplaceBehavior(
+        hasInitialTrigger,
+        isInitialReplaceDismissed(),
+      );
+      if (behavior === "confirm") {
+        setPendingDrop(newNode);
+        return;
+      }
 
       if (hasInitialTrigger) {
         setNodes([newNode]);
@@ -273,6 +302,12 @@ export const Editor = memo(function Editor({
           />
         ) : null}
         <NodeSelector />
+        <InitialTriggerReplaceDialog
+          open={pendingDrop !== null}
+          nodeName={pendingDrop?.name ?? ""}
+          onConfirm={commitInitialReplace}
+          onCancel={() => setPendingDrop(null)}
+        />
       </ReactFlowProvider>
     </div>
   );
