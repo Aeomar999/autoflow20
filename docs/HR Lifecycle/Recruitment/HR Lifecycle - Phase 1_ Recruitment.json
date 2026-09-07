@@ -1,0 +1,420 @@
+{
+  "name": "HR Lifecycle - Phase 1: Recruitment",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Job Application",
+        "formDescription": "Apply for an open role. Upload your resume as a PDF and we will get back to you quickly.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Full Name",
+              "fieldName": "Full Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "fieldName": "Email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Position Applying For",
+              "fieldName": "Position",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Resume (PDF)",
+              "fieldType": "file",
+              "fieldName": "Resume",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "Submit Application",
+          "path": "job-application",
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "Thank you for applying! We are reviewing your application and will be in touch shortly."
+            }
+          }
+        }
+      },
+      "id": "1432e704-02bb-4d84-b56a-952b5b664d60",
+      "name": "Job Application Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [0, 96],
+      "webhookId": "e2f020aa-a470-4e9c-a184-8dca22029ab2"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "Resume",
+        "options": {
+          "joinPages": true
+        }
+      },
+      "id": "4f34af6c-1bb1-46d2-86af-1e079b9cadec",
+      "name": "Extract Resume Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [224, 96]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert technical recruiter. Evaluate the candidate resume against the role they applied for. Be fair and objective. Return a qualification decision, a score from 0 to 100, and a short justification. Treat a score of 70 or above as qualified."
+            },
+            {
+              "content": "=Position applied for: {{ $('Job Application Form').item.json.Position }}\n\nCandidate name: {{ $('Job Application Form').item.json['Full Name'] }}\n\nResume text:\n{{ $json.text }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 800,
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "name": "resume_screening",
+              "schema": "{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{\"qualified\":{\"type\":\"boolean\",\"description\":\"True if the candidate should advance to an interview\"},\"score\":{\"type\":\"number\",\"description\":\"Fit score from 0 to 100\"},\"summary\":{\"type\":\"string\",\"description\":\"One or two sentence summary of the candidate fit\"}},\"required\":[\"qualified\",\"score\",\"summary\"]}",
+              "strict": true
+            }
+          },
+          "temperature": 0.2
+        }
+      },
+      "id": "430f5d24-dbd6-4e09-a779-12739eb5ef9b",
+      "name": "AI Resume Screening",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [384, 528],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "qualified-check",
+              "leftValue": "={{ $json.output[0].content[0].text.qualified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4e11df2c-6b35-47a4-add1-fdbb5c1c0d25",
+      "name": "Qualified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [608, 528]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "booking-link",
+              "name": "bookingLink",
+              "value": "<__PLACEHOLDER_VALUE__Interview booking / calendar link (e.g. Google Calendar appointment schedule URL)__>",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "db9690d8-9147-40f8-be9c-159c2365556a",
+      "name": "Set Booking Link",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [896, 0]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Job Application Form').item.json.Email }}",
+        "subject": "=Your application for {{ $('Job Application Form').item.json.Position }} - let's schedule an interview",
+        "message": "=Hi {{ $('Job Application Form').item.json['Full Name'] }},<br><br>Thank you for applying for the <b>{{ $('Job Application Form').item.json.Position }}</b> role. We were impressed with your background and would love to meet you.<br><br>Please book a time that works for you using the link below:<br><a href=\"{{ $json.bookingLink }}\">Schedule your interview</a><br><br>Looking forward to speaking with you!<br><br>Best regards,<br>The Recruiting Team",
+        "options": {}
+      },
+      "id": "4debfccc-1196-445c-b30f-016b1f9b95e8",
+      "name": "Send Interview Booking Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [1120, 0],
+      "webhookId": "5ad70db1-3547-4b46-b41e-b0b6cc6e984e"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "Select recruiting channel"
+        },
+        "text": "=:white_check_mark: *Qualified candidate* for *{{ $('Job Application Form').item.json.Position }}*\n*Name:* {{ $('Job Application Form').item.json['Full Name'] }}\n*Email:* {{ $('Job Application Form').item.json.Email }}\n*Score:* {{ $('AI Resume Screening').item.json.output[0].content[0].text.score }}/100\n*Summary:* {{ $('AI Resume Screening').item.json.output[0].content[0].text.summary }}\nAn interview booking link has been emailed to the candidate.",
+        "otherOptions": {}
+      },
+      "id": "6d101120-f2d0-43ac-aecc-65e22f6e8ed6",
+      "name": "Notify Recruiting - Qualified",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [1344, 0],
+      "webhookId": "d1df5db7-54da-4b1a-b53f-4e373d9bdd23"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Job Application Form').item.json.Email }}",
+        "subject": "=Update on your application for {{ $('Job Application Form').item.json.Position }}",
+        "message": "=Hi {{ $('Job Application Form').item.json['Full Name'] }},<br><br>Thank you for taking the time to apply for the <b>{{ $('Job Application Form').item.json.Position }}</b> role and for your interest in our company.<br><br>After careful review, we have decided not to move forward with your application at this time. We truly appreciate your effort and encourage you to apply for future openings that match your experience.<br><br>We wish you the very best in your job search.<br><br>Kind regards,<br>The Recruiting Team",
+        "options": {}
+      },
+      "id": "fa3d5f0b-3c14-4210-8241-49cf8dde84a6",
+      "name": "Send Polite Rejection",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [1120, 448],
+      "webhookId": "17e3ca89-1f14-4dad-b921-c64a323775bf"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "Select recruiting channel"
+        },
+        "text": "=:x: *Candidate did not meet the bar* for *{{ $('Job Application Form').item.json.Position }}*\n*Name:* {{ $('Job Application Form').item.json['Full Name'] }}\n*Email:* {{ $('Job Application Form').item.json.Email }}\n*Score:* {{ $('AI Resume Screening').item.json.output[0].content[0].text.score }}/100\n*Summary:* {{ $('AI Resume Screening').item.json.output[0].content[0].text.summary }}\nA polite rejection email has been sent.",
+        "otherOptions": {}
+      },
+      "id": "e7dd8df9-410a-4402-a4ba-45cb66576293",
+      "name": "Notify Recruiting - Not Qualified",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [1344, 448],
+      "webhookId": "c6ac3dee-b213-4b4a-949f-f97de7fd271b"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Read Applicant requirements",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [480, 736],
+      "id": "751a6f8f-81a5-4664-92f6-a8ad82e01bd9",
+      "name": "AI Agent Tool"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [352, 752],
+      "id": "68b14d1d-9965-461d-8370-51b19f654410",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Job Application Form": {
+      "main": [
+        [
+          {
+            "node": "Extract Resume Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Resume Text": {
+      "main": [
+        [
+          {
+            "node": "AI Resume Screening",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Resume Screening": {
+      "main": [
+        [
+          {
+            "node": "Qualified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualified?": {
+      "main": [
+        [
+          {
+            "node": "Set Booking Link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Polite Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Booking Link": {
+      "main": [
+        [
+          {
+            "node": "Send Interview Booking Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Interview Booking Email": {
+      "main": [
+        [
+          {
+            "node": "Notify Recruiting - Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Polite Rejection": {
+      "main": [
+        [
+          {
+            "node": "Notify Recruiting - Not Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Resume Screening",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c5d93355-8c58-47a8-b305-6787afe05d6a",
+  "meta": {
+    "instanceId": "1aea2c7fabf623a9b1ac93ae2c16719b359c75444280de084d9a78062330a801"
+  },
+  "nodeGroups": [
+    {
+      "id": "fff155a1-5c76-4331-9534-3eb8452c7f1b",
+      "name": "Intake",
+      "nodeIds": ["4f34af6c-1bb1-46d2-86af-1e079b9cadec"],
+      "description": "Receive the application and extract the resume text from the uploaded PDF."
+    },
+    {
+      "id": "7fb49c09-4c9e-47d2-bd96-775da9cb0a87",
+      "name": "AI Screening",
+      "nodeIds": [
+        "430f5d24-dbd6-4e09-a779-12739eb5ef9b",
+        "4e11df2c-6b35-47a4-add1-fdbb5c1c0d25",
+        "751a6f8f-81a5-4664-92f6-a8ad82e01bd9",
+        "68b14d1d-9965-461d-8370-51b19f654410"
+      ],
+      "description": "Score the resume against the role and branch on whether the candidate qualifies."
+    },
+    {
+      "id": "9bbe25e5-567b-4f77-8a7c-acc1ff8958b9",
+      "name": "Qualified",
+      "nodeIds": [
+        "db9690d8-9147-40f8-be9c-159c2365556a",
+        "4debfccc-1196-445c-b30f-016b1f9b95e8",
+        "6d101120-f2d0-43ac-aecc-65e22f6e8ed6"
+      ],
+      "description": "Email the candidate an interview booking link and alert the recruiting channel."
+    },
+    {
+      "id": "8da439ce-dbbd-4c76-8210-b7f0933069ed",
+      "name": "Not Qualified",
+      "nodeIds": [
+        "fa3d5f0b-3c14-4210-8241-49cf8dde84a6",
+        "e7dd8df9-410a-4402-a4ba-45cb66576293"
+      ],
+      "description": "Send a polite rejection and log the outcome to the recruiting channel."
+    }
+  ],
+  "id": "XE9AqbTXTR052l27",
+  "tags": []
+}

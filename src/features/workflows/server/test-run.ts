@@ -7,6 +7,7 @@
  * test runs.
  */
 
+import { z } from "zod";
 import { validate } from "@/engine/validate";
 import { computeSkipNodes } from "@/features/executions/server/executions-router-helpers";
 import { resolveEdgePorts } from "@/nodes/ports";
@@ -27,6 +28,29 @@ export type DraftEdge = {
   sourceHandle?: string | null;
   targetHandle?: string | null;
 };
+
+/**
+ * Wire schema for a canvas node arriving at `workflows.testRun` (AF-UX-15).
+ *
+ * Lives here, next to `DraftNode`, rather than inline in the router, because
+ * the two must not drift: `buildTestGraph` reads `disabled`, and while the
+ * router declared only id/type/data Zod stripped it — so every disabled node
+ * ran in every test run. Keeping the schema beside the type it mirrors makes
+ * that class of omission a unit test rather than a production surprise.
+ */
+export const draftNodeSchema = z.object({
+  id: z.string().min(1).max(64),
+  type: z.string().min(1).max(128),
+  data: z.record(z.string(), z.unknown()).optional(),
+  disabled: z.boolean().optional(),
+});
+
+export const draftEdgeSchema = z.object({
+  source: z.string().min(1).max(64),
+  target: z.string().min(1).max(64),
+  sourceHandle: z.string().max(128).nullish(),
+  targetHandle: z.string().max(128).nullish(),
+});
 
 export type GraphNode = {
   id: string;
@@ -124,6 +148,35 @@ export function buildNodeTestRunPlan(
     skipNodes,
     endAfterNodeId: targetNodeId,
     skipReason: `Skipped: test run only targets node "${target.name}"`,
+  };
+}
+
+/**
+ * Plan a "run up to this node" test run (AF-UX-15): every node from the
+ * trigger through `targetNodeId` executes, and the engine stops scheduling
+ * straight after the target.
+ *
+ * Distinct from `buildNodeTestRunPlan`, which skips every upstream node and
+ * therefore hands the target no input at all. The node detail view's Input
+ * pane has nothing to show under that policy, so it plans through this one.
+ * `endAfterNodeId` is honoured by the runner independently of `skipNodes`,
+ * so an empty skip list still stops the run at the target.
+ */
+export function buildRunToNodePlan(
+  graph: TestGraph,
+  targetNodeId: string,
+): TestRunPlan {
+  const target = graph.nodes.find((n) => n.id === targetNodeId);
+  if (!target) {
+    throw new TestRunError(`Node "${targetNodeId}" not found in the draft`);
+  }
+
+  assertValidGraph(graph);
+
+  return {
+    graphSnapshot: graph,
+    skipNodes: [],
+    endAfterNodeId: targetNodeId,
   };
 }
 

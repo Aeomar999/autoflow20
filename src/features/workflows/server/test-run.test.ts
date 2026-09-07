@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildNodeTestRunPlan,
+  buildRunToNodePlan,
   buildTestGraph,
   buildTestRunPlan,
+  draftNodeSchema,
   type TestGraph,
   TestRunError,
 } from "./test-run";
@@ -171,5 +173,77 @@ describe("buildNodeTestRunPlan (single-node)", () => {
     expect(() => buildNodeTestRunPlan(linearGraph(), "missing")).toThrow(
       /not found/,
     );
+  });
+});
+
+describe("buildRunToNodePlan (AF-UX-15, run-up-to)", () => {
+  it("runs every upstream node and stops after the target", () => {
+    const plan = buildRunToNodePlan(linearGraph(), target.id);
+    // The whole point: nothing is skipped, so the target receives real input.
+    expect(plan.skipNodes).toEqual([]);
+    expect(plan.endAfterNodeId).toBe(target.id);
+    expect(plan.skipReason).toBeUndefined();
+  });
+
+  it("carries the whole graph in the snapshot", () => {
+    const plan = buildRunToNodePlan(linearGraph(), target.id);
+    expect(plan.graphSnapshot.nodes).toHaveLength(4);
+  });
+
+  it("targeting the trigger runs it alone", () => {
+    const plan = buildRunToNodePlan(linearGraph(), trigger.id);
+    expect(plan.skipNodes).toEqual([]);
+    expect(plan.endAfterNodeId).toBe(trigger.id);
+  });
+
+  it("throws when the target does not exist in the draft", () => {
+    expect(() => buildRunToNodePlan(linearGraph(), "missing")).toThrow(
+      TestRunError,
+    );
+    expect(() => buildRunToNodePlan(linearGraph(), "missing")).toThrow(
+      /not found/,
+    );
+  });
+
+  it("rejects an invalid draft with a clear error", () => {
+    const graph: TestGraph = {
+      nodes: [trigger, { ...target, type: "SCHEDULE_TRIGGER" }],
+      connections: [],
+    };
+    expect(() => buildRunToNodePlan(graph, target.id)).toThrow(TestRunError);
+    expect(() => buildRunToNodePlan(graph, target.id)).toThrow(
+      /Multiple trigger/i,
+    );
+  });
+});
+
+describe("draftNodeSchema (AF-UX-15)", () => {
+  it("preserves `disabled` so buildTestGraph can skip the node", () => {
+    // The bug this locks: the router's inline schema declared only
+    // id/type/data, Zod stripped `disabled`, and every disabled node ran.
+    const parsed = draftNodeSchema.parse({
+      id: "n2",
+      type: "SET",
+      data: {},
+      disabled: true,
+    });
+    expect(parsed.disabled).toBe(true);
+  });
+
+  it("leaves `disabled` undefined when the client omits it", () => {
+    const parsed = draftNodeSchema.parse({ id: "n1", type: "SET" });
+    expect(parsed.disabled).toBeUndefined();
+  });
+
+  it("a parsed disabled node reaches the snapshot as disabled", () => {
+    const graph = buildTestGraph(
+      [
+        draftNodeSchema.parse({ id: "n1", type: "MANUAL_TRIGGER" }),
+        draftNodeSchema.parse({ id: "n2", type: "SET", disabled: true }),
+      ],
+      [{ source: "n1", target: "n2" }],
+    );
+    expect(graph.nodes[0].disabled).toBe(false);
+    expect(graph.nodes[1].disabled).toBe(true);
   });
 });
