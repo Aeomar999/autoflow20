@@ -91,6 +91,29 @@ export async function extractTextFromBuffer(
     // Deliberately outside the try below: a module that fails to load is an
     // environment fault, and reporting it as "this PDF is corrupt" would be the
     // same dishonesty DocumentExtractionError exists to avoid.
+
+    // pdfjs parses in a worker. On Node it loads that worker in-process from
+    // `GlobalWorkerOptions.workerSrc`, which defaults to the relative
+    // `"./pdf.worker.mjs"` and is loaded through a dynamic import marked
+    // `webpackIgnore` - so webpack neither rewrites the specifier nor emits
+    // the file, and it resolves against whatever directory pdfjs was inlined
+    // into. In `node_modules` that is the worker's own folder; in the Vercel
+    // build it is `.next/server/chunks/`, and every PDF died there with
+    // `Setting up fake worker failed: "Cannot find module
+    // '/var/task/.next/server/chunks/pdf.worker.mjs'"`.
+    //
+    // pdfjs checks `globalThis.pdfjsWorker` before it ever looks at
+    // `workerSrc`, so handing it the worker here means that resolution never
+    // runs. This specifier is static, so webpack bundles the worker as a lazy
+    // chunk of its own rather than leaving behind a path that happens to
+    // resolve in `node_modules` and nowhere else.
+    const globals = globalThis as typeof globalThis & {
+      pdfjsWorker?: typeof import("pdfjs-dist/legacy/build/pdf.worker.min.mjs");
+    };
+    globals.pdfjsWorker ??= await import(
+      "pdfjs-dist/legacy/build/pdf.worker.min.mjs"
+    );
+
     const { PDFParse } = await import("pdf-parse");
 
     try {
