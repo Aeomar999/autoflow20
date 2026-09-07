@@ -1,7 +1,3 @@
-if (typeof globalThis.DOMMatrix === "undefined") {
-  globalThis.DOMMatrix = class DOMMatrix {} as any;
-}
-
 import { serve } from "inngest/next";
 import { sweepAiResponseCache } from "@/inngest/ai-cache";
 import { inngest } from "@/inngest/client";

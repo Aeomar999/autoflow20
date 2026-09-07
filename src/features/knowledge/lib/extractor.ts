@@ -66,6 +66,40 @@ export function extractTextFromHtml(html: string): string {
   return normalizeText(decoded);
 }
 
+/**
+ * Give pdfjs a working `DOMMatrix` before it evaluates.
+ *
+ * pdfjs polyfills `DOMMatrix` itself, from `@napi-rs/canvas`, which it
+ * resolves with a `createRequire(import.meta.url)` it builds at runtime.
+ * Webpack replaces `import.meta.url` with the *build* machine's absolute path
+ * and bakes it into the chunk, so in the lambda that require is rooted at
+ * `/vercel/path0/...` - a directory that does not exist there. Module
+ * resolution walks up from that root and never reaches `/var/task`, so the
+ * package resolves to nothing however much `outputFileTracingIncludes` ships.
+ * pdfjs then leaves `DOMMatrix` unset, and its module-scope `new DOMMatrix()`
+ * throws `ReferenceError` while the module body evaluates.
+ *
+ * `api/inngest/route.ts` used to hold that off with an empty
+ * `class DOMMatrix {}`. It stopped the crash, but because pdfjs only
+ * polyfills when the global is absent, the placeholder won and pdfjs ran with
+ * a matrix that cannot transform anything.
+ *
+ * Doing it here works where pdfjs cannot because `@napi-rs/canvas` is listed
+ * in `serverExternalPackages`: webpack leaves a real `require()` in the
+ * chunk, and Node resolves that from the chunk's own directory upwards into
+ * the lambda's `node_modules`, where the tracer has already put the package.
+ *
+ * Only `DOMMatrix` is repaired. pdfjs reaches `createCanvas` through the same
+ * dead require, so rasterising a PDF would still fail in the lambda - nothing
+ * here does that, `getText` is the only entry point this file uses.
+ */
+export async function ensureDomMatrix(): Promise<void> {
+  if (typeof globalThis.DOMMatrix !== "undefined") return;
+
+  const canvas = await import("@napi-rs/canvas");
+  globalThis.DOMMatrix = canvas.DOMMatrix as unknown as typeof DOMMatrix;
+}
+
 export async function extractTextFromBuffer(
   buffer: Buffer,
   mimeTypeOrFilename: string,
@@ -91,6 +125,11 @@ export async function extractTextFromBuffer(
     // Deliberately outside the try below: a module that fails to load is an
     // environment fault, and reporting it as "this PDF is corrupt" would be the
     // same dishonesty DocumentExtractionError exists to avoid.
+
+    // Both of these repair something webpack breaks by inlining pdfjs, and
+    // both have to happen before pdfjs evaluates - which is the `pdf-parse`
+    // import below, not this line.
+    await ensureDomMatrix();
 
     // pdfjs parses in a worker. On Node it loads that worker in-process from
     // `GlobalWorkerOptions.workerSrc`, which defaults to the relative

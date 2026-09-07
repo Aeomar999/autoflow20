@@ -11,11 +11,20 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * `pdfjs-dist` (reached through `pdf-parse`) loads `@napi-rs/canvas` with a
-   * `createRequire` it constructs at runtime. Neither webpack nor Vercel's file
-   * tracer can see through that, so the package installs during the build and
-   * is then absent from the lambda - at which point pdfjs cannot polyfill
-   * `DOMMatrix` and throws while its module body evaluates.
+   * `@napi-rs/canvas` loads a platform-specific `.node` binary through a
+   * `require` chosen at runtime, so webpack cannot inline it. Left to bundle,
+   * it breaks; declared here, webpack emits a plain `require()` that Node
+   * resolves from the chunk's own directory up into the lambda's
+   * `node_modules` - which is the only resolution that works there, and the
+   * reason `ensureDomMatrix` in the knowledge extractor can reach the package
+   * when pdfjs itself cannot. See that function for the whole story.
+   */
+  serverExternalPackages: ["@napi-rs/canvas"],
+
+  /**
+   * ...and this is what puts the package there. `@napi-rs/canvas` is reached
+   * only through the `await import()` in `ensureDomMatrix`, and its binary
+   * through a runtime `require`, so the tracer needs telling.
    *
    * Only the Inngest runner ever parses a PDF (knowledge ingestion and the
    * EXTRACT_TEXT / AI attachment executors), so only its trace needs the

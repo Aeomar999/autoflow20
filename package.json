@@ -31,6 +31,7 @@
     "@aws-sdk/client-s3": "^3.1125.0",
     "@hookform/resolvers": "^5.2.2",
     "@inngest/realtime": "^0.4.4",
+    "@napi-rs/canvas": "0.1.80",
     "@paralleldrive/cuid2": "^2.2.2",
     "@polar-sh/better-auth": "^1.8.4",
     "@polar-sh/sdk": "^0.47.1",
