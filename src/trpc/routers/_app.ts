@@ -11,6 +11,7 @@ import { notificationsRouter } from "@/features/notifications/server/routers";
 import { onboardingRouter } from "@/features/onboarding/server/routers";
 import { organizationsRouter } from "@/features/organizations/server/routers";
 import { searchRouter } from "@/features/search/server/routers";
+import { tablesRouter } from "@/features/tables/server/routers";
 import { templatesRouter } from "@/features/templates/server/routers";
 import { workflowsRouter } from "@/features/workflows/server/routers";
 import { createTRPCRouter } from "../init";
@@ -31,6 +32,7 @@ export const appRouter = createTRPCRouter({
   search: searchRouter,
   notifications: notificationsRouter,
   apiKeys: apiKeysRouter,
+  tables: tablesRouter,
 });
 
 export type AppRouter = typeof appRouter;

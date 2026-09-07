@@ -15,6 +15,7 @@ import { definition as coreAggregate } from "./core/aggregate/definition";
 import { definition as coreApproval } from "./core/approval/definition";
 import { definition as coreCode } from "./core/code/definition";
 import { definition as coreCondition } from "./core/condition/definition";
+import { definition as coreDataTable } from "./core/data-table/definition";
 import { definition as coreDedupe } from "./core/dedupe/definition";
 import { definition as coreFilter } from "./core/filter/definition";
 import { definition as coreManualTrigger } from "./core/manual-trigger/definition";
@@ -125,6 +126,7 @@ import { definition as webhookOut } from "./webhook/out/definition";
  */
 export const nodeManifest: NodeDefinition[] = [
   coreManualTrigger,
+  coreDataTable,
   coreWebhookTrigger,
   coreScheduleTrigger,
   coreSet,

@@ -120,6 +120,8 @@ model Organization {
   apiKeys          ApiKey[]
   triggerStates    TriggerState[]
   storedFiles      StoredFile[]
+  workspaceTables  WorkspaceTable[]
+  workspaceRecords WorkspaceRecord[]
 
   @@map("organization")
 }
@@ -833,4 +835,46 @@ model StoredFile {
   @@index([executionId])
   @@index([expiresAt])
   @@index([organizationId, sha256])
+}
+
+/**
+ * Native Workspace Tables (Database as a Service)
+ * Defines the structure (columns) of a user-created table.
+ */
+model WorkspaceTable {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  name           String
+  description    String?        @db.Text
+  columns        Json           @default("[]")
+  
+  records        WorkspaceRecord[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId])
+  @@map("workspace_table")
+}
+
+/**
+ * Rows belonging to a WorkspaceTable.
+ */
+model WorkspaceRecord {
+  id             String         @id @default(cuid())
+  tableId        String
+  table          WorkspaceTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  data           Json           @default("{}")
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([tableId])
+  @@index([organizationId])
+  @@map("workspace_record")
 }
