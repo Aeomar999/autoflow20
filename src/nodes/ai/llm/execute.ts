@@ -9,6 +9,10 @@ import {
   pickRunUsage,
 } from "@/lib/ai/fallback";
 import {
+  sealObjectSchemas,
+  strictModeProviderOptions,
+} from "@/lib/ai/structured-output";
+import {
   assertVisionCapable,
   EMPTY_ATTACHMENTS,
   resolveAttachments,
@@ -47,13 +51,23 @@ export const execute: NodeRun<LlmData> = async ({
   let parsedSchema: Parameters<typeof jsonSchema>[0] | undefined;
   if (data.jsonMode) {
     try {
-      parsedSchema = JSON.parse(data.jsonSchema as string);
+      // Sealed before it reaches the provider: OpenAI sends structured
+      // outputs with `strict: true`, which rejects any object that has not
+      // declared `additionalProperties: false`. See
+      // `@/lib/ai/structured-output` for what strict mode demands, and why
+      // the `required` half is left as the schema's author wrote it.
+      parsedSchema = sealObjectSchemas(
+        JSON.parse(data.jsonSchema as string),
+      ) as Parameters<typeof jsonSchema>[0];
     } catch {
       throw new NonRetriableError(
         "AI Chat node: configured response JSON schema is not valid JSON",
       );
     }
   }
+  const schemaProviderOptions = parsedSchema
+    ? strictModeProviderOptions(parsedSchema)
+    : undefined;
 
   const callSettings = {
     temperature: data.temperature ?? 0.7,
@@ -177,6 +191,9 @@ ${attachments.extractedText}`
             system: resolvedSystem,
             ...promptArgs,
             schema: jsonSchema(parsedSchema),
+            ...(schemaProviderOptions
+              ? { providerOptions: schemaProviderOptions }
+              : {}),
             ...callSettings,
           } as Parameters<typeof generateObject>[0],
         );

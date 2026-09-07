@@ -9,6 +9,10 @@ import {
   pickRunUsage,
 } from "@/lib/ai/fallback";
 import {
+  sealObjectSchemas,
+  strictModeProviderOptions,
+} from "@/lib/ai/structured-output";
+import {
   assertVisionCapable,
   EMPTY_ATTACHMENTS,
   resolveAttachments,
@@ -86,10 +90,16 @@ export function parseStructuredSchema(raw: string): Record<string, unknown> {
 export function buildOutputSchema(data: ExtractData): Record<string, unknown> {
   const rawSchema = data.jsonSchema?.trim();
   if (rawSchema && rawSchema.length > 0) {
-    return parseStructuredSchema(rawSchema);
+    return sealObjectSchemas(parseStructuredSchema(rawSchema)) as Record<
+      string,
+      unknown
+    >;
   }
   if (data.fields && data.fields.length > 0) {
-    return buildExtractionSchema(data.fields);
+    return sealObjectSchemas(buildExtractionSchema(data.fields)) as Record<
+      string,
+      unknown
+    >;
   }
   throw new NonRetriableError(
     "AI Extract node: configure either an extraction schema (JSON) or at least one extraction field",
@@ -129,6 +139,11 @@ export const execute: NodeRun<ExtractData> = async ({
   }
 
   const outputSchema = buildOutputSchema(data);
+  // OpenAI sends structured outputs with `strict: true` unless told otherwise,
+  // and rejects the whole request when the schema does not fit that mould. A
+  // schema it cannot accept as written runs unstrict rather than being
+  // rewritten into one it can — see `isStrictCompatible`.
+  const providerOptions = strictModeProviderOptions(outputSchema);
   const candidates = parseModelChain(data.model, data.fallbackModels);
 
   if (hasAttachments) {
@@ -214,6 +229,7 @@ export const execute: NodeRun<ExtractData> = async ({
           model: candidate.languageModel,
           system: SYSTEM_PROMPT,
           ...promptArgs,
+          ...(providerOptions ? { providerOptions } : {}),
           schema: jsonSchema(outputSchema),
           experimental_telemetry: {
             isEnabled: true,

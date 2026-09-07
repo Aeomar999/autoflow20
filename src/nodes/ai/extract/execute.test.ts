@@ -345,7 +345,11 @@ describe("AI_EXTRACT execute", () => {
       makeParams({ data: { jsonSchema: '  {"type":"object"}  ' } }),
     );
 
-    expect(mockJsonSchema).toHaveBeenCalledWith({ type: "object" });
+    // Sealed on the way through — see the strict-mode block below.
+    expect(mockJsonSchema).toHaveBeenCalledWith({
+      type: "object",
+      additionalProperties: false,
+    });
   });
 
   it("throws a non-retriable error when the pasted JSON schema is not valid JSON", async () => {
@@ -515,7 +519,11 @@ describe("buildOutputSchema", () => {
       fields: [{ name: "amount", type: "number" }],
     });
 
-    expect(schema).toEqual({ type: "object", required: ["total"] });
+    expect(schema).toEqual({
+      type: "object",
+      required: ["total"],
+      additionalProperties: false,
+    });
   });
 
   it("builds from the field list when no JSON schema is set", () => {
@@ -581,5 +589,158 @@ describe("parseStructuredSchema", () => {
         'AI Extract node: extraction schema must have "type": "object" at the top level so the model returns a JSON object',
       ),
     );
+  });
+});
+
+/**
+ * OpenAI structured outputs are sent with `strict: true` — the AI SDK's
+ * `strictJsonSchema` defaults to true — and strict mode rejects any object
+ * schema that does not carry `additionalProperties: false`:
+ *
+ *     Invalid schema for response_format 'response': In context=(),
+ *     'additionalProperties' is required to be supplied and to be false.
+ *
+ * The field-list path always set it at the root, so nothing here caught it.
+ * A pasted schema was handed to the model exactly as typed, and every
+ * production run of a node configured that way died on the provider call.
+ */
+describe("schemas are sealed for OpenAI structured outputs", () => {
+  const base = {
+    variableName: "out",
+    model: "openai:gpt-4o",
+    content: "{{data.invoice}}",
+  } as ExtractData;
+
+  it("seals a pasted schema that omits additionalProperties", () => {
+    const schema = buildOutputSchema({
+      ...base,
+      jsonSchema: JSON.stringify({
+        type: "object",
+        properties: { total: { type: "number" } },
+        required: ["total"],
+      }),
+    });
+
+    expect(schema.additionalProperties).toBe(false);
+  });
+
+  it("seals nested objects, array items and $defs", () => {
+    const schema = buildOutputSchema({
+      ...base,
+      jsonSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          customer: {
+            type: "object",
+            properties: { name: { type: "string" } },
+            required: ["name"],
+          },
+          lines: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { sku: { type: "string" } },
+              required: ["sku"],
+            },
+          },
+        },
+        required: ["customer", "lines"],
+        $defs: {
+          money: { type: "object", properties: {}, required: [] },
+        },
+      }),
+    });
+
+    const properties = schema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const defs = schema.$defs as Record<string, Record<string, unknown>>;
+    expect(properties.customer?.additionalProperties).toBe(false);
+    expect(
+      (properties.lines?.items as Record<string, unknown>)
+        ?.additionalProperties,
+    ).toBe(false);
+    expect(defs.money?.additionalProperties).toBe(false);
+  });
+
+  it("seals an object-typed field from the schema builder", () => {
+    // The builder offers "object" as a field type and emitted a bare
+    // `{"type":"object"}`, which strict mode rejects one level down.
+    const schema = buildOutputSchema({
+      ...base,
+      fields: [{ name: "address", type: "object" }],
+    });
+
+    const properties = schema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(properties.address?.additionalProperties).toBe(false);
+  });
+
+  it("leaves an explicit additionalProperties alone", () => {
+    // Someone who wrote `true` meant it; strict mode is turned off for that
+    // schema below rather than the intent being overwritten here.
+    const schema = buildOutputSchema({
+      ...base,
+      jsonSchema: JSON.stringify({
+        type: "object",
+        additionalProperties: true,
+        properties: {},
+        required: [],
+      }),
+    });
+
+    expect(schema.additionalProperties).toBe(true);
+  });
+
+  it("keeps strict mode on when the sealed schema satisfies it", async () => {
+    await execute(
+      makeParams({
+        data: {
+          jsonSchema: JSON.stringify({
+            type: "object",
+            properties: { total: { type: "number" } },
+            required: ["total"],
+          }),
+        },
+      }),
+    );
+
+    const call = mockGenerateObject.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(call.providerOptions).toBeUndefined();
+  });
+
+  it("turns strict mode off rather than forcing optional fields to be required", async () => {
+    // Strict mode cannot express an optional property, and this node's system
+    // prompt tells the model never to invent values. Adding `notes` to
+    // `required` to satisfy the API would push it to do exactly that, so the
+    // schema is honoured as written and the guarantee is dropped instead.
+    await execute(
+      makeParams({
+        data: {
+          jsonSchema: JSON.stringify({
+            type: "object",
+            properties: {
+              total: { type: "number" },
+              notes: { type: "string" },
+            },
+            required: ["total"],
+          }),
+        },
+      }),
+    );
+
+    const call = mockGenerateObject.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(call.providerOptions).toEqual({
+      openai: { strictJsonSchema: false },
+    });
   });
 });
