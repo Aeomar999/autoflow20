@@ -238,8 +238,11 @@ describe("AI_LLM execute", () => {
     );
 
     expect(mockGenerateText).not.toHaveBeenCalled();
+    // Sealed on the way to the provider — OpenAI rejects a structured-output
+    // schema whose objects do not declare `additionalProperties: false`.
     expect(mockJsonSchema).toHaveBeenCalledWith({
       type: "object",
+      additionalProperties: false,
       properties: { answer: { type: "number" } },
     });
     const reply = storedReply<{ text: string; model: string }>(
@@ -248,6 +251,50 @@ describe("AI_LLM execute", () => {
     );
     expect(reply.text).toBe(JSON.stringify({ answer: 42 }, null, 2));
     expect(reply.model).toBe("openai:gpt-4o");
+  });
+
+  it("drops strict mode for a schema that declares no required properties", async () => {
+    // Strict mode has no way to express an optional property, and this node
+    // is told not to invent values. Rather than adding `answer` to `required`
+    // to satisfy the API, the schema is sent as written without the
+    // provider-side guarantee.
+    await execute(
+      makeParams({
+        data: {
+          ...defaultData,
+          jsonMode: true,
+          jsonSchema:
+            '{"type":"object","properties":{"answer":{"type":"number"}}}',
+        },
+      }),
+    );
+
+    const call = mockGenerateObject.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(call.providerOptions).toEqual({
+      openai: { strictJsonSchema: false },
+    });
+  });
+
+  it("keeps strict mode for a schema that already satisfies it", async () => {
+    await execute(
+      makeParams({
+        data: {
+          ...defaultData,
+          jsonMode: true,
+          jsonSchema:
+            '{"type":"object","properties":{"answer":{"type":"number"}},"required":["answer"]}',
+        },
+      }),
+    );
+
+    const call = mockGenerateObject.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(call.providerOptions).toBeUndefined();
   });
 
   it("throws a non-retriable error when JSON mode has no schema", async () => {
