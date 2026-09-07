@@ -440,6 +440,19 @@ export const peopleTemplates: TemplateSpec[] = [
     },
   },
   {
+    /**
+     * Every free-text and URL interpolation below is triple-braced.
+     *
+     * Handlebars HTML-escapes two-brace output, and nothing downstream of this
+     * graph decodes HTML entities: a plain-text mail body, a Slack message and
+     * an LLM prompt all render `&#x27;` literally. Two braces turned the
+     * booking link's `?email=` into `?email&#x3D;`, which is a dead link in the
+     * one message whose entire purpose is to be clicked — and would have shown
+     * a candidate named O'Brien their name as `O&#x27;Brien`.
+     *
+     * `{{screening.qualified}}` and `{{screening.score}}` stay two-braced: a
+     * boolean and a number have no characters that escaping can touch.
+     */
     slug: "hr-lifecycle-phase-1-recruitment",
     name: "HR Lifecycle - Phase 1: Recruitment",
     description:
@@ -477,7 +490,7 @@ export const peopleTemplates: TemplateSpec[] = [
           position: { x: 260, y: 0 },
           data: {
             variableName: "resumeFile",
-            fileId: "{{googleForm.responses.[Resume].[0]}}",
+            fileId: "{{{googleForm.responses.[Resume].[0]}}}",
             maxBytes: 10485760,
           },
         },
@@ -503,7 +516,7 @@ export const peopleTemplates: TemplateSpec[] = [
             variableName: "screening",
             model: "openai:gpt-4o-mini",
             content:
-              "You are an expert technical recruiter. Review the applicant's resume against the requirements for the position. Assess their qualifications and provide a score out of 100. If the score is 70 or higher, mark them as qualified.\n\nPosition: {{googleForm.responses.[Position]}}\nCandidate Name: {{googleForm.responses.[Full Name]}}\n\nResume Text:\n{{extractedResume.text}}",
+              "You are an expert technical recruiter. Review the applicant's resume against the requirements for the position. Assess their qualifications and provide a score out of 100. If the score is 70 or higher, mark them as qualified.\n\nPosition: {{{googleForm.responses.[Position]}}}\nCandidate Name: {{{googleForm.responses.[Full Name]}}}\n\nResume Text:\n{{{extractedResume.text}}}",
             jsonSchema: JSON.stringify({
               type: "object",
               properties: {
@@ -539,7 +552,7 @@ export const peopleTemplates: TemplateSpec[] = [
               {
                 key: "bookingLink",
                 value:
-                  "https://cal.com/team/interview?email={{googleForm.responses.[Email]}}",
+                  "https://cal.com/team/interview?email={{{googleForm.responses.[Email]}}}",
                 type: "string",
               },
             ],
@@ -553,10 +566,10 @@ export const peopleTemplates: TemplateSpec[] = [
           data: {
             variableName: "inviteEmail",
             from: "REPLACE_WITH_YOUR_ADDRESS",
-            to: "{{googleForm.responses.[Email]}}",
+            to: "{{{googleForm.responses.[Email]}}}",
             subject:
-              "Interview Invitation: {{googleForm.responses.[Position]}} at Acme Corp",
-            text: "Hi {{googleForm.responses.[Full Name]}},\n\nWe were impressed by your background and would love to invite you to an interview for the {{googleForm.responses.[Position]}} role.\n\nPlease book a time here: {{bookingLink}}\n\nBest,\nAcme Corp Recruiting",
+              "Interview Invitation: {{{googleForm.responses.[Position]}}} at Acme Corp",
+            text: "Hi {{{googleForm.responses.[Full Name]}}},\n\nWe were impressed by your background and would love to invite you to an interview for the {{{googleForm.responses.[Position]}}} role.\n\nPlease book a time here: {{{bookingLink}}}\n\nBest,\nAcme Corp Recruiting",
           },
         },
         {
@@ -567,7 +580,7 @@ export const peopleTemplates: TemplateSpec[] = [
           data: {
             variableName: "qualifiedNotice",
             channel: "REPLACE_WITH_CHANNEL_ID",
-            text: "✅ *Qualified Candidate*\n*Name:* {{googleForm.responses.[Full Name]}}\n*Position:* {{googleForm.responses.[Position]}}\n*Score:* {{screening.score}}\n*Summary:* {{screening.summary}}",
+            text: "✅ *Qualified Candidate*\n*Name:* {{{googleForm.responses.[Full Name]}}}\n*Position:* {{{googleForm.responses.[Position]}}}\n*Score:* {{screening.score}}\n*Summary:* {{{screening.summary}}}",
           },
         },
         {
@@ -578,10 +591,10 @@ export const peopleTemplates: TemplateSpec[] = [
           data: {
             variableName: "rejectionEmail",
             from: "REPLACE_WITH_YOUR_ADDRESS",
-            to: "{{googleForm.responses.[Email]}}",
+            to: "{{{googleForm.responses.[Email]}}}",
             subject:
-              "Update on your application for {{googleForm.responses.[Position]}}",
-            text: "Hi {{googleForm.responses.[Full Name]}},\n\nThank you for applying for the {{googleForm.responses.[Position]}} role. After careful consideration, we have decided not to move forward with your application at this time.\n\nWe wish you the best in your job search.\n\nBest,\nAcme Corp Recruiting",
+              "Update on your application for {{{googleForm.responses.[Position]}}}",
+            text: "Hi {{{googleForm.responses.[Full Name]}}},\n\nThank you for applying for the {{{googleForm.responses.[Position]}}} role. After careful consideration, we have decided not to move forward with your application at this time.\n\nWe wish you the best in your job search.\n\nBest,\nAcme Corp Recruiting",
           },
         },
         {
@@ -592,7 +605,7 @@ export const peopleTemplates: TemplateSpec[] = [
           data: {
             variableName: "rejectedNotice",
             channel: "REPLACE_WITH_CHANNEL_ID",
-            text: "❌ *Rejected Candidate*\n*Name:* {{googleForm.responses.[Full Name]}}\n*Position:* {{googleForm.responses.[Position]}}\n*Score:* {{screening.score}}\n*Summary:* {{screening.summary}}",
+            text: "❌ *Rejected Candidate*\n*Name:* {{{googleForm.responses.[Full Name]}}}\n*Position:* {{{googleForm.responses.[Position]}}}\n*Score:* {{screening.score}}\n*Summary:* {{{screening.summary}}}",
           },
         },
       ],

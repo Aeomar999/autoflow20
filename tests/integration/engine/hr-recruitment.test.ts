@@ -225,6 +225,43 @@ describe("hr-lifecycle-phase-1-recruitment template", () => {
       }
     });
 
+    it("does not HTML-escape free text or URLs", () => {
+      // Handlebars escapes two-brace output. A plain-text mail body, a Slack
+      // message and an LLM prompt all render `&#x27;` literally, so every
+      // free-text and URL interpolation must be triple-braced. Two braces on
+      // the booking link produced `?email&#x3D;` — a dead link in the one
+      // message whose whole purpose is to be clicked.
+      // Only a boolean and a number may stay two-braced; neither has a
+      // character that escaping can touch.
+      const ALLOWED_TWO_BRACE = new Set([
+        "{{screening.qualified}}",
+        "{{screening.score}}",
+      ]);
+
+      const offenders: string[] = [];
+      const walk = (value: unknown) => {
+        if (typeof value === "string") {
+          // Blank out the triple-braced spans first, so a `{{{...}}}`
+          // cannot be mis-read as a `{{...}}` starting one character in.
+          const withoutTriples = value.replace(/\{\{\{[^{}]*\}\}\}/g, "");
+          for (const hit of withoutTriples.match(/\{\{[^{}]*\}\}/g) ?? []) {
+            if (!ALLOWED_TWO_BRACE.has(hit)) offenders.push(hit);
+          }
+          return;
+        }
+        if (Array.isArray(value)) {
+          for (const item of value) walk(item);
+          return;
+        }
+        if (value && typeof value === "object") {
+          for (const inner of Object.values(value)) walk(inner);
+        }
+      };
+      for (const node of getTemplateGraph().graph.nodes) walk(node.data);
+
+      expect(offenders).toEqual([]);
+    });
+
     it("emits real newlines, not the two-character escape", () => {
       const bodies = getTemplateGraph()
         .graph.nodes.flatMap((n) =>

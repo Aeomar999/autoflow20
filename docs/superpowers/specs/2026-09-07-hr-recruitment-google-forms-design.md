@@ -38,6 +38,23 @@ Three defects, all invisible to the current test:
    model object flat at `context[variableName]` (`src/nodes/ai/extract/execute.ts:245`).
    The correct paths are `{{screening.score}}` and `{{screening.summary}}`.
 
+4. **Every interpolation was HTML-escaped.** Handlebars escapes two-brace output,
+   and nothing downstream decodes HTML entities: a plain-text mail body, a Slack
+   message and an LLM prompt all render `&#x27;` literally. The booking link's
+   `?email=` became `?email&#x3D;` — a dead link in the one message whose entire
+   purpose is to be clicked — and a candidate named O'Brien would have been
+   greeted as `O&#x27;Brien`. Found only by rendering the template against a
+   realistic payload; no assertion in the suite looked at output text.
+
+5. **Both `GMAIL_SEND` nodes lacked `variableName` and `from`, and both
+   `SLACK_POST` nodes lacked `variableName` and `channel`.** Each executor throws
+   a `NonRetriableError` naming the missing field, so the run died at the first
+   action node regardless of everything above.
+
+6. **Every multi-line body used `\\n`** — the two-character escape, unique to this
+   template in the whole catalogue — so bodies would have arrived as
+   `Hi Ada,\n\nWe were impressed`.
+
 `tests/integration/engine/hr-recruitment.test.ts` passes because it hand-builds
 `initialData` as a flat `form: { name, email, position, resume }` — a shape no trigger in
 the system produces. The test asserts the graph's wiring, never its contract with a
@@ -133,7 +150,24 @@ pushes to us, authenticated by the per-workflow URL secret.
 (`src/features/credentials/server/oauth-providers.ts:100`), currently **empty** in `.env`.
 One OAuth client covers both.
 
-### 3.4 Branch predicate
+### 3.4 Escaping
+
+Every free-text and URL interpolation is **triple-braced**. Handlebars escapes
+two-brace output, and none of this template's three sinks — a plain-text mail
+body, a Slack message, an LLM prompt — decode HTML entities.
+
+`{{screening.qualified}}` and `{{screening.score}}` stay two-braced: a boolean
+and a number carry no character escaping can touch. An integration test pins
+exactly that split, so a new two-braced expression fails the build.
+
+This is a catalogue-wide latent issue — no other template triple-braces its
+prose either — but fixing the rest is out of scope here. The general fix would
+be a Slack-aware escape helper: Slack *wants* `&`, `<` and `>` escaped and
+ignores the rest, so neither brace count is strictly correct for it. Triple
+braces get the common case right, since apostrophes in an AI-written summary are
+near-certain and angle brackets in a candidate's name are not.
+
+### 3.5 Branch predicate
 
 Kept as `{{screening.qualified}}` equals `"true"`. `CONDITION` compares rendered strings
 (`src/nodes/core/condition/execute.ts:65`), and Handlebars renders the boolean `true` as
