@@ -171,12 +171,15 @@ export function resolveCandidate(
   }
   const fullModelId = aiModelId(modelDef.provider, modelDef.model);
 
-  const secret =
-    modelDef.adapter === "anthropic"
-      ? credentials?.anthropicCredentialId
-      : modelDef.adapter === "google"
-        ? credentials?.geminiCredentialId
-        : credentials?.openaiCredentialId;
+  // By provider, never by adapter. The OpenAI-compatible providers (groq,
+  // deepseek, ollama) all declare `adapter: "openai"`, so keying off the
+  // adapter handed them `openaiCredentialId` — which cannot authenticate
+  // against them and put a live OpenAI key on the wire to a third-party host.
+  // A provider with no `nodeCredentialKey` gets nothing, and the
+  // `requiresKey` check below turns that into a clear configuration error.
+  const secret = providerDef.nodeCredentialKey
+    ? credentials?.[providerDef.nodeCredentialKey]
+    : undefined;
   const apiKey = secret?.apiKey ?? secret?.accessToken;
 
   if (providerDef.requiresKey && !apiKey) {
