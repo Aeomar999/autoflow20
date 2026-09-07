@@ -1,4 +1,5 @@
 "use client";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ArrowLeft, Plus, Settings } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +14,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTRPC } from "@/trpc/client";
-import { useQuery } from "@tanstack/react-query";
 
 export default function TableDetailPage({
   params,
@@ -24,10 +24,10 @@ export default function TableDetailPage({
   const trpc = useTRPC();
 
   const { data: table, isLoading: tableLoading } = useQuery(
-    trpc.tables.getTable.queryOptions({ id: tableId })
+    trpc.tables.getTable.queryOptions({ id: tableId }),
   );
   const { data: records, isLoading: recordsLoading } = useQuery(
-    trpc.tables.listRecords.queryOptions({ tableId })
+    trpc.tables.listRecords.queryOptions({ tableId }),
   );
 
   if (tableLoading || recordsLoading) {
@@ -85,7 +85,7 @@ export default function TableDetailPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records?.length === 0 ? (
+              {records?.items?.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={columns.length + 2}
@@ -95,7 +95,7 @@ export default function TableDetailPage({
                   </TableCell>
                 </TableRow>
               ) : (
-                records?.map((record: any) => {
+                records?.items?.map((record: any) => {
                   // biome-ignore lint/suspicious/noExplicitAny: json data
                   const data = (record.data as Record<string, any>) || {};
                   return (

@@ -1,8 +1,8 @@
 import { createId } from "@paralleldrive/cuid2";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import type { Prisma } from "@/generated/prisma/client";
 import { PAGINATION } from "@/config/constants";
+import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import {
   createTRPCRouter,
@@ -15,7 +15,7 @@ export const tablesRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string().min(1),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const table = await prisma.workspaceTable.create({
@@ -52,7 +52,7 @@ export const tablesRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         name: z.string().min(1),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const table = await prisma.workspaceTable.update({
@@ -75,8 +75,8 @@ export const tablesRouter = createTRPCRouter({
     .input(
       z.object({
         tableId: z.string(),
-        data: z.record(z.unknown()),
-      })
+        data: z.record(z.string(), z.unknown()),
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const record = await prisma.workspaceRecord.create({
@@ -95,7 +95,7 @@ export const tablesRouter = createTRPCRouter({
       z.object({
         tableId: z.string(),
         cursor: z.string().nullish(),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       const limit = PAGINATION.DEFAULT_PAGE_SIZE;
@@ -106,7 +106,7 @@ export const tablesRouter = createTRPCRouter({
         orderBy: { createdAt: "desc" },
       });
 
-      let nextCursor: typeof input.cursor = undefined;
+      let nextCursor: typeof input.cursor;
       if (records.length > limit) {
         const nextItem = records.pop();
         nextCursor = nextItem!.id;

@@ -1,9 +1,11 @@
 "use client";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Plus, Table as TableIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,27 +25,28 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTRPC } from "@/trpc/client";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 export default function TablesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const trpc = useTRPC();
   const router = useRouter();
-  
-  const { data: tables, isLoading } = useQuery(trpc.tables.listTables.queryOptions());
 
-  const createTable = trpc.tables.createTable.useMutation({
-    onSuccess: (data) => {
-      setIsCreateOpen(false);
-      toast.success("Table created");
-      router.push(`/tables/${data.id}`);
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    }
-  });
+  const { data: tables, isLoading } = useQuery(
+    trpc.tables.listTables.queryOptions(),
+  );
+
+  const createTable = useMutation(
+    trpc.tables.createTable.mutationOptions({
+      onSuccess: (data) => {
+        setIsCreateOpen(false);
+        toast.success("Table created");
+        router.push(`/tables/${data.id}`);
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    }),
+  );
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
