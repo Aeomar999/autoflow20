@@ -11,20 +11,36 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * `@napi-rs/canvas` loads a platform-specific `.node` binary through a
-   * `require` chosen at runtime, so webpack cannot inline it. Left to bundle,
-   * it breaks; declared here, webpack emits a plain `require()` that Node
-   * resolves from the chunk's own directory up into the lambda's
-   * `node_modules` - which is the only resolution that works there, and the
-   * reason `ensureDomMatrix` in the knowledge extractor can reach the package
-   * when pdfjs itself cannot. See that function for the whole story.
+   * The PDF stack resolves things by path at runtime, and inlining it breaks
+   * every one of them. pdfjs loads its worker from a relative specifier and
+   * `@napi-rs/canvas` through a `createRequire(import.meta.url)`; webpack
+   * rewrites neither, so once pdfjs is a chunk the worker specifier resolves
+   * against `.next/server/chunks/` and the `createRequire` against the path
+   * the BUILD machine had. Both point at nothing in the lambda. That produced
+   * two production outages that no local run could reproduce, because in
+   * `node_modules` - where every test and `next build` sees it - both resolve
+   * correctly.
+   *
+   * Leaving the packages external is the fix for the class rather than for
+   * each instance: they run from `node_modules` exactly as their authors
+   * intended, so pdfjs resolves its own worker and polyfills `DOMMatrix`,
+   * `ImageData` and `Path2D` from canvas on its own.
+   *
+   * `@napi-rs/canvas` has to be here regardless - it loads a
+   * platform-specific `.node` binary through a require chosen at runtime, so
+   * webpack cannot inline it at all.
+   *
+   * `src/features/knowledge/lib/extractor.ts` keeps working if this list is
+   * edited; see the two guards there for what they do and why they stay.
    */
-  serverExternalPackages: ["@napi-rs/canvas"],
+  serverExternalPackages: ["@napi-rs/canvas", "pdf-parse", "pdfjs-dist"],
 
   /**
-   * ...and this is what puts the package there. `@napi-rs/canvas` is reached
-   * only through the `await import()` in `ensureDomMatrix`, and its binary
-   * through a runtime `require`, so the tracer needs telling.
+   * ...and this is what puts the package there. Being external only means
+   * "resolve it at runtime"; the tracer still has to copy it into the lambda,
+   * and it reaches `@napi-rs/canvas` through requires it cannot follow - a
+   * `createRequire` inside pdfjs, and the platform switch inside canvas
+   * itself that picks the `.node` binary.
    *
    * Only the Inngest runner ever parses a PDF (knowledge ingestion and the
    * EXTRACT_TEXT / AI attachment executors), so only its trace needs the
