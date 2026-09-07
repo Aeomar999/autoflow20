@@ -95,6 +95,41 @@ describe("resolveCandidate", () => {
     );
   });
 
+  /**
+   * Credentials are chosen by provider, never by adapter.
+   *
+   * Groq, DeepSeek and Ollama speak the OpenAI wire format, so their models
+   * carry `adapter: "openai"`. Selecting the credential by adapter therefore
+   * handed them `openaiCredentialId` — which both failed to authenticate and
+   * transmitted a live OpenAI key to `api.groq.com` / `api.deepseek.com`. The
+   * `requiresKey && !apiKey` guard could not catch it: a key was present, it
+   * was simply the wrong one.
+   */
+  it("uses the groq credential for a groq model, not the openai one", () => {
+    const candidate = resolveCandidate("groq:openai/gpt-oss-120b", {
+      openaiCredentialId: { apiKey: "sk-openai-secret" },
+      groqCredentialId: { apiKey: "gsk-groq-key" },
+    });
+
+    expect(candidate.provider).toBe("groq");
+    expect(candidate.apiKey).toBe("gsk-groq-key");
+  });
+
+  it("never sends the openai key to another provider host", () => {
+    // The leak, pinned: an OpenAI credential alone must not satisfy groq.
+    expect(() =>
+      resolveCandidate("groq:openai/gpt-oss-120b", {
+        openaiCredentialId: { apiKey: "sk-openai-secret" },
+      }),
+    ).toThrow(/credential required for provider "groq"/);
+
+    expect(() =>
+      resolveCandidate("deepseek:deepseek-chat", {
+        openaiCredentialId: { apiKey: "sk-openai-secret" },
+      }),
+    ).toThrow(/credential required for provider "deepseek"/);
+  });
+
   it("resolves keyless provider (ollama) without credential", () => {
     const candidate = resolveCandidate("ollama:mistral", {});
     expect(candidate.fullModelId).toBe("ollama:mistral");

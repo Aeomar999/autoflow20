@@ -174,7 +174,10 @@ describe("AI_LLM execute", () => {
 
   it("resolves a bare provider id to its default model", async () => {
     const result = await execute(
-      makeParams({ data: { ...defaultData, model: "groq" } }),
+      makeParams({
+        data: { ...defaultData, model: "groq" },
+        credentials: { groqCredentialId: { apiKey: "gsk-groq-key" } },
+      }),
     );
 
     const callArgs = mockGenerateText.mock.calls[0]?.[0] as unknown as Record<
@@ -187,8 +190,12 @@ describe("AI_LLM execute", () => {
       "chatReply",
     );
     expect(reply.model).toMatch(/^groq:/);
+    // Groq is OpenAI-compatible, so it rides createOpenAI with its own base
+    // URL — but with the GROQ key. This used to assert the *OpenAI* key going
+    // to api.groq.com, which is the leak that resolving credentials by
+    // provider closed.
     expect(mockCreateOpenAI).toHaveBeenCalledWith({
-      apiKey: "sk-integration-secret",
+      apiKey: "gsk-groq-key",
       baseURL: "https://api.groq.com/openai/v1",
     });
   });

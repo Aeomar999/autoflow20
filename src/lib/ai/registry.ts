@@ -40,6 +40,17 @@ export interface AiProviderDef {
   label: string;
   /** Credential registry type holding this provider's key (keyed providers only). */
   credentialType?: string;
+  /**
+   * Node config field holding this provider's credential id (keyed providers
+   * only).
+   *
+   * Selection must key off the provider, never the adapter. Groq, DeepSeek and
+   * Ollama speak the OpenAI wire format, so their models carry
+   * `adapter: "openai"` — resolving by adapter handed them the *OpenAI*
+   * credential, which failed to authenticate and sent a live OpenAI key to
+   * `api.groq.com` / `api.deepseek.com`.
+   */
+  nodeCredentialKey?: string;
   /** False for local providers (ollama); true otherwise. */
   requiresKey: boolean;
   /** Fixed base URL for OpenAI-compatible providers; absent for native adapters. */
@@ -75,6 +86,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     id: "openai",
     label: "OpenAI",
     credentialType: "openai.apiKey",
+    nodeCredentialKey: "openaiCredentialId",
     requiresKey: true,
     defaultModel: "gpt-4o-mini",
   },
@@ -82,6 +94,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     id: "anthropic",
     label: "Anthropic",
     credentialType: "anthropic.apiKey",
+    nodeCredentialKey: "anthropicCredentialId",
     requiresKey: true,
     defaultModel: "claude-3-5-sonnet",
   },
@@ -89,6 +102,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     id: "google",
     label: "Google Gemini",
     credentialType: "gemini.apiKey",
+    nodeCredentialKey: "geminiCredentialId",
     requiresKey: true,
     defaultModel: "gemini-3.6-flash",
   },
@@ -96,6 +110,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     id: "groq",
     label: "Groq",
     credentialType: "groq.apiKey",
+    nodeCredentialKey: "groqCredentialId",
     requiresKey: true,
     baseUrl: "https://api.groq.com/openai/v1",
     defaultModel: "openai/gpt-oss-120b",
@@ -104,6 +119,7 @@ export const aiProviderDefs: AiProviderDef[] = [
     id: "deepseek",
     label: "DeepSeek",
     credentialType: "deepseek.apiKey",
+    nodeCredentialKey: "deepseekCredentialId",
     requiresKey: true,
     baseUrl: "https://api.deepseek.com",
     defaultModel: "deepseek-chat",

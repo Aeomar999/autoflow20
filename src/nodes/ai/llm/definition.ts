@@ -26,6 +26,7 @@ export const configSchema = z.object({
   openaiCredentialId: credentialIdRef(),
   anthropicCredentialId: credentialIdRef(),
   geminiCredentialId: credentialIdRef(),
+  groqCredentialId: credentialIdRef(),
   systemPrompt: promptSchema(),
   userPrompt: promptSchema(),
   /**
@@ -79,5 +80,9 @@ export const definition: NodeDefinition = {
     { key: "openaiCredentialId", type: "openai.apiKey", required: false },
     { key: "anthropicCredentialId", type: "anthropic.apiKey", required: false },
     { key: "geminiCredentialId", type: "gemini.apiKey", required: false },
+    // Groq is OpenAI-compatible but a separate account: its models
+    // resolve `groqCredentialId`, never the OpenAI one. Without this
+    // the fallback chain cannot authenticate against Groq at all.
+    { key: "groqCredentialId", type: "groq.apiKey", required: false },
   ],
 };
