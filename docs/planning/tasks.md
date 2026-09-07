@@ -1,6 +1,6 @@
 # AutoFlow — Task Backlog
 
-**Last updated:** 2026-09-06 (AF-M11-13 ✅ complete — EMPLOYEE_HIRED save-boundary fix; AF-M11-00/01/02/03/04 ✅ complete; AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ complete; AF-M10 Phase A complete)
+**Last updated:** 2026-09-06 (AF-M11-13 ✅ complete — EMPLOYEE_HIRED save-boundary fix; AF-M11-00/01/02/03 ✅ complete; AF-M1 ✅ complete; AF-M2 ✅ complete; AF-M3 ✅ complete; AF-M4 ✅ complete; AF-M10 Phase A complete)
 **Convention:** `AF-<milestone>-<nn>`. Tasks are ordered by dependency within a milestone.
 **Status:** ⬜ todo · 🟡 in progress · ✅ done · ⏸️ blocked · ❌ cancelled
 
@@ -3748,26 +3748,17 @@ computed per workflow rather than defaulted.
       clean except the 2 pre-existing `node-config-panel.tsx` warnings (untouched);
       people scope + catalog harness 165 tests pass.
 
-### ✅ AF-M11-04 · W1 Acquisition workflow graph · 2d · **DONE 2026-09-05**
+### ⬜ AF-M11-04 · W1 Acquisition workflow graph · 2d
 
 **Acceptance**
-- [x] Graph implements the brief's acquisition flow: trigger → screen → score → offer →
-      `core.approval` gate → emit `employee.hired`. Ships as the `EMPLOYEE_HIRED` node
-      plus the "Screen, score, approve and record a hire" template (`people.ts`), with a
-      credential-free `HTTP_REQUEST` "Notify the hiring team" sink on the gate's `rejected`
-      branch.
-- [x] Emits the handoff through `applyEmployeeHandoff` semantics (creates the
-      `Employee` at `OFFERED` with a stable `employeeRef`); re-runs are idempotent and
-      never duplicate the row — the node returns `already-current`/`conflict` outcomes as
-      values (branchable via `{{hire.outcome}}`), never as thrown errors.
-- [x] Runs under `npm run dev:all` via an Inngest function; node-level tests exercise
-      the happy path and the conflict path (`execute.test.ts`: created / optional-field
-      passthrough / conflict-not-throw / missing variableName / missing employeeRef /
-      missing organizationId / schema-invalid input; `definition.test.ts`: long-field and
-      variableName rejection).
-- [x] Verified 2026-09-05: people scope + catalogue harness 180 tests pass (was 165);
-      `npm run build` clean; lint clean for changed files (pre-existing
-      `node-config-panel.tsx` warnings untouched); `docs/nodes/employee-hired.md` written.
+- [ ] Graph implements the Phase 1 Recruitment flow exactly as specified in `docs/HR Lifecycle/Recruitment`: `core.form-trigger` (Job Application Form) → `core.extract-document-text` (Extract Resume Text) → `ai.llm` (AI Resume Screening).
+- [ ] Includes the AI Agent Tool and Google Gemini Chat Model nodes wired into the AI Screening step (or maps them to AutoFlow's equivalent AI tools architecture).
+- [ ] `core.condition` (Qualified?) branches on the AI screening output (`qualified === true`).
+- [ ] Qualified branch: `core.set` (Set Booking Link) → `google.gmail.send` (Send Interview Booking Email) → `slack.chat.postMessage` (Notify Recruiting - Qualified).
+- [ ] Not-Qualified branch: `google.gmail.send` (Send Polite Rejection) → `slack.chat.postMessage` (Notify Recruiting - Not Qualified).
+- [ ] Replaces the older "Screen, score, approve and record a hire" template with "HR Lifecycle - Phase 1: Recruitment" in `people.ts`.
+- [ ] Ensures any missing node types are implemented or mapped to existing AutoFlow primitives (e.g. `FORM_TRIGGER`, `EXTRACT_DOCUMENT_TEXT`, `AI_LLM`, `SET`, `CONDITION`, Gmail, Slack).
+- [ ] Integration tests exercise both the TRUE and FALSE paths.
 
 ### ✅ AF-M11-05 · W2 Onboarding workflow graph · 2d
 

@@ -5,7 +5,6 @@ import { templateCatalog } from "@/features/templates/catalog";
 import type { TemplateSpec } from "@/features/templates/catalog/types";
 import { execute as manualTrigger } from "@/nodes/core/manual-trigger/execute";
 import { execute as employeeActive } from "@/nodes/people/employee-active/execute";
-import { execute as employeeHired } from "@/nodes/people/employee-hired/execute";
 import { execute as employeeOffboarded } from "@/nodes/people/employee-offboarded/execute";
 import { execute as employeeOffboarding } from "@/nodes/people/employee-offboarding/execute";
 import { execute as employeeOnboarding } from "@/nodes/people/employee-onboarding/execute";
@@ -37,7 +36,6 @@ const handoffMock = vi.mocked(applyEmployeeHandoff);
 const DEMO_EMPLOYEE_REF = "EMP-ADA-009";
 
 const PHASE_TEMPLATES = {
-  W1: "screen-score-approve-and-hire",
   W2: "onboard-new-hire",
   W3: "tenure-check-ins",
   W4: "offboard-employee-lifecycle",
@@ -141,19 +139,6 @@ describe("employee lifecycle chain (AF-M11-12)", () => {
         DEMO_EMPLOYEE_REF,
       );
     }
-  });
-
-  it("W1: the trigger payload drives EMPLOYEE_HIRED", async () => {
-    const input = await runPhaseNode(PHASE_TEMPLATES.W1, "hire", employeeHired);
-
-    expect(input).toMatchObject({
-      event: "employee.hired",
-      employeeRef: DEMO_EMPLOYEE_REF,
-      email: "ada@example.com",
-      fullName: "Ada Boateng",
-      role: "Account Executive",
-    });
-    expectFullyResolved(input);
   });
 
   it("W2: the trigger payload drives EMPLOYEE_ONBOARDING", async () => {
