@@ -1,155 +1,129 @@
+import { createId } from "@paralleldrive/cuid2";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
+import { PAGINATION } from "@/config/constants";
 import prisma from "@/lib/db";
-import { orgProcedure, router } from "@/trpc/init";
+import {
+  createTRPCRouter,
+  orgEditorProcedure,
+  orgViewerProcedure,
+} from "@/trpc/init";
 
-const columnSchema = z.object({
-  name: z.string().min(1),
-  type: z.enum(["string", "number", "boolean", "date", "json"]),
-});
+export const tablesRouter = createTRPCRouter({
+  createTable: orgEditorProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const table = await prisma.workspaceTable.create({
+        data: {
+          id: createId(),
+          organizationId: ctx.org.id,
+          name: input.name,
+        },
+      });
+      return table;
+    }),
 
-export const tablesRouter = router({
-  listTables: orgProcedure.query(async ({ ctx }) => {
+  listTables: orgViewerProcedure.query(async ({ ctx }) => {
     return prisma.workspaceTable.findMany({
-      where: { organizationId: ctx.organizationId },
+      where: { organizationId: ctx.org.id },
       orderBy: { createdAt: "desc" },
     });
   }),
 
-  getTable: orgProcedure
+  getTable: orgViewerProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const table = await prisma.workspaceTable.findUnique({
-        where: { id: input.id, organizationId: ctx.organizationId },
+        where: { id: input.id, organizationId: ctx.org.id },
       });
-      if (!table) throw new Error("Table not found");
+      if (!table) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Table not found" });
+      }
       return table;
     }),
 
-  createTable: orgProcedure
-    .input(
-      z.object({
-        name: z.string().min(1),
-        description: z.string().optional(),
-        columns: z.array(columnSchema).default([]),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      return prisma.workspaceTable.create({
-        data: {
-          organizationId: ctx.organizationId,
-          name: input.name,
-          description: input.description,
-          columns: input.columns,
-        },
-      });
-    }),
-
-  updateTable: orgProcedure
+  updateTable: orgEditorProcedure
     .input(
       z.object({
         id: z.string(),
-        name: z.string().optional(),
-        description: z.string().optional(),
-        columns: z.array(columnSchema).optional(),
-      }),
+        name: z.string().min(1),
+      })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      // ensure it exists and belongs to org
-      const existing = await prisma.workspaceTable.findUnique({
-        where: { id, organizationId: ctx.organizationId },
+      const table = await prisma.workspaceTable.update({
+        where: { id: input.id, organizationId: ctx.org.id },
+        data: { name: input.name },
       });
-      if (!existing) throw new Error("Table not found");
-
-      return prisma.workspaceTable.update({
-        where: { id },
-        data,
-      });
+      return table;
     }),
 
-  deleteTable: orgProcedure
+  deleteTable: orgEditorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await prisma.workspaceTable.findUnique({
-        where: { id: input.id, organizationId: ctx.organizationId },
+      await prisma.workspaceTable.delete({
+        where: { id: input.id, organizationId: ctx.org.id },
       });
-      if (!existing) throw new Error("Table not found");
-
-      return prisma.workspaceTable.delete({
-        where: { id: input.id },
-      });
+      return { success: true };
     }),
 
-  // RECORDS
-  listRecords: orgProcedure
-    .input(z.object({ tableId: z.string() }))
+  insertRecord: orgEditorProcedure
+    .input(
+      z.object({
+        tableId: z.string(),
+        data: z.record(z.unknown()),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const record = await prisma.workspaceRecord.create({
+        data: {
+          id: createId(),
+          tableId: input.tableId,
+          organizationId: ctx.org.id,
+          data: input.data as any,
+        },
+      });
+      return record;
+    }),
+
+  listRecords: orgViewerProcedure
+    .input(
+      z.object({
+        tableId: z.string(),
+        cursor: z.string().nullish(),
+      })
+    )
     .query(async ({ ctx, input }) => {
-      return prisma.workspaceRecord.findMany({
-        where: { tableId: input.tableId, organizationId: ctx.organizationId },
+      const limit = PAGINATION.DEFAULT_PAGE_SIZE;
+      const records = await prisma.workspaceRecord.findMany({
+        take: limit + 1,
+        cursor: input.cursor ? { id: input.cursor } : undefined,
+        where: { tableId: input.tableId, organizationId: ctx.org.id },
         orderBy: { createdAt: "desc" },
       });
+
+      let nextCursor: typeof input.cursor = undefined;
+      if (records.length > limit) {
+        const nextItem = records.pop();
+        nextCursor = nextItem!.id;
+      }
+
+      return {
+        items: records,
+        nextCursor,
+      };
     }),
 
-  createRecord: orgProcedure
-    .input(
-      z.object({
-        tableId: z.string(),
-        data: z.record(z.any()),
-      }),
-    )
+  deleteRecord: orgEditorProcedure
+    .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const table = await prisma.workspaceTable.findUnique({
-        where: { id: input.tableId, organizationId: ctx.organizationId },
+      await prisma.workspaceRecord.delete({
+        where: { id: input.id, organizationId: ctx.org.id },
       });
-      if (!table) throw new Error("Table not found");
-
-      return prisma.workspaceRecord.create({
-        data: {
-          tableId: input.tableId,
-          organizationId: ctx.organizationId,
-          data: input.data,
-        },
-      });
-    }),
-
-  updateRecord: orgProcedure
-    .input(
-      z.object({
-        id: z.string(),
-        tableId: z.string(),
-        data: z.record(z.any()),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const existing = await prisma.workspaceRecord.findUnique({
-        where: {
-          id: input.id,
-          tableId: input.tableId,
-          organizationId: ctx.organizationId,
-        },
-      });
-      if (!existing) throw new Error("Record not found");
-
-      return prisma.workspaceRecord.update({
-        where: { id: input.id },
-        data: { data: input.data },
-      });
-    }),
-
-  deleteRecord: orgProcedure
-    .input(z.object({ id: z.string(), tableId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      const existing = await prisma.workspaceRecord.findUnique({
-        where: {
-          id: input.id,
-          tableId: input.tableId,
-          organizationId: ctx.organizationId,
-        },
-      });
-      if (!existing) throw new Error("Record not found");
-
-      return prisma.workspaceRecord.delete({
-        where: { id: input.id },
-      });
+      return { success: true };
     }),
 });

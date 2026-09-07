@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Plus, Table as TableIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,28 +22,35 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { trpc } from "@/trpc/client";
+import { useTRPC } from "@/trpc/client";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function TablesPage() {
-  const {
-    data: tables,
-    refetch,
-    isLoading,
-  } = trpc.tables.listTables.useQuery();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const trpc = useTRPC();
+  const router = useRouter();
+  
+  const { data: tables, isLoading } = useQuery(trpc.tables.listTables.queryOptions());
+
   const createTable = trpc.tables.createTable.useMutation({
-    onSuccess: () => {
-      setOpen(false);
-      setName("");
-      refetch();
+    onSuccess: (data) => {
+      setIsCreateOpen(false);
+      toast.success("Table created");
+      router.push(`/tables/${data.id}`);
     },
+    onError: (error) => {
+      toast.error(error.message);
+    }
   });
 
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-
-  const handleCreate = () => {
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
     if (!name) return;
-    createTable.mutate({ name, columns: [] });
+    createTable.mutate({ name });
   };
 
   return (
@@ -56,74 +64,58 @@ export default function TablesPage() {
             Manage native internal data tables for your workflows.
           </p>
         </div>
-
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="mr-2 h-4 w-4" /> Create Table
+              <Plus className="mr-2 h-4 w-4" />
+              New Table
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>New Workspace Table</DialogTitle>
+              <DialogTitle>Create Table</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Table Name</Label>
                 <Input
                   id="name"
-                  placeholder="e.g. Leads, Employees, Inventory"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  name="name"
+                  placeholder="e.g. Customers"
+                  required
                 />
               </div>
-            </div>
-            <DialogFooter>
-              <Button
-                disabled={createTable.isPending || !name}
-                onClick={handleCreate}
-              >
-                {createTable.isPending ? "Creating..." : "Create"}
-              </Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button type="submit" disabled={createTable.isPending}>
+                  Create
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
 
       {isLoading ? (
-        <div className="text-sm text-muted-foreground">Loading tables...</div>
+        <div>Loading...</div>
       ) : tables?.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center p-12 text-center">
-          <TableIcon className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-          <h3 className="text-lg font-medium">No tables yet</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mt-2">
-            Workspace tables let you store and manage structured data directly
-            inside AutoFlow without needing an external database.
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-center">
+          <TableIcon className="h-10 w-10 text-muted-foreground" />
+          <h3 className="font-semibold">No tables</h3>
+          <p className="text-sm text-muted-foreground">
+            Get started by creating a new table.
           </p>
-        </Card>
+        </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tables?.map((table) => (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {tables?.map((table: any) => (
             <Link key={table.id} href={`/tables/${table.id}`}>
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer h-full">
+              <Card className="hover:border-primary/50 transition-colors">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TableIcon className="h-4 w-4" />
-                    {table.name}
-                  </CardTitle>
+                  <CardTitle>{table.name}</CardTitle>
                   <CardDescription>
                     Created {format(new Date(table.createdAt), "MMM d, yyyy")}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {
-                      // biome-ignore lint/suspicious/noExplicitAny: json column
-                      (table.columns as any[]).length
-                    }{" "}
-                    columns defined
-                  </p>
-                </CardContent>
               </Card>
             </Link>
           ))}

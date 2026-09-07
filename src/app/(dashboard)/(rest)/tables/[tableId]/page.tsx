@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { trpc } from "@/trpc/client";
+import { useTRPC } from "@/trpc/client";
+import { useQuery } from "@tanstack/react-query";
 
 export default function TableDetailPage({
   params,
@@ -20,11 +21,14 @@ export default function TableDetailPage({
   params: Promise<{ tableId: string }>;
 }) {
   const { tableId } = use(params);
+  const trpc = useTRPC();
 
-  const { data: table, isLoading: tableLoading } =
-    trpc.tables.getTable.useQuery({ id: tableId });
-  const { data: records, isLoading: recordsLoading } =
-    trpc.tables.listRecords.useQuery({ tableId });
+  const { data: table, isLoading: tableLoading } = useQuery(
+    trpc.tables.getTable.queryOptions({ id: tableId })
+  );
+  const { data: records, isLoading: recordsLoading } = useQuery(
+    trpc.tables.listRecords.queryOptions({ tableId })
+  );
 
   if (tableLoading || recordsLoading) {
     return <div className="p-8">Loading table...</div>;
@@ -91,7 +95,7 @@ export default function TableDetailPage({
                   </TableCell>
                 </TableRow>
               ) : (
-                records?.map((record) => {
+                records?.map((record: any) => {
                   // biome-ignore lint/suspicious/noExplicitAny: json data
                   const data = (record.data as Record<string, any>) || {};
                   return (

@@ -1,20 +1,26 @@
 import "server-only";
-import type { NodeExecutionContext } from "@/features/executions/server/run-node";
-import { resolveExpression } from "@/features/executions/template";
+import type { NodeRun } from "@/nodes/types";
 import prisma from "@/lib/db";
 import { configSchema } from "./definition";
+import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 
-export async function execute(
-  context: NodeExecutionContext,
-): Promise<Record<string, unknown>> {
-  const config = configSchema.parse(context.node.data);
-  const organizationId = context.organizationId;
+type DataTableConfig = z.infer<typeof configSchema>;
 
+export const execute: NodeRun<DataTableConfig> = async ({
+  data,
+  context,
+  organizationId,
+  resolve,
+}) => {
   if (!organizationId) {
     throw new Error(
       "Tenant context is required for Workspace Table operations.",
     );
   }
+
+  // data is already validated when saving, but we can double check or just use it
+  const config = configSchema.parse(data);
 
   // Verify table exists and belongs to the org
   const table = await prisma.workspaceTable.findUnique({
@@ -30,7 +36,7 @@ export async function execute(
     const payload: Record<string, unknown> = {};
     if (config.data) {
       for (const field of config.data) {
-        payload[field.key] = resolveExpression(field.value, context.data);
+        payload[field.key] = resolve(field.value);
       }
     }
 
@@ -38,17 +44,17 @@ export async function execute(
       data: {
         tableId: table.id,
         organizationId,
-        data: payload,
+        data: payload as Prisma.InputJsonValue,
       },
     });
 
-    return { ...context.data, [config.variableName]: record };
+    return { ...context, [config.variableName]: record };
   }
 
   if (action === "update") {
     if (!config.recordId)
       throw new Error("recordId is required for update action");
-    const recordId = resolveExpression(config.recordId, context.data);
+    const recordId = resolve(config.recordId);
 
     // Check ownership
     const existing = await prisma.workspaceRecord.findUnique({
@@ -60,29 +66,29 @@ export async function execute(
       (existing.data as Record<string, unknown>) || {};
     if (config.data) {
       for (const field of config.data) {
-        payload[field.key] = resolveExpression(field.value, context.data);
+        payload[field.key] = resolve(field.value);
       }
     }
 
     const record = await prisma.workspaceRecord.update({
       where: { id: String(recordId) },
-      data: { data: payload },
+      data: { data: payload as Prisma.InputJsonValue },
     });
 
-    return { ...context.data, [config.variableName]: record };
+    return { ...context, [config.variableName]: record };
   }
 
   if (action === "find") {
     if (!config.recordId)
       throw new Error("recordId is required for find action");
-    const recordId = resolveExpression(config.recordId, context.data);
+    const recordId = resolve(config.recordId);
 
     const record = await prisma.workspaceRecord.findUnique({
       where: { id: String(recordId), organizationId, tableId: table.id },
     });
     if (!record) throw new Error("Record not found.");
 
-    return { ...context.data, [config.variableName]: record };
+    return { ...context, [config.variableName]: record };
   }
 
   if (action === "find_many") {
@@ -92,13 +98,13 @@ export async function execute(
       orderBy: { createdAt: "desc" },
     });
 
-    return { ...context.data, [config.variableName]: records };
+    return { ...context, [config.variableName]: records };
   }
 
   if (action === "delete") {
     if (!config.recordId)
       throw new Error("recordId is required for delete action");
-    const recordId = resolveExpression(config.recordId, context.data);
+    const recordId = resolve(config.recordId);
 
     // Check ownership
     const existing = await prisma.workspaceRecord.findUnique({
@@ -111,10 +117,10 @@ export async function execute(
     });
 
     return {
-      ...context.data,
+      ...context,
       [config.variableName]: { success: true, id: recordId },
     };
   }
 
   throw new Error(`Unsupported action: ${action}`);
-}
+};

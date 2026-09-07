@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { NodeDefinition } from "@/nodes/types";
 import {
-  handlebarsSchema,
+  freeText,
   variableNameSchema,
 } from "../../shared/config-fields";
 
@@ -15,7 +15,7 @@ export const configSchema = z.object({
     .array(
       z.object({
         key: z.string().min(1),
-        value: handlebarsSchema,
+        value: freeText(10000),
       }),
     )
     .optional(),
