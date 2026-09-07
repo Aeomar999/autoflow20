@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ensureDomMatrix,
   extractTextFromBuffer,
   extractTextFromHtml,
   extractTextFromUrl,
@@ -41,6 +42,54 @@ describe("extractTextFromHtml", () => {
     expect(extracted).toContain("This is a paragraph with bold text.");
     expect(extracted).not.toContain("console.log");
     expect(extracted).not.toContain("color: red");
+  });
+});
+
+describe("ensureDomMatrix", () => {
+  /**
+   * pdfjs needs a real `DOMMatrix`, and in the lambda it cannot get one:
+   * it resolves `@napi-rs/canvas` through `createRequire(import.meta.url)`,
+   * and webpack bakes the *build* machine's path into that, so the require is
+   * rooted outside the deployed tree and finds nothing.
+   *
+   * `api/inngest/route.ts` used to paper over the resulting `ReferenceError`
+   * with `globalThis.DOMMatrix = class DOMMatrix {}`. That stopped the crash
+   * and left pdfjs holding a matrix that cannot transform anything, so this
+   * pins the part that actually matters: what gets installed has to work.
+   */
+  it("installs a DOMMatrix that can actually transform", async () => {
+    const globals = globalThis as { DOMMatrix?: unknown };
+    const original = globals.DOMMatrix;
+    globals.DOMMatrix = undefined;
+
+    try {
+      await ensureDomMatrix();
+
+      const matrix = new globalThis.DOMMatrix()
+        .translateSelf(2, 3)
+        .scaleSelf(4);
+      expect(matrix.e).toBe(2);
+      expect(matrix.f).toBe(3);
+      expect(matrix.a).toBe(4);
+    } finally {
+      globals.DOMMatrix = original;
+    }
+  });
+
+  it("leaves an existing DOMMatrix alone", async () => {
+    // The browser and any future Node that ships one are already correct;
+    // replacing theirs would be the same overreach as the stub.
+    const globals = globalThis as { DOMMatrix?: unknown };
+    const original = globals.DOMMatrix;
+    const sentinel = class DOMMatrix {};
+    globals.DOMMatrix = sentinel;
+
+    try {
+      await ensureDomMatrix();
+      expect(globals.DOMMatrix).toBe(sentinel);
+    } finally {
+      globals.DOMMatrix = original;
+    }
   });
 });
 
