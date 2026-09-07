@@ -16,7 +16,7 @@ import {
  */
 const modelIdSchema = z
   .string()
-  .regex(/^[A-Za-z0-9._:-]+$/, "Model must be a provider or provider:model id")
+  .regex(/^[A-Za-z0-9._:\-\/]+$/, "Model must be a provider or provider:model id")
   .max(120);
 
 const extractFieldSchema = z.object({
