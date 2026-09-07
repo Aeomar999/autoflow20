@@ -5,6 +5,7 @@ import {
   ChevronsUpDownIcon,
   CoinsIcon,
   CreditCardIcon,
+  DatabaseIcon,
   FolderOpenIcon,
   HistoryIcon,
   KeyIcon,
@@ -58,6 +59,7 @@ export const NAV_GROUPS = [
     label: "Build",
     items: [
       { title: "Workflows", icon: FolderOpenIcon, url: "/workflows" },
+      { title: "Tables", icon: DatabaseIcon, url: "/tables" },
       { title: "Templates", icon: LayoutTemplateIcon, url: "/templates" },
     ],
   },

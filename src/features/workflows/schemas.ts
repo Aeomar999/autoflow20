@@ -132,6 +132,7 @@ export const updateNodeSchemas = [
   makeNodeSchema("MANUAL_TRIGGER", configOf("MANUAL_TRIGGER")),
   makeNodeSchema("WEBHOOK_TRIGGER", configOf("WEBHOOK_TRIGGER")),
   makeNodeSchema("SCHEDULE_TRIGGER", configOf("SCHEDULE_TRIGGER")),
+    makeNodeSchema("DATA_TABLE", configOf("DATA_TABLE")),
   makeNodeSchema("SET", configOf("SET")),
   makeNodeSchema("CONDITION", configOf("CONDITION")),
   makeNodeSchema("SWITCH", configOf("SWITCH")),

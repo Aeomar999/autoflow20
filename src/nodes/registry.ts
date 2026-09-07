@@ -16,6 +16,7 @@ import coreAggregate from "./core/aggregate";
 import coreApproval from "./core/approval";
 import coreCode from "./core/code";
 import coreCondition from "./core/condition";
+import coreDataTable from "./core/data-table";
 import coreDedupe from "./core/dedupe";
 import coreFilter from "./core/filter";
 import coreManualTrigger from "./core/manual-trigger";
@@ -250,6 +251,7 @@ export function createNodeRegistry(
 export const nodeRegistry = createNodeRegistry(
   [
     coreManualTrigger,
+    coreDataTable,
     coreWebhookTrigger,
     coreScheduleTrigger,
     coreSet,

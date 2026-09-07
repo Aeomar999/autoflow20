@@ -125,6 +125,7 @@ import { definition as webhookOut } from "./webhook/out/definition";
  */
 export const nodeManifest: NodeDefinition[] = [
   coreManualTrigger,
+  coreDataTable,
   coreWebhookTrigger,
   coreScheduleTrigger,
   coreSet,
