@@ -1,0 +1,226 @@
+# HR Lifecycle Phase 1: Recruitment — Google Forms intake, live end to end
+
+**Date:** 2026-09-07
+**Status:** Approved design, implementation in progress
+**Branch:** `af-hr-recruitment-google-forms` (off `main` @ `da00ea0`)
+**Supersedes:** the `FORM_TRIGGER` graph shipped by AF-M11-04 (`9fbc9cf`)
+**Grounded in:** `src/features/templates/catalog/{people,harness,types}.ts`,
+`src/nodes/{forms/google-form,drive/download,files/extract-text,ai/extract,core/condition}/**`,
+`src/app/api/webhooks/google-form/route.ts`, `src/app/api/forms/[workflowId]/route.ts`,
+`src/features/triggers/components/google-form-trigger/**`,
+`src/features/credentials/server/oauth-providers.ts`, `src/engine/validate.ts` —
+every claim below was read in the source at time of writing.
+
+---
+
+## 1. Problem
+
+The `hr-lifecycle-phase-1-recruitment` template is the Phase 1 realisation of
+`docs/Stakeholder_Mega_Workflow_Brief.md`. It ships in the gallery and its integration
+test passes, but **it has never run in production and would not survive the attempt.**
+Three defects, all invisible to the current test:
+
+1. **The trigger contract is wrong.** Every node reads `{{form.name}}`,
+   `{{form.email}}`, `{{form.position}}`, `{{form.resume}}`. The hosted-form route emits
+   one nested root — `form: { nodeId, title, submittedAt, fields, files }`
+   (`src/app/api/forms/[workflowId]/route.ts:206`) — so the real names are
+   `form.fields.name` and `form.files.resume`. In production all four resolve to the
+   empty string.
+
+2. **`{{form.resume}}` cannot address a file even when spelled right.** `form.files.resume`
+   is a `FileRef` object; interpolating it into a string context yields `[object Object]`,
+   which `EXTRACT_DOCUMENT_TEXT` explicitly rejects by name
+   (`src/nodes/files/extract-text/execute.ts:56`). The file expression needs the
+   triple-brace `json` helper.
+
+3. **Both Slack nodes read a key that does not exist.** They interpolate
+   `{{screening.json.score}}` and `{{screening.json.summary}}`, but `AI_EXTRACT` writes the
+   model object flat at `context[variableName]` (`src/nodes/ai/extract/execute.ts:245`).
+   The correct paths are `{{screening.score}}` and `{{screening.summary}}`.
+
+4. **Every interpolation was HTML-escaped.** Handlebars escapes two-brace output,
+   and nothing downstream decodes HTML entities: a plain-text mail body, a Slack
+   message and an LLM prompt all render `&#x27;` literally. The booking link's
+   `?email=` became `?email&#x3D;` — a dead link in the one message whose entire
+   purpose is to be clicked — and a candidate named O'Brien would have been
+   greeted as `O&#x27;Brien`. Found only by rendering the template against a
+   realistic payload; no assertion in the suite looked at output text.
+
+5. **Both `GMAIL_SEND` nodes lacked `variableName` and `from`, and both
+   `SLACK_POST` nodes lacked `variableName` and `channel`.** Each executor throws
+   a `NonRetriableError` naming the missing field, so the run died at the first
+   action node regardless of everything above.
+
+6. **Every multi-line body used `\\n`** — the two-character escape, unique to this
+   template in the whole catalogue — so bodies would have arrived as
+   `Hi Ada,\n\nWe were impressed`.
+
+`tests/integration/engine/hr-recruitment.test.ts` passes because it hand-builds
+`initialData` as a flat `form: { name, email, position, resume }` — a shape no trigger in
+the system produces. The test asserts the graph's wiring, never its contract with a
+trigger, which is exactly the gap that let three contract bugs ship green.
+
+Separately, the product decision: **Google Forms is the intake**, not the AutoFlow-hosted
+form. Applicants already have Google accounts, the recruiting team already lives in Google
+Workspace, and the n8n original this template ports (`docs/HR Lifecycle/Recruitment/HR
+Recruitment.md`) was itself form-triggered.
+
+## 2. Goal
+
+One real submission to a real Google Form produces, without hand-holding: a downloaded
+resume PDF, extracted text, an AI screening verdict, a branch, a real email to the
+candidate from a real Gmail account, and a real Slack message to the recruiting channel.
+
+Non-goals: Phases 2–4 of the lifecycle brief; the detached Gemini/agent-tool sub-branch
+from the n8n original (the brief itself recommends deleting it); a Google Cloud app
+verified for public use — Testing mode with named test users is the target.
+
+## 3. Design
+
+### 3.1 Graph — 10 nodes
+
+```
+GOOGLE_FORM_TRIGGER  Job Application
+      ↓
+DRIVE_DOWNLOAD       Download Resume        fileId: {{googleForm.responses.[Resume].[0]}}
+      ↓                                     variableName: resumeFile
+EXTRACT_DOCUMENT_TEXT Extract Resume Text   file: {{{json resumeFile.file}}}
+      ↓                                     variableName: extractedResume
+AI_EXTRACT           AI Resume Screening    variableName: screening
+      ↓
+CONDITION            Qualified?             {{screening.qualified}} equals "true"
+      ├── true  → SET Set Booking Link → GMAIL_SEND Send Interview Booking Email → SLACK_POST Notify Recruiting - Qualified
+      └── false → GMAIL_SEND Send Polite Rejection → SLACK_POST Notify Recruiting - Not Qualified
+```
+
+`DRIVE_DOWNLOAD` is the only structural addition. It exists because Google Forms does not
+transmit files: a file-upload answer is an **array of Drive file IDs**, and the file itself
+lives in the form owner's Drive. `DRIVE_DOWNLOAD` fetches it into AutoFlow's file store and
+returns `{ file: FileRef, driveFileId, name, mimeType, bytes }`
+(`src/nodes/drive/download/execute.ts`), which is exactly the `FileRef` that
+`EXTRACT_DOCUMENT_TEXT` wants. Everything downstream of extraction keeps its current shape.
+
+### 3.2 Trigger contract
+
+The Apps Script generated by `src/features/triggers/components/google-form-trigger/utils.ts`
+keys answers by **question title**:
+
+```js
+responses[itemResponse.getItem().getTitle()] = itemResponse.getResponse();
+```
+
+so the template's expressions are a hard contract with the form's wording. The four required
+question titles are **Full Name**, **Email**, **Position**, **Resume** (file upload). They are
+stated in the template description and the runbook, because a mismatch is otherwise a silent
+empty string.
+
+Expressions use Handlebars **segment literals**, verified by parsing and rendering against a
+representative payload:
+
+| Expression | Resolves to |
+|---|---|
+| `{{googleForm.responses.[Full Name]}}` | `"Ada Lovelace"` |
+| `{{googleForm.responses.[Resume].[0]}}` | `"1AbC…"` (first Drive file id) |
+| `{{googleForm.responses['Full Name']}}` | **Handlebars parse error** |
+
+That last row is the syntax the app's own setup dialog currently instructs users to write
+(`dialog.tsx:127`). It is a parse error, `getTemplateRoots` swallows it and returns `[]`, so
+the save-time root validator never warns and the expression renders empty at run time. Fixed
+here.
+
+`GOOGLE_FORM_TRIGGER` is already registered as a trigger seeding the `googleForm` root
+(`src/engine/validate.ts:870`), so the save-boundary and validator work unchanged.
+
+### 3.3 Credentials
+
+| Node | Credential type | Required |
+|---|---|---|
+| `DRIVE_DOWNLOAD` | `google.drive` | yes |
+| `GMAIL_SEND` ×2 | `google.gmail\|google.oauth2` | yes |
+| `SLACK_POST` ×2 | `slack` | yes |
+| `AI_EXTRACT` | `openai` / `anthropic` / `gemini` | optional |
+
+Three distinct required types. `countRequiredCredentials` counts **distinct types, excluding
+optional** (`harness.ts:469`), so the entry stays inside `MAX_LIBRARY_CREDENTIALS = 4` and
+keeps `tier: "library"`. `GOOGLE_FORM_TRIGGER` itself needs no credential — the Apps Script
+pushes to us, authenticated by the per-workflow URL secret.
+
+`google.drive` and `google.gmail` are both Google providers driven by one
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` pair
+(`src/features/credentials/server/oauth-providers.ts:100`), currently **empty** in `.env`.
+One OAuth client covers both.
+
+### 3.4 Escaping
+
+Every free-text and URL interpolation is **triple-braced**. Handlebars escapes
+two-brace output, and none of this template's three sinks — a plain-text mail
+body, a Slack message, an LLM prompt — decode HTML entities.
+
+`{{screening.qualified}}` and `{{screening.score}}` stay two-braced: a boolean
+and a number carry no character escaping can touch. An integration test pins
+exactly that split, so a new two-braced expression fails the build.
+
+This is a catalogue-wide latent issue — no other template triple-braces its
+prose either — but fixing the rest is out of scope here. The general fix would
+be a Slack-aware escape helper: Slack *wants* `&`, `<` and `>` escaped and
+ignores the rest, so neither brace count is strictly correct for it. Triple
+braces get the common case right, since apostrophes in an AI-written summary are
+near-certain and angle brackets in a candidate's name are not.
+
+### 3.5 Branch predicate
+
+Kept as `{{screening.qualified}}` equals `"true"`. `CONDITION` compares rendered strings
+(`src/nodes/core/condition/execute.ts:65`), and Handlebars renders the boolean `true` as
+`"true"`, so this holds. The AI's JSON schema is unchanged: `qualified`, `score`, `summary`,
+with the prompt defining qualified as score ≥ 70.
+
+## 4. Changes
+
+| File | Change |
+|---|---|
+| `src/features/templates/catalog/people.ts` | Convert `hr-lifecycle-phase-1-recruitment` in place: swap trigger, insert `DRIVE_DOWNLOAD`, repoint every `{{form.*}}` expression, fix `{{screening.json.*}}` → `{{screening.*}}`, restate required question titles in the description. |
+| `tests/integration/engine/hr-recruitment.test.ts` | Drive both paths from a real `googleForm` payload, and add a regression assertion that the graph references no `form.*` root. |
+| `src/features/triggers/components/google-form-trigger/dialog.tsx` | Replace the parse-error `responses['…']` hint with `responses.[…]`. |
+| `docs/HR Lifecycle/Recruitment/SETUP.md` | New operator runbook: Google Cloud client, form construction, Apps Script, credentials, seeding, first live run. |
+
+Removing `FORM_TRIGGER` from this template is safe: eight other catalogue entries still
+author it, so the "exercises every node type the palette offers" test holds.
+`EXPECTED_TEMPLATE_COUNT` is unchanged — this is a conversion, not an addition.
+
+## 5. Verification
+
+**Automated** — `npx tsc --noEmit`; `npm run lint`; the catalogue harness
+(`src/features/templates/catalog/harness.test.ts`, which is also what `seed:templates` runs
+before writing); the rewritten integration test against the local `autoflow-test-db` on
+:5433.
+
+**Manual, requiring the operator** — the runbook's first live run: submit the form as a
+strong candidate, confirm the qualified branch emails and posts to Slack; submit as a weak
+candidate, confirm the rejection branch. Both verified in the execution trace.
+
+## 6. Operator prerequisites
+
+Outside what code can do, and blocking the live run:
+
+1. A Google Cloud OAuth client (Drive + Gmail scopes, Testing mode, operator added as a test
+   user), with redirect URIs `https://autoflow20.vercel.app/api/oauth/google.drive/callback`
+   and `https://autoflow20.vercel.app/api/oauth/google.gmail/callback`; `GOOGLE_CLIENT_ID`
+   and `GOOGLE_CLIENT_SECRET` set in the Vercel dashboard.
+2. A Google Form with the four exact question titles, file upload restricted to PDF, and the
+   generated Apps Script bound to an on-form-submit trigger.
+3. Drive, Gmail, Slack and an AI provider key connected in the deployed app; a target Slack
+   channel chosen.
+
+Deploying to Vercel and re-seeding templates against the production database are both
+confirmed with the operator before execution, not performed as a side effect of this work.
+
+## 7. Risks
+
+- **File upload forces Google sign-in.** Google Forms requires respondents to be signed in to
+  upload, and files are stored in the form owner's Drive against their quota. Acceptable for a
+  recruiting workflow; stated in the runbook so it is not a surprise.
+- **Question titles are a contract.** Renaming a question in the form silently breaks the
+  template. Mitigated by documentation, not by code — matching how the n8n original behaves.
+- **Restricted scopes.** `drive` and `gmail.send`/`gmail.modify` are restricted scopes. In
+  Testing mode with named test users this needs no Google verification; publishing the app
+  publicly later would.
