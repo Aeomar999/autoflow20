@@ -124,9 +124,22 @@ export const GoogleFormTriggerDialog = ({ open, onOpenChange }: Props) => {
               </li>
               <li>
                 <code className="bg-background px-1 py-0.5 rounded">
-                  {"{{googleForm.responses['Question Name']}}"}
+                  {"{{googleForm.responses.[Question Name]}}"}
                 </code>
-                - Specific answer
+                - Specific answer, keyed by the question's exact title. Square
+                brackets, not quotes: Handlebars cannot parse{" "}
+                <code className="bg-background px-1 py-0.5 rounded">
+                  {"responses['…']"}
+                </code>
+                , and an unparseable expression renders empty rather than
+                failing.
+              </li>
+              <li>
+                <code className="bg-background px-1 py-0.5 rounded">
+                  {"{{googleForm.responses.[Resume].[0]}}"}
+                </code>
+                - First Drive file id from a file-upload question. Pair it with
+                a Drive Download node to read the file itself.
               </li>
               <li>
                 <code className="bg-background px-1 py-0.5 rounded">

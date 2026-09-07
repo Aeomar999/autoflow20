@@ -443,55 +443,54 @@ export const peopleTemplates: TemplateSpec[] = [
     slug: "hr-lifecycle-phase-1-recruitment",
     name: "HR Lifecycle - Phase 1: Recruitment",
     description:
-      "Automates candidate intake and screening. A form receives the application and PDF resume; an AI extracts and scores the text against the role. Qualified candidates are automatically sent an interview booking link, while unqualified candidates receive a polite rejection. The recruiting team is notified of the outcome in Slack.",
+      "Automates candidate intake and screening from a Google Form. The form's file-upload answer is a Drive id, so the resume is downloaded, its text extracted, and an AI scores it against the role. Qualified candidates are sent an interview booking link, the rest a polite rejection, and recruiting is notified either way in Slack. The form's questions must be titled exactly Full Name, Email, Position and Resume — the Apps Script keys every answer by its question title.",
     category: "Ops",
     domain: "ops",
-    tags: ["hr", "recruitment", "screening", "ai", "slack", "gmail"],
+    tags: [
+      "hr",
+      "recruitment",
+      "screening",
+      "ai",
+      "slack",
+      "gmail",
+      "google form",
+    ],
     featured: true,
     tier: "library",
     graph: {
       nodes: [
         {
           id: "trigger",
-          type: "FORM_TRIGGER",
+          type: "GOOGLE_FORM_TRIGGER",
           name: "Job Application",
           position: { x: 0, y: 0 },
+          data: {},
+        },
+        {
+          // Google Forms transmits no file: a file-upload answer is an ARRAY
+          // of Drive ids, and the PDF itself stays in the form owner's Drive.
+          // This is the step that turns that id into a `FileRef` the rest of
+          // the graph can read.
+          id: "download-resume",
+          type: "DRIVE_DOWNLOAD",
+          name: "Download Resume",
+          position: { x: 260, y: 0 },
           data: {
-            title: "Job Application",
-            description: "Please fill out the details and upload your resume.",
-            submitLabel: "Apply",
-            successMessage: "Thank you for your application!",
-            fields: [
-              {
-                name: "name",
-                label: "Full Name",
-                type: "text",
-                required: true,
-              },
-              { name: "email", label: "Email", type: "text", required: true },
-              {
-                name: "position",
-                label: "Position",
-                type: "text",
-                required: true,
-              },
-              {
-                name: "resume",
-                label: "Resume (PDF)",
-                type: "file",
-                required: true,
-              },
-            ],
+            variableName: "resumeFile",
+            fileId: "{{googleForm.responses.[Resume].[0]}}",
+            maxBytes: 10485760,
           },
         },
         {
           id: "extract",
           type: "EXTRACT_DOCUMENT_TEXT",
           name: "Extract Resume Text",
-          position: { x: 260, y: 0 },
+          position: { x: 520, y: 0 },
           data: {
             variableName: "extractedResume",
-            file: "{{form.resume}}",
+            // Three braces and the `json` helper: two would render the
+            // FileRef as "[object Object]", which the node rejects by name.
+            file: "{{{json resumeFile.file}}}",
             maxCharacters: 100000,
           },
         },
@@ -499,12 +498,12 @@ export const peopleTemplates: TemplateSpec[] = [
           id: "ai-screening",
           type: "AI_EXTRACT",
           name: "AI Resume Screening",
-          position: { x: 520, y: 0 },
+          position: { x: 780, y: 0 },
           data: {
             variableName: "screening",
             model: "openai:gpt-4o-mini",
             content:
-              "You are an expert technical recruiter. Review the applicant's resume against the requirements for the position. Assess their qualifications and provide a score out of 100. If the score is 70 or higher, mark them as qualified.\\n\\nPosition: {{form.position}}\\nCandidate Name: {{form.name}}\\n\\nResume Text:\\n{{extractedResume.text}}",
+              "You are an expert technical recruiter. Review the applicant's resume against the requirements for the position. Assess their qualifications and provide a score out of 100. If the score is 70 or higher, mark them as qualified.\n\nPosition: {{googleForm.responses.[Position]}}\nCandidate Name: {{googleForm.responses.[Full Name]}}\n\nResume Text:\n{{extractedResume.text}}",
             jsonSchema: JSON.stringify({
               type: "object",
               properties: {
@@ -518,10 +517,12 @@ export const peopleTemplates: TemplateSpec[] = [
           },
         },
         {
+          // `CONDITION` compares rendered strings, and Handlebars renders the
+          // boolean `true` as "true" — so this is a string match by design.
           id: "condition",
           type: "CONDITION",
           name: "Qualified?",
-          position: { x: 780, y: 0 },
+          position: { x: 1040, y: 0 },
           data: {
             left: "{{screening.qualified}}",
             operator: "equals",
@@ -532,12 +533,13 @@ export const peopleTemplates: TemplateSpec[] = [
           id: "set-booking",
           type: "SET",
           name: "Set Booking Link",
-          position: { x: 1040, y: -80 },
+          position: { x: 1300, y: -80 },
           data: {
             mappings: [
               {
                 key: "bookingLink",
-                value: "https://cal.com/team/interview?email={{form.email}}",
+                value:
+                  "https://cal.com/team/interview?email={{googleForm.responses.[Email]}}",
                 type: "string",
               },
             ],
@@ -547,45 +549,56 @@ export const peopleTemplates: TemplateSpec[] = [
           id: "email-invite",
           type: "GMAIL_SEND",
           name: "Send Interview Booking Email",
-          position: { x: 1300, y: -80 },
+          position: { x: 1560, y: -80 },
           data: {
-            to: "{{form.email}}",
-            subject: "Interview Invitation: {{form.position}} at Acme Corp",
-            text: "Hi {{form.name}},\\n\\nWe were impressed by your background and would love to invite you to an interview for the {{form.position}} role.\\n\\nPlease book a time here: {{bookingLink}}\\n\\nBest,\\nAcme Corp Recruiting",
+            variableName: "inviteEmail",
+            from: "REPLACE_WITH_YOUR_ADDRESS",
+            to: "{{googleForm.responses.[Email]}}",
+            subject:
+              "Interview Invitation: {{googleForm.responses.[Position]}} at Acme Corp",
+            text: "Hi {{googleForm.responses.[Full Name]}},\n\nWe were impressed by your background and would love to invite you to an interview for the {{googleForm.responses.[Position]}} role.\n\nPlease book a time here: {{bookingLink}}\n\nBest,\nAcme Corp Recruiting",
           },
         },
         {
           id: "slack-invite",
           type: "SLACK_POST",
           name: "Notify Recruiting - Qualified",
-          position: { x: 1560, y: -80 },
+          position: { x: 1820, y: -80 },
           data: {
-            text: "✅ *Qualified Candidate*\\n*Name:* {{form.name}}\\n*Position:* {{form.position}}\\n*Score:* {{screening.json.score}}\\n*Summary:* {{screening.json.summary}}",
+            variableName: "qualifiedNotice",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "✅ *Qualified Candidate*\n*Name:* {{googleForm.responses.[Full Name]}}\n*Position:* {{googleForm.responses.[Position]}}\n*Score:* {{screening.score}}\n*Summary:* {{screening.summary}}",
           },
         },
         {
           id: "email-reject",
           type: "GMAIL_SEND",
           name: "Send Polite Rejection",
-          position: { x: 1040, y: 120 },
+          position: { x: 1300, y: 120 },
           data: {
-            to: "{{form.email}}",
-            subject: "Update on your application for {{form.position}}",
-            text: "Hi {{form.name}},\\n\\nThank you for applying for the {{form.position}} role. After careful consideration, we have decided not to move forward with your application at this time.\\n\\nWe wish you the best in your job search.\\n\\nBest,\\nAcme Corp Recruiting",
+            variableName: "rejectionEmail",
+            from: "REPLACE_WITH_YOUR_ADDRESS",
+            to: "{{googleForm.responses.[Email]}}",
+            subject:
+              "Update on your application for {{googleForm.responses.[Position]}}",
+            text: "Hi {{googleForm.responses.[Full Name]}},\n\nThank you for applying for the {{googleForm.responses.[Position]}} role. After careful consideration, we have decided not to move forward with your application at this time.\n\nWe wish you the best in your job search.\n\nBest,\nAcme Corp Recruiting",
           },
         },
         {
           id: "slack-reject",
           type: "SLACK_POST",
           name: "Notify Recruiting - Not Qualified",
-          position: { x: 1300, y: 120 },
+          position: { x: 1560, y: 120 },
           data: {
-            text: "❌ *Rejected Candidate*\\n*Name:* {{form.name}}\\n*Position:* {{form.position}}\\n*Score:* {{screening.json.score}}\\n*Summary:* {{screening.json.summary}}",
+            variableName: "rejectedNotice",
+            channel: "REPLACE_WITH_CHANNEL_ID",
+            text: "❌ *Rejected Candidate*\n*Name:* {{googleForm.responses.[Full Name]}}\n*Position:* {{googleForm.responses.[Position]}}\n*Score:* {{screening.score}}\n*Summary:* {{screening.summary}}",
           },
         },
       ],
       edges: [
-        { source: "trigger", target: "extract" },
+        { source: "trigger", target: "download-resume" },
+        { source: "download-resume", target: "extract" },
         { source: "extract", target: "ai-screening" },
         { source: "ai-screening", target: "condition" },
         { source: "condition", sourceHandle: "true", target: "set-booking" },
