@@ -143,16 +143,16 @@ export function ExecutionFlowPanel({
                 )}
               >
                 {!isLast ? (
-                  <span className="absolute left-6 top-9 -bottom-3 w-[1px] bg-border" />
+                  <span className="absolute left-7 top-11 -bottom-3 w-[1px] bg-border" />
                 ) : null}
-                <span className="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm">
+                <span className="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm">
                   <NodeIcon
                     type={def?.type}
                     iconName={def?.icon}
                     logo={def?.logo}
                     label={def?.label}
-                    size={14}
-                    className="size-3.5"
+                    size={16}
+                    className="size-4"
                   />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5 pt-[1px]">
