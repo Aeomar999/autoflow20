@@ -18,6 +18,8 @@ import { StatusPill } from "@/components/dashboard/status-pill";
 import { Progress } from "@/components/ui/progress";
 import type { NodeExecutionStatus } from "@/generated/prisma/browser";
 import { cn } from "@/lib/utils";
+import { findManifestEntry } from "@/nodes/manifest";
+import { NodeIcon } from "@/components/node-icon";
 
 import type { ExecutionFlow } from "../lib/flow";
 
@@ -114,7 +116,11 @@ export function ExecutionFlowPanel({
         <Progress
           value={flow.percent}
           aria-label={`${flow.percent}% complete`}
-          className={cn(flow.percent >= 100 && "bg-primary/20")}
+          className={cn(
+            "h-2 bg-muted",
+            !isRunning && flow.percent >= 100 && "[&>div]:bg-emerald-500",
+            !isRunning && flow.percent < 100 && "[&>div]:bg-destructive"
+          )}
         />
         <ol className="mt-5 flex flex-col">
           {flow.nodes.map((node, index) => {
@@ -125,11 +131,14 @@ export function ExecutionFlowPanel({
             const skipped = status === "SKIPPED";
             const isLast = index === flow.nodes.length - 1;
 
+            const def = findManifestEntry(node.type);
+
             return (
               <li
                 key={node.id}
                 className={cn(
-                  "relative flex items-center gap-3 pb-4 pl-8",
+                  "relative flex items-center gap-3 py-3 pl-8 rounded-md transition-colors",
+                  "hover:bg-muted/30",
                   !isLast && "border-l border-border/60 ml-4",
                   active && "animate-pulse",
                 )}
@@ -137,20 +146,27 @@ export function ExecutionFlowPanel({
                 {!isLast ? (
                   <span className="absolute -left-[3px] top-0 size-1.5 rounded-full bg-border" />
                 ) : null}
-                <span className="absolute left-0 flex size-6 items-center justify-center rounded-full border border-border bg-well font-mono text-[11px] text-muted-foreground">
-                  {index + 1}
+                <span className="absolute left-0 flex size-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm">
+                  <NodeIcon
+                    type={def?.type}
+                    iconName={def?.icon}
+                    logo={def?.logo}
+                    label={def?.label}
+                    size={14}
+                    className="size-3.5"
+                  />
                 </span>
-                <span className="flex min-w-0 flex-1 flex-col">
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span
                     className={cn(
-                      "truncate font-mono text-sm",
-                      skipped && "text-muted-foreground",
+                      "truncate font-sans text-sm font-medium",
+                      skipped ? "text-muted-foreground" : "text-foreground",
                     )}
                   >
                     {node.name}
                   </span>
-                  <span className="truncate font-mono text-[11px] text-muted-foreground">
-                    {node.type}
+                  <span className="truncate font-sans text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {def?.label ?? node.type}
                   </span>
                 </span>
                 {status !== undefined ? (
