@@ -137,16 +137,15 @@ export function ExecutionFlowPanel({
               <li
                 key={node.id}
                 className={cn(
-                  "relative flex items-center gap-3 py-3 pl-8 rounded-md transition-colors",
-                  "hover:bg-muted/30",
-                  !isLast && "border-l border-border/60 ml-4",
+                  "relative flex items-start gap-4 p-3 rounded-md transition-colors",
+                  "hover:bg-muted/40",
                   active && "animate-pulse",
                 )}
               >
                 {!isLast ? (
-                  <span className="absolute -left-[3px] top-0 size-1.5 rounded-full bg-border" />
+                  <span className="absolute left-6 top-9 -bottom-3 w-[1px] bg-border" />
                 ) : null}
-                <span className="absolute left-0 flex size-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm">
+                <span className="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm">
                   <NodeIcon
                     type={def?.type}
                     iconName={def?.icon}
@@ -156,7 +155,7 @@ export function ExecutionFlowPanel({
                     className="size-3.5"
                   />
                 </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 pt-[1px]">
                   <span
                     className={cn(
                       "truncate font-sans text-sm font-medium",
@@ -169,18 +168,20 @@ export function ExecutionFlowPanel({
                     {def?.label ?? node.type}
                   </span>
                 </span>
-                {status !== undefined ? (
-                  <StatusPill
-                    tone={meta?.tone ?? "neutral"}
-                    icon={nodeStatusIcon(status)}
-                  >
-                    {meta?.label ?? status}
-                  </StatusPill>
-                ) : (
-                  <StatusPill tone="neutral">
-                    {isRunning ? "Pending" : "Not run"}
-                  </StatusPill>
-                )}
+                <div className="shrink-0 pt-[1px]">
+                  {status !== undefined ? (
+                    <StatusPill
+                      tone={meta?.tone ?? "neutral"}
+                      icon={nodeStatusIcon(status)}
+                    >
+                      {meta?.label ?? status}
+                    </StatusPill>
+                  ) : (
+                    <StatusPill tone="neutral">
+                      {isRunning ? "Pending" : "Not run"}
+                    </StatusPill>
+                  )}
+                </div>
               </li>
             );
           })}
